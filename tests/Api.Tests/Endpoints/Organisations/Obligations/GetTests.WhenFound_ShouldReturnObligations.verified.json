@@ -1,0 +1,27 @@
+﻿{
+  "organisationId": "923fa611-571c-4948-ab7d-fbb75e75ed65",
+  "companyName": null,
+  "regulator": null,
+  "obligations": [
+    {
+      "materialName": "Plastic",
+      "recyclingTarget": 0.75,
+      "tonnage": 100,
+      "obligatedTonnage": null,
+      "tonnageAwaitingAcceptance": 10,
+      "acceptedTonnage": 2,
+      "outstandingTonnage": null,
+      "status": "NoDataYet"
+    },
+    {
+      "materialName": "Paper",
+      "recyclingTarget": 0.75,
+      "tonnage": 100,
+      "obligatedTonnage": 200,
+      "tonnageAwaitingAcceptance": 10,
+      "acceptedTonnage": 2,
+      "outstandingTonnage": 198,
+      "status": "NotMet"
+    }
+  ]
+}

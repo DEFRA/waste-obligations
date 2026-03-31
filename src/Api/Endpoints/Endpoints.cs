@@ -1,4 +1,5 @@
 using Defra.WasteObligations.Api.Endpoints.Example;
+using Defra.WasteObligations.Api.Endpoints.Organisations;
 
 namespace Defra.WasteObligations.Api.Endpoints;
 
@@ -8,5 +9,7 @@ public static class Endpoints
     {
         app.MapExampleGet();
         app.MapExamplePut();
+
+        app.MapOrganisationEndpoints();
     }
 }

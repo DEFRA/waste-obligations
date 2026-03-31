@@ -5,8 +5,11 @@ namespace Defra.WasteObligations.Api.Utils.Metrics;
 [ExcludeFromCodeCoverage]
 public static class ApplicationBuilderExtensions
 {
-    public static IApplicationBuilder UseRequestMetrics(this IApplicationBuilder builder)
+    public static IApplicationBuilder UseRequestMetrics(this IApplicationBuilder builder, bool openApiBuild)
     {
+        if (openApiBuild)
+            return builder;
+
         builder.UseMiddleware<MetricsMiddleware>();
 
         var config = builder.ApplicationServices.GetRequiredService<IConfiguration>();

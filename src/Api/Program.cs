@@ -1,6 +1,8 @@
+using System.Reflection;
 using Defra.WasteObligations.Api.Authentication;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Endpoints;
+using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Utils;
 using Defra.WasteObligations.Api.Utils.Health;
 using Defra.WasteObligations.Api.Utils.Logging;
@@ -16,9 +18,9 @@ try
 {
     var builder = WebApplication.CreateBuilder(args);
     var integrationTest = args.Contains("--integrationTest=true");
+    var openApiBuild = Assembly.GetEntryAssembly()?.GetName().Name == "GetDocument.Insider";
 
     builder.Configuration.AddEnvironmentVariables();
-
     builder.Services.AddCustomTrustStore(); // This must happen before Mongo and Http client connections
     builder.ConfigureLoggingAndTracing(integrationTest);
     builder.Services.Configure<RouteHandlerOptions>(o =>
@@ -36,6 +38,7 @@ try
     builder.Services.AddRequestMetrics();
     builder.Services.AddDbContext(builder.Configuration, integrationTest);
     builder.Services.AddValidation();
+    builder.Services.AddTransient<IOrganisationService, FakeOrganisationService>();
 
     var app = builder.Build();
 
@@ -73,7 +76,7 @@ try
     app.UseAuthentication();
     app.UseAuthorization();
     app.MapHealth();
-    app.UseRequestMetrics();
+    app.UseRequestMetrics(openApiBuild);
     app.MapOpenApi("/documentation/openapi/{documentName}.json");
     app.UseReDoc(options =>
     {
