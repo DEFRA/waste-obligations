@@ -74,11 +74,11 @@ try
     app.UseAuthorization();
     app.MapHealth();
     app.UseRequestMetrics();
-    app.MapOpenApi();
+    app.MapOpenApi("/documentation/openapi/{documentName}.json");
     app.UseReDoc(options =>
     {
-        options.RoutePrefix = "redoc";
-        options.SpecUrl = "/openapi/v1.json";
+        options.RoutePrefix = "documentation";
+        options.SpecUrl = "/documentation/openapi/v1.json";
     });
 
     app.MapApiEndpoints();
