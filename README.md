@@ -36,7 +36,7 @@ The same port (8080) is used for launch profile and Docker compose configuration
 
 ### Documentation
 
-API documentation can be viewed at http://localhost:8080/redoc/index.html once the service is running.
+API documentation can be viewed at http://localhost:8080/documentation/index.html once the service is running.
 
 ### Stopping and clearing local resources
 
