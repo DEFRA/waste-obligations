@@ -24,7 +24,7 @@
     "Method": {
       "Method": "GET"
     },
-    "RequestUri": "http://localhost/openapi/v1.json",
+    "RequestUri": "http://localhost/documentation/openapi/v1.json",
     "Headers": [
       {}
     ],
