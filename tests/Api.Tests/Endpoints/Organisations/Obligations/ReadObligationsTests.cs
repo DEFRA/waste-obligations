@@ -39,4 +39,21 @@ public class ReadObligationsTests(ApiWebApplicationFactory factory, ITestOutputH
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
+
+    [Fact]
+    public async Task WhenInvalidYear_ShouldBeBadRequest()
+    {
+        var client = CreateClient(testUser: TestUser.ReadOnly);
+
+        var response = await client.GetAsync(
+            Testing.Endpoints.Organisations.Obligations.Get(
+                Guid.NewGuid(),
+                EndpointQuery.New.Where(EndpointFilter.Year(1999))
+            ),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        await VerifyJson(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+    }
 }
