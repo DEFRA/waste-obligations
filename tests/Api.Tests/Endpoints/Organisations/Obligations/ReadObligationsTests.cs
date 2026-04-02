@@ -1,5 +1,6 @@
 using System.Net;
 using AwesomeAssertions;
+using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Testing;
 
@@ -8,20 +9,22 @@ namespace Defra.WasteObligations.Api.Tests.Endpoints.Organisations.Obligations;
 public class ReadObligationsTests(ApiWebApplicationFactory factory, ITestOutputHelper outputHelper)
     : EndpointTestBase(factory, outputHelper)
 {
-    [Fact]
-    public async Task WhenFound_ShouldReturnObligations()
+    [Theory]
+    [InlineData(IncludeTypes.Organisation)]
+    [InlineData(null)]
+    public async Task WhenFound_ShouldReturnObligations(string? include)
     {
         var client = CreateClient(testUser: TestUser.ReadOnly);
 
         var response = await client.GetStringAsync(
             Testing.Endpoints.Organisations.Obligations.Read(
                 FakeOrganisationService.OrganisationId,
-                EndpointQuery.New.Where(EndpointFilter.Year(2026))
+                EndpointQuery.New.Where(EndpointFilter.Year(2026)).Where(EndpointFilter.Include(include))
             ),
             TestContext.Current.CancellationToken
         );
 
-        await VerifyJson(response).DontScrubGuids();
+        await VerifyJson(response).DontScrubGuids().UseParameters(include);
     }
 
     [Fact]

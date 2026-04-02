@@ -30,6 +30,14 @@
             }
           },
           {
+            "name": "include",
+            "in": "query",
+            "description": "Additional data types to include. Possible value is 'organisation'",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "year",
             "in": "query",
             "description": "Year of obligation(s)",
@@ -179,13 +187,10 @@
           }
         }
       },
-      "OrganisationObligations": {
-        "required": [
-          "organisationId"
-        ],
+      "Organisation": {
         "type": "object",
         "properties": {
-          "organisationId": {
+          "id": {
             "type": "string",
             "format": "uuid"
           },
@@ -200,12 +205,27 @@
               "null",
               "string"
             ]
-          },
+          }
+        }
+      },
+      "OrganisationObligations": {
+        "type": "object",
+        "properties": {
           "obligations": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Obligation"
             }
+          },
+          "organisation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Organisation"
+              }
+            ]
           }
         }
       },
