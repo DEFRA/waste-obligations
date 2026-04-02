@@ -1,5 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 
+// ReSharper disable MemberHidesStaticFromOuterClass
+
 namespace Defra.WasteObligations.Testing;
 
 [SuppressMessage(
@@ -18,27 +20,18 @@ public static class Endpoints
         public const string V1 = "documentation/openapi/v1.json";
     }
 
-    public static class Example
-    {
-        private static string Root => "example";
-
-        public static string Get(Guid id, bool? badRequest = null) =>
-            $"{Root}/{id}{(badRequest is not null ? $"?badRequest={badRequest.Value}" : "")}";
-
-        public static string Put(Guid id) => Get(id);
-    }
-
     public static class Organisations
     {
         private static string Root => "organisations";
 
-        public static string Get(Guid id) => $"{Root}/{id}";
+        public static string Read(Guid id) => $"{Root}/{id}";
 
         public static class Obligations
         {
             private static string Root = "obligations";
 
-            public static string Get(Guid id, EndpointQuery? query = null) => $"{Organisations.Get(id)}/{Root}{query}";
+            public static string Read(Guid id, EndpointQuery? query = null) =>
+                $"{Organisations.Read(id)}/{Root}{query}";
         }
     }
 }

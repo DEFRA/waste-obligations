@@ -14,7 +14,7 @@ public class ReadObligationsTests(ApiWebApplicationFactory factory, ITestOutputH
         var client = CreateClient(testUser: TestUser.ReadOnly);
 
         var response = await client.GetStringAsync(
-            Testing.Endpoints.Organisations.Obligations.Get(
+            Testing.Endpoints.Organisations.Obligations.Read(
                 FakeOrganisationService.OrganisationId,
                 EndpointQuery.New.Where(EndpointFilter.Year(2026))
             ),
@@ -30,7 +30,7 @@ public class ReadObligationsTests(ApiWebApplicationFactory factory, ITestOutputH
         var client = CreateClient(testUser: TestUser.ReadOnly);
 
         var response = await client.GetAsync(
-            Testing.Endpoints.Organisations.Obligations.Get(
+            Testing.Endpoints.Organisations.Obligations.Read(
                 Guid.NewGuid(),
                 EndpointQuery.New.Where(EndpointFilter.Year(2026))
             ),
@@ -46,7 +46,7 @@ public class ReadObligationsTests(ApiWebApplicationFactory factory, ITestOutputH
         var client = CreateClient(testUser: TestUser.ReadOnly);
 
         var response = await client.GetAsync(
-            Testing.Endpoints.Organisations.Obligations.Get(
+            Testing.Endpoints.Organisations.Obligations.Read(
                 Guid.NewGuid(),
                 EndpointQuery.New.Where(EndpointFilter.Year(1999))
             ),
