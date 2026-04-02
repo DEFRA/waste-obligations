@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
 
-namespace Defra.WasteObligations.Api.Endpoints;
+namespace Defra.WasteObligations.Api.Endpoints.OpenApi;
 
 public class OpenApiDocumentTransformer : IOpenApiDocumentTransformer
 {

@@ -125,6 +125,11 @@
             "$ref": "#/components/schemas/ObligationTonnages"
           },
           "status": {
+            "enum": [
+              "NoDataYet",
+              "Met",
+              "NotMet"
+            ],
             "type": "string"
           }
         }

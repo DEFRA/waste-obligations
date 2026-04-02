@@ -2,6 +2,7 @@ using System.Reflection;
 using Defra.WasteObligations.Api.Authentication;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Endpoints;
+using Defra.WasteObligations.Api.Endpoints.OpenApi;
 using Defra.WasteObligations.Api.Extensions;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Utils;
@@ -33,6 +34,7 @@ try
     builder.Services.AddHealth();
     builder.Services.AddOpenApi(options =>
     {
+        options.AddSchemaTransformer<PossibleValueSchemaTransformer>();
         options.AddDocumentTransformer<OpenApiDocumentTransformer>();
     });
     builder.Services.AddAuthenticationAuthorization();
