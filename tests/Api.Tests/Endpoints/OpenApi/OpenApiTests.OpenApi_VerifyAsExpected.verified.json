@@ -7,8 +7,271 @@
   },
   "servers": [
     {
-      "url": "http://localhost/"
+      "url": "https://localhost"
     }
   ],
-  "paths": {}
+  "paths": {
+    "/organisations/{id}/obligations": {
+      "get": {
+        "tags": [
+          "Obligations"
+        ],
+        "summary": "Obligations for an organisation by year",
+        "description": "Returns the obligations for an organisation by organisation ID for the specified year",
+        "operationId": "ReadOrganisationObligations",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "include",
+            "in": "query",
+            "description": "Additional data types to include. Possible value is 'organisation'",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "year",
+            "in": "query",
+            "description": "Year of obligation(s)",
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 2000,
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganisationObligations"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Obligation": {
+        "required": [
+          "material",
+          "tonnages",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "material": {
+            "type": "string"
+          },
+          "recyclingTarget": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "tonnages": {
+            "$ref": "#/components/schemas/ObligationTonnages"
+          },
+          "status": {
+            "enum": [
+              "NoDataYet",
+              "Met",
+              "NotMet"
+            ],
+            "type": "string"
+          }
+        }
+      },
+      "ObligationTonnages": {
+        "type": "object",
+        "properties": {
+          "material": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "awaitingAcceptance": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "accepted": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "outstanding": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "obligated": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "Organisation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "companyName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "regulator": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "OrganisationObligations": {
+        "type": "object",
+        "properties": {
+          "obligations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Obligation"
+            }
+          },
+          "organisation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Organisation"
+              }
+            ]
+          }
+        }
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "instance": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Obligations"
+    }
+  ]
 }

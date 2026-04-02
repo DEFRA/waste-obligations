@@ -1,0 +1,29 @@
+﻿{
+  "obligations": [
+    {
+      "material": "Plastic",
+      "recyclingTarget": 0.75,
+      "tonnages": {
+        "material": 100,
+        "awaitingAcceptance": 10,
+        "accepted": 2,
+        "outstanding": 0,
+        "obligated": 0
+      },
+      "status": "NoDataYet"
+    },
+    {
+      "material": "Paper",
+      "recyclingTarget": 0.75,
+      "tonnages": {
+        "material": 100,
+        "awaitingAcceptance": 10,
+        "accepted": 2,
+        "outstanding": 198,
+        "obligated": 200
+      },
+      "status": "NotMet"
+    }
+  ],
+  "organisation": null
+}

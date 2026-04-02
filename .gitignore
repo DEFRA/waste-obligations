@@ -274,3 +274,5 @@ library.db
 # Verify
 *.received.*
 *.received/
+
+openapi.json

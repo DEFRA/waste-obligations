@@ -43,6 +43,13 @@ jobs:
           tags: waste-obligations:latest
       - name: Check with Trivy
         run: docker run -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.69.3 image waste-obligations:latest --ignore-unfixed
+      - name: Check openapi with Vacuum
+        run: make lint-openapi
+      - name: Store openapi artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: openapi.json
+          path: src/Api/openapi.json
   sonarcloud-scan:
     name: CDP SonarCloud Scan
     uses: ./.github/workflows/sonarcloud.yml
