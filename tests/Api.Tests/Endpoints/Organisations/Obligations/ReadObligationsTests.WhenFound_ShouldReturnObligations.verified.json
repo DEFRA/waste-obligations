@@ -4,23 +4,29 @@
   "regulator": null,
   "obligations": [
     {
-      "materialName": "Plastic",
+      "material": "Plastic",
       "recyclingTarget": 0.75,
-      "tonnage": 100,
-      "obligatedTonnage": null,
-      "tonnageAwaitingAcceptance": 10,
-      "acceptedTonnage": 2,
-      "outstandingTonnage": null,
+      "tonnages": {
+        "material": 100,
+        "awaitingAcceptance": 10,
+        "accepted": 2,
+        "outstanding": 0,
+        "obligated": 0
+      },
+      "awaitingData": true,
       "status": "NoDataYet"
     },
     {
-      "materialName": "Paper",
+      "material": "Paper",
       "recyclingTarget": 0.75,
-      "tonnage": 100,
-      "obligatedTonnage": 200,
-      "tonnageAwaitingAcceptance": 10,
-      "acceptedTonnage": 2,
-      "outstandingTonnage": 198,
+      "tonnages": {
+        "material": 100,
+        "awaitingAcceptance": 10,
+        "accepted": 2,
+        "outstanding": 198,
+        "obligated": 200
+      },
+      "awaitingData": false,
       "status": "NotMet"
     }
   ]

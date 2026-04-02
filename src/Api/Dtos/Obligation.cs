@@ -4,26 +4,17 @@ namespace Defra.WasteObligations.Api.Dtos;
 
 public record Obligation
 {
-    [JsonPropertyName("materialName")]
-    public required string MaterialName { get; init; }
+    [JsonPropertyName("material")]
+    public required string Material { get; init; }
 
     [JsonPropertyName("recyclingTarget")]
     public decimal RecyclingTarget { get; init; }
 
-    [JsonPropertyName("tonnage")]
-    public int Tonnage { get; init; }
+    [JsonPropertyName("tonnages")]
+    public required ObligationTonnages Tonnages { get; init; }
 
-    [JsonPropertyName("obligatedTonnage")]
-    public int? ObligatedTonnage { get; init; }
-
-    [JsonPropertyName("tonnageAwaitingAcceptance")]
-    public int TonnageAwaitingAcceptance { get; init; }
-
-    [JsonPropertyName("acceptedTonnage")]
-    public int AcceptedTonnage { get; init; }
-
-    [JsonPropertyName("outstandingTonnage")]
-    public int? OutstandingTonnage { get; init; }
+    [JsonPropertyName("awaitingData")]
+    public bool AwaitingData { get; init; }
 
     [JsonPropertyName("status")]
     public required string Status { get; init; }
