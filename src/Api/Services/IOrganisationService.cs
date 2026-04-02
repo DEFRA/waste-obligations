@@ -5,7 +5,7 @@ namespace Defra.WasteObligations.Api.Services;
 
 public interface IOrganisationService
 {
-    Task<Organisation?> GetOrganisation(Guid id, CancellationToken cancellationToken);
+    Task<Organisation?> ReadOrganisation(Guid id, CancellationToken cancellationToken);
 
-    Task<IEnumerable<Obligation>> GetObligations(Guid organisationId, int year, CancellationToken cancellationToken);
+    Task<IEnumerable<Obligation>> ReadObligations(Guid organisationId, int year, CancellationToken cancellationToken);
 }

@@ -14,7 +14,7 @@ public record Obligation
     public int Tonnage { get; init; }
 
     [JsonPropertyName("materialTarget")]
-    public double MaterialTarget { get; init; }
+    public decimal MaterialTarget { get; init; }
 
     [JsonPropertyName("obligationToMeet")]
     public int? ObligationToMeet { get; init; }

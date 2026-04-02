@@ -16,9 +16,9 @@
         "tags": [
           "Obligations"
         ],
-        "summary": "Get obligations for an organisation by year",
+        "summary": "Obligations for an organisation by year",
         "description": "Returns the obligations for an organisation by organisation ID for the specified year",
-        "operationId": "GetOrganisationObligations",
+        "operationId": "ReadOrganisationObligations",
         "parameters": [
           {
             "name": "id",
@@ -34,6 +34,8 @@
             "in": "query",
             "description": "Year of obligation(s)",
             "schema": {
+              "maximum": 2147483647,
+              "minimum": 2000,
               "pattern": "^-?(?:0|[1-9]\\d*)$",
               "type": [
                 "integer",

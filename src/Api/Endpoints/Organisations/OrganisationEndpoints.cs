@@ -6,6 +6,6 @@ public static class OrganisationEndpoints
 {
     public static void MapOrganisationEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapObligationsGet();
+        app.MapObligationsRead();
     }
 }

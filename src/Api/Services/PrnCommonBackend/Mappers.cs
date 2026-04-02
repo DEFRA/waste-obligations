@@ -6,7 +6,7 @@ public static class Mappers
         new()
         {
             MaterialName = obligation.MaterialName,
-            RecyclingTarget = (decimal)obligation.MaterialTarget,
+            RecyclingTarget = obligation.MaterialTarget,
             Tonnage = obligation.Tonnage,
             ObligatedTonnage = obligation.ObligationToMeet,
             TonnageAwaitingAcceptance = obligation.TonnageAwaitingAcceptance,

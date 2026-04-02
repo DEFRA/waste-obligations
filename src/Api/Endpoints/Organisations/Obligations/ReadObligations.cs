@@ -2,19 +2,18 @@ using Defra.WasteObligations.Api.Authentication;
 using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.PrnCommonBackend;
-using Defra.WasteObligations.Api.Services.WasteOrganisations;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Defra.WasteObligations.Api.Endpoints.Organisations.Obligations;
 
-public static class Get
+public static class ReadObligations
 {
-    public static void MapObligationsGet(this IEndpointRouteBuilder app)
+    public static void MapObligationsRead(this IEndpointRouteBuilder app)
     {
         app.MapGet("/organisations/{id:guid}/obligations", Handle)
-            .WithName("GetOrganisationObligations")
+            .WithName("ReadOrganisationObligations")
             .WithTags("Obligations")
-            .WithSummary("Get obligations for an organisation by year")
+            .WithSummary("Obligations for an organisation by year")
             .WithDescription("Returns the obligations for an organisation by organisation ID for the specified year")
             .Produces<OrganisationObligations>()
             .ProducesProblem(StatusCodes.Status404NotFound)
@@ -32,11 +31,11 @@ public static class Get
         CancellationToken cancellationToken
     )
     {
-        var organisation = await organisationService.GetOrganisation(id, cancellationToken);
+        var organisation = await organisationService.ReadOrganisation(id, cancellationToken);
         if (organisation is null)
             return Results.NotFound();
 
-        var obligations = await organisationService.GetObligations(
+        var obligations = await organisationService.ReadObligations(
             id,
             request.Year.GetValueOrDefault(),
             cancellationToken

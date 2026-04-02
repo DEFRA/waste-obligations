@@ -5,14 +5,15 @@ namespace Defra.WasteObligations.Api.Services;
 
 public class FakeOrganisationService : IOrganisationService
 {
-    private static readonly Guid s_organisationId = new("923fa611-571c-4948-ab7d-fbb75e75ed65");
+    public static readonly Guid OrganisationId = new("923fa611-571c-4948-ab7d-fbb75e75ed65");
+
     private static readonly Dictionary<Guid, Organisation> s_organisations = new()
     {
         {
-            s_organisationId,
+            OrganisationId,
             new Organisation
             {
-                Id = s_organisationId,
+                Id = OrganisationId,
                 Name = "Organisation Name",
                 Address = new Address(),
             }
@@ -22,14 +23,14 @@ public class FakeOrganisationService : IOrganisationService
     private static readonly Dictionary<(Guid, int), List<Obligation>> s_obligations = new()
     {
         {
-            (s_organisationId, 2026),
+            (OrganisationId, 2026),
             [
                 new Obligation
                 {
-                    OrganisationId = s_organisationId,
+                    OrganisationId = OrganisationId,
                     MaterialName = "Plastic",
                     Tonnage = 100,
-                    MaterialTarget = 0.75,
+                    MaterialTarget = 0.75m,
                     ObligationToMeet = null,
                     TonnageAwaitingAcceptance = 10,
                     TonnageAccepted = 2,
@@ -38,10 +39,10 @@ public class FakeOrganisationService : IOrganisationService
                 },
                 new Obligation
                 {
-                    OrganisationId = s_organisationId,
+                    OrganisationId = OrganisationId,
                     MaterialName = "Paper",
                     Tonnage = 100,
-                    MaterialTarget = 0.75,
+                    MaterialTarget = 0.75m,
                     ObligationToMeet = 200,
                     TonnageAwaitingAcceptance = 10,
                     TonnageAccepted = 2,
@@ -52,10 +53,10 @@ public class FakeOrganisationService : IOrganisationService
         },
     };
 
-    public Task<Organisation?> GetOrganisation(Guid id, CancellationToken cancellationToken) =>
+    public Task<Organisation?> ReadOrganisation(Guid id, CancellationToken cancellationToken) =>
         Task.FromResult(s_organisations.TryGetValue(id, out var value) ? value : null);
 
-    public Task<IEnumerable<Obligation>> GetObligations(
+    public Task<IEnumerable<Obligation>> ReadObligations(
         Guid organisationId,
         int year,
         CancellationToken cancellationToken
