@@ -17,7 +17,6 @@ public static class Mappers
                 Outstanding = obligation.TonnageOutstanding.GetValueOrDefault(),
                 Obligated = obligation.ObligationToMeet.GetValueOrDefault(),
             },
-            AwaitingData = obligation.ObligationToMeet == null,
             Status = obligation.Status,
         };
 }

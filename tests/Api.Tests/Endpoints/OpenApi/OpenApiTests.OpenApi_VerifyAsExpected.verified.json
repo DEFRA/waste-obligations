@@ -124,9 +124,6 @@
           "tonnages": {
             "$ref": "#/components/schemas/ObligationTonnages"
           },
-          "awaitingData": {
-            "type": "boolean"
-          },
           "status": {
             "type": "string"
           }

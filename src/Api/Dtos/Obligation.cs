@@ -13,9 +13,6 @@ public record Obligation
     [JsonPropertyName("tonnages")]
     public required ObligationTonnages Tonnages { get; init; }
 
-    [JsonPropertyName("awaitingData")]
-    public bool AwaitingData { get; init; }
-
     [JsonPropertyName("status")]
     public required string Status { get; init; }
 }
