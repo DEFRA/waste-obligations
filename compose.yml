@@ -6,12 +6,22 @@ services:
     volumes:
       - mongodb-data:/data
     restart: unless-stopped
+    
+  wiremock:
+    pull_policy: always
+    environment:
+      TZ: Europe/London
+    image: sheyenrath/wiremock.net:latest
+    ports:
+      - "9090:80"    
 
   api:
     build:
       dockerfile: Dockerfile
     depends_on:
       mongodb:
+        condition: service_started
+      wiremock:
         condition: service_started
     environment:
       ASPNETCORE_ENVIRONMENT: Development
