@@ -1,5 +1,3 @@
-using System.Net;
-using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Services.PrnCommonBackend;
 using Defra.WasteObligations.Testing;
@@ -10,8 +8,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Primitives;
-using WireMock.RequestBuilders;
-using WireMock.ResponseBuilders;
 
 namespace Defra.WasteObligations.Api.Tests.Services.PrnCommonBackend;
 
@@ -60,21 +56,11 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
         const string accessToken = "access_token";
 
         WireMock.StubTokenRequest();
-        WireMock
-            .Given(
-                Request
-                    .Create()
-                    .UsingGet()
-                    .WithPath($"/api/v1/prn/obligationcalculation/{year}")
-                    .WithHeader("X-EPR-ORGANISATION", ObligationFixture.OrganisationId.ToString("D"))
-                    .WithHeader("Authorization", $"Bearer {accessToken}")
-            )
-            .RespondWith(
-                Response
-                    .Create()
-                    .WithStatusCode(HttpStatusCode.OK)
-                    .WithBodyAsJson(ObligationsFixture.Default().Create())
-            );
+        WireMock.StubPrnCommonBackendObligationsRequest(
+            year,
+            ObligationFixture.OrganisationId.ToString("D"),
+            accessToken
+        );
 
         var obligations = await service.ReadObligations(
             ObligationFixture.OrganisationId,

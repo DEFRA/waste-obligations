@@ -42,7 +42,7 @@ try
     builder.Services.AddRequestMetrics();
     builder.Services.AddDbContext(builder.Configuration, integrationTest);
     builder.Services.AddValidation();
-    builder.Services.AddTransient<IOrganisationService, FakeOrganisationService>();
+    builder.Services.AddTransient<IOrganisationService, OrganisationService>();
     builder.Services.AddPrnCommonBackendService();
 
     var app = builder.Build();

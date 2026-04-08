@@ -3,12 +3,19 @@ using AwesomeAssertions;
 using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Testing;
+using Defra.WasteObligations.Testing.Fakes;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Defra.WasteObligations.Api.Tests.Endpoints.Organisations.Obligations;
 
 public class ReadObligationsTests(ApiWebApplicationFactory factory, ITestOutputHelper outputHelper)
     : EndpointTestBase(factory, outputHelper)
 {
+    protected override void ConfigureTestServices(IServiceCollection services)
+    {
+        services.AddTransient<IOrganisationService>(_ => new FakeOrganisationService());
+    }
+
     [Theory]
     [InlineData(IncludeTypes.Organisation)]
     [InlineData(null)]

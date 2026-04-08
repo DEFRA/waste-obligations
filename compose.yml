@@ -27,7 +27,10 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       Mongo__DatabaseUri: mongodb://mongodb:27017/
       PORT: 8080
+      AWS_EMF_ENABLED: false
       AWS_EMF_ENVIRONMENT: Local
+      PrnCommonBackend__TokenEndpoint: http://wiremock/oauth2/v2.0/token
+      PrnCommonBackend__BaseAddress: http://wiremock/
     ports:
       - 8080:8080
     healthcheck:

@@ -1,7 +1,8 @@
+using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.PrnCommonBackend;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
 
-namespace Defra.WasteObligations.Api.Services;
+namespace Defra.WasteObligations.Testing.Fakes;
 
 public class FakeOrganisationService : IOrganisationService
 {

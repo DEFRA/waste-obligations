@@ -14,13 +14,17 @@ public static class ServiceCollectionExtensions
         services.AddOptions<PrnCommonBackendOptions>().BindConfiguration(name).ValidateDataAnnotations();
         services.AddOptions<HttpStandardResilienceOptions>(name).BindConfiguration(name);
 
-        services.AddKeyedSingleton<OAuth2Handler>(
+        services.AddKeyedSingleton<OAuth2TokenCache>(
             name,
             (sp, _) =>
-                new OAuth2Handler(
+                new OAuth2TokenCache(
                     sp.GetRequiredService<IHttpClientFactory>(),
                     sp.GetRequiredService<IOptions<PrnCommonBackendOptions>>().Value
                 )
+        );
+        services.AddKeyedTransient<OAuth2Handler>(
+            name,
+            (sp, _) => new OAuth2Handler(sp.GetRequiredKeyedService<OAuth2TokenCache>(name))
         );
 
         services

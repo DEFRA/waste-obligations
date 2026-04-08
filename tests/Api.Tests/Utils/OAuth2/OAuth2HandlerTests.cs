@@ -121,14 +121,16 @@ public class OAuth2HandlerTests(WireMockContext context) : WireMockTestBase(cont
         result
             .AddHttpClient(nameof(OAuth2HandlerTests))
             .AddHttpMessageHandler(sp => new OAuth2Handler(
-                sp.GetRequiredService<IHttpClientFactory>(),
-                new OAuth2Options
-                {
-                    TokenEndpoint = Context.BaseAddress + "/token",
-                    ClientId = "client_id",
-                    ClientSecret = "client_secret",
-                    Scope = scope,
-                }
+                new OAuth2TokenCache(
+                    sp.GetRequiredService<IHttpClientFactory>(),
+                    new OAuth2Options
+                    {
+                        TokenEndpoint = Context.BaseAddress + "/token",
+                        ClientId = "client_id",
+                        ClientSecret = "client_secret",
+                        Scope = scope,
+                    }
+                )
             ))
             .ConfigureHttpClient(httpClient => httpClient.BaseAddress = new Uri(Context.BaseAddress));
 
