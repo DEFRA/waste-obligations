@@ -6,6 +6,14 @@ services:
     volumes:
       - mongodb-data:/data
     restart: unless-stopped
+    
+  wiremock:
+    pull_policy: always
+    environment:
+      TZ: Europe/London
+    image: sheyenrath/wiremock.net:latest
+    ports:
+      - "9090:80"    
 
   api:
     build:
@@ -13,11 +21,16 @@ services:
     depends_on:
       mongodb:
         condition: service_started
+      wiremock:
+        condition: service_started
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       Mongo__DatabaseUri: mongodb://mongodb:27017/
       PORT: 8080
+      AWS_EMF_ENABLED: false
       AWS_EMF_ENVIRONMENT: Local
+      PrnCommonBackend__TokenEndpoint: http://wiremock/oauth2/v2.0/token
+      PrnCommonBackend__BaseAddress: http://wiremock/
     ports:
       - 8080:8080
     healthcheck:

@@ -3,7 +3,7 @@ using AwesomeAssertions;
 
 namespace Defra.WasteObligations.Api.IntegrationTests.Scenarios;
 
-public class OpenApiTests : MongoTestBase
+public class OpenApiTests : IntegrationTestBase
 {
     [Fact]
     public async Task OpenApi_ShouldBeOk()
