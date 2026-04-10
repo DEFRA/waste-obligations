@@ -1,3 +1,4 @@
+using Defra.WasteObligations.Api.Utils.Http;
 using Defra.WasteObligations.Api.Utils.OAuth2;
 using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
@@ -14,6 +15,10 @@ public static class ServiceCollectionExtensions
         services.AddOptions<PrnCommonBackendOptions>().BindConfiguration(name).ValidateDataAnnotations();
         services.AddOptions<HttpStandardResilienceOptions>(name).BindConfiguration(name);
 
+        services
+            .AddHttpClient(nameof(OAuth2TokenCache))
+            .AddHeaderPropagation()
+            .ConfigurePrimaryHttpMessageHandler<ProxyHttpMessageHandler>();
         services.AddKeyedSingleton<OAuth2TokenCache>(
             name,
             (sp, _) =>
