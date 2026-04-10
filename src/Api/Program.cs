@@ -8,6 +8,7 @@ using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.PrnCommonBackend;
 using Defra.WasteObligations.Api.Utils;
 using Defra.WasteObligations.Api.Utils.Health;
+using Defra.WasteObligations.Api.Utils.Http;
 using Defra.WasteObligations.Api.Utils.Logging;
 using Defra.WasteObligations.Api.Utils.Metrics;
 using Defra.WasteObligations.Api.Utils.Security;
@@ -43,6 +44,7 @@ try
     builder.Services.AddDbContext(builder.Configuration, integrationTest);
     builder.Services.AddValidation();
     builder.Services.AddTransient<IOrganisationService, OrganisationService>();
+    builder.Services.AddTransient<ProxyHttpMessageHandler>();
     builder.Services.AddPrnCommonBackendService();
 
     var app = builder.Build();

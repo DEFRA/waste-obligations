@@ -1,5 +1,6 @@
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Services.PrnCommonBackend;
+using Defra.WasteObligations.Api.Utils.Http;
 using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Extensions.WireMock;
 using Defra.WasteObligations.Testing.Fixtures.PrnCommonBackend;
@@ -33,6 +34,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
         Services.AddPrnCommonBackendService();
         Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(config).Build());
         Services.TryAddSingleton<HeaderPropagationValues>();
+        Services.AddTransient<ProxyHttpMessageHandler>();
     }
 
     [Fact]

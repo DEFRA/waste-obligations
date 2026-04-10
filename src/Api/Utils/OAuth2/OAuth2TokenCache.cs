@@ -33,7 +33,7 @@ public class OAuth2TokenCache(IHttpClientFactory httpClientFactory, OAuth2Option
 
     private async Task<string> RefreshToken(CancellationToken cancellationToken)
     {
-        var client = httpClientFactory.CreateClient(nameof(OAuth2Handler));
+        var client = httpClientFactory.CreateClient(nameof(OAuth2TokenCache));
         var values = new Dictionary<string, string>
         {
             ["grant_type"] = "client_credentials",
