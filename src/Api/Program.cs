@@ -45,7 +45,7 @@ try
     builder.Services.AddValidation();
     builder.Services.AddTransient<IOrganisationService, OrganisationService>();
     builder.Services.AddTransient<ProxyHttpMessageHandler>();
-    builder.Services.AddPrnCommonBackendService(addResiliencePipeline: false);
+    builder.Services.AddPrnCommonBackendService();
 
     var app = builder.Build();
 
