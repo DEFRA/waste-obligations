@@ -2,7 +2,6 @@ using System.Net;
 using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Testing.Fixtures.PrnCommonBackend;
-using WireMock.Admin.Mappings;
 using WireMock.Client;
 using WireMock.Client.Extensions;
 using WireMock.RequestBuilders;
