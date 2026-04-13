@@ -8,7 +8,10 @@ namespace Defra.WasteObligations.Api.Services.PrnCommonBackend;
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddPrnCommonBackendService(this IServiceCollection services)
+    public static IServiceCollection AddPrnCommonBackendService(
+        this IServiceCollection services,
+        bool addResiliencePipeline
+    )
     {
         const string name = PrnCommonBackendOptions.SectionName;
 
@@ -32,7 +35,7 @@ public static class ServiceCollectionExtensions
             (sp, _) => new OAuth2Handler(sp.GetRequiredKeyedService<OAuth2TokenCache>(name))
         );
 
-        services
+        var httpClientBuilder = services
             .AddHttpClient<IPrnCommonBackendService, PrnCommonBackendService>()
             .AddHttpMessageHandler(sp => sp.GetRequiredKeyedService<OAuth2Handler>(name))
             .ConfigureHttpClient(
@@ -40,12 +43,18 @@ public static class ServiceCollectionExtensions
                 {
                     sp.GetRequiredService<IOptions<PrnCommonBackendOptions>>().Value.Configure(httpClient);
 
-                    // See resilience handler below for timeout control
-                    httpClient.Timeout = Timeout.InfiniteTimeSpan;
+                    if (addResiliencePipeline)
+                    {
+                        // See resilience handler below for timeout control
+                        httpClient.Timeout = Timeout.InfiniteTimeSpan;
+                    }
                 }
             )
-            .AddHeaderPropagation()
-            .AddResilienceHandler(
+            .AddHeaderPropagation();
+
+        if (addResiliencePipeline)
+        {
+            httpClientBuilder.AddResilienceHandler(
                 nameof(IPrnCommonBackendService),
                 (builder, context) =>
                 {
@@ -59,6 +68,7 @@ public static class ServiceCollectionExtensions
                         .AddTimeout(options.AttemptTimeout);
                 }
             );
+        }
 
         return services;
     }
