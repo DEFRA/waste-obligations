@@ -10,7 +10,7 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddPrnCommonBackendService(
         this IServiceCollection services,
-        bool addResiliencePipeline
+        bool addResiliencePipeline = true
     )
     {
         const string name = PrnCommonBackendOptions.SectionName;
@@ -38,6 +38,7 @@ public static class ServiceCollectionExtensions
         var httpClientBuilder = services
             .AddHttpClient<IPrnCommonBackendService, PrnCommonBackendService>()
             .AddHttpMessageHandler(sp => sp.GetRequiredKeyedService<OAuth2Handler>(name))
+            .ConfigurePrimaryHttpMessageHandler<ProxyHttpMessageHandler>()
             .ConfigureHttpClient(
                 (sp, httpClient) =>
                 {

@@ -31,7 +31,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
         };
 
         Services = [];
-        Services.AddPrnCommonBackendService(true);
+        Services.AddPrnCommonBackendService();
         Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(config).Build());
         Services.TryAddSingleton<HeaderPropagationValues>();
         Services.AddTransient<ProxyHttpMessageHandler>();
