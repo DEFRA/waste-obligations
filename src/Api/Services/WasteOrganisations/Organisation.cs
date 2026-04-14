@@ -27,18 +27,7 @@ public record Organisation
 
     public string CompanyName(int? year = null)
     {
-        var registration = year is not null
-            ? Registrations.FirstOrDefault(x => x.RegistrationYear == year)
-            : Registrations.OrderByDescending(x => x.RegistrationYear).FirstOrDefault();
-
-        if (registration is null)
-            throw new InvalidOperationException(
-                $"No registration found{(year is not null ? $" for year \"{year}\"" : "")}"
-            );
-
-        if (registration.Status == RegistrationStatus.Cancelled)
-            throw new InvalidOperationException("Registration is cancelled");
-
+        var registration = LatestRegistrationOrByYear(year);
         var result = registration.Type switch
         {
             RegistrationType.LargeProducer => Name,
@@ -47,5 +36,19 @@ public record Organisation
         };
 
         return result ?? Name;
+    }
+
+    private int LatestRegistrationYear() => Registrations.MaxBy(x => x.RegistrationYear)?.RegistrationYear ?? 0;
+
+    private Registration LatestRegistrationOrByYear(int? year)
+    {
+        year ??= LatestRegistrationYear();
+        var registrations = Registrations.Where(x => x.RegistrationYear == year).ToArray();
+
+        var registration =
+            registrations.FirstOrDefault(x => x.Status == RegistrationStatus.Registered)
+            ?? registrations.FirstOrDefault();
+
+        return registration ?? throw new InvalidOperationException($"No registration found, using year {year}");
     }
 }

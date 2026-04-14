@@ -31,29 +31,6 @@ public class OrganisationTests
     }
 
     [Fact]
-    public void CompanyName_WhenUnknownType_ShouldBeName()
-    {
-        var subject = OrganisationFixture
-            .Default()
-            .With(x => x.Name, "Organisation Name")
-            .With(x => x.TradingName, "Trading Name")
-            .With(
-                x => x.Registrations,
-                () =>
-                    [
-                        RegistrationFixture
-                            .Default()
-                            .With(x => x.Type, "Unknown")
-                            .With(x => x.Status, RegistrationStatus.Registered)
-                            .Create(),
-                    ]
-            )
-            .Create();
-
-        subject.CompanyName(2026).Should().Be("Organisation Name");
-    }
-
-    [Fact]
     public void CompanyName_WhenComplianceScheme_ShouldBeTradingName()
     {
         var subject = OrganisationFixture
@@ -100,26 +77,11 @@ public class OrganisationTests
     }
 
     [Fact]
-    public void CompanyName_WhenRegistrationIsCancelled_ShouldThrow()
+    public void CompanyName_WhenUnknownType_ShouldBeName()
     {
         var subject = OrganisationFixture
             .Default()
-            .With(
-                x => x.Registrations,
-                () => [RegistrationFixture.Default().With(x => x.Status, RegistrationStatus.Cancelled).Create()]
-            )
-            .Create();
-
-        var act = () => subject.CompanyName(2026);
-
-        act.Should().Throw<InvalidOperationException>().And.Message.Should().Be("Registration is cancelled");
-    }
-
-    [Fact]
-    public void CompanyName_WhenNoYear_ShouldUseLatestRegistration()
-    {
-        var subject = OrganisationFixture
-            .Default()
+            .With(x => x.Name, "Organisation Name")
             .With(x => x.TradingName, "Trading Name")
             .With(
                 x => x.Registrations,
@@ -127,8 +89,31 @@ public class OrganisationTests
                     [
                         RegistrationFixture
                             .Default()
-                            .With(x => x.Type, RegistrationType.ComplianceScheme)
-                            .With(x => x.Status, RegistrationStatus.Cancelled)
+                            .With(x => x.Type, "Unknown")
+                            .With(x => x.Status, RegistrationStatus.Registered)
+                            .Create(),
+                    ]
+            )
+            .Create();
+
+        subject.CompanyName(2026).Should().Be("Organisation Name");
+    }
+
+    [Fact]
+    public void CompanyName_WhenNoYear_ShouldUseLatestRegistration()
+    {
+        var subject = OrganisationFixture
+            .Default()
+            .With(x => x.Name, "Organisation Name")
+            .With(x => x.TradingName, "Trading Name")
+            .With(
+                x => x.Registrations,
+                () =>
+                    [
+                        RegistrationFixture
+                            .Default()
+                            .With(x => x.Type, RegistrationType.LargeProducer)
+                            .With(x => x.Status, RegistrationStatus.Registered)
                             .With(x => x.RegistrationYear, 2025)
                             .Create(),
                         RegistrationFixture
@@ -144,9 +129,63 @@ public class OrganisationTests
         subject.CompanyName().Should().Be("Trading Name");
     }
 
+    [Fact]
+    public void CompanyName_WhenRegisteredAndCancelled_ShouldUseRegistered()
+    {
+        var subject = OrganisationFixture
+            .Default()
+            .With(x => x.Name, "Organisation Name")
+            .With(x => x.TradingName, "Trading Name")
+            .With(
+                x => x.Registrations,
+                () =>
+                    [
+                        RegistrationFixture
+                            .Default()
+                            .With(x => x.Type, RegistrationType.LargeProducer)
+                            .With(x => x.Status, RegistrationStatus.Cancelled)
+                            .With(x => x.RegistrationYear, 2026)
+                            .Create(),
+                        RegistrationFixture
+                            .Default()
+                            .With(x => x.Type, RegistrationType.ComplianceScheme)
+                            .With(x => x.Status, RegistrationStatus.Registered)
+                            .With(x => x.RegistrationYear, 2026)
+                            .Create(),
+                    ]
+            )
+            .Create();
+
+        subject.CompanyName(2026).Should().Be("Trading Name");
+    }
+
+    [Fact]
+    public void CompanyName_WhenOnlyCancelled_ShouldUseCancelled()
+    {
+        var subject = OrganisationFixture
+            .Default()
+            .With(x => x.Name, "Organisation Name")
+            .With(x => x.TradingName, "Trading Name")
+            .With(
+                x => x.Registrations,
+                () =>
+                    [
+                        RegistrationFixture
+                            .Default()
+                            .With(x => x.Type, RegistrationType.LargeProducer)
+                            .With(x => x.Status, RegistrationStatus.Cancelled)
+                            .With(x => x.RegistrationYear, 2026)
+                            .Create(),
+                    ]
+            )
+            .Create();
+
+        subject.CompanyName(2026).Should().Be("Organisation Name");
+    }
+
     [Theory]
-    [InlineData(2026, "No registration found for year \"2026\"")]
-    [InlineData(null, "No registration found")]
+    [InlineData(2026, "No registration found, using year 2026")]
+    [InlineData(null, "No registration found, using year 0")]
     public void CompanyName_WhenNoRegistrations_ShouldThrow(int? year, string expectedMessage)
     {
         var subject = OrganisationFixture.Default().With(x => x.Registrations, () => []).Create();
