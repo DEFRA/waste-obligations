@@ -13,15 +13,23 @@ public static class RegistrationFixture
 
     private static int RandomRegistrationYear() => Random.Shared.Next(2023, 2050);
 
-    public static string[] RegistrationTypes = [RegistrationType.LargeProducer, RegistrationType.ComplianceScheme];
-    public static string[] RegistrationStatuses = [RegistrationStatus.Registered, RegistrationStatus.Cancelled];
+    private static readonly string[] s_registrationTypes =
+    [
+        RegistrationType.LargeProducer,
+        RegistrationType.ComplianceScheme,
+    ];
+    private static readonly string[] s_registrationStatuses =
+    [
+        RegistrationStatus.Registered,
+        RegistrationStatus.Cancelled,
+    ];
 
     public static void ConfigureDefaults(Fixture fixture)
     {
         fixture.Customize<Registration>(x =>
-            x.With(y => y.Type, () => RegistrationTypes.Random())
+            x.With(y => y.Type, () => s_registrationTypes.Random())
                 .With(y => y.RegistrationYear, () => RandomRegistrationYear())
-                .With(y => y.Status, () => RegistrationStatuses.Random())
+                .With(y => y.Status, () => s_registrationStatuses.Random())
         );
     }
 
@@ -33,9 +41,9 @@ public static class RegistrationFixture
 
         return fixture
             .Build<Registration>()
-            .With(x => x.Type, () => RegistrationTypes.Random())
+            .With(x => x.Type, () => s_registrationTypes.Random())
             .With(x => x.RegistrationYear, () => RandomRegistrationYear())
-            .With(x => x.Status, () => RegistrationStatuses.Random());
+            .With(x => x.Status, () => s_registrationStatuses.Random());
     }
 
     public static IPostprocessComposer<Registration> Default()

@@ -36,17 +36,14 @@ public static class ReadObligations
         if (organisation is null)
             return Results.NotFound();
 
-        var obligations = await organisationService.ReadObligations(
-            id,
-            request.Year.GetValueOrDefault(),
-            cancellationToken
-        );
+        var year = request.Year.GetValueOrDefault();
+        var obligations = await organisationService.ReadObligations(id, year, cancellationToken);
 
         return Results.Ok(
             new OrganisationObligations
             {
                 Obligations = obligations.Select(x => x.ToDto()).ToArray(),
-                Organisation = request.Include == IncludeTypes.Organisation ? organisation.ToDto() : null,
+                Organisation = request.Include == IncludeTypes.Organisation ? organisation.ToDto(year) : null,
             }
         );
     }

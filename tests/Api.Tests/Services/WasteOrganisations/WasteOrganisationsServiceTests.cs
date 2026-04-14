@@ -1,7 +1,7 @@
-using System.Text;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
 using Defra.WasteObligations.Testing;
+using Defra.WasteObligations.Testing.Authentication;
 using Defra.WasteObligations.Testing.Extensions.WireMock;
 using Defra.WasteObligations.Testing.Fixtures.WasteOrganisations;
 using Microsoft.AspNetCore.HeaderPropagation;
@@ -51,12 +51,10 @@ public class WasteOrganisationsServiceTests : WireMockTestBase
 
         var service = sp.GetRequiredService<IWasteOrganisationsService>();
         sp.GetRequiredService<HeaderPropagationValues>().Headers = new Dictionary<string, StringValues>();
-        const string clientId = "client_id";
-        const string clientSecret = "client_secret";
 
         WireMock.StubWasteOrganisationsOrganisationRequest(
-            OrganisationFixture.OrganisationId.ToString("D"),
-            basicAuthToken: Convert.ToBase64String(Encoding.UTF8.GetBytes($"{clientId}:{clientSecret}"))
+            OrganisationFixture.OrganisationId,
+            basicAuthToken: BasicAuthCredential.Default
         );
 
         var organisation = await service.ReadOrganisation(

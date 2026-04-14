@@ -10,7 +10,8 @@ public static class OrganisationFixture
     private static Fixture GetFixture() => new();
 
     public static readonly Guid OrganisationId = new("87cbc010-90f7-4c79-8bd5-099cdda2ca24");
-    public static string[] BusinessCountries =
+
+    private static readonly string[] s_businessCountries =
     [
         BusinessCountry.England,
         BusinessCountry.NorthernIreland,
@@ -24,7 +25,7 @@ public static class OrganisationFixture
 
         RegistrationFixture.ConfigureDefaults(fixture);
 
-        return fixture.Build<Organisation>().With(x => x.BusinessCountry, () => BusinessCountries.Random());
+        return fixture.Build<Organisation>().With(x => x.BusinessCountry, () => s_businessCountries.Random());
     }
 
     public static IPostprocessComposer<Organisation> Default()

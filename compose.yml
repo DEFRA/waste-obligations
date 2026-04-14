@@ -29,8 +29,10 @@ services:
       PORT: 8080
       AWS_EMF_ENABLED: false
       AWS_EMF_ENVIRONMENT: Local
+      # See appsettings.json for additional settings related to auth
       PrnCommonBackend__TokenEndpoint: http://wiremock/oauth2/v2.0/token
       PrnCommonBackend__BaseAddress: http://wiremock/
+      WasteOrganisations__BaseAddress: http://wiremock/
     ports:
       - 8080:8080
     healthcheck:

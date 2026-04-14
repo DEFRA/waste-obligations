@@ -24,4 +24,28 @@ public record Organisation
 
     [JsonPropertyName("registrations")]
     public Registration[] Registrations { get; init; } = [];
+
+    public string CompanyName(int? year = null)
+    {
+        var registration = year is not null
+            ? Registrations.FirstOrDefault(x => x.RegistrationYear == year)
+            : Registrations.OrderByDescending(x => x.RegistrationYear).FirstOrDefault();
+
+        if (registration is null)
+            throw new InvalidOperationException(
+                $"No registration found{(year is not null ? $" for year \"{year}\"" : "")}"
+            );
+
+        if (registration.Status == RegistrationStatus.Cancelled)
+            throw new InvalidOperationException("Registration is cancelled");
+
+        var result = registration.Type switch
+        {
+            RegistrationType.LargeProducer => Name,
+            RegistrationType.ComplianceScheme => TradingName,
+            _ => Name,
+        };
+
+        return result ?? Name;
+    }
 }

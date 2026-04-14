@@ -26,7 +26,9 @@ public class ReadObligationsTests(ApiWebApplicationFactory factory, ITestOutputH
         var response = await client.GetStringAsync(
             Testing.Endpoints.Organisations.Obligations.Read(
                 FakeOrganisationService.OrganisationId,
-                EndpointQuery.New.Where(EndpointFilter.Year(2026)).Where(EndpointFilter.Include(include))
+                EndpointQuery
+                    .New.Where(EndpointFilter.Year(FakeOrganisationService.Year))
+                    .Where(EndpointFilter.Include(include))
             ),
             TestContext.Current.CancellationToken
         );
