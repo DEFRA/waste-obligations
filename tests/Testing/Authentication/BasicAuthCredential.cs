@@ -4,9 +4,6 @@ namespace Defra.WasteObligations.Testing.Authentication;
 
 public static class BasicAuthCredential
 {
-    /// <summary>
-    /// Uses client_id and client_secret.
-    /// </summary>
     public static string Default => Create("client_id", "client_secret");
 
     private static string Create(string clientId, string clientSecret) =>
