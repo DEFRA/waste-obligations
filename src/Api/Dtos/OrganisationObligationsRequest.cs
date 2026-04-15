@@ -14,4 +14,6 @@ public record OrganisationObligationsRequest
     [FromQuery(Name = "year")]
     [Range(2000, int.MaxValue, ErrorMessage = "Year must be 2000 onwards")]
     public int? Year { get; init; }
+
+    public int YearValue => Year.GetValueOrDefault();
 }

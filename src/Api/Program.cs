@@ -6,6 +6,7 @@ using Defra.WasteObligations.Api.Endpoints.OpenApi;
 using Defra.WasteObligations.Api.Extensions;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.PrnCommonBackend;
+using Defra.WasteObligations.Api.Services.WasteOrganisations;
 using Defra.WasteObligations.Api.Utils;
 using Defra.WasteObligations.Api.Utils.Health;
 using Defra.WasteObligations.Api.Utils.Http;
@@ -46,6 +47,7 @@ try
     builder.Services.AddTransient<IOrganisationService, OrganisationService>();
     builder.Services.AddTransient<ProxyHttpMessageHandler>();
     builder.Services.AddPrnCommonBackendService();
+    builder.Services.AddWasteOrganisationsService();
 
     var app = builder.Build();
 

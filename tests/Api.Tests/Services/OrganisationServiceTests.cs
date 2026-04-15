@@ -2,7 +2,9 @@ using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.PrnCommonBackend;
+using Defra.WasteObligations.Api.Services.WasteOrganisations;
 using Defra.WasteObligations.Testing.Fixtures.PrnCommonBackend;
+using Defra.WasteObligations.Testing.Fixtures.WasteOrganisations;
 using NSubstitute;
 
 namespace Defra.WasteObligations.Api.Tests.Services;
@@ -10,11 +12,29 @@ namespace Defra.WasteObligations.Api.Tests.Services;
 public class OrganisationServiceTests
 {
     [Fact]
-    public async Task ReadOrganisation_OrganisationAlwaysFound()
+    public async Task ReadOrganisation_WhenNotFound_ShouldBeNull()
     {
-        var subject = new OrganisationService(Substitute.For<IPrnCommonBackendService>());
+        var subject = new OrganisationService(
+            Substitute.For<IPrnCommonBackendService>(),
+            Substitute.For<IWasteOrganisationsService>()
+        );
 
         var result = await subject.ReadOrganisation(Guid.NewGuid(), TestContext.Current.CancellationToken);
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ReadOrganisation_WhenFound_ShouldNotBeNull()
+    {
+        var organisationId = Guid.NewGuid();
+        var wasteOrganisationsService = Substitute.For<IWasteOrganisationsService>();
+        wasteOrganisationsService
+            .ReadOrganisation(organisationId, TestContext.Current.CancellationToken)
+            .Returns(OrganisationFixture.Default().Create());
+        var subject = new OrganisationService(Substitute.For<IPrnCommonBackendService>(), wasteOrganisationsService);
+
+        var result = await subject.ReadOrganisation(organisationId, TestContext.Current.CancellationToken);
 
         result.Should().NotBeNull();
     }
@@ -22,7 +42,10 @@ public class OrganisationServiceTests
     [Fact]
     public async Task ReadObligations_WhenNotFound_ShouldBeEmpty()
     {
-        var subject = new OrganisationService(Substitute.For<IPrnCommonBackendService>());
+        var subject = new OrganisationService(
+            Substitute.For<IPrnCommonBackendService>(),
+            Substitute.For<IWasteOrganisationsService>()
+        );
 
         var result = await subject.ReadObligations(Guid.NewGuid(), 2026, TestContext.Current.CancellationToken);
 
@@ -38,7 +61,7 @@ public class OrganisationServiceTests
         prnCommonBackendService
             .ReadObligations(organisationId, year, TestContext.Current.CancellationToken)
             .Returns(ObligationsFixture.Default().Create());
-        var subject = new OrganisationService(prnCommonBackendService);
+        var subject = new OrganisationService(prnCommonBackendService, Substitute.For<IWasteOrganisationsService>());
 
         var result = await subject.ReadObligations(organisationId, year, TestContext.Current.CancellationToken);
 

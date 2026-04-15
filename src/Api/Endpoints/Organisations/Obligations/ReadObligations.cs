@@ -32,21 +32,23 @@ public static class ReadObligations
         CancellationToken cancellationToken
     )
     {
-        var organisation = await organisationService.ReadOrganisation(id, cancellationToken);
+        var year = request.YearValue;
+        var organisationTask = organisationService.ReadOrganisation(id, cancellationToken);
+        var obligationsTask = organisationService.ReadObligations(id, year, cancellationToken);
+
+        await Task.WhenAll(organisationTask, obligationsTask);
+
+        var organisation = await organisationTask;
         if (organisation is null)
             return Results.NotFound();
 
-        var obligations = await organisationService.ReadObligations(
-            id,
-            request.Year.GetValueOrDefault(),
-            cancellationToken
-        );
+        var obligations = await obligationsTask;
 
         return Results.Ok(
             new OrganisationObligations
             {
                 Obligations = obligations.Select(x => x.ToDto()).ToArray(),
-                Organisation = request.Include == IncludeTypes.Organisation ? organisation.ToDto() : null,
+                Organisation = request.Include == IncludeTypes.Organisation ? organisation.ToDto(year) : null,
             }
         );
     }
