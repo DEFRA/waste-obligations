@@ -1,0 +1,11 @@
+﻿{
+  "type": "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+  "title": "One or more validation errors occurred.",
+  "status": 400,
+  "errors": {
+    "Obligations[0].RecyclingTarget": [
+      "The field RecyclingTarget must be between 0 and 1."
+    ]
+  },
+  "traceId": "{Scrubbed}"
+}

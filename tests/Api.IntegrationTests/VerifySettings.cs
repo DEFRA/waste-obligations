@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 
-namespace Defra.WasteObligations.Testing;
+namespace Defra.WasteObligations.Api.IntegrationTests;
 
 public static class VerifySettings
 {

@@ -1,0 +1,31 @@
+using AutoFixture;
+using AutoFixture.Dsl;
+using Defra.WasteObligations.Api.Dtos;
+
+// ReSharper disable ConvertClosureToMethodGroup
+
+namespace Defra.WasteObligations.Testing.Fixtures.Dtos;
+
+public static class CreateComplianceDeclarationRequestFixture
+{
+    private static Fixture GetFixture() => new();
+
+    private static int RandomObligationYear() => Random.Shared.Next(ObligationYear.Minimum, ObligationYear.Maximum + 1);
+
+    public static IPostprocessComposer<CreateComplianceDeclarationRequest> Request()
+    {
+        return GetFixture()
+            .Build<CreateComplianceDeclarationRequest>()
+            .With(x => x.ObligationYear, () => RandomObligationYear());
+    }
+
+    public static IPostprocessComposer<CreateComplianceDeclarationRequest> Default()
+    {
+        return Request()
+            .With(x => x.ObligationYear, 2026)
+            .With(x => x.Obligations, [ObligationFixture.Default().Create()])
+            .With(x => x.DeclarationText, LocalizedTextFixture.Default().Create())
+            .With(x => x.SubmitterName, "Submitter Name")
+            .With(x => x.User, UserFixture.Default().Create());
+    }
+}
