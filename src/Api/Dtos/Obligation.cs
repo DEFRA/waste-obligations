@@ -15,7 +15,6 @@ public record Obligation
     [PossibleValue(Dtos.Material.Steel)]
     [PossibleValue(Dtos.Material.Wood)]
     [PossibleValue(Dtos.Material.GlassRemelt)]
-    [PossibleValue(Dtos.Material.FibreComposite)]
     [JsonPropertyName("material")]
     public required string Material { get; init; }
 

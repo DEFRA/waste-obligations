@@ -254,8 +254,7 @@
               "Aluminium",
               "Steel",
               "Wood",
-              "GlassRemelt",
-              "FibreComposite"
+              "GlassRemelt"
             ],
             "type": "string",
             "description": "Name of material"
