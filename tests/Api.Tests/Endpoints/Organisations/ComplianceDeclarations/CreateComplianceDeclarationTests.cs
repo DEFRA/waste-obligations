@@ -3,7 +3,7 @@ using System.Net.Http.Json;
 using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Dtos;
-using Defra.WasteObligations.Api.Services;
+using Defra.WasteObligations.Api.Services.WasteOrganisations;
 using Defra.WasteObligations.Testing.Fakes;
 using Defra.WasteObligations.Testing.Fixtures.Dtos;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,7 +15,7 @@ public class CreateComplianceDeclarationTests(ApiWebApplicationFactory factory, 
 {
     protected override void ConfigureTestServices(IServiceCollection services)
     {
-        services.AddTransient<IOrganisationService>(_ => new FakeOrganisationService());
+        services.AddTransient<IWasteOrganisationsService>(_ => new FakeWasteOrganisationsService());
     }
 
     [Fact]
@@ -24,7 +24,7 @@ public class CreateComplianceDeclarationTests(ApiWebApplicationFactory factory, 
         var client = CreateClient(testUser: TestUser.WriteOnly);
 
         var response = await client.PostAsJsonAsync(
-            Testing.Endpoints.Organisations.ComplianceDeclarations.Create(FakeOrganisationService.OrganisationId),
+            Testing.Endpoints.Organisations.ComplianceDeclarations.Create(FakeWasteOrganisationsService.OrganisationId),
             CreateComplianceDeclarationRequestFixture.Default().Create(),
             TestContext.Current.CancellationToken
         );
@@ -107,7 +107,7 @@ public class CreateComplianceDeclarationTests(ApiWebApplicationFactory factory, 
         var client = CreateClient(testUser: TestUser.WriteOnly);
 
         var response = await client.PostAsJsonAsync(
-            Testing.Endpoints.Organisations.ComplianceDeclarations.Create(FakeOrganisationService.OrganisationId),
+            Testing.Endpoints.Organisations.ComplianceDeclarations.Create(FakeWasteOrganisationsService.OrganisationId),
             request,
             TestContext.Current.CancellationToken
         );

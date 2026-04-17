@@ -8,6 +8,7 @@ public static class Material
     public const string Steel = nameof(Steel);
     public const string Wood = nameof(Wood);
     public const string GlassRemelt = nameof(GlassRemelt);
+    public const string Paper = nameof(Paper);
 
-    public static readonly string[] All = [Plastic, Glass, Aluminium, Steel, Wood, GlassRemelt];
+    public static readonly string[] All = [Plastic, Glass, Aluminium, Steel, Wood, GlassRemelt, Paper];
 }

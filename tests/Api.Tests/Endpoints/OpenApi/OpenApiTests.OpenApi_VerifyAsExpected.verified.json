@@ -254,7 +254,8 @@
               "Aluminium",
               "Steel",
               "Wood",
-              "GlassRemelt"
+              "GlassRemelt",
+              "Paper"
             ],
             "type": "string",
             "description": "Name of material"

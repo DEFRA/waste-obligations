@@ -1,6 +1,5 @@
 using Defra.WasteObligations.Api.Authentication;
 using Defra.WasteObligations.Api.Dtos;
-using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.PrnCommonBackend;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
 using Microsoft.AspNetCore.Mvc;
@@ -28,13 +27,14 @@ public static class ReadObligations
     private static async Task<IResult> Handle(
         [FromRoute] Guid id,
         [AsParameters] ReadObligationsRequest request,
-        [FromServices] IOrganisationService organisationService,
+        [FromServices] IWasteOrganisationsService wasteOrganisationsService,
+        [FromServices] IPrnCommonBackendService prnCommonBackendService,
         CancellationToken cancellationToken
     )
     {
         var year = request.YearValue;
-        var organisationTask = organisationService.ReadOrganisation(id, cancellationToken);
-        var obligationsTask = organisationService.ReadObligations(id, year, cancellationToken);
+        var organisationTask = wasteOrganisationsService.ReadOrganisation(id, cancellationToken);
+        var obligationsTask = prnCommonBackendService.ReadObligations(id, year, cancellationToken);
 
         await Task.WhenAll(organisationTask, obligationsTask);
 

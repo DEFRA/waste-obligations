@@ -64,23 +64,21 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
             accessToken
         );
 
-        var obligations = await service.ReadObligations(
-            ObligationFixture.OrganisationId,
-            year,
-            TestContext.Current.CancellationToken
-        );
+        var obligations = (
+            await service.ReadObligations(ObligationFixture.OrganisationId, year, TestContext.Current.CancellationToken)
+        ).ToList();
 
         obligations.Should().NotBeNull();
-        obligations.ObligationData.Should().ContainSingle();
+        obligations.Should().ContainSingle();
     }
 
     [Fact]
-    public async Task WhenNotFound_ShouldReturnNull()
+    public async Task WhenNotFound_ShouldBeEmpty()
     {
         var subject = new PrnCommonBackendService(Context.HttpClient);
 
         var result = await subject.ReadObligations(Guid.NewGuid(), 2026, TestContext.Current.CancellationToken);
 
-        result.Should().BeNull();
+        result.Should().BeEmpty();
     }
 }

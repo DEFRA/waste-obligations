@@ -1,6 +1,6 @@
 using Defra.WasteObligations.Api.Authentication;
 using Defra.WasteObligations.Api.Dtos;
-using Defra.WasteObligations.Api.Services;
+using Defra.WasteObligations.Api.Services.WasteOrganisations;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Defra.WasteObligations.Api.Endpoints.Organisations.ComplianceDeclarations;
@@ -26,11 +26,11 @@ public static class CreateComplianceDeclaration
     private static async Task<IResult> Handle(
         [FromRoute] Guid id,
         [FromBody] CreateComplianceDeclarationRequest request,
-        [FromServices] IOrganisationService organisationService,
+        [FromServices] IWasteOrganisationsService wasteOrganisationsService,
         CancellationToken cancellationToken
     )
     {
-        var organisation = await organisationService.ReadOrganisation(id, cancellationToken);
+        var organisation = await wasteOrganisationsService.ReadOrganisation(id, cancellationToken);
         if (organisation is null)
             return Results.NotFound();
 
