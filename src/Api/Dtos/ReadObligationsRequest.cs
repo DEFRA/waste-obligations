@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Defra.WasteObligations.Api.Dtos;
 
-public record OrganisationObligationsRequest
+public record ReadObligationsRequest
 {
     [Description($"Additional data types to include. Possible value is '{IncludeTypes.Organisation}'")]
     [FromQuery(Name = "include")]

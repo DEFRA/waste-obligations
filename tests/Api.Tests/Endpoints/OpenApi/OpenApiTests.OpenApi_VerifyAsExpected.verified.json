@@ -106,10 +106,139 @@
           }
         }
       }
+    },
+    "/organisations/{id}/compliance-declarations": {
+      "post": {
+        "tags": [
+          "ComplianceDeclarations"
+        ],
+        "summary": "Create a compliance declaration",
+        "description": "Create a compliance declaration for the specified organisation ID",
+        "operationId": "CreateOrganisationComplianceDeclaration",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateComplianceDeclarationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "CreateComplianceDeclarationRequest": {
+        "required": [
+          "obligationYear",
+          "declarationText",
+          "submitterName",
+          "user"
+        ],
+        "type": "object",
+        "properties": {
+          "obligationYear": {
+            "maximum": 2050,
+            "minimum": 2023,
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Obligation year of compliance declaration",
+            "format": "int32"
+          },
+          "obligations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Obligation"
+            }
+          },
+          "declarationText": {
+            "$ref": "#/components/schemas/LocalizedText"
+          },
+          "submitterName": {
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          }
+        }
+      },
+      "LocalizedText": {
+        "required": [
+          "text",
+          "language"
+        ],
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string",
+            "description": "Language string for ISO 639-1 (example en) or BCP 47 (example en-GB)"
+          }
+        }
+      },
       "Obligation": {
         "required": [
           "material",
@@ -119,14 +248,26 @@
         "type": "object",
         "properties": {
           "material": {
-            "type": "string"
+            "enum": [
+              "Plastic",
+              "Glass",
+              "Aluminium",
+              "Steel",
+              "Wood",
+              "GlassRemelt"
+            ],
+            "type": "string",
+            "description": "Name of material"
           },
           "recyclingTarget": {
+            "maximum": 1,
+            "minimum": 0,
             "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
             "type": [
               "number",
               "string"
             ],
+            "description": "Recycling target expressed in decimal form",
             "format": "double"
           },
           "tonnages": {
@@ -138,7 +279,8 @@
               "Met",
               "NotMet"
             ],
-            "type": "string"
+            "type": "string",
+            "description": "Status of obligation"
           }
         }
       },
@@ -146,6 +288,8 @@
         "type": "object",
         "properties": {
           "material": {
+            "maximum": 2147483647,
+            "minimum": 0,
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
               "integer",
@@ -154,6 +298,8 @@
             "format": "int32"
           },
           "awaitingAcceptance": {
+            "maximum": 2147483647,
+            "minimum": 0,
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
               "integer",
@@ -162,6 +308,8 @@
             "format": "int32"
           },
           "accepted": {
+            "maximum": 2147483647,
+            "minimum": 0,
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
               "integer",
@@ -170,6 +318,8 @@
             "format": "int32"
           },
           "outstanding": {
+            "maximum": 2147483647,
+            "minimum": 0,
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
               "integer",
@@ -178,6 +328,8 @@
             "format": "int32"
           },
           "obligated": {
+            "maximum": 2147483647,
+            "minimum": 0,
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
               "integer",
@@ -266,12 +418,30 @@
             ]
           }
         }
+      },
+      "User": {
+        "required": [
+          "id",
+          "email"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          }
+        }
       }
     }
   },
   "tags": [
     {
       "name": "Obligations"
+    },
+    {
+      "name": "ComplianceDeclarations"
     }
   ]
 }

@@ -1,6 +1,8 @@
+using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.Api.Services;
-using Defra.WasteObligations.Api.Services.PrnCommonBackend;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
+using Obligation = Defra.WasteObligations.Api.Services.PrnCommonBackend.Obligation;
+using Organisation = Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation;
 
 namespace Defra.WasteObligations.Testing.Fakes;
 
@@ -54,7 +56,7 @@ public class FakeOrganisationService : IOrganisationService
                     TonnageAwaitingAcceptance = 10,
                     TonnageAccepted = 2,
                     TonnageOutstanding = null,
-                    Status = "NoDataYet",
+                    Status = ObligationStatus.NoDataYet,
                 },
                 new Obligation
                 {
@@ -66,7 +68,7 @@ public class FakeOrganisationService : IOrganisationService
                     TonnageAwaitingAcceptance = 10,
                     TonnageAccepted = 2,
                     TonnageOutstanding = 198,
-                    Status = "NotMet",
+                    Status = ObligationStatus.NotMet,
                 },
             ]
         },

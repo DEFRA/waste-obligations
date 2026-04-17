@@ -27,7 +27,7 @@ public static class ReadObligations
     [HttpGet]
     private static async Task<IResult> Handle(
         [FromRoute] Guid id,
-        [AsParameters] OrganisationObligationsRequest request,
+        [AsParameters] ReadObligationsRequest request,
         [FromServices] IOrganisationService organisationService,
         CancellationToken cancellationToken
     )

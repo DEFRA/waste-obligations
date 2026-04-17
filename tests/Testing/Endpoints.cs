@@ -33,5 +33,12 @@ public static class Endpoints
             public static string Read(Guid id, EndpointQuery? query = null) =>
                 $"{Organisations.Read(id)}/{Root}{query}";
         }
+
+        public static class ComplianceDeclarations
+        {
+            private static string Root = "compliance-declarations";
+
+            public static string Create(Guid id) => $"{Read(id)}/{Root}";
+        }
     }
 }
