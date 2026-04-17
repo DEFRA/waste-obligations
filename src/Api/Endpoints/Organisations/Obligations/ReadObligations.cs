@@ -10,7 +10,7 @@ public static class ReadObligations
 {
     public static void MapObligationsRead(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/organisations/{id:guid}/obligations", Handle)
+        app.MapGet("/organisations/{organisationId:guid}/obligations", Handle)
             .WithName("ReadOrganisationObligations")
             .WithTags("Obligations")
             .WithSummary("Obligations for an organisation by year")
@@ -25,7 +25,7 @@ public static class ReadObligations
 
     [HttpGet]
     private static async Task<IResult> Handle(
-        [FromRoute] Guid id,
+        [FromRoute] Guid organisationId,
         [AsParameters] ReadObligationsRequest request,
         [FromServices] IWasteOrganisationsService wasteOrganisationsService,
         [FromServices] IPrnCommonBackendService prnCommonBackendService,
@@ -33,8 +33,8 @@ public static class ReadObligations
     )
     {
         var year = request.YearValue;
-        var organisationTask = wasteOrganisationsService.ReadOrganisation(id, cancellationToken);
-        var obligationsTask = prnCommonBackendService.ReadObligations(id, year, cancellationToken);
+        var organisationTask = wasteOrganisationsService.Read(organisationId, cancellationToken);
+        var obligationsTask = prnCommonBackendService.ReadObligations(organisationId, year, cancellationToken);
 
         await Task.WhenAll(organisationTask, obligationsTask);
 

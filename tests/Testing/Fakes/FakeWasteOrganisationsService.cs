@@ -38,7 +38,7 @@ public class FakeWasteOrganisationsService : IWasteOrganisationsService
         },
     };
 
-    public Task<Organisation?> ReadOrganisation(Guid organisationId, CancellationToken cancellationToken)
+    public Task<Organisation?> Read(Guid organisationId, CancellationToken cancellationToken)
     {
         return Task.FromResult(s_organisations.TryGetValue(organisationId, out var value) ? value : null);
     }

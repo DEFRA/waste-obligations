@@ -9,7 +9,7 @@ public static class CreateComplianceDeclaration
 {
     public static void MapComplianceDeclarationsCreate(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/organisations/{id:guid}/compliance-declarations", Handle)
+        app.MapPost("/organisations/{organisationId:guid}/compliance-declarations", Handle)
             .WithName("CreateOrganisationComplianceDeclaration")
             .WithTags("ComplianceDeclarations")
             .WithSummary("Create a compliance declaration")
@@ -24,16 +24,16 @@ public static class CreateComplianceDeclaration
 
     [HttpGet]
     private static async Task<IResult> Handle(
-        [FromRoute] Guid id,
+        [FromRoute] Guid organisationId,
         [FromBody] CreateComplianceDeclarationRequest request,
         [FromServices] IWasteOrganisationsService wasteOrganisationsService,
         CancellationToken cancellationToken
     )
     {
-        var organisation = await wasteOrganisationsService.ReadOrganisation(id, cancellationToken);
+        var organisation = await wasteOrganisationsService.Read(organisationId, cancellationToken);
         if (organisation is null)
             return Results.NotFound();
 
-        return Results.Created($"/organisations/{id:D}/compliance-declarations/[newid]", null);
+        return Results.Created($"/organisations/{organisationId:D}/compliance-declarations/[newid]", null);
     }
 }

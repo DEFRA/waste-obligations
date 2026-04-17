@@ -45,7 +45,7 @@ public class WasteOrganisationsServiceTests : WireMockTestBase
     }
 
     [Fact]
-    public async Task ReadOrganisation_ShouldReturnData()
+    public async Task Read_ShouldReturnData()
     {
         await using var sp = Services.BuildServiceProvider();
 
@@ -57,7 +57,7 @@ public class WasteOrganisationsServiceTests : WireMockTestBase
             basicAuthToken: BasicAuthCredential.Default
         );
 
-        var organisation = await service.ReadOrganisation(
+        var organisation = await service.Read(
             OrganisationFixture.OrganisationId,
             TestContext.Current.CancellationToken
         );
@@ -70,7 +70,7 @@ public class WasteOrganisationsServiceTests : WireMockTestBase
     {
         var subject = new WasteOrganisationsService(Context.HttpClient);
 
-        var result = await subject.ReadOrganisation(Guid.NewGuid(), TestContext.Current.CancellationToken);
+        var result = await subject.Read(Guid.NewGuid(), TestContext.Current.CancellationToken);
 
         result.Should().BeNull();
     }
