@@ -11,7 +11,7 @@ public static class RegistrationFixture
 {
     private static Fixture GetFixture() => new();
 
-    private static int RandomRegistrationYear() => Random.Shared.Next(2023, 2050);
+    private static int RandomRegistrationYear() => Random.Shared.Next(2023, 2051);
 
     private static readonly string[] s_registrationTypes =
     [

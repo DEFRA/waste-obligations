@@ -14,7 +14,7 @@ public static class ObligationFixture
         return GetFixture()
             .Build<Obligation>()
             .With(x => x.Material, () => Material.All.Random())
-            .With(x => x.RecyclingTarget, () => Random.Shared.Next(0, 1))
+            .With(x => x.RecyclingTarget, () => (decimal)Random.Shared.NextDouble())
             .With(x => x.Status, () => ObligationStatus.All.Random());
     }
 
