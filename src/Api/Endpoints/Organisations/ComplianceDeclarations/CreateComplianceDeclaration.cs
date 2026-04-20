@@ -1,5 +1,7 @@
 using Defra.WasteObligations.Api.Authentication;
+using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Dtos;
+using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
 using Microsoft.AspNetCore.Mvc;
 
@@ -27,6 +29,7 @@ public static class CreateComplianceDeclaration
         [FromRoute] Guid organisationId,
         [FromBody] CreateComplianceDeclarationRequest request,
         [FromServices] IWasteOrganisationsService wasteOrganisationsService,
+        [FromServices] IComplianceDeclarationService complianceDeclarationService,
         CancellationToken cancellationToken
     )
     {
@@ -34,6 +37,14 @@ public static class CreateComplianceDeclaration
         if (organisation is null)
             return Results.NotFound();
 
-        return Results.Created($"/organisations/{organisationId:D}/compliance-declarations/[newid]", null);
+        var complianceDeclaration = await complianceDeclarationService.Create(
+            request.ToEntity(organisation),
+            cancellationToken
+        );
+
+        return Results.Created(
+            $"/organisations/{organisationId:D}/compliance-declarations/{complianceDeclaration.Id:D}",
+            complianceDeclaration.ToDto()
+        );
     }
 }

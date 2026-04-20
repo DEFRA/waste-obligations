@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Dtos;
+using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
 using Defra.WasteObligations.Testing.Fakes;
 using Defra.WasteObligations.Testing.Fixtures.Dtos;
@@ -13,15 +14,19 @@ namespace Defra.WasteObligations.Api.Tests.Endpoints.Organisations.ComplianceDec
 public class CreateComplianceDeclarationTests(ApiWebApplicationFactory factory, ITestOutputHelper outputHelper)
     : EndpointTestBase(factory, outputHelper)
 {
+    private FakeComplianceDeclarationService ComplianceDeclarationService { get; } = new();
+
     protected override void ConfigureTestServices(IServiceCollection services)
     {
         services.AddTransient<IWasteOrganisationsService>(_ => new FakeWasteOrganisationsService());
+        services.AddTransient<IComplianceDeclarationService>(_ => ComplianceDeclarationService);
     }
 
     [Fact]
     public async Task WhenOrganisationFound_ShouldBeCreated()
     {
         var client = CreateClient(testUser: TestUser.WriteOnly);
+        ComplianceDeclarationService.CreateNewId = () => new Guid("2d7e780c-ca82-4007-8b14-7c7ac49cf2f4");
 
         var response = await client.PostAsJsonAsync(
             Testing.Endpoints.Organisations.ComplianceDeclarations.Create(FakeWasteOrganisationsService.OrganisationId),
@@ -30,6 +35,8 @@ public class CreateComplianceDeclarationTests(ApiWebApplicationFactory factory, 
         );
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
+        await VerifyJson(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken))
+            .DontScrubGuids();
     }
 
     [Fact]

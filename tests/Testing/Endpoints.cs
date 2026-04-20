@@ -30,15 +30,15 @@ public static class Endpoints
         {
             private static string Root = "obligations";
 
-            public static string Read(Guid id, EndpointQuery? query = null) =>
-                $"{Organisations.Read(id)}/{Root}{query}";
+            public static string Read(Guid organisationId, EndpointQuery? query = null) =>
+                $"{Organisations.Read(organisationId)}/{Root}{query}";
         }
 
         public static class ComplianceDeclarations
         {
             private static string Root = "compliance-declarations";
 
-            public static string Create(Guid id) => $"{Read(id)}/{Root}";
+            public static string Create(Guid organisationId) => $"{Read(organisationId)}/{Root}";
         }
     }
 }

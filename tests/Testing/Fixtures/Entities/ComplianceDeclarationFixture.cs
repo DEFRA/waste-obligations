@@ -1,7 +1,7 @@
 using AutoFixture;
 using AutoFixture.Dsl;
 using Defra.WasteObligations.Api.Data.Entities;
-using Defra.WasteObligations.Api.Dtos;
+using ObligationYear = Defra.WasteObligations.Api.Dtos.ObligationYear;
 
 // ReSharper disable ConvertClosureToMethodGroup
 

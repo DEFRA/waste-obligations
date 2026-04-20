@@ -1,0 +1,28 @@
+﻿{
+  "id": "2d7e780c-ca82-4007-8b14-7c7ac49cf2f4",
+  "organisationId": "923fa611-571c-4948-ab7d-fbb75e75ed65",
+  "obligationYear": 2026,
+  "obligations": [
+    {
+      "material": "Plastic",
+      "recyclingTarget": 0.75,
+      "tonnages": {
+        "material": 100,
+        "awaitingAcceptance": 10,
+        "accepted": 2,
+        "outstanding": 20,
+        "obligated": 5
+      },
+      "status": "NoDataYet"
+    }
+  ],
+  "declarationText": {
+    "text": "This is the text",
+    "language": "en"
+  },
+  "submitterName": "Submitter Name",
+  "user": {
+    "id": "e72be574-8b5b-4836-af47-dd7e0c0d1d87",
+    "email": "submitter@email.com"
+  }
+}
