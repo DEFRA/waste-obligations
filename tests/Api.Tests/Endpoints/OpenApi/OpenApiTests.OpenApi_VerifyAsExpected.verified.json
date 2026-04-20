@@ -38,12 +38,11 @@
             }
           },
           {
-            "name": "year",
+            "name": "obligationYear",
             "in": "query",
-            "description": "Year of obligation(s)",
             "schema": {
-              "maximum": 2147483647,
-              "minimum": 2000,
+              "maximum": 2050,
+              "minimum": 2023,
               "pattern": "^-?(?:0|[1-9]\\d*)$",
               "type": [
                 "integer",
@@ -138,7 +137,99 @@
         },
         "responses": {
           "201": {
-            "description": "Created"
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplianceDeclaration"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "ComplianceDeclarations"
+        ],
+        "summary": "Compliance declarations for an organisation by year",
+        "description": "Returns the compliance declarations for an organisation by organisation ID for the specified year",
+        "operationId": "ReadOrganisationComplianceDeclarations",
+        "parameters": [
+          {
+            "name": "organisationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "obligationYear",
+            "in": "query",
+            "schema": {
+              "maximum": 2050,
+              "minimum": 2023,
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganisationComplianceDeclarations"
+                }
+              }
+            }
           },
           "404": {
             "description": "Not Found",
@@ -186,6 +277,67 @@
   },
   "components": {
     "schemas": {
+      "ComplianceDeclaration": {
+        "required": [
+          "obligationYear",
+          "declarationText",
+          "submitterName",
+          "user"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "created": {
+            "type": "string",
+            "description": "ISO 8601 extended format with offset",
+            "format": "date-time"
+          },
+          "updated": {
+            "type": "string",
+            "description": "ISO 8601 extended format with offset",
+            "format": "date-time"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ComplianceDeclarationStatus"
+          },
+          "organisationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "obligationYear": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Obligation year of compliance declaration",
+            "format": "int32"
+          },
+          "obligations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Obligation"
+            }
+          },
+          "declarationText": {
+            "$ref": "#/components/schemas/LocalizedText"
+          },
+          "submitterName": {
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          }
+        }
+      },
+      "ComplianceDeclarationStatus": {
+        "enum": [
+          "Submitted"
+        ]
+      },
       "CreateComplianceDeclarationRequest": {
         "required": [
           "obligationYear",
@@ -203,7 +355,6 @@
               "integer",
               "string"
             ],
-            "description": "Obligation year of compliance declaration",
             "format": "int32"
           },
           "obligations": {
@@ -358,6 +509,17 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "OrganisationComplianceDeclarations": {
+        "type": "object",
+        "properties": {
+          "complianceDeclarations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ComplianceDeclaration"
+            }
           }
         }
       },

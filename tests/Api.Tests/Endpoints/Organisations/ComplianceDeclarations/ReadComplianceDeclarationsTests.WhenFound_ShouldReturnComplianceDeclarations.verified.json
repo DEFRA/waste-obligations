@@ -1,0 +1,66 @@
+﻿{
+  "complianceDeclarations": [
+    {
+      "id": "{Scrubbed}",
+      "created": "2026-04-27T14:00:00+00:00",
+      "updated": "2026-04-27T14:00:00+00:00",
+      "status": "Submitted",
+      "organisationId": "923fa611-571c-4948-ab7d-fbb75e75ed65",
+      "obligationYear": 2026,
+      "obligations": [
+        {
+          "material": "Plastic",
+          "recyclingTarget": 0.75,
+          "tonnages": {
+            "material": 100,
+            "awaitingAcceptance": 10,
+            "accepted": 2,
+            "outstanding": 20,
+            "obligated": 5
+          },
+          "status": "NoDataYet"
+        }
+      ],
+      "declarationText": {
+        "text": "This is the text",
+        "language": "en"
+      },
+      "submitterName": "Submitter Name",
+      "user": {
+        "id": "{Scrubbed}",
+        "email": "submitter@email.com"
+      }
+    },
+    {
+      "id": "{Scrubbed}",
+      "created": "2026-04-26T14:00:00+00:00",
+      "updated": "2026-04-26T14:00:00+00:00",
+      "status": "Submitted",
+      "organisationId": "923fa611-571c-4948-ab7d-fbb75e75ed65",
+      "obligationYear": 2026,
+      "obligations": [
+        {
+          "material": "Plastic",
+          "recyclingTarget": 0.75,
+          "tonnages": {
+            "material": 100,
+            "awaitingAcceptance": 10,
+            "accepted": 2,
+            "outstanding": 20,
+            "obligated": 5
+          },
+          "status": "NoDataYet"
+        }
+      ],
+      "declarationText": {
+        "text": "This is the text",
+        "language": "en"
+      },
+      "submitterName": "Submitter Name",
+      "user": {
+        "id": "{Scrubbed}",
+        "email": "submitter@email.com"
+      }
+    }
+  ]
+}

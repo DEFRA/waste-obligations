@@ -27,6 +27,7 @@ public class CreateComplianceDeclarationTests(ApiWebApplicationFactory factory, 
     {
         var client = CreateClient(testUser: TestUser.WriteOnly);
         ComplianceDeclarationService.CreateNewId = () => new Guid("2d7e780c-ca82-4007-8b14-7c7ac49cf2f4");
+        ComplianceDeclarationService.UtcNow = () => new DateTime(2026, 4, 20, 12, 28, 0, DateTimeKind.Utc);
 
         var response = await client.PostAsJsonAsync(
             Testing.Endpoints.Organisations.ComplianceDeclarations.Create(FakeWasteOrganisationsService.OrganisationId),
@@ -36,7 +37,8 @@ public class CreateComplianceDeclarationTests(ApiWebApplicationFactory factory, 
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
         await VerifyJson(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken))
-            .DontScrubGuids();
+            .DontScrubGuids()
+            .DontScrubDateTimes();
     }
 
     [Fact]

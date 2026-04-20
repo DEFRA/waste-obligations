@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
@@ -6,7 +5,6 @@ namespace Defra.WasteObligations.Api.Dtos;
 
 public record CreateComplianceDeclarationRequest
 {
-    [Description("Obligation year of compliance declaration")]
     [Range(Dtos.ObligationYear.Minimum, Dtos.ObligationYear.Maximum)]
     [JsonPropertyName("obligationYear")]
     public required int ObligationYear { get; init; }

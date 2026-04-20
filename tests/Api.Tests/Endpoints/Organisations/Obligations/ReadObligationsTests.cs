@@ -29,7 +29,7 @@ public class ReadObligationsTests(ApiWebApplicationFactory factory, ITestOutputH
             Testing.Endpoints.Organisations.Obligations.Read(
                 FakeWasteOrganisationsService.OrganisationId,
                 EndpointQuery
-                    .New.Where(EndpointFilter.Year(FakeWasteOrganisationsService.Year))
+                    .New.Where(EndpointFilter.ObligationYear(FakeWasteOrganisationsService.Year))
                     .Where(EndpointFilter.Include(include))
             ),
             TestContext.Current.CancellationToken
@@ -46,7 +46,7 @@ public class ReadObligationsTests(ApiWebApplicationFactory factory, ITestOutputH
         var response = await client.GetAsync(
             Testing.Endpoints.Organisations.Obligations.Read(
                 Guid.NewGuid(),
-                EndpointQuery.New.Where(EndpointFilter.Year(2026))
+                EndpointQuery.New.Where(EndpointFilter.ObligationYear(2026))
             ),
             TestContext.Current.CancellationToken
         );
@@ -62,7 +62,7 @@ public class ReadObligationsTests(ApiWebApplicationFactory factory, ITestOutputH
         var response = await client.GetAsync(
             Testing.Endpoints.Organisations.Obligations.Read(
                 Guid.NewGuid(),
-                EndpointQuery.New.Where(EndpointFilter.Year(1999))
+                EndpointQuery.New.Where(EndpointFilter.ObligationYear(2022))
             ),
             TestContext.Current.CancellationToken
         );

@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Security.Claims;
 using Defra.WasteObligations.Api.Authentication;
+using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Testing;
 using MongoDB.Driver;
 using ServiceCollectionExtensions = Defra.WasteObligations.Api.Data.ServiceCollectionExtensions;
@@ -13,6 +14,8 @@ public abstract class IntegrationTestBase : IAsyncLifetime
 {
     public required WireMockContext WireMockContext;
 
+    public required IMongoCollection<ComplianceDeclaration> ComplianceDeclarations { get; set; }
+
     public ValueTask DisposeAsync()
     {
         GC.SuppressFinalize(this);
@@ -24,6 +27,13 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         WireMockContext = new WireMockContext();
 
         await WireMockContext.InitializeAsync();
+
+        ComplianceDeclarations = GetMongoCollection<ComplianceDeclaration>();
+
+        await ComplianceDeclarations.DeleteManyAsync(
+            FilterDefinition<ComplianceDeclaration>.Empty,
+            TestContext.Current.CancellationToken
+        );
     }
 
     protected static HttpClient CreateClient()
@@ -55,6 +65,8 @@ public abstract class IntegrationTestBase : IAsyncLifetime
 
         return new MongoClient(settings).GetDatabase("waste-obligations");
     }
+
+    private static IMongoCollection<T> GetMongoCollection<T>() => GetMongoDatabase().GetCollection<T>(typeof(T).Name);
 
     static IntegrationTestBase()
     {

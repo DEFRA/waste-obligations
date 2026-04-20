@@ -25,9 +25,9 @@ public record Organisation
     [JsonPropertyName("registrations")]
     public Registration[] Registrations { get; init; } = [];
 
-    public string CompanyName(int? year = null)
+    public string CompanyName(int? registrationYear = null)
     {
-        var registration = LatestRegistrationOrByYear(year);
+        var registration = LatestRegistrationOrByYear(registrationYear);
         var result = registration.Type switch
         {
             RegistrationType.LargeProducer => Name,
@@ -40,15 +40,16 @@ public record Organisation
 
     private int LatestRegistrationYear() => Registrations.MaxBy(x => x.RegistrationYear)?.RegistrationYear ?? 0;
 
-    private Registration LatestRegistrationOrByYear(int? year)
+    private Registration LatestRegistrationOrByYear(int? registrationYear)
     {
-        year ??= LatestRegistrationYear();
-        var registrations = Registrations.Where(x => x.RegistrationYear == year).ToArray();
+        registrationYear ??= LatestRegistrationYear();
+        var registrations = Registrations.Where(x => x.RegistrationYear == registrationYear).ToArray();
 
         var registration =
             registrations.FirstOrDefault(x => x.Status == RegistrationStatus.Registered)
             ?? registrations.FirstOrDefault();
 
-        return registration ?? throw new InvalidOperationException($"No registration found, using year {year}");
+        return registration
+            ?? throw new InvalidOperationException($"No registration found, using year {registrationYear}");
     }
 }

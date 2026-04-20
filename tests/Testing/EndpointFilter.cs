@@ -6,7 +6,7 @@ public class EndpointFilter
 
     private EndpointFilter(string filter) => Filter = filter;
 
-    public static EndpointFilter Year(int year) => new($"year={year}");
+    public static EndpointFilter ObligationYear(int obligationYear) => new($"obligationYear={obligationYear}");
 
     public static EndpointFilter Include(string? type) => new($"include={type}");
 }

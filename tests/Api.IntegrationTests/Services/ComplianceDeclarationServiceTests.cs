@@ -35,4 +35,43 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         retrieved.Should().NotBeNull();
         retrieved.Should().BeEquivalentTo(initial, options => options.AllowMongoDateTimePrecision());
     }
+
+    [Fact]
+    public async Task Read_WhenMatchingData_ShouldReturn()
+    {
+        var organisationId = Guid.NewGuid();
+        const int obligationYear = 2025;
+
+        var result = await Subject.Create(
+            ComplianceDeclarationFixture
+                .Default()
+                .With(x => x.OrganisationId, organisationId)
+                .With(x => x.ObligationYear, obligationYear)
+                .Create(),
+            TestContext.Current.CancellationToken
+        );
+        await Subject.Create(
+            ComplianceDeclarationFixture
+                .Default()
+                .With(x => x.OrganisationId, organisationId)
+                .With(x => x.ObligationYear, obligationYear + 1)
+                .Create(),
+            TestContext.Current.CancellationToken
+        );
+        await Subject.Create(
+            ComplianceDeclarationFixture
+                .Default()
+                .With(x => x.OrganisationId, Guid.NewGuid)
+                .With(x => x.ObligationYear, obligationYear)
+                .Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        var complianceDeclarations = (
+            await Subject.Read(organisationId, obligationYear, TestContext.Current.CancellationToken)
+        ).ToList();
+
+        complianceDeclarations.Should().ContainSingle();
+        complianceDeclarations.Should().Contain(x => x.Id == result.Id);
+    }
 }

@@ -2,11 +2,11 @@ namespace Defra.WasteObligations.Api.Services.WasteOrganisations;
 
 public static class Mappers
 {
-    public static Dtos.Organisation ToDto(this Organisation organisation, int? year = null) =>
+    public static Dtos.Organisation ToDto(this Organisation organisation, int? obligationYear = null) =>
         new()
         {
             Id = organisation.Id,
-            CompanyName = organisation.CompanyName(year),
+            CompanyName = organisation.CompanyName(obligationYear),
             Regulator = organisation.BusinessCountry switch
             {
                 BusinessCountry.England => "Environment Agency",

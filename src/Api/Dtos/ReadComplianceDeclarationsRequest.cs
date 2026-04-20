@@ -1,15 +1,10 @@
-using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Defra.WasteObligations.Api.Dtos;
 
-public record ReadObligationsRequest
+public record ReadComplianceDeclarationsRequest
 {
-    [Description($"Additional data types to include. Possible value is '{IncludeTypes.Organisation}'")]
-    [FromQuery(Name = "include")]
-    public string? Include { get; init; }
-
     [FromQuery(Name = "obligationYear")]
     [Range(Dtos.ObligationYear.Minimum, Dtos.ObligationYear.Maximum)]
     public int? ObligationYear { get; init; }
