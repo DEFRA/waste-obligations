@@ -1,0 +1,37 @@
+using Defra.WasteObligations.Api.Data;
+using Defra.WasteObligations.Api.Data.Entities;
+using MongoDB.Driver;
+
+namespace Defra.WasteObligations.Api.Services;
+
+public class ComplianceDeclarationService(IDbContext dbContext, ILogger<ComplianceDeclarationService> logger)
+    : IComplianceDeclarationService
+{
+    public async Task<ComplianceDeclaration> Create(
+        ComplianceDeclaration complianceDeclaration,
+        CancellationToken cancellationToken
+    )
+    {
+        var utcNow = DateTime.UtcNow;
+        complianceDeclaration = complianceDeclaration with { Version = 1, Created = utcNow, Updated = utcNow };
+
+        await dbContext.ComplianceDeclarations.InsertOneAsync(
+            complianceDeclaration,
+            cancellationToken: cancellationToken
+        );
+
+        logger.LogInformation(
+            "Created compliance declaration with id '{ComplianceDeclarationId}'",
+            complianceDeclaration.Id
+        );
+
+        return complianceDeclaration;
+    }
+
+    public async Task<ComplianceDeclaration?> Read(Guid id, CancellationToken cancellationToken)
+    {
+        return await dbContext
+            .ComplianceDeclarations.Find(Builders<ComplianceDeclaration>.Filter.Eq(x => x.Id, id))
+            .FirstOrDefaultAsync(cancellationToken: cancellationToken);
+    }
+}

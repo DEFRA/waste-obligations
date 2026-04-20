@@ -11,7 +11,7 @@
     }
   ],
   "paths": {
-    "/organisations/{id}/obligations": {
+    "/organisations/{organisationId}/obligations": {
       "get": {
         "tags": [
           "Obligations"
@@ -21,7 +21,7 @@
         "operationId": "ReadOrganisationObligations",
         "parameters": [
           {
-            "name": "id",
+            "name": "organisationId",
             "in": "path",
             "required": true,
             "schema": {
@@ -107,7 +107,7 @@
         }
       }
     },
-    "/organisations/{id}/compliance-declarations": {
+    "/organisations/{organisationId}/compliance-declarations": {
       "post": {
         "tags": [
           "ComplianceDeclarations"
@@ -117,7 +117,7 @@
         "operationId": "CreateOrganisationComplianceDeclaration",
         "parameters": [
           {
-            "name": "id",
+            "name": "organisationId",
             "in": "path",
             "required": true,
             "schema": {
@@ -254,7 +254,8 @@
               "Aluminium",
               "Steel",
               "Wood",
-              "GlassRemelt"
+              "GlassRemelt",
+              "Paper"
             ],
             "type": "string",
             "description": "Name of material"

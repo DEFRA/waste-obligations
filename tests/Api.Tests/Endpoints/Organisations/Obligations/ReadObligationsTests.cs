@@ -1,7 +1,8 @@
 using System.Net;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Dtos;
-using Defra.WasteObligations.Api.Services;
+using Defra.WasteObligations.Api.Services.PrnCommonBackend;
+using Defra.WasteObligations.Api.Services.WasteOrganisations;
 using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Fakes;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,7 +14,8 @@ public class ReadObligationsTests(ApiWebApplicationFactory factory, ITestOutputH
 {
     protected override void ConfigureTestServices(IServiceCollection services)
     {
-        services.AddTransient<IOrganisationService>(_ => new FakeOrganisationService());
+        services.AddTransient<IWasteOrganisationsService>(_ => new FakeWasteOrganisationsService());
+        services.AddTransient<IPrnCommonBackendService>(_ => new FakePrnCommonBackendService());
     }
 
     [Theory]
@@ -25,9 +27,9 @@ public class ReadObligationsTests(ApiWebApplicationFactory factory, ITestOutputH
 
         var response = await client.GetStringAsync(
             Testing.Endpoints.Organisations.Obligations.Read(
-                FakeOrganisationService.OrganisationId,
+                FakeWasteOrganisationsService.OrganisationId,
                 EndpointQuery
-                    .New.Where(EndpointFilter.Year(FakeOrganisationService.Year))
+                    .New.Where(EndpointFilter.Year(FakeWasteOrganisationsService.Year))
                     .Where(EndpointFilter.Include(include))
             ),
             TestContext.Current.CancellationToken

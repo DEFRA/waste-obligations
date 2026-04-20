@@ -5,7 +5,7 @@ namespace Defra.WasteObligations.Api.Services.WasteOrganisations;
 
 public class WasteOrganisationsService(HttpClient httpClient) : IWasteOrganisationsService
 {
-    public async Task<Organisation?> ReadOrganisation(Guid organisationId, CancellationToken cancellationToken)
+    public async Task<Organisation?> Read(Guid organisationId, CancellationToken cancellationToken)
     {
         var request = httpClient.CreateRequest(HttpMethod.Get, $"organisations/{organisationId:D}");
 

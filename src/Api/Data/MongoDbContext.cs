@@ -1,6 +1,10 @@
-using System.Diagnostics.CodeAnalysis;
+using Defra.WasteObligations.Api.Data.Entities;
+using MongoDB.Driver;
 
 namespace Defra.WasteObligations.Api.Data;
 
-[ExcludeFromCodeCoverage(Justification = "See integration tests")]
-public class MongoDbContext : IDbContext;
+public class MongoDbContext(IMongoDatabase database) : IDbContext
+{
+    public IMongoCollection<ComplianceDeclaration> ComplianceDeclarations { get; } =
+        database.GetCollection<ComplianceDeclaration>(nameof(ComplianceDeclaration));
+}

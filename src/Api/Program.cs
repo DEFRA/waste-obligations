@@ -44,10 +44,10 @@ try
     builder.Services.AddRequestMetrics();
     builder.Services.AddDbContext(builder.Configuration, integrationTest);
     builder.Services.AddValidation();
-    builder.Services.AddTransient<IOrganisationService, OrganisationService>();
     builder.Services.AddTransient<ProxyHttpMessageHandler>();
     builder.Services.AddPrnCommonBackendService();
     builder.Services.AddWasteOrganisationsService();
+    builder.Services.AddTransient<IComplianceDeclarationService, ComplianceDeclarationService>();
 
     var app = builder.Build();
 
