@@ -3,8 +3,8 @@
   "title": "One or more validation errors occurred.",
   "status": 400,
   "errors": {
-    "Year": [
-      "Year must be 2000 onwards"
+    "ObligationYear": [
+      "The field ObligationYear must be between 2023 and 2050."
     ]
   },
   "traceId": "{Scrubbed}"

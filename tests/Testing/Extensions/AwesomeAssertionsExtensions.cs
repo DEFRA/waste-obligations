@@ -18,6 +18,10 @@ public static class AwesomeAssertionsExtensions
             .Using<DateTime>(x =>
                 x.Subject.TruncateToMilliseconds().Should().Be(x.Expectation.TruncateToMilliseconds())
             )
-            .WhenTypeIs<DateTime>();
+            .WhenTypeIs<DateTime>()
+            .Using<DateTimeOffset>(x =>
+                x.Subject.TruncateToMilliseconds().Should().Be(x.Expectation.TruncateToMilliseconds())
+            )
+            .WhenTypeIs<DateTimeOffset>();
     }
 }

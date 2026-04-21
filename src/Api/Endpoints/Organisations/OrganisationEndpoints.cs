@@ -10,5 +10,6 @@ public static class OrganisationEndpoints
         app.MapObligationsRead();
 
         app.MapComplianceDeclarationsCreate();
+        app.MapComplianceDeclarationsRead();
     }
 }

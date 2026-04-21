@@ -2,8 +2,10 @@ using AutoFixture;
 using AutoFixture.Dsl;
 using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.Testing.Extensions;
+using Defra.WasteObligations.Testing.Fixtures.Dtos;
+using Obligation = Defra.WasteObligations.Api.Data.Entities.Obligation;
 
-namespace Defra.WasteObligations.Testing.Fixtures.Dtos;
+namespace Defra.WasteObligations.Testing.Fixtures.Entities;
 
 public static class ObligationFixture
 {

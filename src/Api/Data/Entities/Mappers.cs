@@ -6,6 +6,13 @@ public static class Mappers
         new()
         {
             Id = entity.Id,
+            Created = entity.Created,
+            Updated = entity.Updated,
+            Status = entity.Status switch
+            {
+                ComplianceDeclarationStatus.Submitted => Dtos.ComplianceDeclarationStatus.Submitted,
+                _ => throw new InvalidOperationException("Unknown status"),
+            },
             OrganisationId = entity.OrganisationId,
             ObligationYear = entity.ObligationYear,
             Obligations = entity.Obligations.Select(x => x.ToDto()).ToList(),

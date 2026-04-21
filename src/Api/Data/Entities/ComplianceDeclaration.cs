@@ -8,8 +8,13 @@ public record ComplianceDeclaration
     [BsonGuidRepresentation(GuidRepresentation.Standard)]
     public required Guid Id { get; init; }
     public int Version { get; init; } = 1;
+
+    [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime Created { get; init; }
+
+    [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime Updated { get; init; }
+    public ComplianceDeclarationStatus Status { get; init; }
 
     [BsonGuidRepresentation(GuidRepresentation.Standard)]
     public Guid OrganisationId { get; init; }

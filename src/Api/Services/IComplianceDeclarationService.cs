@@ -10,4 +10,10 @@ public interface IComplianceDeclarationService
     );
 
     Task<ComplianceDeclaration?> Read(Guid id, CancellationToken cancellationToken);
+
+    Task<IEnumerable<ComplianceDeclaration>> Read(
+        Guid organisationId,
+        int obligationYear,
+        CancellationToken cancellationToken
+    );
 }

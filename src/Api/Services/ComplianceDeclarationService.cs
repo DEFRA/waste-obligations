@@ -1,6 +1,7 @@
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using MongoDB.Driver;
+using MongoDB.Driver.Linq;
 
 namespace Defra.WasteObligations.Api.Services;
 
@@ -12,7 +13,7 @@ public class ComplianceDeclarationService(IDbContext dbContext, ILogger<Complian
         CancellationToken cancellationToken
     )
     {
-        var utcNow = DateTime.UtcNow;
+        var utcNow = DateTimeOffset.UtcNow.UtcDateTime;
         complianceDeclaration = complianceDeclaration with { Version = 1, Created = utcNow, Updated = utcNow };
 
         await dbContext.ComplianceDeclarations.InsertOneAsync(
@@ -28,10 +29,18 @@ public class ComplianceDeclarationService(IDbContext dbContext, ILogger<Complian
         return complianceDeclaration;
     }
 
-    public async Task<ComplianceDeclaration?> Read(Guid id, CancellationToken cancellationToken)
-    {
-        return await dbContext
+    public async Task<ComplianceDeclaration?> Read(Guid id, CancellationToken cancellationToken) =>
+        await dbContext
             .ComplianceDeclarations.Find(Builders<ComplianceDeclaration>.Filter.Eq(x => x.Id, id))
             .FirstOrDefaultAsync(cancellationToken: cancellationToken);
-    }
+
+    public async Task<IEnumerable<ComplianceDeclaration>> Read(
+        Guid organisationId,
+        int obligationYear,
+        CancellationToken cancellationToken
+    ) =>
+        await dbContext
+            .ComplianceDeclarations.AsQueryable()
+            .Where(x => x.OrganisationId == organisationId && x.ObligationYear == obligationYear)
+            .ToListAsync(cancellationToken);
 }

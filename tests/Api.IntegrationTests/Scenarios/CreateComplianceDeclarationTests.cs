@@ -6,6 +6,7 @@ using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Testing.Authentication;
+using Defra.WasteObligations.Testing.Extensions;
 using Defra.WasteObligations.Testing.Extensions.WireMock;
 using Defra.WasteObligations.Testing.Fixtures.Dtos;
 using Microsoft.Extensions.Logging;
@@ -50,6 +51,8 @@ public class CreateComplianceDeclarationTests : IntegrationTestBase
             TestContext.Current.CancellationToken
         );
 
-        result.Should().BeEquivalentTo(complianceDeclaration?.ToDto());
+        result
+            .Should()
+            .BeEquivalentTo(complianceDeclaration?.ToDto(), options => options.AllowMongoDateTimePrecision());
     }
 }

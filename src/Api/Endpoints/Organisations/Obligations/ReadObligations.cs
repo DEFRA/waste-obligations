@@ -32,9 +32,13 @@ public static class ReadObligations
         CancellationToken cancellationToken
     )
     {
-        var year = request.YearValue;
+        var obligationYear = request.ObligationYearValue;
         var organisationTask = wasteOrganisationsService.Read(organisationId, cancellationToken);
-        var obligationsTask = prnCommonBackendService.ReadObligations(organisationId, year, cancellationToken);
+        var obligationsTask = prnCommonBackendService.ReadObligations(
+            organisationId,
+            obligationYear,
+            cancellationToken
+        );
 
         await Task.WhenAll(organisationTask, obligationsTask);
 
@@ -48,7 +52,7 @@ public static class ReadObligations
             new OrganisationObligations
             {
                 Obligations = obligations.Select(x => x.ToDto()).ToArray(),
-                Organisation = request.Include == IncludeTypes.Organisation ? organisation.ToDto(year) : null,
+                Organisation = request.Include == IncludeTypes.Organisation ? organisation.ToDto(obligationYear) : null,
             }
         );
     }

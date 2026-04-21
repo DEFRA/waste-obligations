@@ -4,6 +4,7 @@ using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
 using Microsoft.AspNetCore.Mvc;
+using ComplianceDeclaration = Defra.WasteObligations.Api.Dtos.ComplianceDeclaration;
 
 namespace Defra.WasteObligations.Api.Endpoints.Organisations.ComplianceDeclarations;
 
@@ -16,7 +17,7 @@ public static class CreateComplianceDeclaration
             .WithTags("ComplianceDeclarations")
             .WithSummary("Create a compliance declaration")
             .WithDescription("Create a compliance declaration for the specified organisation ID")
-            .Produces(StatusCodes.Status201Created)
+            .Produces<ComplianceDeclaration>(StatusCodes.Status201Created)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
