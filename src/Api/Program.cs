@@ -42,7 +42,7 @@ try
     });
     builder.Services.AddAuthenticationAuthorization();
     builder.Services.AddRequestMetrics();
-    builder.Services.AddDbContext(builder.Configuration, integrationTest);
+    builder.Services.AddDbContext(builder.Configuration, integrationTest || openApiBuild);
     builder.Services.AddValidation();
     builder.Services.AddTransient<ProxyHttpMessageHandler>();
     builder.Services.AddPrnCommonBackendService();

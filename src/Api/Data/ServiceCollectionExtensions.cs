@@ -13,7 +13,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddDbContext(
         this IServiceCollection services,
         IConfiguration configuration,
-        bool integrationTest
+        bool validateConfigOnly
     )
     {
         services
@@ -21,7 +21,7 @@ public static class ServiceCollectionExtensions
             .Bind(configuration.GetSection(MongoDbOptions.SectionName))
             .ValidateDataAnnotations();
 
-        if (integrationTest)
+        if (validateConfigOnly)
             return services;
 
         services.AddHostedService<MongoIndexService>();
