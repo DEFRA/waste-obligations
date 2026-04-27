@@ -1,0 +1,28 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPath": "/api/v1/prn/obligationcalculation/2025"
+  },
+  "response": {
+    "status": 200,
+    "jsonBody": {
+      "numberOfPrnsAwaitingAcceptance": 0,
+      "obligationData": [
+        {
+          "organisationId": "87cbc010-90f7-4c79-8bd5-099cdda2ca24",
+          "materialName": "Plastic",
+          "tonnage": 100,
+          "materialTarget": 0.5,
+          "obligationToMeet": 50,
+          "tonnageAwaitingAcceptance": 0,
+          "tonnageAccepted": 0,
+          "tonnageOutstanding": 50,
+          "status": "NotMet"
+        }
+      ]
+    },
+    "headers": {
+      "Content-Type": "application/json"
+    }
+  }
+}

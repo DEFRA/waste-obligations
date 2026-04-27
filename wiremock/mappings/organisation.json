@@ -1,0 +1,32 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPath": "/organisations/87cbc010-90f7-4c79-8bd5-099cdda2ca24"
+  },
+  "response": {
+    "status": 200,
+    "jsonBody": {
+      "id": "87cbc010-90f7-4c79-8bd5-099cdda2ca24",
+      "name": "Test Organisation Ltd",
+      "tradingName": "Test Trading",
+      "businessCountry": "England",
+      "companiesHouseNumber": "12345678",
+      "address": {
+        "addressLine1": "1 Test Street",
+        "town": "Bristol",
+        "postcode": "BS1 5AH",
+        "country": "UK"
+      },
+      "registrations": [
+        {
+          "status": "Registered",
+          "type": "LargeProducer",
+          "registrationYear": 2025
+        }
+      ]
+    },
+    "headers": {
+      "Content-Type": "application/json"
+    }
+  }
+}

@@ -13,7 +13,9 @@ services:
       TZ: Europe/London
     image: sheyenrath/wiremock.net:latest
     ports:
-      - "9090:80"    
+      - "9090:80"
+    volumes:
+      - ./wiremock/mappings:/home/wiremock/mappings
 
   api:
     build:
