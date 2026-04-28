@@ -57,6 +57,20 @@ public class CreateComplianceDeclarationTests(ApiWebApplicationFactory factory, 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
+    [Fact]
+    public async Task WhenReadOnlyUser_ShouldBeForbidden()
+    {
+        var client = CreateClient(testUser: TestUser.ReadOnly);
+
+        var response = await client.PostAsJsonAsync(
+            Testing.Endpoints.Organisations.ComplianceDeclarations.Create(Guid.NewGuid()),
+            CreateComplianceDeclarationRequestFixture.Default().Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
     [Theory]
     [InlineData(2022)]
     [InlineData(2051)]

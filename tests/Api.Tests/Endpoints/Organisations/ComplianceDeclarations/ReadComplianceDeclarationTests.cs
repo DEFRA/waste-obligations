@@ -33,6 +33,19 @@ public class ReadComplianceDeclarationTests(ApiWebApplicationFactory factory, IT
     }
 
     [Fact]
+    public async Task WhenWriteOnlyUser_ShouldBeForbidden()
+    {
+        var client = CreateClient(testUser: TestUser.WriteOnly);
+
+        var response = await client.GetAsync(
+            Testing.Endpoints.Organisations.ComplianceDeclarations.Read(Guid.NewGuid(), Guid.NewGuid()),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
     public async Task WhenOrganisationFound_ButComplianceDeclarationNotFound_ShouldBeNotFound()
     {
         var client = CreateClient(testUser: TestUser.ReadOnly);
