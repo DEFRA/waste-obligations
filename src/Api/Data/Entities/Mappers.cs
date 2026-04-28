@@ -16,6 +16,7 @@ public static class Mappers
             Organisation = entity.Organisation.ToDto(),
             ObligationYear = entity.ObligationYear,
             Obligations = entity.Obligations.Select(x => x.ToDto()).ToList(),
+            ObligationStatus = entity.ObligationStatus,
             DeclarationText = entity.DeclarationText.ToDto(),
             SubmitterName = entity.SubmitterName,
             User = entity.User.ToDto(),

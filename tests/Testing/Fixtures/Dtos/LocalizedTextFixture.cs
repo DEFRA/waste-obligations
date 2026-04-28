@@ -11,9 +11,14 @@ public static class LocalizedTextFixture
 
     private static readonly string[] s_languages = ["en", "cy"];
 
+    public static IPostprocessComposer<LocalizedText> AddDefaults(this ICustomizationComposer<LocalizedText> composer)
+    {
+        return composer.With(x => x.Language, () => s_languages.Random());
+    }
+
     public static IPostprocessComposer<LocalizedText> Text()
     {
-        return GetFixture().Build<LocalizedText>().With(x => x.Language, () => s_languages.Random());
+        return GetFixture().Build<LocalizedText>().AddDefaults();
     }
 
     public static IPostprocessComposer<LocalizedText> Default()

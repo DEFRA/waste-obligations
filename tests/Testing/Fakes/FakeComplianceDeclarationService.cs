@@ -18,38 +18,17 @@ public class FakeComplianceDeclarationService : IComplianceDeclarationService
             FakeWasteOrganisationsService.OrganisationId,
             [
                 ComplianceDeclarationFixture
-                    .Default()
-                    .With(
-                        x => x.Organisation,
-                        OrganisationFixture
-                            .DirectProducer()
-                            .With(x => x.Id, FakeWasteOrganisationsService.OrganisationId)
-                            .Create()
-                    )
+                    .DirectProducer(FakeWasteOrganisationsService.OrganisationId)
                     .With(x => x.Created, s_start)
                     .With(x => x.Updated, s_start)
                     .Create(),
                 ComplianceDeclarationFixture
-                    .Default()
-                    .With(
-                        x => x.Organisation,
-                        OrganisationFixture
-                            .DirectProducer()
-                            .With(x => x.Id, FakeWasteOrganisationsService.OrganisationId)
-                            .Create()
-                    )
+                    .DirectProducer(FakeWasteOrganisationsService.OrganisationId)
                     .With(x => x.Created, s_start.AddDays(1))
                     .With(x => x.Updated, s_start.AddDays(1))
                     .Create(),
                 ComplianceDeclarationFixture
-                    .Default()
-                    .With(
-                        x => x.Organisation,
-                        OrganisationFixture
-                            .DirectProducer()
-                            .With(x => x.Id, FakeWasteOrganisationsService.OrganisationId)
-                            .Create()
-                    )
+                    .DirectProducer(FakeWasteOrganisationsService.OrganisationId)
                     .With(x => x.ObligationYear, FakeWasteOrganisationsService.Year - 1)
                     .With(x => x.Created, s_start.AddYears(-1))
                     .With(x => x.Updated, s_start.AddYears(-1))

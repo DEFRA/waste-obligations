@@ -8,9 +8,14 @@ public static class UserFixture
 {
     private static Fixture GetFixture() => new();
 
+    public static IPostprocessComposer<User> AddDefaults(this ICustomizationComposer<User> composer)
+    {
+        return composer.With(x => x.Id, () => Guid.NewGuid().ToString());
+    }
+
     public static IPostprocessComposer<User> User()
     {
-        return GetFixture().Build<User>().With(x => x.Id, () => Guid.NewGuid().ToString());
+        return GetFixture().Build<User>().AddDefaults();
     }
 
     public static IPostprocessComposer<User> Default()

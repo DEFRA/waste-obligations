@@ -322,6 +322,7 @@
         "required": [
           "organisation",
           "obligationYear",
+          "obligationStatus",
           "declarationText",
           "submitterName",
           "user"
@@ -363,6 +364,14 @@
               "$ref": "#/components/schemas/Obligation"
             }
           },
+          "obligationStatus": {
+            "enum": [
+              "NoDataYet",
+              "Met",
+              "NotMet"
+            ],
+            "type": "string"
+          },
           "declarationText": {
             "$ref": "#/components/schemas/LocalizedText"
           },
@@ -383,6 +392,7 @@
         "required": [
           "organisation",
           "obligationYear",
+          "obligationStatus",
           "declarationText",
           "submitterName",
           "user"
@@ -407,6 +417,14 @@
             "items": {
               "$ref": "#/components/schemas/Obligation"
             }
+          },
+          "obligationStatus": {
+            "enum": [
+              "NoDataYet",
+              "Met",
+              "NotMet"
+            ],
+            "type": "string"
           },
           "declarationText": {
             "$ref": "#/components/schemas/LocalizedText"
