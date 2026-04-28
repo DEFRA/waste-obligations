@@ -15,10 +15,11 @@ public class CreateComplianceDeclarationTests(ApiWebApplicationFactory factory, 
     : EndpointTestBase(factory, outputHelper)
 {
     private FakeComplianceDeclarationService ComplianceDeclarationService { get; } = new();
+    private FakeWasteOrganisationsService WasteOrganisationsService { get; } = new();
 
     protected override void ConfigureTestServices(IServiceCollection services)
     {
-        services.AddTransient<IWasteOrganisationsService>(_ => new FakeWasteOrganisationsService());
+        services.AddTransient<IWasteOrganisationsService>(_ => WasteOrganisationsService);
         services.AddTransient<IComplianceDeclarationService>(_ => ComplianceDeclarationService);
     }
 
@@ -125,6 +126,22 @@ public class CreateComplianceDeclarationTests(ApiWebApplicationFactory factory, 
         );
 
         await VerifyJson(content).UseParameters(recyclingTarget);
+    }
+
+    [Fact]
+    public async Task WhenException_ShouldBeInternalServerError()
+    {
+        var client = CreateClient(testUser: TestUser.WriteOnly);
+        WasteOrganisationsService.Throws = true;
+
+        var response = await client.PostAsJsonAsync(
+            Testing.Endpoints.Organisations.ComplianceDeclarations.Create(Guid.NewGuid()),
+            CreateComplianceDeclarationRequestFixture.Default().Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
+        await VerifyJson(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
     }
 
     private async Task<string> RequestShouldBeBadRequest(CreateComplianceDeclarationRequest request)

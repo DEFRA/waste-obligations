@@ -2,7 +2,6 @@ using System.Net;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
-using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Fakes;
 using Microsoft.Extensions.DependencyInjection;
 
