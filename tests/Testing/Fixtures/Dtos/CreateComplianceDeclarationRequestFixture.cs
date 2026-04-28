@@ -19,7 +19,7 @@ public static class CreateComplianceDeclarationRequestFixture
     {
         return composer
             .With(x => x.ObligationYear, () => RandomObligationYear())
-            .With(x => x.ObligationStatus, () => ObligationStatus.All.Random());
+            .With(x => x.ObligationStatus, () => ObligationStatus.MetOrNot.Random());
     }
 
     public static IPostprocessComposer<CreateComplianceDeclarationRequest> Request()

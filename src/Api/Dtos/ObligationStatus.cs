@@ -7,4 +7,5 @@ public static class ObligationStatus
     public const string NotMet = nameof(NotMet);
 
     public static readonly string[] All = [NoDataYet, Met, NotMet];
+    public static readonly string[] MetOrNot = [Met, NotMet];
 }

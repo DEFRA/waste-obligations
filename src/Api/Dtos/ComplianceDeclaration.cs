@@ -32,7 +32,6 @@ public record ComplianceDeclaration
     public IEnumerable<Obligation> Obligations { get; init; } = [];
 
     [Required]
-    [PossibleValue(Dtos.ObligationStatus.NoDataYet)]
     [PossibleValue(Dtos.ObligationStatus.Met)]
     [PossibleValue(Dtos.ObligationStatus.NotMet)]
     [JsonPropertyName("obligationStatus")]

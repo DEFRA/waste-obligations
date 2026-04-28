@@ -366,7 +366,6 @@
           },
           "obligationStatus": {
             "enum": [
-              "NoDataYet",
               "Met",
               "NotMet"
             ],
@@ -420,7 +419,6 @@
           },
           "obligationStatus": {
             "enum": [
-              "NoDataYet",
               "Met",
               "NotMet"
             ],
