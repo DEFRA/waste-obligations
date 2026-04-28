@@ -15,9 +15,7 @@ public record ComplianceDeclaration
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime Updated { get; init; }
     public ComplianceDeclarationStatus Status { get; init; }
-
-    [BsonGuidRepresentation(GuidRepresentation.Standard)]
-    public Guid OrganisationId { get; init; }
+    public required Organisation Organisation { get; init; }
     public int ObligationYear { get; init; }
     public IEnumerable<Obligation> Obligations { get; init; } = [];
     public required LocalizedText DeclarationText { get; init; }

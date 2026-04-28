@@ -19,8 +19,8 @@ public record ComplianceDeclaration
     [JsonPropertyName("status")]
     public ComplianceDeclarationStatus Status { get; init; }
 
-    [JsonPropertyName("organisationId")]
-    public Guid OrganisationId { get; init; }
+    [JsonPropertyName("organisation")]
+    public required OrganisationRequest Organisation { get; init; }
 
     [Description("Obligation year of compliance declaration")]
     [JsonPropertyName("obligationYear")]

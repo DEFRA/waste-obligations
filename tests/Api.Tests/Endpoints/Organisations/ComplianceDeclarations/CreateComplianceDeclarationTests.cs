@@ -31,7 +31,9 @@ public class CreateComplianceDeclarationTests(ApiWebApplicationFactory factory, 
 
         var response = await client.PostAsJsonAsync(
             Testing.Endpoints.Organisations.ComplianceDeclarations.Create(FakeWasteOrganisationsService.OrganisationId),
-            CreateComplianceDeclarationRequestFixture.Default().Create(),
+            CreateComplianceDeclarationRequestFixture
+                .DirectProducer(FakeWasteOrganisationsService.OrganisationId)
+                .Create(),
             TestContext.Current.CancellationToken
         );
 

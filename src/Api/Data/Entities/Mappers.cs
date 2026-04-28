@@ -13,7 +13,7 @@ public static class Mappers
                 ComplianceDeclarationStatus.Submitted => Dtos.ComplianceDeclarationStatus.Submitted,
                 _ => throw new InvalidOperationException("Unknown status"),
             },
-            OrganisationId = entity.OrganisationId,
+            Organisation = entity.Organisation.ToDto(),
             ObligationYear = entity.ObligationYear,
             Obligations = entity.Obligations.Select(x => x.ToDto()).ToList(),
             DeclarationText = entity.DeclarationText.ToDto(),
@@ -44,4 +44,27 @@ public static class Mappers
         new() { Text = entity.Text, Language = entity.Language };
 
     private static Dtos.User ToDto(this User entity) => new() { Id = entity.Id, Email = entity.Email };
+
+    private static Dtos.OrganisationRequest ToDto(this Organisation entity) =>
+        new()
+        {
+            Id = entity.Id,
+            Name = entity.Name,
+            ComplianceSchemeName = entity.ComplianceSchemeName,
+            SchemeOperatorName = entity.SchemeOperatorName,
+            ReferenceNumber = entity.ReferenceNumber,
+            Address = entity.Address?.ToDto(),
+            Regulator = entity.Regulator,
+        };
+
+    private static Dtos.Address ToDto(this Address entity) =>
+        new()
+        {
+            AddressLine1 = entity.AddressLine1,
+            AddressLine2 = entity.AddressLine2,
+            Town = entity.Town,
+            County = entity.County,
+            Postcode = entity.Postcode,
+            Country = entity.Country,
+        };
 }

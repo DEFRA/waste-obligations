@@ -2,14 +2,11 @@ namespace Defra.WasteObligations.Api.Dtos;
 
 public static class Mappers
 {
-    public static Data.Entities.ComplianceDeclaration ToEntity(
-        this CreateComplianceDeclarationRequest dto,
-        Services.WasteOrganisations.Organisation organisation
-    ) =>
+    public static Data.Entities.ComplianceDeclaration ToEntity(this CreateComplianceDeclarationRequest dto) =>
         new()
         {
             Id = Guid.NewGuid(),
-            OrganisationId = organisation.Id,
+            Organisation = dto.Organisation.ToEntity(),
             ObligationYear = dto.ObligationYear,
             Obligations = dto.Obligations.Select(x => x.ToEntity()).ToList(),
             DeclarationText = dto.DeclarationText.ToEntity(),
@@ -40,4 +37,27 @@ public static class Mappers
         new() { Text = dto.Text, Language = dto.Language };
 
     private static Data.Entities.User ToEntity(this User dto) => new() { Id = dto.Id, Email = dto.Email };
+
+    private static Data.Entities.Organisation ToEntity(this OrganisationRequest dto) =>
+        new()
+        {
+            Id = dto.Id,
+            Name = dto.Name,
+            ComplianceSchemeName = dto.ComplianceSchemeName,
+            SchemeOperatorName = dto.SchemeOperatorName,
+            ReferenceNumber = dto.ReferenceNumber,
+            Address = dto.Address?.ToEntity(),
+            Regulator = dto.Regulator,
+        };
+
+    private static Data.Entities.Address ToEntity(this Address dto) =>
+        new()
+        {
+            AddressLine1 = dto.AddressLine1,
+            AddressLine2 = dto.AddressLine2,
+            Town = dto.Town,
+            County = dto.County,
+            Postcode = dto.Postcode,
+            Country = dto.Country,
+        };
 }

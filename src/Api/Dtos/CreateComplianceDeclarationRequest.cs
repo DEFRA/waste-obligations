@@ -5,6 +5,9 @@ namespace Defra.WasteObligations.Api.Dtos;
 
 public record CreateComplianceDeclarationRequest
 {
+    [JsonPropertyName("organisation")]
+    public required OrganisationRequest Organisation { get; init; }
+
     [Range(Dtos.ObligationYear.Minimum, Dtos.ObligationYear.Maximum)]
     [JsonPropertyName("obligationYear")]
     public required int ObligationYear { get; init; }
