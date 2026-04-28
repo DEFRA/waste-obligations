@@ -19,19 +19,24 @@ public static class OrganisationFixture
         BusinessCountry.Wales,
     ];
 
+    public static IPostprocessComposer<Organisation> AddDefaults(this ICustomizationComposer<Organisation> composer)
+    {
+        return composer.With(x => x.BusinessCountry, () => s_businessCountries.Random());
+    }
+
     public static IPostprocessComposer<Organisation> Organisation()
     {
         var fixture = GetFixture();
 
-        RegistrationFixture.ConfigureDefaults(fixture);
+        fixture.Customize<Registration>(x => x.AddDefaults());
 
-        return fixture.Build<Organisation>().With(x => x.BusinessCountry, () => s_businessCountries.Random());
+        return fixture.Build<Organisation>().AddDefaults();
     }
 
-    public static IPostprocessComposer<Organisation> Default()
+    public static IPostprocessComposer<Organisation> Default(Guid? id = null)
     {
         return Organisation()
-            .With(x => x.Id, OrganisationId)
+            .With(x => x.Id, id ?? OrganisationId)
             .With(x => x.Name, "Test Name Ltd")
             .With(x => x.TradingName, "Trading Name")
             .With(x => x.BusinessCountry, BusinessCountry.England)
