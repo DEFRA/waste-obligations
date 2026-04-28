@@ -1,5 +1,7 @@
 using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
+using Defra.WasteObligations.Api.Dtos.Attributes;
 
 namespace Defra.WasteObligations.Api.Dtos;
 
@@ -28,6 +30,12 @@ public record ComplianceDeclaration
 
     [JsonPropertyName("obligations")]
     public IEnumerable<Obligation> Obligations { get; init; } = [];
+
+    [Required]
+    [PossibleValue(Dtos.ObligationStatus.Met)]
+    [PossibleValue(Dtos.ObligationStatus.NotMet)]
+    [JsonPropertyName("obligationStatus")]
+    public required string ObligationStatus { get; init; }
 
     [JsonPropertyName("declarationText")]
     public required LocalizedText DeclarationText { get; init; }

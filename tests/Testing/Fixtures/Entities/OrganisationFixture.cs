@@ -15,9 +15,10 @@ public static class OrganisationFixture
         return GetFixture().Build<Organisation>();
     }
 
-    public static IPostprocessComposer<Organisation> DirectProducer()
+    public static IPostprocessComposer<Organisation> DirectProducer(Guid? id = null)
     {
         return Organisation()
+            .With(x => x.Id, () => id ?? Guid.NewGuid())
             .With(x => x.Name, "Org Name")
             .With(x => x.ReferenceNumber, "123456")
             .With(x => x.Address, AddressFixture.Default().Create())
@@ -26,9 +27,10 @@ public static class OrganisationFixture
             .With(x => x.SchemeOperatorName, (string?)null);
     }
 
-    public static IPostprocessComposer<Organisation> ComplianceScheme()
+    public static IPostprocessComposer<Organisation> ComplianceScheme(Guid? id = null)
     {
         return Organisation()
+            .With(x => x.Id, () => id ?? Guid.NewGuid())
             .With(x => x.ComplianceSchemeName, "Scheme Name")
             .With(x => x.SchemeOperatorName, "Operator Name")
             .With(x => x.ReferenceNumber, "123456")

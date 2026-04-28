@@ -9,13 +9,17 @@ public static class ObligationFixture
 {
     private static Fixture GetFixture() => new();
 
-    public static IPostprocessComposer<Obligation> Obligation()
+    public static IPostprocessComposer<Obligation> AddDefaults(this ICustomizationComposer<Obligation> composer)
     {
-        return GetFixture()
-            .Build<Obligation>()
+        return composer
             .With(x => x.Material, () => Material.All.Random())
             .With(x => x.RecyclingTarget, () => (decimal)Random.Shared.NextDouble())
             .With(x => x.Status, () => ObligationStatus.All.Random());
+    }
+
+    public static IPostprocessComposer<Obligation> Obligation()
+    {
+        return GetFixture().Build<Obligation>().AddDefaults();
     }
 
     public static IPostprocessComposer<Obligation> Default()

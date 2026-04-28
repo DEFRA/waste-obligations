@@ -34,6 +34,7 @@
       "status": "NoDataYet"
     }
   ],
+  "obligationStatus": "NoDataYet",
   "declarationText": {
     "text": "This is the text",
     "language": "en"

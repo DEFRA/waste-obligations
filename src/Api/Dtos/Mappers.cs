@@ -9,6 +9,7 @@ public static class Mappers
             Organisation = dto.Organisation.ToEntity(),
             ObligationYear = dto.ObligationYear,
             Obligations = dto.Obligations.Select(x => x.ToEntity()).ToList(),
+            ObligationStatus = dto.ObligationStatus,
             DeclarationText = dto.DeclarationText.ToEntity(),
             SubmitterName = dto.SubmitterName,
             User = dto.User.ToEntity(),
