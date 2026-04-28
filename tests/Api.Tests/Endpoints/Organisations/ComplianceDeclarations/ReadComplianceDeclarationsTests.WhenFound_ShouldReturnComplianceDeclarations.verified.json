@@ -5,7 +5,22 @@
       "created": "2026-04-27T14:00:00+00:00",
       "updated": "2026-04-27T14:00:00+00:00",
       "status": "Submitted",
-      "organisationId": "923fa611-571c-4948-ab7d-fbb75e75ed65",
+      "organisation": {
+        "id": "{Scrubbed}",
+        "name": "Org Name",
+        "complianceSchemeName": null,
+        "schemeOperatorName": null,
+        "referenceNumber": "123456",
+        "address": {
+          "addressLine1": "Test Name Ltd",
+          "addressLine2": "123 Street",
+          "town": "Town",
+          "county": "County",
+          "postcode": "UK1",
+          "country": "UK"
+        },
+        "regulator": "Regulator"
+      },
       "obligationYear": 2026,
       "obligations": [
         {
@@ -36,7 +51,22 @@
       "created": "2026-04-26T14:00:00+00:00",
       "updated": "2026-04-26T14:00:00+00:00",
       "status": "Submitted",
-      "organisationId": "923fa611-571c-4948-ab7d-fbb75e75ed65",
+      "organisation": {
+        "id": "{Scrubbed}",
+        "name": "Org Name",
+        "complianceSchemeName": null,
+        "schemeOperatorName": null,
+        "referenceNumber": "123456",
+        "address": {
+          "addressLine1": "Test Name Ltd",
+          "addressLine2": "123 Street",
+          "town": "Town",
+          "county": "County",
+          "postcode": "UK1",
+          "country": "UK"
+        },
+        "regulator": "Regulator"
+      },
       "obligationYear": 2026,
       "obligations": [
         {

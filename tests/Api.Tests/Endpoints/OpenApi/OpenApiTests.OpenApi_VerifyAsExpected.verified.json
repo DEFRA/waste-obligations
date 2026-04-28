@@ -277,8 +277,50 @@
   },
   "components": {
     "schemas": {
+      "Address": {
+        "type": "object",
+        "properties": {
+          "addressLine1": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "addressLine2": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "town": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "county": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "postcode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "country": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "ComplianceDeclaration": {
         "required": [
+          "organisation",
           "obligationYear",
           "declarationText",
           "submitterName",
@@ -303,9 +345,8 @@
           "status": {
             "$ref": "#/components/schemas/ComplianceDeclarationStatus"
           },
-          "organisationId": {
-            "type": "string",
-            "format": "uuid"
+          "organisation": {
+            "$ref": "#/components/schemas/OrganisationRequest"
           },
           "obligationYear": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -340,6 +381,7 @@
       },
       "CreateComplianceDeclarationRequest": {
         "required": [
+          "organisation",
           "obligationYear",
           "declarationText",
           "submitterName",
@@ -347,6 +389,9 @@
         ],
         "type": "object",
         "properties": {
+          "organisation": {
+            "$ref": "#/components/schemas/OrganisationRequest"
+          },
           "obligationYear": {
             "maximum": 2050,
             "minimum": 2023,
@@ -540,6 +585,55 @@
               {
                 "$ref": "#/components/schemas/Organisation"
               }
+            ]
+          }
+        }
+      },
+      "OrganisationRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "complianceSchemeName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "schemeOperatorName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "referenceNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "address": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Address"
+              }
+            ]
+          },
+          "regulator": {
+            "type": [
+              "null",
+              "string"
             ]
           }
         }

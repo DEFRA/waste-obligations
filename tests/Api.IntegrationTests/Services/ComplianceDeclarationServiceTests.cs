@@ -45,7 +45,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         var result = await Subject.Create(
             ComplianceDeclarationFixture
                 .Default()
-                .With(x => x.OrganisationId, organisationId)
+                .With(x => x.Organisation, OrganisationFixture.Organisation().With(x => x.Id, organisationId).Create())
                 .With(x => x.ObligationYear, obligationYear)
                 .Create(),
             TestContext.Current.CancellationToken
@@ -53,17 +53,13 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         await Subject.Create(
             ComplianceDeclarationFixture
                 .Default()
-                .With(x => x.OrganisationId, organisationId)
+                .With(x => x.Organisation, OrganisationFixture.Organisation().With(x => x.Id, organisationId).Create())
                 .With(x => x.ObligationYear, obligationYear + 1)
                 .Create(),
             TestContext.Current.CancellationToken
         );
         await Subject.Create(
-            ComplianceDeclarationFixture
-                .Default()
-                .With(x => x.OrganisationId, Guid.NewGuid)
-                .With(x => x.ObligationYear, obligationYear)
-                .Create(),
+            ComplianceDeclarationFixture.Default().With(x => x.ObligationYear, obligationYear).Create(),
             TestContext.Current.CancellationToken
         );
 

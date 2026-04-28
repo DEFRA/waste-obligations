@@ -38,10 +38,7 @@ public static class CreateComplianceDeclaration
         if (organisation is null)
             return Results.NotFound();
 
-        var complianceDeclaration = await complianceDeclarationService.Create(
-            request.ToEntity(organisation),
-            cancellationToken
-        );
+        var complianceDeclaration = await complianceDeclarationService.Create(request.ToEntity(), cancellationToken);
 
         return Results.Created(
             $"/organisations/{organisationId:D}/compliance-declarations/{complianceDeclaration.Id:D}",

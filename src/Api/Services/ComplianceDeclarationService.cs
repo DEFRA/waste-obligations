@@ -41,6 +41,6 @@ public class ComplianceDeclarationService(IDbContext dbContext, ILogger<Complian
     ) =>
         await dbContext
             .ComplianceDeclarations.AsQueryable()
-            .Where(x => x.OrganisationId == organisationId && x.ObligationYear == obligationYear)
+            .Where(x => x.Organisation.Id == organisationId && x.ObligationYear == obligationYear)
             .ToListAsync(cancellationToken);
 }

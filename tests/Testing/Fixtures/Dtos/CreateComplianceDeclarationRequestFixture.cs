@@ -28,4 +28,14 @@ public static class CreateComplianceDeclarationRequestFixture
             .With(x => x.SubmitterName, "Submitter Name")
             .With(x => x.User, UserFixture.Default().Create());
     }
+
+    public static IPostprocessComposer<CreateComplianceDeclarationRequest> DirectProducer(Guid? organisationId = null)
+    {
+        return Default().With(x => x.Organisation, OrganisationFixture.DirectProducer(organisationId).Create());
+    }
+
+    public static IPostprocessComposer<CreateComplianceDeclarationRequest> ComplianceScheme(Guid? organisationId = null)
+    {
+        return Default().With(x => x.Organisation, OrganisationFixture.ComplianceScheme(organisationId).Create());
+    }
 }
