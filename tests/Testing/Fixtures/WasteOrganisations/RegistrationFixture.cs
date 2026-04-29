@@ -24,26 +24,21 @@ public static class RegistrationFixture
         RegistrationStatus.Cancelled,
     ];
 
-    public static void ConfigureDefaults(Fixture fixture)
+    public static IPostprocessComposer<Registration> AddDefaults(this ICustomizationComposer<Registration> composer)
     {
-        fixture.Customize<Registration>(x =>
-            x.With(y => y.Type, () => s_registrationTypes.Random())
-                .With(y => y.RegistrationYear, () => RandomRegistrationYear())
-                .With(y => y.Status, () => s_registrationStatuses.Random())
-        );
+        return composer
+            .With(x => x.Type, () => s_registrationTypes.Random())
+            .With(x => x.RegistrationYear, () => RandomRegistrationYear())
+            .With(x => x.Status, () => s_registrationStatuses.Random());
     }
 
     public static IPostprocessComposer<Registration> Registration()
     {
         var fixture = GetFixture();
 
-        ConfigureDefaults(fixture);
+        fixture.Customize<Registration>(x => x.AddDefaults());
 
-        return fixture
-            .Build<Registration>()
-            .With(x => x.Type, () => s_registrationTypes.Random())
-            .With(x => x.RegistrationYear, () => RandomRegistrationYear())
-            .With(x => x.Status, () => s_registrationStatuses.Random());
+        return fixture.Build<Registration>().AddDefaults();
     }
 
     public static IPostprocessComposer<Registration> Default()

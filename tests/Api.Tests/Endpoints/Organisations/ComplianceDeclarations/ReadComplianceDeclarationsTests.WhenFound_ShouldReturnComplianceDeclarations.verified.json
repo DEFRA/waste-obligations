@@ -36,7 +36,7 @@
           "status": "NoDataYet"
         }
       ],
-      "obligationStatus": "NoDataYet",
+      "obligationStatus": "NotMet",
       "declarationText": {
         "text": "This is the text",
         "language": "en"
@@ -83,7 +83,54 @@
           "status": "NoDataYet"
         }
       ],
-      "obligationStatus": "NoDataYet",
+      "obligationStatus": "NotMet",
+      "declarationText": {
+        "text": "This is the text",
+        "language": "en"
+      },
+      "submitterName": "Submitter Name",
+      "user": {
+        "id": "{Scrubbed}",
+        "email": "submitter@email.com"
+      }
+    },
+    {
+      "id": "{Scrubbed}",
+      "created": "2026-04-26T14:00:00+00:00",
+      "updated": "2026-04-26T14:00:00+00:00",
+      "status": "Submitted",
+      "organisation": {
+        "id": "{Scrubbed}",
+        "name": "Org Name",
+        "complianceSchemeName": null,
+        "schemeOperatorName": null,
+        "referenceNumber": "123456",
+        "address": {
+          "addressLine1": "Test Name Ltd",
+          "addressLine2": "123 Street",
+          "town": "Town",
+          "county": "County",
+          "postcode": "UK1",
+          "country": "UK"
+        },
+        "regulator": "Regulator"
+      },
+      "obligationYear": 2026,
+      "obligations": [
+        {
+          "material": "Plastic",
+          "recyclingTarget": 0.75,
+          "tonnages": {
+            "material": 100,
+            "awaitingAcceptance": 10,
+            "accepted": 2,
+            "outstanding": 20,
+            "obligated": 5
+          },
+          "status": "NoDataYet"
+        }
+      ],
+      "obligationStatus": "NotMet",
       "declarationText": {
         "text": "This is the text",
         "language": "en"

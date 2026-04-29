@@ -9,8 +9,15 @@ public class FakeComplianceDeclarationService : IComplianceDeclarationService
 {
     public Func<Guid> CreateNewId = Guid.NewGuid;
     public Func<DateTimeOffset> UtcNow = () => DateTimeOffset.UtcNow;
+    public bool Throws = false;
 
     private static readonly DateTime s_start = new(2026, 4, 26, 14, 0, 0, DateTimeKind.Utc);
+
+    public static readonly Guid ComplianceDeclarationId = new("3bd56644-9b24-4cd1-98f1-cc69f3b16bc1");
+
+    public static readonly Guid NonMatchingOrganisationComplianceDeclarationId = new(
+        "14956bb4-2f09-4d90-a63b-7e1a4bbe174e"
+    );
 
     private static readonly Dictionary<Guid, List<ComplianceDeclaration>> s_complianceDeclarations = new()
     {
@@ -19,6 +26,7 @@ public class FakeComplianceDeclarationService : IComplianceDeclarationService
             [
                 ComplianceDeclarationFixture
                     .DirectProducer(FakeWasteOrganisationsService.OrganisationId)
+                    .With(x => x.Id, ComplianceDeclarationId)
                     .With(x => x.Created, s_start)
                     .With(x => x.Updated, s_start)
                     .Create(),
@@ -33,6 +41,12 @@ public class FakeComplianceDeclarationService : IComplianceDeclarationService
                     .With(x => x.Created, s_start.AddYears(-1))
                     .With(x => x.Updated, s_start.AddYears(-1))
                     .Create(),
+                ComplianceDeclarationFixture
+                    .DirectProducer()
+                    .With(x => x.Id, NonMatchingOrganisationComplianceDeclarationId)
+                    .With(x => x.Created, s_start)
+                    .With(x => x.Updated, s_start)
+                    .Create(),
             ]
         },
     };
@@ -42,6 +56,9 @@ public class FakeComplianceDeclarationService : IComplianceDeclarationService
         CancellationToken cancellationToken
     )
     {
+        if (Throws)
+            throw new InvalidOperationException("The operation failed");
+
         var utcNow = UtcNow().UtcDateTime;
 
         return Task.FromResult(
@@ -57,7 +74,7 @@ public class FakeComplianceDeclarationService : IComplianceDeclarationService
 
     public Task<ComplianceDeclaration?> Read(Guid id, CancellationToken cancellationToken)
     {
-        throw new NotImplementedException();
+        return Task.FromResult(s_complianceDeclarations.SelectMany(x => x.Value).FirstOrDefault(x => x.Id == id));
     }
 
     public Task<IEnumerable<ComplianceDeclaration>> Read(

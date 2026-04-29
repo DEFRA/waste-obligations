@@ -50,7 +50,8 @@ public static class WasteOrganisationsExtensions
                         r.WithHeader("Authorization", $"Basic {basicAuthToken}");
                 })
                 .WithResponse(r =>
-                    r.WithStatusCode(HttpStatusCode.OK).WithBodyAsJson(OrganisationFixture.Default().Create())
+                    r.WithStatusCode(HttpStatusCode.OK)
+                        .WithBodyAsJson(OrganisationFixture.Default(organisationId).Create())
                 )
         );
 

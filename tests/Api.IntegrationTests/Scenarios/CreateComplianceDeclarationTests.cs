@@ -3,10 +3,8 @@ using System.Net.Http.Json;
 using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
-using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Testing.Authentication;
-using Defra.WasteObligations.Testing.Extensions;
 using Defra.WasteObligations.Testing.Extensions.WireMock;
 using Defra.WasteObligations.Testing.Fixtures.Dtos;
 using Microsoft.Extensions.Logging;
@@ -34,7 +32,7 @@ public class CreateComplianceDeclarationTests : IntegrationTestBase
 
         var response = await client.PostAsJsonAsync(
             Testing.Endpoints.Organisations.ComplianceDeclarations.Create(organisationId),
-            CreateComplianceDeclarationRequestFixture.Default().Create(),
+            CreateComplianceDeclarationRequestFixture.DirectProducer(organisationId).Create(),
             TestContext.Current.CancellationToken
         );
 
@@ -46,13 +44,11 @@ public class CreateComplianceDeclarationTests : IntegrationTestBase
 
         result.Should().NotBeNull();
 
-        var complianceDeclaration = await ComplianceDeclarationService.Read(
-            result.Id,
+        var complianceDeclaration = await client.GetFromJsonAsync<ComplianceDeclaration>(
+            Testing.Endpoints.Organisations.ComplianceDeclarations.Read(organisationId, result.Id),
             TestContext.Current.CancellationToken
         );
 
-        result
-            .Should()
-            .BeEquivalentTo(complianceDeclaration?.ToDto(), options => options.AllowMongoDateTimePrecision());
+        result.Should().BeEquivalentTo(complianceDeclaration);
     }
 }
