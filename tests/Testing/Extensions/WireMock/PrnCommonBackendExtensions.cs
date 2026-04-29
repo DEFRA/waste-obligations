@@ -65,4 +65,28 @@ public static class PrnCommonBackendExtensions
         var status = await builder.BuildAndPostAsync(TestContext.Current.CancellationToken);
         status.Guid.Should().NotBeNull();
     }
+
+    public static async Task StubPrnCommonBackendAdminHealth(
+        this IWireMockAdminApi wireMock,
+        string? accessToken = null
+    )
+    {
+        var builder = wireMock.GetMappingBuilder();
+
+        builder.Given(x =>
+            x.WithRequest(r =>
+                {
+                    r.UsingGet().WithPath("/admin/health");
+
+                    if (accessToken is not null)
+                        r.WithHeader("Authorization", $"Bearer {accessToken}");
+                })
+                .WithResponse(r =>
+                    r.WithStatusCode(HttpStatusCode.OK).WithBodyAsJson(ObligationsFixture.Default().Create())
+                )
+        );
+
+        var status = await builder.BuildAndPostAsync(TestContext.Current.CancellationToken);
+        status.Guid.Should().NotBeNull();
+    }
 }
