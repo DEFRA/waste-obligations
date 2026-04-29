@@ -13,6 +13,8 @@ public static class Endpoints
     public static class Health
     {
         public static string Ready() => "health";
+
+        public static string All() => $"{Ready()}/all";
     }
 
     public static class OpenApi

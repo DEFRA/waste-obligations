@@ -1,0 +1,9 @@
+﻿{
+  "status": "Healthy",
+  "results": {
+    "PrnCommonBackend": {
+      "status": "Healthy",
+      "description": "Connected to http://wiremock//admin/health"
+    }
+  }
+}
