@@ -29,7 +29,7 @@ public class PrnCommonBackendHealthCheck(IServiceProvider serviceProvider) : IHe
 
             serviceProvider.GetRequiredService<IOptions<PrnCommonBackendOptions>>().Value.Configure(httpClient);
 
-            const string health = "/admin/health";
+            const string health = "admin/health";
             var response = await httpClient.GetAsync(health, cancellationToken);
 
             response.EnsureSuccessStatusCode();

@@ -3,7 +3,7 @@
   "results": {
     "PrnCommonBackend": {
       "status": "Healthy",
-      "description": "Connected to http://wiremock//admin/health"
+      "description": "Connected to http://wiremock/admin/health"
     }
   }
 }
