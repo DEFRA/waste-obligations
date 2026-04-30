@@ -33,7 +33,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         var retrieved = await Subject.Read(initial.Id, TestContext.Current.CancellationToken);
 
         retrieved.Should().NotBeNull();
-        retrieved.Should().BeEquivalentTo(initial, options => options.AllowMongoDateTimePrecision());
+        retrieved.Should().BeEquivalentTo(initial);
     }
 
     [Fact]
