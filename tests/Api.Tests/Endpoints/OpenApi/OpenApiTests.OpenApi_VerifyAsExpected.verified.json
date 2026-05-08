@@ -30,14 +30,6 @@
             }
           },
           {
-            "name": "include",
-            "in": "query",
-            "description": "Additional data types to include. Possible value is 'organisation'",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "name": "obligationYear",
             "in": "query",
             "schema": {
@@ -634,27 +626,6 @@
           }
         }
       },
-      "Organisation": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "companyName": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "regulator": {
-            "type": [
-              "null",
-              "string"
-            ]
-          }
-        }
-      },
       "OrganisationComplianceDeclarations": {
         "type": "object",
         "properties": {
@@ -674,16 +645,6 @@
             "items": {
               "$ref": "#/components/schemas/Obligation"
             }
-          },
-          "organisation": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/Organisation"
-              }
-            ]
           }
         }
       },
