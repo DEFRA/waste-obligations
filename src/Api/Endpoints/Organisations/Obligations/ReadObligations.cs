@@ -48,12 +48,6 @@ public static class ReadObligations
 
         var obligations = await obligationsTask;
 
-        return Results.Ok(
-            new OrganisationObligations
-            {
-                Obligations = obligations.Select(x => x.ToDto()).ToArray(),
-                Organisation = request.Include == IncludeTypes.Organisation ? organisation.ToDto(obligationYear) : null,
-            }
-        );
+        return Results.Ok(new OrganisationObligations { Obligations = obligations.Select(x => x.ToDto()).ToArray() });
     }
 }

@@ -6,7 +6,4 @@ public record OrganisationObligations
 {
     [JsonPropertyName("obligations")]
     public Obligation[] Obligations { get; init; } = [];
-
-    [JsonPropertyName("organisation")]
-    public Organisation? Organisation { get; init; }
 }

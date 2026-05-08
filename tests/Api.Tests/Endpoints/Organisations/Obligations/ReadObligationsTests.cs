@@ -1,6 +1,5 @@
 using System.Net;
 using AwesomeAssertions;
-using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.Api.Services.PrnCommonBackend;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
 using Defra.WasteObligations.Testing;
@@ -18,24 +17,20 @@ public class ReadObligationsTests(ApiWebApplicationFactory factory, ITestOutputH
         services.AddTransient<IPrnCommonBackendService>(_ => new FakePrnCommonBackendService());
     }
 
-    [Theory]
-    [InlineData(IncludeTypes.Organisation)]
-    [InlineData(null)]
-    public async Task WhenFound_ShouldReturnObligations(string? include)
+    [Fact]
+    public async Task WhenFound_ShouldReturnObligations()
     {
         var client = CreateClient(testUser: TestUser.ReadOnly);
 
         var response = await client.GetStringAsync(
             Testing.Endpoints.Organisations.Obligations.Read(
                 FakeWasteOrganisationsService.OrganisationId,
-                EndpointQuery
-                    .New.Where(EndpointFilter.ObligationYear(FakeWasteOrganisationsService.Year))
-                    .Where(EndpointFilter.Include(include))
+                EndpointQuery.New.Where(EndpointFilter.ObligationYear(FakeWasteOrganisationsService.Year))
             ),
             TestContext.Current.CancellationToken
         );
 
-        await VerifyJson(response).DontScrubGuids().UseParameters(include);
+        await VerifyJson(response).DontScrubGuids();
     }
 
     [Fact]
