@@ -43,5 +43,15 @@
   "user": {
     "id": "e72be574-8b5b-4836-af47-dd7e0c0d1d87",
     "email": "submitter@email.com"
-  }
+  },
+  "audit": [
+    {
+      "user": {
+        "id": "e72be574-8b5b-4836-af47-dd7e0c0d1d87",
+        "email": "submitter@email.com"
+      },
+      "timestamp": "2026-04-26T14:00:00+00:00",
+      "action": "Submitted"
+    }
+  ]
 }

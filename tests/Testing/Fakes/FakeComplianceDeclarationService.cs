@@ -9,7 +9,6 @@ public class FakeComplianceDeclarationService : IComplianceDeclarationService
 {
     public Func<Guid> CreateNewId = Guid.NewGuid;
     public Func<DateTimeOffset> UtcNow = () => DateTimeOffset.UtcNow;
-    public bool Throws = false;
 
     private static readonly DateTime s_start = new(2026, 4, 26, 14, 0, 0, DateTimeKind.Utc);
 
@@ -29,6 +28,7 @@ public class FakeComplianceDeclarationService : IComplianceDeclarationService
                     .With(x => x.Id, ComplianceDeclarationId)
                     .With(x => x.Created, s_start)
                     .With(x => x.Updated, s_start)
+                    .With(x => x.Audit, AuditEntryFixture.SubmittedThenCancelled())
                     .Create(),
                 ComplianceDeclarationFixture
                     .DirectProducer(FakeWasteOrganisationsService.OrganisationId)
@@ -56,9 +56,6 @@ public class FakeComplianceDeclarationService : IComplianceDeclarationService
         CancellationToken cancellationToken
     )
     {
-        if (Throws)
-            throw new InvalidOperationException("The operation failed");
-
         var utcNow = UtcNow().UtcDateTime;
 
         return Task.FromResult(

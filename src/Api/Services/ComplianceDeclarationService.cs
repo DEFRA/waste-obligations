@@ -5,15 +5,18 @@ using MongoDB.Driver.Linq;
 
 namespace Defra.WasteObligations.Api.Services;
 
-public class ComplianceDeclarationService(IDbContext dbContext, ILogger<ComplianceDeclarationService> logger)
-    : IComplianceDeclarationService
+public class ComplianceDeclarationService(
+    IDbContext dbContext,
+    ILogger<ComplianceDeclarationService> logger,
+    TimeProvider timeProvider
+) : IComplianceDeclarationService
 {
     public async Task<ComplianceDeclaration> Create(
         ComplianceDeclaration complianceDeclaration,
         CancellationToken cancellationToken
     )
     {
-        var utcNow = GetUtcNowNoMicroseconds();
+        var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
         complianceDeclaration = complianceDeclaration with { Version = 1, Created = utcNow, Updated = utcNow };
 
         await dbContext.ComplianceDeclarations.InsertOneAsync(
@@ -43,12 +46,4 @@ public class ComplianceDeclarationService(IDbContext dbContext, ILogger<Complian
             .ComplianceDeclarations.AsQueryable()
             .Where(x => x.Organisation.Id == organisationId && x.ObligationYear == obligationYear)
             .ToListAsync(cancellationToken);
-
-    private static DateTime GetUtcNowNoMicroseconds()
-    {
-        var now = DateTimeOffset.UtcNow;
-        now = new DateTimeOffset(now.Ticks - now.Ticks % TimeSpan.TicksPerMillisecond, TimeSpan.Zero);
-
-        return now.UtcDateTime;
-    }
 }

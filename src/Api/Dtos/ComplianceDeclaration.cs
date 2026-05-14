@@ -45,4 +45,7 @@ public record ComplianceDeclaration
 
     [JsonPropertyName("user")]
     public required User User { get; init; }
+
+    [JsonPropertyName("audit")]
+    public IEnumerable<AuditEntry> Audit { get; init; } = [];
 }

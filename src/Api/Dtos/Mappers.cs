@@ -1,9 +1,17 @@
+using Defra.WasteObligations.Api.Data;
+
 namespace Defra.WasteObligations.Api.Dtos;
 
 public static class Mappers
 {
-    public static Data.Entities.ComplianceDeclaration ToEntity(this CreateComplianceDeclarationRequest dto) =>
-        new()
+    public static Data.Entities.ComplianceDeclaration ToEntity(
+        this CreateComplianceDeclarationRequest dto,
+        TimeProvider? timeProvider
+    )
+    {
+        timeProvider ??= TimeProvider.System;
+
+        return new Data.Entities.ComplianceDeclaration
         {
             Id = Guid.NewGuid(),
             Organisation = dto.Organisation.ToEntity(),
@@ -13,7 +21,16 @@ public static class Mappers
             DeclarationText = dto.DeclarationText.ToEntity(),
             SubmitterName = dto.SubmitterName,
             User = dto.User.ToEntity(),
+            Audit = new List<Data.Entities.AuditEntry>
+            {
+                new Data.Entities.SubmissionAuditEntry
+                {
+                    User = dto.User.ToEntity(),
+                    Timestamp = timeProvider.GetUtcNowWithoutMicroseconds(),
+                },
+            },
         };
+    }
 
     private static Data.Entities.Obligation ToEntity(this Obligation dto) =>
         new()

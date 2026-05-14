@@ -392,6 +392,59 @@
           }
         }
       },
+      "AuditEntry": {
+        "type": "object",
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/AuditEntryCancelledAuditEntry"
+          },
+          {
+            "$ref": "#/components/schemas/AuditEntryBase"
+          }
+        ]
+      },
+      "AuditEntryBase": {
+        "required": [
+          "user",
+          "timestamp",
+          "action"
+        ],
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/User"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "action": {
+            "type": "string"
+          }
+        }
+      },
+      "AuditEntryCancelledAuditEntry": {
+        "required": [
+          "reason",
+          "user",
+          "timestamp",
+          "action"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "action": {
+            "type": "string"
+          }
+        }
+      },
       "ComplianceDeclaration": {
         "required": [
           "organisation",
@@ -453,6 +506,12 @@
           },
           "user": {
             "$ref": "#/components/schemas/User"
+          },
+          "audit": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditEntry"
+            }
           }
         }
       },
