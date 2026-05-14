@@ -451,8 +451,7 @@
           "obligationYear",
           "obligationStatus",
           "declarationText",
-          "submitterName",
-          "user"
+          "submitterName"
         ],
         "type": "object",
         "properties": {
@@ -503,9 +502,6 @@
           },
           "submitterName": {
             "type": "string"
-          },
-          "user": {
-            "$ref": "#/components/schemas/User"
           },
           "audit": {
             "type": "array",

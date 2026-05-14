@@ -19,7 +19,6 @@ public static class Mappers
             ObligationStatus = entity.ObligationStatus,
             DeclarationText = entity.DeclarationText.ToDto(),
             SubmitterName = entity.SubmitterName,
-            User = entity.User.ToDto(),
             Audit = entity.Audit.Select(x => x.ToDto()).ToList(),
         };
 

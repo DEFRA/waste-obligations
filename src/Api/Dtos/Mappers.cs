@@ -20,7 +20,6 @@ public static class Mappers
             ObligationStatus = dto.ObligationStatus,
             DeclarationText = dto.DeclarationText.ToEntity(),
             SubmitterName = dto.SubmitterName,
-            User = dto.User.ToEntity(),
             Audit = new List<Data.Entities.AuditEntry>
             {
                 new Data.Entities.SubmissionAuditEntry

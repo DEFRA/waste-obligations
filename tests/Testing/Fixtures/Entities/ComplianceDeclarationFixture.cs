@@ -42,7 +42,6 @@ public static class ComplianceDeclarationFixture
             .With(x => x.ObligationStatus, ObligationStatus.NotMet)
             .With(x => x.DeclarationText, LocalizedTextFixture.Default().Create())
             .With(x => x.SubmitterName, "Submitter Name")
-            .With(x => x.User, UserFixture.Default().Create())
             .With(x => x.Audit, AuditEntryFixture.Submitted());
     }
 

@@ -42,10 +42,6 @@
         "language": "en"
       },
       "submitterName": "Submitter Name",
-      "user": {
-        "id": "{Scrubbed}",
-        "email": "submitter@email.com"
-      },
       "audit": [
         {
           "user": {
@@ -99,10 +95,6 @@
         "language": "en"
       },
       "submitterName": "Submitter Name",
-      "user": {
-        "id": "{Scrubbed}",
-        "email": "submitter@email.com"
-      },
       "audit": [
         {
           "user": {
@@ -165,10 +157,6 @@
         "language": "en"
       },
       "submitterName": "Submitter Name",
-      "user": {
-        "id": "{Scrubbed}",
-        "email": "submitter@email.com"
-      },
       "audit": [
         {
           "user": {
