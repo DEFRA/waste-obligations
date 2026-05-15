@@ -19,7 +19,7 @@ public static class Mappers
             ObligationStatus = entity.ObligationStatus,
             DeclarationText = entity.DeclarationText.ToDto(),
             SubmitterName = entity.SubmitterName,
-            User = entity.User.ToDto(),
+            Audit = entity.Audit.Select(x => x.ToDto()).ToList(),
         };
 
     private static Dtos.Obligation ToDto(this Obligation entity) =>
@@ -67,5 +67,24 @@ public static class Mappers
             County = entity.County,
             Postcode = entity.Postcode,
             Country = entity.Country,
+        };
+
+    private static Dtos.AuditEntry ToDto(this AuditEntry entity) =>
+        entity switch
+        {
+            SubmissionAuditEntry s => new Dtos.AuditEntry
+            {
+                User = s.User.ToDto(),
+                Timestamp = s.Timestamp,
+                Action = s.Action,
+            },
+            CancelledAuditEntry s => new Dtos.CancelledAuditEntry
+            {
+                User = s.User.ToDto(),
+                Timestamp = s.Timestamp,
+                Action = s.Action,
+                Reason = s.Reason,
+            },
+            _ => throw new InvalidOperationException($"Unknown audit entry type: {entity.GetType()}"),
         };
 }

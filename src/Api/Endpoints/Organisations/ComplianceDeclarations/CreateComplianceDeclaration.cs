@@ -31,6 +31,7 @@ public static class CreateComplianceDeclaration
         [FromBody] CreateComplianceDeclarationRequest request,
         [FromServices] IWasteOrganisationsService wasteOrganisationsService,
         [FromServices] IComplianceDeclarationService complianceDeclarationService,
+        [FromServices] TimeProvider timeProvider,
         CancellationToken cancellationToken
     )
     {
@@ -38,7 +39,10 @@ public static class CreateComplianceDeclaration
         if (organisation is null)
             return Results.NotFound();
 
-        var complianceDeclaration = await complianceDeclarationService.Create(request.ToEntity(), cancellationToken);
+        var complianceDeclaration = await complianceDeclarationService.Create(
+            request.ToEntity(timeProvider),
+            cancellationToken
+        );
 
         return Results.Created(
             $"/organisations/{organisationId:D}/compliance-declarations/{complianceDeclaration.Id:D}",

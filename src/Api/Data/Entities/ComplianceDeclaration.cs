@@ -21,5 +21,5 @@ public record ComplianceDeclaration
     public required string ObligationStatus { get; init; }
     public required LocalizedText DeclarationText { get; init; }
     public required string SubmitterName { get; init; }
-    public required User User { get; init; }
+    public IEnumerable<AuditEntry> Audit { get; init; } = [];
 }

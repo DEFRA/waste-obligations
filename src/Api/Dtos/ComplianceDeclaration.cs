@@ -43,6 +43,6 @@ public record ComplianceDeclaration
     [JsonPropertyName("submitterName")]
     public required string SubmitterName { get; init; }
 
-    [JsonPropertyName("user")]
-    public required User User { get; init; }
+    [JsonPropertyName("audit")]
+    public IEnumerable<AuditEntry> Audit { get; init; } = [];
 }

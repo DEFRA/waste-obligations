@@ -2,7 +2,6 @@ using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Services;
-using Defra.WasteObligations.Testing.Extensions;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -12,7 +11,11 @@ namespace Defra.WasteObligations.Api.IntegrationTests.Services;
 public class ComplianceDeclarationServiceTests : IntegrationTestBase
 {
     private ComplianceDeclarationService Subject { get; } =
-        new(new MongoDbContext(GetMongoDatabase()), Substitute.For<ILogger<ComplianceDeclarationService>>());
+        new(
+            new MongoDbContext(GetMongoDatabase()),
+            Substitute.For<ILogger<ComplianceDeclarationService>>(),
+            TimeProvider.System
+        );
 
     [Fact]
     public async Task Read_WhenNoComplianceDeclaration_ShouldBeNull()
@@ -27,6 +30,23 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
     {
         var initial = await Subject.Create(
             ComplianceDeclarationFixture.Default().Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        var retrieved = await Subject.Read(initial.Id, TestContext.Current.CancellationToken);
+
+        retrieved.Should().NotBeNull();
+        retrieved.Should().BeEquivalentTo(initial);
+    }
+
+    [Fact]
+    public async Task Create_WhenInserted_WithAudit_ShouldBeValidAudit()
+    {
+        var initial = await Subject.Create(
+            ComplianceDeclarationFixture
+                .Default()
+                .With(x => x.Audit, AuditEntryFixture.SubmittedThenCancelled())
+                .Create(),
             TestContext.Current.CancellationToken
         );
 

@@ -8,12 +8,20 @@ using Defra.WasteObligations.Api.Services.WasteOrganisations;
 using Defra.WasteObligations.Testing.Fakes;
 using Defra.WasteObligations.Testing.Fixtures.Dtos;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Defra.WasteObligations.Api.Tests.Endpoints.Organisations.ComplianceDeclarations;
 
-public class CreateComplianceDeclarationTests(ApiWebApplicationFactory factory, ITestOutputHelper outputHelper)
-    : EndpointTestBase(factory, outputHelper)
+public class CreateComplianceDeclarationTests : EndpointTestBase
 {
+    public CreateComplianceDeclarationTests(ApiWebApplicationFactory factory, ITestOutputHelper outputHelper)
+        : base(factory, outputHelper)
+    {
+        TimeProvider = new FakeTimeProvider();
+        TimeProvider.SetUtcNow(new DateTimeOffset(2026, 4, 26, 14, 0, 0, TimeSpan.Zero));
+    }
+
+    private FakeTimeProvider TimeProvider { get; }
     private FakeComplianceDeclarationService ComplianceDeclarationService { get; } = new();
     private FakeWasteOrganisationsService WasteOrganisationsService { get; } = new();
 
@@ -21,6 +29,7 @@ public class CreateComplianceDeclarationTests(ApiWebApplicationFactory factory, 
     {
         services.AddTransient<IWasteOrganisationsService>(_ => WasteOrganisationsService);
         services.AddTransient<IComplianceDeclarationService>(_ => ComplianceDeclarationService);
+        services.AddTransient<TimeProvider>(_ => TimeProvider);
     }
 
     [Fact]

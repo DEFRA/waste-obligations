@@ -42,10 +42,16 @@
         "language": "en"
       },
       "submitterName": "Submitter Name",
-      "user": {
-        "id": "{Scrubbed}",
-        "email": "submitter@email.com"
-      }
+      "audit": [
+        {
+          "user": {
+            "id": "{Scrubbed}",
+            "email": "submitter@email.com"
+          },
+          "timestamp": "2026-04-26T14:00:00+00:00",
+          "action": "Submitted"
+        }
+      ]
     },
     {
       "id": "{Scrubbed}",
@@ -89,10 +95,25 @@
         "language": "en"
       },
       "submitterName": "Submitter Name",
-      "user": {
-        "id": "{Scrubbed}",
-        "email": "submitter@email.com"
-      }
+      "audit": [
+        {
+          "user": {
+            "id": "{Scrubbed}",
+            "email": "submitter@email.com"
+          },
+          "timestamp": "2026-04-26T14:00:00+00:00",
+          "action": "Submitted"
+        },
+        {
+          "reason": "Invalid",
+          "user": {
+            "id": "{Scrubbed}",
+            "email": "submitter@email.com"
+          },
+          "timestamp": "2026-04-26T14:10:00+00:00",
+          "action": "Cancelled"
+        }
+      ]
     },
     {
       "id": "{Scrubbed}",
@@ -136,10 +157,16 @@
         "language": "en"
       },
       "submitterName": "Submitter Name",
-      "user": {
-        "id": "{Scrubbed}",
-        "email": "submitter@email.com"
-      }
+      "audit": [
+        {
+          "user": {
+            "id": "{Scrubbed}",
+            "email": "submitter@email.com"
+          },
+          "timestamp": "2026-04-26T14:00:00+00:00",
+          "action": "Submitted"
+        }
+      ]
     }
   ]
 }
