@@ -19,7 +19,8 @@
           "postcode": "UK1",
           "country": "UK"
         },
-        "regulator": "Regulator"
+        "regulator": "Regulator",
+        "regulatorEmail": "regulator@email.com"
       },
       "obligationYear": 2026,
       "obligations": [
@@ -72,7 +73,8 @@
           "postcode": "UK1",
           "country": "UK"
         },
-        "regulator": "Regulator"
+        "regulator": "Regulator",
+        "regulatorEmail": "regulator@email.com"
       },
       "obligationYear": 2026,
       "obligations": [
@@ -134,7 +136,8 @@
           "postcode": "UK1",
           "country": "UK"
         },
-        "regulator": "Regulator"
+        "regulator": "Regulator",
+        "regulatorEmail": "regulator@email.com"
       },
       "obligationYear": 2026,
       "obligations": [

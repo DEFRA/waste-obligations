@@ -5,6 +5,7 @@ using Defra.WasteObligations.Api.Endpoints;
 using Defra.WasteObligations.Api.Endpoints.OpenApi;
 using Defra.WasteObligations.Api.Extensions;
 using Defra.WasteObligations.Api.Services;
+using Defra.WasteObligations.Api.Services.GovukNotify;
 using Defra.WasteObligations.Api.Services.PrnCommonBackend;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
 using Defra.WasteObligations.Api.Utils;
@@ -47,7 +48,9 @@ try
     builder.Services.AddTransient<ProxyHttpMessageHandler>();
     builder.Services.AddPrnCommonBackendService();
     builder.Services.AddWasteOrganisationsService();
+    builder.Services.AddGovukNotify();
     builder.Services.AddTransient<IComplianceDeclarationService, ComplianceDeclarationService>();
+    builder.Services.AddTransient<IEmailService, EmailService>();
 
     var app = builder.Build();
 

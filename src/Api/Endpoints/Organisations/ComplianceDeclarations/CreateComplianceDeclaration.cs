@@ -2,6 +2,7 @@ using Defra.WasteObligations.Api.Authentication;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.Api.Services;
+using Defra.WasteObligations.Api.Services.GovukNotify;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
 using Microsoft.AspNetCore.Mvc;
 using ComplianceDeclaration = Defra.WasteObligations.Api.Dtos.ComplianceDeclaration;
@@ -32,6 +33,7 @@ public static class CreateComplianceDeclaration
         [FromServices] IWasteOrganisationsService wasteOrganisationsService,
         [FromServices] IComplianceDeclarationService complianceDeclarationService,
         [FromServices] TimeProvider timeProvider,
+        [FromServices] IEmailService emailService,
         CancellationToken cancellationToken
     )
     {
@@ -43,6 +45,8 @@ public static class CreateComplianceDeclaration
             request.ToEntity(timeProvider),
             cancellationToken
         );
+
+        await emailService.SendSubmittedEmail(complianceDeclaration, cancellationToken);
 
         return Results.Created(
             $"/organisations/{organisationId:D}/compliance-declarations/{complianceDeclaration.Id:D}",

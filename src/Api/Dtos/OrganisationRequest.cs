@@ -8,7 +8,7 @@ public record OrganisationRequest
     public Guid Id { get; init; }
 
     [JsonPropertyName("name")]
-    public string? Name { get; init; }
+    public required string Name { get; init; }
 
     [JsonPropertyName("complianceSchemeName")]
     public string? ComplianceSchemeName { get; init; }
@@ -23,5 +23,8 @@ public record OrganisationRequest
     public Address? Address { get; init; }
 
     [JsonPropertyName("regulator")]
-    public string? Regulator { get; init; }
+    public required string Regulator { get; init; }
+
+    [JsonPropertyName("regulatorEmail")]
+    public required string RegulatorEmail { get; init; }
 }
