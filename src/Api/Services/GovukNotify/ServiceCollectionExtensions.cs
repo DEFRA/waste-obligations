@@ -3,7 +3,6 @@ using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
 using Notify.Client;
 using Notify.Interfaces;
-using Polly;
 
 namespace Defra.WasteObligations.Api.Services.GovukNotify;
 
@@ -17,37 +16,16 @@ public static class ServiceCollectionExtensions
         services.AddOptions<GovukNotifyOptions>().BindConfiguration(name).ValidateDataAnnotations();
         services.AddOptions<HttpStandardResilienceOptions>(name).BindConfiguration(name);
 
-        var httpClientBuilder = services
+        services
             .AddHttpClient<IGovukNotifyService, GovukNotifyService>()
             .ConfigurePrimaryHttpMessageHandler<ProxyHttpMessageHandler>()
             .ConfigureHttpClient(
                 (_, httpClient) =>
                 {
-                    if (addResiliencePipeline)
-                    {
-                        // See resilience handler below for timeout control
-                        httpClient.Timeout = Timeout.InfiniteTimeSpan;
-                    }
+                    httpClient.ConfigureForResiliencePipeline(addResiliencePipeline);
                 }
-            );
-
-        if (addResiliencePipeline)
-        {
-            httpClientBuilder.AddResilienceHandler(
-                name,
-                (builder, context) =>
-                {
-                    var options = context
-                        .ServiceProvider.GetRequiredService<IOptionsMonitor<HttpStandardResilienceOptions>>()
-                        .Get(name);
-
-                    builder
-                        .AddTimeout(options.TotalRequestTimeout)
-                        .AddRetry(options.Retry)
-                        .AddTimeout(options.AttemptTimeout);
-                }
-            );
-        }
+            )
+            .AddResiliencePipeline(addResiliencePipeline, name);
 
         services.AddSingleton<Func<HttpClient, GovukNotifyOptions, IAsyncNotificationClient>>(
             (httpClient, options) => new NotificationClient(new HttpClientWrapper(httpClient), options.ApiKey)

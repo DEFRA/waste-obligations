@@ -8,4 +8,12 @@ public static class HttpClientExtensions
             Version = httpClient.DefaultRequestVersion,
             VersionPolicy = HttpVersionPolicy.RequestVersionOrLower,
         };
+
+    public static void ConfigureForResiliencePipeline(this HttpClient httpClient, bool addResiliencePipeline)
+    {
+        if (addResiliencePipeline)
+        {
+            httpClient.Timeout = Timeout.InfiniteTimeSpan;
+        }
+    }
 }
