@@ -1,6 +1,6 @@
 namespace Defra.WasteObligations.Api.Utils.OAuth2;
 
-public class OAuth2Client(HttpClient httpClient)
+public class OAuth2Client(IHttpClientFactory httpClientFactory)
 {
     public async Task<TokenResponse> RequestTokenAsync(OAuth2Options options, CancellationToken ct)
     {
@@ -15,6 +15,7 @@ public class OAuth2Client(HttpClient httpClient)
             values.Add("scope", options.Scope);
 
         var body = new FormUrlEncodedContent(values);
+        var httpClient = httpClientFactory.CreateClient(nameof(OAuth2Client));
         var response = await httpClient.PostAsync(options.TokenEndpoint, body, ct);
 
         response.EnsureSuccessStatusCode();

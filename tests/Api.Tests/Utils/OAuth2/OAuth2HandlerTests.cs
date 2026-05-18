@@ -122,7 +122,7 @@ public class OAuth2HandlerTests(WireMockContext context) : WireMockTestBase(cont
             .AddHttpClient(nameof(OAuth2HandlerTests))
             .AddHttpMessageHandler(sp => new OAuth2Handler(
                 new OAuth2TokenCache(
-                    new OAuth2Client(sp.GetRequiredService<IHttpClientFactory>().CreateClient("OAuth2Client")),
+                    new OAuth2Client(sp.GetRequiredService<IHttpClientFactory>()),
                     new OAuth2Options
                     {
                         TokenEndpoint = Context.BaseAddress + "/token",
