@@ -45,7 +45,7 @@ public static class CreateComplianceDeclaration
             cancellationToken
         );
 
-        await emailService.SendSubmittedEmail(complianceDeclaration, cancellationToken);
+        await emailService.SendSubmittedEmail(complianceDeclaration, organisation, cancellationToken);
 
         return Results.Created(
             $"/organisations/{organisationId:D}/compliance-declarations/{complianceDeclaration.Id:D}",

@@ -1,36 +1,53 @@
 using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Services;
+using Defra.WasteObligations.Api.Services.AccountBackend;
 using Defra.WasteObligations.Api.Services.GovukNotify;
+using Defra.WasteObligations.Api.Services.WasteOrganisations;
+using Defra.WasteObligations.Testing.Fixtures.AccountBackend;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
+using Defra.WasteObligations.Testing.Fixtures.WasteOrganisations;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
+using OrganisationFixture = Defra.WasteObligations.Testing.Fixtures.WasteOrganisations.OrganisationFixture;
 
 namespace Defra.WasteObligations.Api.Tests.Services;
 
 public class EmailServiceTests
 {
     private IGovukNotifyService GovukNotifyService { get; } = Substitute.For<IGovukNotifyService>();
+    private IAccountBackendService AccountBackendService { get; } = Substitute.For<IAccountBackendService>();
     private EmailService Subject { get; }
 
     public EmailServiceTests()
     {
-        Subject = new EmailService(GovukNotifyService, NullLogger<EmailService>.Instance);
+        Subject = new EmailService(GovukNotifyService, AccountBackendService, NullLogger<EmailService>.Instance);
     }
 
-    [Fact]
-    public async Task SendSubmittedEmail_ShouldCallGovukNotify()
+    [Theory]
+    [InlineData(RegistrationType.ComplianceScheme, EntityTypeCode.CS)]
+    [InlineData(RegistrationType.LargeProducer, EntityTypeCode.DR)]
+    public async Task SendSubmittedEmail_ShouldCallGovukNotify(string registrationType, EntityTypeCode entityTypeCode)
     {
-        var complianceDeclaration = ComplianceDeclarationFixture.DirectProducer().Create();
+        var complianceDeclaration = ComplianceDeclarationFixture
+            .DirectProducer(OrganisationFixture.OrganisationId)
+            .Create();
+        var organisation = OrganisationFixture
+            .Default()
+            .With(x => x.Registrations, [RegistrationFixture.Default().With(x => x.Type, registrationType).Create()])
+            .Create();
+        AccountBackendService
+            .ReadPersonEmails(OrganisationFixture.OrganisationId, entityTypeCode, TestContext.Current.CancellationToken)
+            .Returns([PersonEmailFixture.Default()]);
 
-        await Subject.SendSubmittedEmail(complianceDeclaration, TestContext.Current.CancellationToken);
+        await Subject.SendSubmittedEmail(complianceDeclaration, organisation, TestContext.Current.CancellationToken);
 
         await GovukNotifyService
             .Received()
             .SendComplianceDeclarationSubmittedEmail(
                 GovukNotifyOptions.TemplateName.ComplianceDeclarationSubmissionDirectProducer,
-                Arg.Is<IEnumerable<string>>(x => x.SequenceEqual(new List<string> { "email@email.com" })),
+                Arg.Is<IEnumerable<string>>(x => x.SequenceEqual(new List<string> { "first.last@example.com" })),
                 Arg.Is<Dictionary<string, object>>(x =>
                     x.Count == 3
                     && (int)x["obligationYear"] == complianceDeclaration.ObligationYear
@@ -55,10 +72,24 @@ public class EmailServiceTests
 
         var act = () =>
             Subject.SendSubmittedEmail(
-                ComplianceDeclarationFixture.DirectProducer().Create(),
+                ComplianceDeclarationFixture.DirectProducer(OrganisationFixture.OrganisationId).Create(),
+                OrganisationFixture.Default().Create(),
                 TestContext.Current.CancellationToken
             );
 
         await act.Should().NotThrowAsync();
+    }
+
+    [Fact]
+    public async Task SendSubmittedEmail_WhenOrganisationIdMismatch_ShouldThrow()
+    {
+        var act = () =>
+            Subject.SendSubmittedEmail(
+                ComplianceDeclarationFixture.DirectProducer().Create(),
+                OrganisationFixture.Default().Create(),
+                TestContext.Current.CancellationToken
+            );
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
     }
 }

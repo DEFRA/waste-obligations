@@ -1,22 +1,42 @@
 using Defra.WasteObligations.Api.Data.Entities;
+using Defra.WasteObligations.Api.Services.AccountBackend;
 using Defra.WasteObligations.Api.Services.GovukNotify;
+using Defra.WasteObligations.Api.Services.WasteOrganisations;
+using Organisation = Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation;
 
 namespace Defra.WasteObligations.Api.Services;
 
-public class EmailService(IGovukNotifyService govukNotifyService, ILogger<EmailService> logger) : IEmailService
+public class EmailService(
+    IGovukNotifyService govukNotifyService,
+    IAccountBackendService accountBackendService,
+    ILogger<EmailService> logger
+) : IEmailService
 {
     public async Task SendSubmittedEmail(
         ComplianceDeclaration complianceDeclaration,
+        Organisation organisation,
         CancellationToken cancellationToken
     )
     {
+        if (complianceDeclaration.Organisation.Id != organisation.Id)
+            throw new InvalidOperationException("Organisations do not match");
+
         try
         {
-            const string recipient = "email@email.com";
+            var registrationType = organisation.RegistrationType(complianceDeclaration.ObligationYear);
+            var entityTypeCode =
+                registrationType == RegistrationType.ComplianceScheme ? EntityTypeCode.CS : EntityTypeCode.DR;
+
+            var users = await accountBackendService.ReadPersonEmails(
+                organisation.Id,
+                entityTypeCode,
+                cancellationToken
+            );
+            var recipients = users.Select(x => x.Email);
 
             await govukNotifyService.SendComplianceDeclarationSubmittedEmail(
                 GovukNotifyOptions.TemplateName.ComplianceDeclarationSubmissionDirectProducer,
-                [recipient],
+                recipients,
                 new Dictionary<string, object>
                 {
                     { "obligationYear", complianceDeclaration.ObligationYear },
