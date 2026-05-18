@@ -68,7 +68,6 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
             await service.ReadObligations(ObligationFixture.OrganisationId, year, TestContext.Current.CancellationToken)
         ).ToList();
 
-        obligations.Should().NotBeNull();
         obligations.Should().ContainSingle();
     }
 
