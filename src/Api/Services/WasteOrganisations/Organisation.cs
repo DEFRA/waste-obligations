@@ -43,7 +43,10 @@ public record Organisation
     private Registration LatestRegistrationOrByYear(int? registrationYear)
     {
         registrationYear ??= LatestRegistrationYear();
-        var registrations = Registrations.Where(x => x.RegistrationYear == registrationYear).ToArray();
+        var registrations = Registrations
+            .Where(x => x.RegistrationYear == registrationYear)
+            .OrderByDescending(x => x.Updated)
+            .ToArray();
 
         var registration =
             registrations.FirstOrDefault(x => x.Status == RegistrationStatus.Registered)

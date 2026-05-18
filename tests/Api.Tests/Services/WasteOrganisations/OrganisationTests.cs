@@ -194,4 +194,38 @@ public class OrganisationTests
 
         act.Should().Throw<InvalidOperationException>().And.Message.Should().Be(expectedMessage);
     }
+
+    [Fact]
+    public void CompanyName_WhenMultipleForSameYear_ShouldUseLastUpdated()
+    {
+        var updated = new DateTimeOffset(2026, 5, 18, 11, 20, 0, TimeSpan.Zero);
+
+        var subject = OrganisationFixture
+            .Default()
+            .With(x => x.Name, "Organisation Name")
+            .With(x => x.TradingName, "Trading Name")
+            .With(
+                x => x.Registrations,
+                () =>
+                    [
+                        RegistrationFixture
+                            .Default()
+                            .With(x => x.Type, RegistrationType.LargeProducer)
+                            .With(x => x.Status, RegistrationStatus.Registered)
+                            .With(x => x.RegistrationYear, 2026)
+                            .With(x => x.Updated, updated)
+                            .Create(),
+                        RegistrationFixture
+                            .Default()
+                            .With(x => x.Type, RegistrationType.ComplianceScheme)
+                            .With(x => x.Status, RegistrationStatus.Registered)
+                            .With(x => x.RegistrationYear, 2026)
+                            .With(x => x.Updated, updated.AddSeconds(10))
+                            .Create(),
+                    ]
+            )
+            .Create();
+
+        subject.CompanyName(2026).Should().Be("Trading Name");
+    }
 }

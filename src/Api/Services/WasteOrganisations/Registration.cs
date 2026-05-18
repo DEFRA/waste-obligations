@@ -12,4 +12,10 @@ public record Registration
 
     [JsonPropertyName("registrationYear")]
     public required int RegistrationYear { get; init; }
+
+    [JsonPropertyName("created")]
+    public DateTimeOffset Created { get; init; }
+
+    [JsonPropertyName("updated")]
+    public DateTimeOffset Updated { get; init; }
 }

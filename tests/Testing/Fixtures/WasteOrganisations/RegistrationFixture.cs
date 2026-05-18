@@ -46,6 +46,8 @@ public static class RegistrationFixture
         return Registration()
             .With(x => x.Type, RegistrationType.LargeProducer)
             .With(x => x.RegistrationYear, 2026)
-            .With(x => x.Status, RegistrationStatus.Registered);
+            .With(x => x.Status, RegistrationStatus.Registered)
+            .With(x => x.Created, new DateTimeOffset(2026, 5, 18, 11, 20, 0, TimeSpan.Zero))
+            .With(x => x.Updated, new DateTimeOffset(2026, 5, 18, 11, 20, 0, TimeSpan.Zero));
     }
 }
