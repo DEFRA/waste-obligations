@@ -2,7 +2,6 @@ using Defra.WasteObligations.Api.Authentication;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.Api.Services;
-using Defra.WasteObligations.Api.Services.GovukNotify;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
 using Microsoft.AspNetCore.Mvc;
 using ComplianceDeclaration = Defra.WasteObligations.Api.Dtos.ComplianceDeclaration;

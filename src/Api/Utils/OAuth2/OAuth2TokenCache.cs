@@ -2,7 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace Defra.WasteObligations.Api.Utils.OAuth2;
 
-public class OAuth2TokenCache(IHttpClientFactory httpClientFactory, OAuth2Options options)
+public class OAuth2TokenCache(OAuth2Client oauth2Client, OAuth2Options options)
 {
     private readonly SemaphoreSlim _semaphore = new(1, 1);
 
@@ -33,25 +33,7 @@ public class OAuth2TokenCache(IHttpClientFactory httpClientFactory, OAuth2Option
 
     private async Task<string> RefreshToken(CancellationToken cancellationToken)
     {
-        var client = httpClientFactory.CreateClient(nameof(OAuth2TokenCache));
-        var values = new Dictionary<string, string>
-        {
-            ["grant_type"] = "client_credentials",
-            ["client_id"] = options.ClientId,
-            ["client_secret"] = options.ClientSecret,
-        };
-
-        if (options.Scope is not null)
-            values.Add("scope", options.Scope);
-
-        var body = new FormUrlEncodedContent(values);
-        var response = await client.PostAsync(options.TokenEndpoint, body, cancellationToken);
-
-        response.EnsureSuccessStatusCode();
-
-        var tokenResponse =
-            await response.Content.ReadFromJsonAsync<TokenResponse>(cancellationToken)
-            ?? throw new InvalidOperationException("Empty token response");
+        var tokenResponse = await oauth2Client.RequestTokenAsync(options, cancellationToken);
 
         _expiresAt = DateTime.UtcNow.AddSeconds(tokenResponse.ExpiresIn - 60);
         _accessToken = tokenResponse.AccessToken;

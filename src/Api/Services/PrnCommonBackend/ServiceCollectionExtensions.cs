@@ -15,25 +15,8 @@ public static class ServiceCollectionExtensions
     {
         const string name = PrnCommonBackendOptions.SectionName;
 
-        services.AddOptions<PrnCommonBackendOptions>().BindConfiguration(name).ValidateDataAnnotations();
+        services.AddOAuth2Client<PrnCommonBackendOptions>(name);
         services.AddOptions<HttpStandardResilienceOptions>(name).BindConfiguration(name);
-
-        services
-            .AddHttpClient(nameof(OAuth2TokenCache))
-            .AddHeaderPropagation()
-            .ConfigurePrimaryHttpMessageHandler<ProxyHttpMessageHandler>();
-        services.AddKeyedSingleton<OAuth2TokenCache>(
-            name,
-            (sp, _) =>
-                new OAuth2TokenCache(
-                    sp.GetRequiredService<IHttpClientFactory>(),
-                    sp.GetRequiredService<IOptions<PrnCommonBackendOptions>>().Value
-                )
-        );
-        services.AddKeyedTransient<OAuth2Handler>(
-            name,
-            (sp, _) => new OAuth2Handler(sp.GetRequiredKeyedService<OAuth2TokenCache>(name))
-        );
 
         var httpClientBuilder = services
             .AddHttpClient<IPrnCommonBackendService, PrnCommonBackendService>()
@@ -46,7 +29,6 @@ public static class ServiceCollectionExtensions
 
                     if (addResiliencePipeline)
                     {
-                        // See resilience handler below for timeout control
                         httpClient.Timeout = Timeout.InfiniteTimeSpan;
                     }
                 }
