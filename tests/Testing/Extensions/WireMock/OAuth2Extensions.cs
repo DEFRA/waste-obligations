@@ -54,12 +54,13 @@ public static class OAuth2Extensions
         this IWireMockAdminApi wireMock,
         string accessToken = AccessToken,
         int expiryInSeconds = 3600,
-        string? scope = "scope"
+        string? scope = "scope",
+        string? clientId = "client_id"
     )
     {
         var builder = wireMock.GetMappingBuilder();
 
-        object[] patterns = ["grant_type=client_credentials", "client_id=client_id", "client_secret=client_secret"];
+        object[] patterns = ["grant_type=client_credentials", $"client_id={clientId}", "client_secret=client_secret"];
 
         if (scope is not null)
             patterns = patterns.Append($"scope={scope}").ToArray();
@@ -72,12 +73,15 @@ public static class OAuth2Extensions
                         .WithBody(() =>
                             new BodyModel
                             {
-                                Matcher = new MatcherModel
-                                {
-                                    Name = "FormUrlEncodedMatcher",
-                                    Patterns = patterns,
-                                    MatchOperator = "And",
-                                },
+                                Matchers = patterns
+                                    .Select(p => new MatcherModel
+                                    {
+                                        Name = "FormUrlEncodedMatcher",
+                                        Pattern = p,
+                                        MatchOperator = "And",
+                                    })
+                                    .ToArray(),
+                                MatchOperator = "And",
                             }
                         )
                 )

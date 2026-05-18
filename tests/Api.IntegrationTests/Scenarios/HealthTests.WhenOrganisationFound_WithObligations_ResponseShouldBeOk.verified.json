@@ -4,6 +4,14 @@
     "PrnCommonBackend": {
       "status": "Healthy",
       "description": "Connected to http://wiremock/admin/health"
+    },
+    "AccountBackend": {
+      "status": "Healthy",
+      "description": "Connected to http://wiremock/admin/health"
+    },
+    "WasteOrganisations": {
+      "status": "Healthy",
+      "description": "Connected to http://wiremock/health/authorized"
     }
   }
 }

@@ -14,11 +14,10 @@ public class CreateComplianceDeclarationTests : IntegrationTestBase
     [Fact]
     public async Task WhenOrganisationFound_ShouldBeCreated()
     {
-        await WireMockContext.WireMockAdminApi.StubTokenRequest(expiryInSeconds: 60);
         var organisationId = Guid.NewGuid();
         await WireMockContext.WireMockAdminApi.StubWasteOrganisationsOrganisationRequest(
             organisationId,
-            BasicAuthCredential.Default
+            BasicAuthCredential.ForClient(ClientIds.WasteOrganisations)
         );
 
         var client = CreateClient();
