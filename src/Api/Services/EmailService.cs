@@ -32,7 +32,8 @@ public class EmailService(
                 entityTypeCode,
                 cancellationToken
             );
-            var recipients = users.Select(x => x.Email);
+            var recipients = users.Select(x => x.Email).ToList();
+            logger.LogInformation("Found {Count} recipient(s) for submitted email", recipients.Count);
 
             await govukNotifyService.SendComplianceDeclarationSubmittedEmail(
                 GovukNotifyOptions.TemplateName.ComplianceDeclarationSubmissionDirectProducer,

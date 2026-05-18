@@ -27,8 +27,14 @@ public static class ServiceCollectionExtensions
             )
             .AddResiliencePipeline(addResiliencePipeline, name);
 
-        services.AddSingleton<Func<HttpClient, GovukNotifyOptions, IAsyncNotificationClient>>(
-            (httpClient, options) => new NotificationClient(new HttpClientWrapper(httpClient), options.ApiKey)
+        services.AddSingleton<Func<HttpClient, GovukNotifyOptions, IAsyncNotificationClient>>(sp =>
+            (httpClient, options) =>
+            {
+                if (sp.GetRequiredService<IWebHostEnvironment>().IsDevelopment() && options.BaseAddress is not null)
+                    return new NotificationClient(options.BaseAddress, options.ApiKey);
+
+                return new NotificationClient(new HttpClientWrapper(httpClient), options.ApiKey);
+            }
         );
 
         return services;

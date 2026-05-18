@@ -38,6 +38,8 @@ services:
       AccountBackend__ClientId: account-backend
       WasteOrganisations__BaseAddress: http://wiremock/
       WasteOrganisations__ClientId: waste-organisations
+      GovukNotify__BaseAddress: http://wiremock/
+      GovukNotify__ApiKey: dummyapikey-00000000-0000-0000-0000-000000000000-00000000-0000-0000-0000-000000000000
     ports:
       - 8080:8080
     healthcheck:

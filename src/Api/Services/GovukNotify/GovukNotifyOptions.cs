@@ -9,6 +9,8 @@ public class GovukNotifyOptions
     [Required]
     public required string ApiKey { get; init; }
 
+    public string? BaseAddress { get; init; }
+
     public Dictionary<TemplateName, Template> Templates { get; init; } = new();
 
     public class Template
