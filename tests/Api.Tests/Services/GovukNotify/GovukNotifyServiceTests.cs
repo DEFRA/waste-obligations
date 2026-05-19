@@ -2,9 +2,11 @@ using AwesomeAssertions;
 using Defra.WasteObligations.Api.Services.GovukNotify;
 using Defra.WasteObligations.Api.Utils.Http;
 using Defra.WasteObligations.Testing;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Notify.Client;
 using Notify.Interfaces;
 using NSubstitute;
 
@@ -112,5 +114,61 @@ public class GovukNotifyServiceTests : WireMockTestBase
         var act = () => sp.GetRequiredService<IOptions<GovukNotifyOptions>>().Value;
 
         act.Should().Throw<OptionsValidationException>();
+    }
+
+    [Fact]
+    public async Task NotificationClientFactory_InDevelopment_CanOverrideBaseAddress()
+    {
+        var webHostEnvironment = Substitute.For<IWebHostEnvironment>();
+        webHostEnvironment.EnvironmentName.Returns("Development");
+
+        ServiceCollection services = [];
+        services.AddGovukNotify();
+        services.AddSingleton<IWebHostEnvironment>(_ => webHostEnvironment);
+
+        await using var sp = services.BuildServiceProvider();
+
+        var factory = sp.GetRequiredService<Func<HttpClient, GovukNotifyOptions, IAsyncNotificationClient>>();
+
+        var notificationClient =
+            factory(
+                new HttpClient(),
+                new GovukNotifyOptions
+                {
+                    ApiKey = "dummyapikey-00000000-0000-0000-0000-000000000000-00000000-0000-0000-0000-000000000000",
+                    BaseAddress = "http://baseaddress",
+                }
+            ) as NotificationClient;
+
+        notificationClient.Should().NotBeNull();
+        notificationClient.BaseUrl.Should().Be("http://baseaddress");
+    }
+
+    [Fact]
+    public async Task NotificationClientFactory_InProduction_CannotOverrideBaseAddress()
+    {
+        var webHostEnvironment = Substitute.For<IWebHostEnvironment>();
+        webHostEnvironment.EnvironmentName.Returns("Production");
+
+        ServiceCollection services = [];
+        services.AddGovukNotify();
+        services.AddSingleton<IWebHostEnvironment>(_ => webHostEnvironment);
+
+        await using var sp = services.BuildServiceProvider();
+
+        var factory = sp.GetRequiredService<Func<HttpClient, GovukNotifyOptions, IAsyncNotificationClient>>();
+
+        var notificationClient =
+            factory(
+                new HttpClient(),
+                new GovukNotifyOptions
+                {
+                    ApiKey = "dummyapikey-00000000-0000-0000-0000-000000000000-00000000-0000-0000-0000-000000000000",
+                    BaseAddress = "http://baseaddress",
+                }
+            ) as NotificationClient;
+
+        notificationClient.Should().NotBeNull();
+        notificationClient.BaseUrl.Should().Be("https://api.notifications.service.gov.uk/");
     }
 }
