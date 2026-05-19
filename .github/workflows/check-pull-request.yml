@@ -27,9 +27,22 @@ jobs:
         run: |
           dotnet test --filter "Category!=IntegrationTests"
       - name: Run integration tests
+        env:
+          GOVUKNOTIFY_APIKEY: ${{ secrets.GOVUKNOTIFY_APIKEY }}
         run: |
+          set -o pipefail
+
           docker compose up -d
-          dotnet test --filter "Category=IntegrationTests"
+          output=$(dotnet test \
+            --filter "Category=IntegrationTests" \
+            --logger "console;verbosity=detailed" 2>&1)
+      
+          echo "$output"
+      
+          if echo "$output" | grep -q "GOVUKNOTIFY_APIKEY is not set"; then
+            echo "❌ GOVUKNOTIFY_APIKEY warning found in test output"
+            exit 1
+          fi
       - name: Docker compose logs
         if: always()
         run: |
