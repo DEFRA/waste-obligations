@@ -6,7 +6,7 @@ services:
     volumes:
       - mongodb-data:/data
     restart: unless-stopped
-    
+
   wiremock:
     pull_policy: always
     environment:

@@ -27,9 +27,11 @@ jobs:
         run: |
           dotnet test --filter "Category!=IntegrationTests"
       - name: Run integration tests
+        env:
+          GOVUKNOTIFY_APIKEY: ${{ secrets.GOVUKNOTIFY_APIKEY }}
         run: |
           docker compose up -d
-          dotnet test --filter "Category=IntegrationTests"
+          dotnet test --filter "Category=IntegrationTests" --logger "console;verbosity=detailed"
       - name: Docker compose logs
         if: always()
         run: |
