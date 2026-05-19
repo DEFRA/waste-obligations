@@ -704,6 +704,11 @@
         }
       },
       "OrganisationRequest": {
+        "required": [
+          "name",
+          "regulator",
+          "regulatorEmail"
+        ],
         "type": "object",
         "properties": {
           "id": {
@@ -711,10 +716,7 @@
             "format": "uuid"
           },
           "name": {
-            "type": [
-              "null",
-              "string"
-            ]
+            "type": "string"
           },
           "complianceSchemeName": {
             "type": [
@@ -745,10 +747,10 @@
             ]
           },
           "regulator": {
-            "type": [
-              "null",
-              "string"
-            ]
+            "type": "string"
+          },
+          "regulatorEmail": {
+            "type": "string"
           }
         }
       },

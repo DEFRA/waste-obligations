@@ -1,6 +1,6 @@
+using Defra.WasteObligations.Api.Utils.Http;
 using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
-using Polly;
 
 namespace Defra.WasteObligations.Api.Services.WasteOrganisations;
 
@@ -14,41 +14,19 @@ public static class ServiceCollectionExtensions
         const string name = WasteOrganisationsOptions.SectionName;
 
         services.AddOptions<WasteOrganisationsOptions>().BindConfiguration(name).ValidateDataAnnotations();
-        services.AddOptions<WasteOrganisationsOptions>(name).BindConfiguration(name);
+        services.AddOptions<HttpStandardResilienceOptions>(name).BindConfiguration(name);
 
-        var httpClientBuilder = services
+        services
             .AddHttpClient<IWasteOrganisationsService, WasteOrganisationsService>()
             .ConfigureHttpClient(
                 (sp, httpClient) =>
                 {
                     sp.GetRequiredService<IOptions<WasteOrganisationsOptions>>().Value.Configure(httpClient);
-
-                    if (addResiliencePipeline)
-                    {
-                        // See resilience handler below for timeout control
-                        httpClient.Timeout = Timeout.InfiniteTimeSpan;
-                    }
+                    httpClient.ConfigureForResiliencePipeline(addResiliencePipeline);
                 }
             )
-            .AddHeaderPropagation();
-
-        if (addResiliencePipeline)
-        {
-            httpClientBuilder.AddResilienceHandler(
-                nameof(IWasteOrganisationsService),
-                (builder, context) =>
-                {
-                    var options = context
-                        .ServiceProvider.GetRequiredService<IOptionsMonitor<HttpStandardResilienceOptions>>()
-                        .Get(name);
-
-                    builder
-                        .AddTimeout(options.TotalRequestTimeout)
-                        .AddRetry(options.Retry)
-                        .AddTimeout(options.AttemptTimeout);
-                }
-            );
-        }
+            .AddHeaderPropagation()
+            .AddResiliencePipeline(addResiliencePipeline, name);
 
         return services;
     }
