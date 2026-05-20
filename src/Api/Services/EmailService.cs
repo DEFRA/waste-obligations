@@ -26,13 +26,13 @@ public class EmailService(
             var registrationType = organisation.RegistrationType(complianceDeclaration.ObligationYear);
             var entityTypeCode =
                 registrationType == RegistrationType.ComplianceScheme ? EntityTypeCode.CS : EntityTypeCode.DR;
-
-            var users = await accountBackendService.ReadPersonEmails(
+            var personEmails = await accountBackendService.ReadPersonEmails(
                 organisation.Id,
                 entityTypeCode,
                 cancellationToken
             );
-            var recipients = users.Select(x => x.Email).ToList();
+            var recipients = personEmails.Select(x => x.Email).ToList();
+
             logger.LogInformation("Found {Count} recipient(s) for submitted email", recipients.Count);
 
             await govukNotifyService.SendComplianceDeclarationSubmittedEmail(
@@ -46,10 +46,12 @@ public class EmailService(
                 },
                 complianceDeclaration.DeclarationText.Language
             );
+
+            logger.LogInformation("Sent submitted email");
         }
         catch (Exception exception)
         {
-            logger.LogWarning(exception, "Compliance declaration submitted email could not be sent");
+            logger.LogWarning(exception, "Submitted email could not be sent");
 
             // intentionally swallowed as failure to send an email should not break anything
         }
