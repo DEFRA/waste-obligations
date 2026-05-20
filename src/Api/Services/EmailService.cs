@@ -51,7 +51,7 @@ public class EmailService(
         }
         catch (Exception exception)
         {
-            logger.LogWarning(exception, "Submitted email could not be sent");
+            logger.LogError(exception, "Submitted email could not be sent");
 
             // intentionally swallowed as failure to send an email should not break anything
         }
