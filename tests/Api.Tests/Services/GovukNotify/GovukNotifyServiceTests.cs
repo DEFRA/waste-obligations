@@ -39,7 +39,7 @@ public class GovukNotifyServiceTests : WireMockTestBase
         Services.AddGovukNotify();
         Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(config).Build());
         Services.AddTransient<ProxyHttpMessageHandler>();
-        Services.AddSingleton<Func<HttpClient, GovukNotifyOptions, IAsyncNotificationClient>>(
+        Services.AddGovukNotifyFactory(_ =>
             (_, options) =>
             {
                 options.ApiKey.Should().Be("dummyapikey");
@@ -104,9 +104,7 @@ public class GovukNotifyServiceTests : WireMockTestBase
         services.AddGovukNotify();
         services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(config).Build());
         services.AddTransient<ProxyHttpMessageHandler>();
-        services.AddSingleton<Func<HttpClient, GovukNotifyOptions, IAsyncNotificationClient>>(
-            (_, _) => NotificationClient
-        );
+        services.AddGovukNotifyFactory(_ => (_, _) => NotificationClient);
 
         await using var sp = services.BuildServiceProvider();
 
@@ -128,7 +126,7 @@ public class GovukNotifyServiceTests : WireMockTestBase
 
         await using var sp = services.BuildServiceProvider();
 
-        var factory = sp.GetRequiredService<Func<HttpClient, GovukNotifyOptions, IAsyncNotificationClient>>();
+        var factory = sp.GetGovukNotifyFactory();
 
         var notificationClient =
             factory(
@@ -156,7 +154,7 @@ public class GovukNotifyServiceTests : WireMockTestBase
 
         await using var sp = services.BuildServiceProvider();
 
-        var factory = sp.GetRequiredService<Func<HttpClient, GovukNotifyOptions, IAsyncNotificationClient>>();
+        var factory = sp.GetGovukNotifyFactory();
 
         var notificationClient =
             factory(

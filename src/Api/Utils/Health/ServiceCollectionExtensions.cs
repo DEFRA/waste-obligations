@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Defra.WasteObligations.Api.Services.AccountBackend;
+using Defra.WasteObligations.Api.Services.GovukNotify;
 using Defra.WasteObligations.Api.Services.PrnCommonBackend;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -38,6 +39,15 @@ public static class ServiceCollectionExtensions
                     sp => new WasteOrganisationsHealthCheck(
                         sp.GetRequiredService<IOptions<WasteOrganisationsOptions>>().Value
                     ),
+                    HealthStatus.Unhealthy,
+                    tags: [WebApplicationExtensions.Extended],
+                    timeout: TimeSpan.FromSeconds(10)
+                )
+            )
+            .Add(
+                new HealthCheckRegistration(
+                    GovukNotifyOptions.SectionName,
+                    sp => new GovukNotifyHealthCheck(sp.GetRequiredService<IServiceProvider>()),
                     HealthStatus.Unhealthy,
                     tags: [WebApplicationExtensions.Extended],
                     timeout: TimeSpan.FromSeconds(10)

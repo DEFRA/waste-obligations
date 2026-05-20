@@ -25,11 +25,15 @@ public class HealthTests : IntegrationTestBase
         await WireMockContext.WireMockAdminApi.StubWasteOrganisationsHealth(
             BasicAuthCredential.ForClient(ClientIds.WasteOrganisations)
         );
+        // see appsettings.json for template IDs
+        await WireMockContext.WireMockAdminApi.StubGovukNotifyTemplateRequest("5f64e3bd-d454-4a45-a9c6-9409bf940d7a");
+        await WireMockContext.WireMockAdminApi.StubGovukNotifyTemplateRequest("b3223b0b-a467-40c1-9150-f78b76d11fd8");
 
         var client = CreateClient();
 
         var response = await client.GetAsync(Testing.Endpoints.Health.All(), TestContext.Current.CancellationToken);
 
-        await VerifyJson(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        await VerifyJson(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken))
+            .DontScrubGuids();
     }
 }
