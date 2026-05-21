@@ -32,6 +32,7 @@ public static class CreateComplianceDeclaration
         [FromServices] IWasteOrganisationsService wasteOrganisationsService,
         [FromServices] IComplianceDeclarationService complianceDeclarationService,
         [FromServices] TimeProvider timeProvider,
+        [FromServices] IEmailService emailService,
         CancellationToken cancellationToken
     )
     {
@@ -43,6 +44,8 @@ public static class CreateComplianceDeclaration
             request.ToEntity(timeProvider),
             cancellationToken
         );
+
+        await emailService.SendSubmittedEmail(complianceDeclaration, organisation, cancellationToken);
 
         return Results.Created(
             $"/organisations/{organisationId:D}/compliance-declarations/{complianceDeclaration.Id:D}",

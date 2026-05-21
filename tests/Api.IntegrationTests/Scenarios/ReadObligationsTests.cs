@@ -11,11 +11,14 @@ public class ReadObligationsTests : IntegrationTestBase
     [Fact]
     public async Task WhenOrganisationFound_WithNoObligations_ResponseShouldBeOk()
     {
-        await WireMockContext.WireMockAdminApi.StubTokenRequest(expiryInSeconds: 60);
+        await WireMockContext.WireMockAdminApi.StubTokenRequest(
+            expiryInSeconds: 60,
+            clientId: ClientIds.PrnCommonBackend
+        );
         var organisationId = Guid.NewGuid();
         await WireMockContext.WireMockAdminApi.StubWasteOrganisationsOrganisationRequest(
             organisationId,
-            BasicAuthCredential.Default
+            BasicAuthCredential.ForClient(ClientIds.WasteOrganisations)
         );
 
         var client = CreateClient();
@@ -34,11 +37,14 @@ public class ReadObligationsTests : IntegrationTestBase
     [Fact]
     public async Task WhenOrganisationFound_WithObligations_ResponseShouldBeOk()
     {
-        await WireMockContext.WireMockAdminApi.StubTokenRequest(expiryInSeconds: 60);
+        await WireMockContext.WireMockAdminApi.StubTokenRequest(
+            expiryInSeconds: 60,
+            clientId: ClientIds.PrnCommonBackend
+        );
         var organisationId = Guid.NewGuid();
         await WireMockContext.WireMockAdminApi.StubWasteOrganisationsOrganisationRequest(
             organisationId,
-            BasicAuthCredential.Default
+            BasicAuthCredential.ForClient(ClientIds.WasteOrganisations)
         );
         const int year = 2026;
         await WireMockContext.WireMockAdminApi.StubPrnCommonBackendObligationsRequest(

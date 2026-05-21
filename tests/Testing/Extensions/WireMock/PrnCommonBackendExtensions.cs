@@ -81,9 +81,7 @@ public static class PrnCommonBackendExtensions
                     if (accessToken is not null)
                         r.WithHeader("Authorization", $"Bearer {accessToken}");
                 })
-                .WithResponse(r =>
-                    r.WithStatusCode(HttpStatusCode.OK).WithBodyAsJson(ObligationsFixture.Default().Create())
-                )
+                .WithResponse(r => r.WithStatusCode(HttpStatusCode.OK))
         );
 
         var status = await builder.BuildAndPostAsync(TestContext.Current.CancellationToken);

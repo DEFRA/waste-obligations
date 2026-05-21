@@ -30,20 +30,25 @@ public record Organisation
         var registration = LatestRegistrationOrByYear(registrationYear);
         var result = registration.Type switch
         {
-            RegistrationType.LargeProducer => Name,
-            RegistrationType.ComplianceScheme => TradingName,
+            WasteOrganisations.RegistrationType.LargeProducer => Name,
+            WasteOrganisations.RegistrationType.ComplianceScheme => TradingName,
             _ => Name,
         };
 
         return result ?? Name;
     }
 
+    public string RegistrationType(int? registrationYear = null) => LatestRegistrationOrByYear(registrationYear).Type;
+
     private int LatestRegistrationYear() => Registrations.MaxBy(x => x.RegistrationYear)?.RegistrationYear ?? 0;
 
     private Registration LatestRegistrationOrByYear(int? registrationYear)
     {
         registrationYear ??= LatestRegistrationYear();
-        var registrations = Registrations.Where(x => x.RegistrationYear == registrationYear).ToArray();
+        var registrations = Registrations
+            .Where(x => x.RegistrationYear == registrationYear)
+            .OrderByDescending(x => x.Updated)
+            .ToArray();
 
         var registration =
             registrations.FirstOrDefault(x => x.Status == RegistrationStatus.Registered)

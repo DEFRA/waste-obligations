@@ -58,4 +58,26 @@ public static class WasteOrganisationsExtensions
         var status = await builder.BuildAndPostAsync(TestContext.Current.CancellationToken);
         status.Guid.Should().NotBeNull();
     }
+
+    public static async Task StubWasteOrganisationsHealth(
+        this IWireMockAdminApi wireMock,
+        string? basicAuthToken = null
+    )
+    {
+        var builder = wireMock.GetMappingBuilder();
+
+        builder.Given(x =>
+            x.WithRequest(r =>
+                {
+                    r.UsingGet().WithPath("/health/authorized");
+
+                    if (basicAuthToken is not null)
+                        r.WithHeader("Authorization", $"Basic {basicAuthToken}");
+                })
+                .WithResponse(r => r.WithStatusCode(HttpStatusCode.OK))
+        );
+
+        var status = await builder.BuildAndPostAsync(TestContext.Current.CancellationToken);
+        status.Guid.Should().NotBeNull();
+    }
 }

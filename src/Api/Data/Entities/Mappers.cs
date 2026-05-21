@@ -56,6 +56,7 @@ public static class Mappers
             ReferenceNumber = entity.ReferenceNumber,
             Address = entity.Address?.ToDto(),
             Regulator = entity.Regulator,
+            RegulatorEmail = entity.RegulatorEmail,
         };
 
     private static Dtos.Address ToDto(this Address entity) =>

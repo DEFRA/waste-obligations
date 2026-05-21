@@ -72,6 +72,20 @@ Running all:
 dotnet test
 ```
 
+### Govuk Notify
+
+The `GovukNotifyTests` integration tests can run against Govuk Notify if you provide an API Key.
+
+Set the `GOVUKNOTIFY_APIKEY` env var in a terminal and then run the integration tests:
+
+```
+export GOVUKNOTIFY_APIKEY=[replace with key]
+dotnet test --filter "Category=IntegrationTests" --logger "console;verbosity=detailed"
+```
+
+Note the command above to run the tests allows console output so use of the API Key can be seen.
+
+
 ## Code quality
 
 SonarQube cloud is configured and all Defra rules are mandated. 
@@ -99,6 +113,14 @@ See [dependabot.yml](.github/dependabot.yml) for group configuration.
 ## CDP
 
 Review CDP documentation and process for relevant portal operations.
+
+## Github
+
+The following secrets are configured in the repository in Github:
+
+GOVUKNOTIFY_APIKEY - the API Key for Govuk Notify integration tests. Ensure it's a Test API Key as per guidance https://docs.notifications.service.gov.uk/java.html#test
+
+SONAR_TOKEN - the API Key for SonarCloud https://sonarcloud.io/project/overview?id=DEFRA_waste-obligations
 
 ## Licence Information
 

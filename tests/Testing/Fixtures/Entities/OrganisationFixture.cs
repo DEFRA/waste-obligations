@@ -23,6 +23,7 @@ public static class OrganisationFixture
             .With(x => x.ReferenceNumber, "123456")
             .With(x => x.Address, AddressFixture.Default().Create())
             .With(x => x.Regulator, "Regulator")
+            .With(x => x.RegulatorEmail, "regulator@email.com")
             .With(x => x.ComplianceSchemeName, (string?)null)
             .With(x => x.SchemeOperatorName, (string?)null);
     }
@@ -36,6 +37,7 @@ public static class OrganisationFixture
             .With(x => x.ReferenceNumber, "123456")
             .With(x => x.Address, AddressFixture.Default().Create())
             .With(x => x.Regulator, "Regulator")
+            .With(x => x.RegulatorEmail, "regulator@email.com")
             .With(x => x.Name, (string?)null);
     }
 }

@@ -4,6 +4,25 @@
     "PrnCommonBackend": {
       "status": "Healthy",
       "description": "Connected to http://wiremock/admin/health"
+    },
+    "AccountBackend": {
+      "status": "Healthy",
+      "description": "Connected to http://wiremock/admin/health"
+    },
+    "WasteOrganisations": {
+      "status": "Healthy",
+      "description": "Connected to http://wiremock/health/authorized"
+    },
+    "GovukNotify": {
+      "status": "Healthy",
+      "description": "Connected to http://wiremock/",
+      "data": {
+        "retrieved": [
+          "5f64e3bd-d454-4a45-a9c6-9409bf940d7a version 1",
+          "b3223b0b-a467-40c1-9150-f78b76d11fd8 version 1"
+        ],
+        "failed": []
+      }
     }
   }
 }
