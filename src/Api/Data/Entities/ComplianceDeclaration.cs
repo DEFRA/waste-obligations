@@ -5,8 +5,7 @@ namespace Defra.WasteObligations.Api.Data.Entities;
 
 public record ComplianceDeclaration
 {
-    [BsonGuidRepresentation(GuidRepresentation.Standard)]
-    public required Guid Id { get; init; }
+    public required ObjectId Id { get; init; }
     public int Version { get; init; } = 1;
 
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]

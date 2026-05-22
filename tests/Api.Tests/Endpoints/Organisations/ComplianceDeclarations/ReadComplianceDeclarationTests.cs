@@ -4,6 +4,7 @@ using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
 using Defra.WasteObligations.Testing.Fakes;
 using Microsoft.Extensions.DependencyInjection;
+using MongoDB.Bson;
 
 namespace Defra.WasteObligations.Api.Tests.Endpoints.Organisations.ComplianceDeclarations;
 
@@ -24,7 +25,10 @@ public class ReadComplianceDeclarationTests(ApiWebApplicationFactory factory, IT
         var client = CreateClient(testUser: TestUser.ReadOnly);
 
         var response = await client.GetAsync(
-            Testing.Endpoints.Organisations.ComplianceDeclarations.Read(Guid.NewGuid(), Guid.NewGuid()),
+            Testing.Endpoints.Organisations.ComplianceDeclarations.Read(
+                Guid.NewGuid(),
+                ObjectId.GenerateNewId().ToString()
+            ),
             TestContext.Current.CancellationToken
         );
 
@@ -37,7 +41,10 @@ public class ReadComplianceDeclarationTests(ApiWebApplicationFactory factory, IT
         var client = CreateClient(testUser: TestUser.WriteOnly);
 
         var response = await client.GetAsync(
-            Testing.Endpoints.Organisations.ComplianceDeclarations.Read(Guid.NewGuid(), Guid.NewGuid()),
+            Testing.Endpoints.Organisations.ComplianceDeclarations.Read(
+                Guid.NewGuid(),
+                ObjectId.GenerateNewId().ToString()
+            ),
             TestContext.Current.CancellationToken
         );
 
@@ -52,7 +59,7 @@ public class ReadComplianceDeclarationTests(ApiWebApplicationFactory factory, IT
         var response = await client.GetAsync(
             Testing.Endpoints.Organisations.ComplianceDeclarations.Read(
                 FakeWasteOrganisationsService.OrganisationId,
-                Guid.NewGuid()
+                ObjectId.GenerateNewId().ToString()
             ),
             TestContext.Current.CancellationToken
         );
@@ -68,7 +75,7 @@ public class ReadComplianceDeclarationTests(ApiWebApplicationFactory factory, IT
         var response = await client.GetAsync(
             Testing.Endpoints.Organisations.ComplianceDeclarations.Read(
                 FakeWasteOrganisationsService.OrganisationId,
-                FakeComplianceDeclarationService.NonMatchingOrganisationComplianceDeclarationId
+                FakeComplianceDeclarationService.NonMatchingOrganisationComplianceDeclarationId.ToString()
             ),
             TestContext.Current.CancellationToken
         );
@@ -84,7 +91,7 @@ public class ReadComplianceDeclarationTests(ApiWebApplicationFactory factory, IT
         var response = await client.GetStringAsync(
             Testing.Endpoints.Organisations.ComplianceDeclarations.Read(
                 FakeWasteOrganisationsService.OrganisationId,
-                FakeComplianceDeclarationService.ComplianceDeclarationId
+                FakeComplianceDeclarationService.ComplianceDeclarationId.ToString()
             ),
             TestContext.Current.CancellationToken
         );

@@ -9,7 +9,7 @@ public interface IComplianceDeclarationService
         CancellationToken cancellationToken
     );
 
-    Task<ComplianceDeclaration?> Read(Guid id, CancellationToken cancellationToken);
+    Task<ComplianceDeclaration?> Read(string id, CancellationToken cancellationToken);
 
     Task<IEnumerable<ComplianceDeclaration>> Read(
         Guid organisationId,

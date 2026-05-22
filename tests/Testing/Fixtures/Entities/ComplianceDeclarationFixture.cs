@@ -2,6 +2,7 @@ using AutoFixture;
 using AutoFixture.Dsl;
 using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.Testing.Extensions;
+using MongoDB.Bson;
 using ComplianceDeclaration = Defra.WasteObligations.Api.Data.Entities.ComplianceDeclaration;
 using Obligation = Defra.WasteObligations.Api.Data.Entities.Obligation;
 using ObligationYear = Defra.WasteObligations.Api.Dtos.ObligationYear;
@@ -21,6 +22,7 @@ public static class ComplianceDeclarationFixture
     )
     {
         return composer
+            .With(x => x.Id, ObjectId.GenerateNewId)
             .With(x => x.ObligationYear, () => RandomObligationYear())
             .With(x => x.ObligationStatus, () => ObligationStatus.MetOrNot.Random());
     }

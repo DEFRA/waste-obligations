@@ -11,10 +11,7 @@ public static class ReadComplianceDeclaration
 {
     public static void MapComplianceDeclarationRead(this IEndpointRouteBuilder app)
     {
-        app.MapGet(
-                "/organisations/{organisationId:guid}/compliance-declarations/{complianceDeclarationId:guid}",
-                Handle
-            )
+        app.MapGet("/organisations/{organisationId:guid}/compliance-declarations/{complianceDeclarationId}", Handle)
             .WithName("ReadOrganisationComplianceDeclaration")
             .WithTags("ComplianceDeclarations")
             .WithSummary("Compliance declaration by ID")
@@ -30,7 +27,7 @@ public static class ReadComplianceDeclaration
     [HttpGet]
     private static async Task<IResult> Handle(
         [FromRoute] Guid organisationId,
-        [FromRoute] Guid complianceDeclarationId,
+        [FromRoute] string complianceDeclarationId,
         [FromServices] IWasteOrganisationsService wasteOrganisationsService,
         [FromServices] IComplianceDeclarationService complianceDeclarationService,
         CancellationToken cancellationToken

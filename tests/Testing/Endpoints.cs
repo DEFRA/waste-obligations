@@ -45,7 +45,7 @@ public static class Endpoints
             public static string Read(Guid organisationId, EndpointQuery? query = null) =>
                 $"{Create(organisationId)}{query}";
 
-            public static string Read(Guid organisationId, Guid complianceDeclarationId) =>
+            public static string Read(Guid organisationId, string complianceDeclarationId) =>
                 $"{Create(organisationId)}/{complianceDeclarationId}";
         }
     }

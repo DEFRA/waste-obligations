@@ -8,7 +8,7 @@ namespace Defra.WasteObligations.Api.Dtos;
 public record ComplianceDeclaration
 {
     [JsonPropertyName("id")]
-    public Guid Id { get; init; }
+    public required string Id { get; init; }
 
     [Description("ISO 8601 extended format with offset")]
     [JsonPropertyName("created")]

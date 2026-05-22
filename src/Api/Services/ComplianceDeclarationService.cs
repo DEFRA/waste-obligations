@@ -1,5 +1,6 @@
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
+using MongoDB.Bson;
 using MongoDB.Driver;
 using MongoDB.Driver.Linq;
 
@@ -32,9 +33,9 @@ public class ComplianceDeclarationService(
         return complianceDeclaration;
     }
 
-    public async Task<ComplianceDeclaration?> Read(Guid id, CancellationToken cancellationToken) =>
+    public async Task<ComplianceDeclaration?> Read(string id, CancellationToken cancellationToken) =>
         await dbContext
-            .ComplianceDeclarations.Find(Builders<ComplianceDeclaration>.Filter.Eq(x => x.Id, id))
+            .ComplianceDeclarations.Find(Builders<ComplianceDeclaration>.Filter.Eq(x => x.Id, ObjectId.Parse(id)))
             .FirstOrDefaultAsync(cancellationToken: cancellationToken);
 
     public async Task<IEnumerable<ComplianceDeclaration>> Read(

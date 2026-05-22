@@ -1,21 +1,21 @@
 using AutoFixture;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
+using MongoDB.Bson;
 using ComplianceDeclaration = Defra.WasteObligations.Api.Data.Entities.ComplianceDeclaration;
 
 namespace Defra.WasteObligations.Testing.Fakes;
 
 public class FakeComplianceDeclarationService : IComplianceDeclarationService
 {
-    public Func<Guid> CreateNewId = Guid.NewGuid;
+    public Func<ObjectId> CreateNewId = ObjectId.GenerateNewId;
     public Func<DateTimeOffset> UtcNow = () => DateTimeOffset.UtcNow;
 
     private static readonly DateTime s_start = new(2026, 4, 26, 14, 0, 0, DateTimeKind.Utc);
 
-    public static readonly Guid ComplianceDeclarationId = new("3bd56644-9b24-4cd1-98f1-cc69f3b16bc1");
-
-    public static readonly Guid NonMatchingOrganisationComplianceDeclarationId = new(
-        "14956bb4-2f09-4d90-a63b-7e1a4bbe174e"
+    public static readonly ObjectId ComplianceDeclarationId = ObjectId.Parse("6830b14f9d2a7c61f4e8b935");
+    public static readonly ObjectId NonMatchingOrganisationComplianceDeclarationId = ObjectId.Parse(
+        "6830af2d5b6c9f1e8a4d72c1"
     );
 
     private static readonly Dictionary<Guid, List<ComplianceDeclaration>> s_complianceDeclarations = new()
@@ -69,10 +69,10 @@ public class FakeComplianceDeclarationService : IComplianceDeclarationService
         );
     }
 
-    public Task<ComplianceDeclaration?> Read(Guid id, CancellationToken cancellationToken)
-    {
-        return Task.FromResult(s_complianceDeclarations.SelectMany(x => x.Value).FirstOrDefault(x => x.Id == id));
-    }
+    public Task<ComplianceDeclaration?> Read(string id, CancellationToken cancellationToken) =>
+        Task.FromResult(
+            s_complianceDeclarations.SelectMany(x => x.Value).FirstOrDefault(x => x.Id == ObjectId.Parse(id))
+        );
 
     public Task<IEnumerable<ComplianceDeclaration>> Read(
         Guid organisationId,

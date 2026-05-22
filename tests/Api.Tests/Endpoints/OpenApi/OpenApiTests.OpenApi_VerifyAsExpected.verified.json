@@ -289,8 +289,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "string"
             }
           }
         ],
@@ -447,6 +446,7 @@
       },
       "ComplianceDeclaration": {
         "required": [
+          "id",
           "organisation",
           "obligationYear",
           "obligationStatus",
@@ -456,8 +456,7 @@
         "type": "object",
         "properties": {
           "id": {
-            "type": "string",
-            "format": "uuid"
+            "type": "string"
           },
           "created": {
             "type": "string",
