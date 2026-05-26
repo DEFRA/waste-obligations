@@ -11,6 +11,8 @@ public static class Mappers
             Status = entity.Status switch
             {
                 ComplianceDeclarationStatus.Submitted => Dtos.ComplianceDeclarationStatus.Submitted,
+                ComplianceDeclarationStatus.Accepted => Dtos.ComplianceDeclarationStatus.Accepted,
+                ComplianceDeclarationStatus.Cancelled => Dtos.ComplianceDeclarationStatus.Cancelled,
                 _ => throw new InvalidOperationException("Unknown status"),
             },
             Organisation = entity.Organisation.ToDto(),
@@ -73,19 +75,18 @@ public static class Mappers
     private static Dtos.AuditEntry ToDto(this AuditEntry entity) =>
         entity switch
         {
-            SubmissionAuditEntry s => new Dtos.AuditEntry
-            {
-                User = s.User.ToDto(),
-                Timestamp = s.Timestamp,
-                Action = s.Action,
-            },
-            CancelledAuditEntry s => new Dtos.CancelledAuditEntry
+            ReasonAuditEntry s => new Dtos.ReasonAuditEntry
             {
                 User = s.User.ToDto(),
                 Timestamp = s.Timestamp,
                 Action = s.Action,
                 Reason = s.Reason,
             },
-            _ => throw new InvalidOperationException($"Unknown audit entry type: {entity.GetType()}"),
+            _ => new Dtos.AuditEntry
+            {
+                User = entity.User.ToDto(),
+                Timestamp = entity.Timestamp,
+                Action = entity.Action,
+            },
         };
 }

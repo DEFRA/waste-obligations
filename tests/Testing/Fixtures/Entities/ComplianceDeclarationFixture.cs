@@ -4,6 +4,7 @@ using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.Testing.Extensions;
 using MongoDB.Bson;
 using ComplianceDeclaration = Defra.WasteObligations.Api.Data.Entities.ComplianceDeclaration;
+using ComplianceDeclarationStatus = Defra.WasteObligations.Api.Data.Entities.ComplianceDeclarationStatus;
 using Obligation = Defra.WasteObligations.Api.Data.Entities.Obligation;
 using ObligationYear = Defra.WasteObligations.Api.Dtos.ObligationYear;
 
@@ -23,6 +24,7 @@ public static class ComplianceDeclarationFixture
     {
         return composer
             .With(x => x.Id, ObjectId.GenerateNewId)
+            .With(x => x.Version, 1)
             .With(x => x.ObligationYear, () => RandomObligationYear())
             .With(x => x.ObligationStatus, () => ObligationStatus.MetOrNot.Random());
     }
@@ -44,6 +46,7 @@ public static class ComplianceDeclarationFixture
             .With(x => x.ObligationStatus, ObligationStatus.NotMet)
             .With(x => x.DeclarationText, LocalizedTextFixture.Default().Create())
             .With(x => x.SubmitterName, "Submitter Name")
+            .With(x => x.Status, ComplianceDeclarationStatus.Submitted)
             .With(x => x.Audit, AuditEntryFixture.Submitted());
     }
 

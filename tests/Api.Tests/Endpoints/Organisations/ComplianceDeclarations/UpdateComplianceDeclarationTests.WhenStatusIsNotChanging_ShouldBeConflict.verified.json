@@ -1,0 +1,7 @@
+﻿{
+  "type": "https://tools.ietf.org/html/rfc9110#section-15.5.10",
+  "title": "Conflict occurred",
+  "status": 409,
+  "detail": "Invalid status transition from Submitted to Submitted",
+  "traceId": "{Scrubbed}"
+}

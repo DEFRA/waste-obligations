@@ -16,4 +16,9 @@ public interface IComplianceDeclarationService
         int obligationYear,
         CancellationToken cancellationToken
     );
+
+    Task<ComplianceDeclaration> Update(
+        ComplianceDeclaration complianceDeclaration,
+        CancellationToken cancellationToken
+    );
 }

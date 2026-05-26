@@ -2,9 +2,8 @@ using MongoDB.Bson.Serialization.Attributes;
 
 namespace Defra.WasteObligations.Api.Data.Entities;
 
-[BsonKnownTypes(typeof(SubmissionAuditEntry))]
-[BsonKnownTypes(typeof(CancelledAuditEntry))]
-public abstract record AuditEntry(string Action)
+[BsonKnownTypes(typeof(ReasonAuditEntry))]
+public record AuditEntry(string Action)
 {
     public required User User { get; init; }
 
@@ -12,9 +11,7 @@ public abstract record AuditEntry(string Action)
     public required DateTime Timestamp { get; init; }
 }
 
-public record SubmissionAuditEntry() : AuditEntry("Submitted");
-
-public record CancelledAuditEntry() : AuditEntry("Cancelled")
+public record ReasonAuditEntry(string Action) : AuditEntry(Action)
 {
     public required string Reason { get; init; }
 }

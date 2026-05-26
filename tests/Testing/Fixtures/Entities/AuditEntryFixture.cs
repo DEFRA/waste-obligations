@@ -7,25 +7,23 @@ public static class AuditEntryFixture
 {
     public static IEnumerable<AuditEntry> Submitted(DateTime? timestamp = null) =>
         [
-            new SubmissionAuditEntry
+            new("Submitted")
             {
                 User = UserFixture.Default().Create(),
                 Timestamp = timestamp ?? new DateTime(2026, 4, 26, 14, 0, 0, DateTimeKind.Utc),
             },
         ];
 
-    public static IEnumerable<AuditEntry> SubmittedThenCancelled(DateTime? timestamp = null) =>
+    public static IEnumerable<AuditEntry> Cancelled(DateTime? timestamp = null) =>
         [
-            new SubmissionAuditEntry
-            {
-                User = UserFixture.Default().Create(),
-                Timestamp = timestamp ?? new DateTime(2026, 4, 26, 14, 0, 0, DateTimeKind.Utc),
-            },
-            new CancelledAuditEntry
+            new ReasonAuditEntry("Cancelled")
             {
                 Reason = "Invalid",
                 User = UserFixture.Default().Create(),
                 Timestamp = timestamp ?? new DateTime(2026, 4, 26, 14, 10, 0, DateTimeKind.Utc),
             },
         ];
+
+    public static IEnumerable<AuditEntry> SubmittedThenCancelled(DateTime? timestamp = null) =>
+        Submitted(timestamp).Concat(Cancelled(timestamp));
 }

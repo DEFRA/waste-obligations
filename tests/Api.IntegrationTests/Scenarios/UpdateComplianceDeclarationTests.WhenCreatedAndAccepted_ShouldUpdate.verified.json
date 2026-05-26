@@ -1,10 +1,10 @@
 ﻿{
-  "id": "6830b14f9d2a7c61f4e8b935",
-  "created": "2026-04-26T14:00:00+00:00",
-  "updated": "2026-04-26T14:00:00+00:00",
-  "status": "Submitted",
+  "id": "{Scrubbed}",
+  "created": "{Scrubbed}",
+  "updated": "{Scrubbed}",
+  "status": "Accepted",
   "organisation": {
-    "id": "923fa611-571c-4948-ab7d-fbb75e75ed65",
+    "id": "Guid_1",
     "name": "Org Name",
     "complianceSchemeName": null,
     "schemeOperatorName": null,
@@ -44,11 +44,19 @@
   "audit": [
     {
       "user": {
-        "id": "e72be574-8b5b-4836-af47-dd7e0c0d1d87",
+        "id": "Guid_2",
         "email": "submitter@email.com"
       },
-      "timestamp": "2026-04-26T14:00:00+00:00",
+      "timestamp": "{Scrubbed}",
       "action": "Submitted"
+    },
+    {
+      "user": {
+        "id": "Guid_3",
+        "email": "regulator@email.com"
+      },
+      "timestamp": "{Scrubbed}",
+      "action": "Accepted"
     }
   ]
 }

@@ -1,5 +1,4 @@
 using Defra.WasteObligations.Api.Data;
-using MongoDB.Bson;
 
 namespace Defra.WasteObligations.Api.Dtos;
 
@@ -12,24 +11,17 @@ public static class Mappers
     {
         timeProvider ??= TimeProvider.System;
 
-        return new Data.Entities.ComplianceDeclaration
+        var draft = new Data.Entities.ComplianceDeclaration
         {
-            Id = ObjectId.GenerateNewId(),
             Organisation = dto.Organisation.ToEntity(),
             ObligationYear = dto.ObligationYear,
-            Obligations = dto.Obligations.Select(x => x.ToEntity()).ToList(),
+            Obligations = [.. dto.Obligations.Select(x => x.ToEntity())],
             ObligationStatus = dto.ObligationStatus,
             DeclarationText = dto.DeclarationText.ToEntity(),
             SubmitterName = dto.SubmitterName,
-            Audit = new List<Data.Entities.AuditEntry>
-            {
-                new Data.Entities.SubmissionAuditEntry
-                {
-                    User = dto.User.ToEntity(),
-                    Timestamp = timeProvider.GetUtcNowWithoutMicroseconds(),
-                },
-            },
         };
+
+        return draft.Submit(dto.User.ToEntity(), timeProvider.GetUtcNowWithoutMicroseconds());
     }
 
     private static Data.Entities.Obligation ToEntity(this Obligation dto) =>
@@ -54,7 +46,7 @@ public static class Mappers
     private static Data.Entities.LocalizedText ToEntity(this LocalizedText dto) =>
         new() { Text = dto.Text, Language = dto.Language };
 
-    private static Data.Entities.User ToEntity(this User dto) => new() { Id = dto.Id, Email = dto.Email };
+    public static Data.Entities.User ToEntity(this User dto) => new() { Id = dto.Id, Email = dto.Email };
 
     private static Data.Entities.Organisation ToEntity(this OrganisationRequest dto) =>
         new()
@@ -78,5 +70,14 @@ public static class Mappers
             County = dto.County,
             Postcode = dto.Postcode,
             Country = dto.Country,
+        };
+
+    public static Data.Entities.ComplianceDeclarationStatus ToEntity(this ComplianceDeclarationStatus? dto) =>
+        dto switch
+        {
+            ComplianceDeclarationStatus.Submitted => Data.Entities.ComplianceDeclarationStatus.Submitted,
+            ComplianceDeclarationStatus.Accepted => Data.Entities.ComplianceDeclarationStatus.Accepted,
+            ComplianceDeclarationStatus.Cancelled => Data.Entities.ComplianceDeclarationStatus.Cancelled,
+            _ => throw new InvalidOperationException("Unknown status"),
         };
 }
