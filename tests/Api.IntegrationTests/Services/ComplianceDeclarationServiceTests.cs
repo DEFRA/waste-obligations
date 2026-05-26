@@ -4,6 +4,7 @@ using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
 using Microsoft.Extensions.Logging;
+using MongoDB.Bson;
 using NSubstitute;
 
 namespace Defra.WasteObligations.Api.IntegrationTests.Services;
@@ -20,7 +21,10 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
     [Fact]
     public async Task Read_WhenNoComplianceDeclaration_ShouldBeNull()
     {
-        var complianceDeclaration = await Subject.Read(Guid.NewGuid(), TestContext.Current.CancellationToken);
+        var complianceDeclaration = await Subject.Read(
+            ObjectId.GenerateNewId().ToString(),
+            TestContext.Current.CancellationToken
+        );
 
         complianceDeclaration.Should().BeNull();
     }
@@ -33,7 +37,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             TestContext.Current.CancellationToken
         );
 
-        var retrieved = await Subject.Read(initial.Id, TestContext.Current.CancellationToken);
+        var retrieved = await Subject.Read(initial.Id.ToString(), TestContext.Current.CancellationToken);
 
         retrieved.Should().NotBeNull();
         retrieved.Should().BeEquivalentTo(initial);
@@ -50,7 +54,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             TestContext.Current.CancellationToken
         );
 
-        var retrieved = await Subject.Read(initial.Id, TestContext.Current.CancellationToken);
+        var retrieved = await Subject.Read(initial.Id.ToString(), TestContext.Current.CancellationToken);
 
         retrieved.Should().NotBeNull();
         retrieved.Should().BeEquivalentTo(initial);

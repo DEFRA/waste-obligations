@@ -118,7 +118,9 @@ Review CDP documentation and process for relevant portal operations.
 
 The following secrets are configured in the repository in Github:
 
-GOVUKNOTIFY_APIKEY - the API Key for Govuk Notify integration tests. Ensure it's a Test API Key as per guidance https://docs.notifications.service.gov.uk/java.html#test
+GOVUKNOTIFY_APIKEY - the API Key for Govuk Notify integration tests. Ensure it's a Test API Key as per guidance https://docs.notifications.service.gov.uk/java.html#test.
+
+Also ensure it's defined in the main repository secrets and also the Dependabot secrets.
 
 SONAR_TOKEN - the API Key for SonarCloud https://sonarcloud.io/project/overview?id=DEFRA_waste-obligations
 

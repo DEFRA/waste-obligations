@@ -1,4 +1,5 @@
 using Defra.WasteObligations.Api.Data;
+using MongoDB.Bson;
 
 namespace Defra.WasteObligations.Api.Dtos;
 
@@ -13,7 +14,7 @@ public static class Mappers
 
         return new Data.Entities.ComplianceDeclaration
         {
-            Id = Guid.NewGuid(),
+            Id = ObjectId.GenerateNewId(),
             Organisation = dto.Organisation.ToEntity(),
             ObligationYear = dto.ObligationYear,
             Obligations = dto.Obligations.Select(x => x.ToEntity()).ToList(),

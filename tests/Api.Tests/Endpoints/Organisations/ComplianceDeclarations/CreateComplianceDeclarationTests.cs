@@ -9,6 +9,7 @@ using Defra.WasteObligations.Testing.Fakes;
 using Defra.WasteObligations.Testing.Fixtures.Dtos;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
+using MongoDB.Bson;
 
 namespace Defra.WasteObligations.Api.Tests.Endpoints.Organisations.ComplianceDeclarations;
 
@@ -36,7 +37,7 @@ public class CreateComplianceDeclarationTests : EndpointTestBase
     public async Task WhenOrganisationFound_ShouldBeCreated()
     {
         var client = CreateClient(testUser: TestUser.WriteOnly);
-        ComplianceDeclarationService.CreateNewId = () => new Guid("2d7e780c-ca82-4007-8b14-7c7ac49cf2f4");
+        ComplianceDeclarationService.CreateNewId = () => ObjectId.Parse("6830b9d4c7e21f5a8d3e64b2");
         ComplianceDeclarationService.UtcNow = () => new DateTime(2026, 4, 20, 12, 28, 0, DateTimeKind.Utc);
 
         var response = await client.PostAsJsonAsync(

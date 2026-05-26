@@ -5,7 +5,7 @@ public static class Mappers
     public static Dtos.ComplianceDeclaration ToDto(this ComplianceDeclaration entity) =>
         new()
         {
-            Id = entity.Id,
+            Id = entity.Id.ToString(),
             Created = entity.Created,
             Updated = entity.Updated,
             Status = entity.Status switch
