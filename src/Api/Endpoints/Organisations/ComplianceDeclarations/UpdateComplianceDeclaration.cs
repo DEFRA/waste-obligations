@@ -28,7 +28,6 @@ public static class UpdateComplianceDeclaration
             .RequireAuthorization(PolicyNames.Write);
     }
 
-    [HttpGet]
     private static async Task<IResult> Handle(
         [FromRoute] Guid organisationId,
         [FromRoute] string complianceDeclarationId,

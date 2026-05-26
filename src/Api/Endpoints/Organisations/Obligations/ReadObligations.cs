@@ -23,7 +23,6 @@ public static class ReadObligations
             .RequireAuthorization(PolicyNames.Read);
     }
 
-    [HttpGet]
     private static async Task<IResult> Handle(
         [FromRoute] Guid organisationId,
         [AsParameters] ReadObligationsRequest request,

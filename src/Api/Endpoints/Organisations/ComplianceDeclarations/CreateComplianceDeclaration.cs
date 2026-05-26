@@ -26,7 +26,6 @@ public static class CreateComplianceDeclaration
             .RequireAuthorization(PolicyNames.Write);
     }
 
-    [HttpGet]
     private static async Task<IResult> Handle(
         [FromRoute] Guid organisationId,
         [FromBody] CreateComplianceDeclarationRequest request,

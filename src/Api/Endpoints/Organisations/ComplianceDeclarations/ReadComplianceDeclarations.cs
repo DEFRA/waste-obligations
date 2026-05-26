@@ -26,7 +26,6 @@ public static class ReadComplianceDeclarations
             .RequireAuthorization(PolicyNames.Read);
     }
 
-    [HttpGet]
     private static async Task<IResult> Handle(
         [FromRoute] Guid organisationId,
         [AsParameters] ReadComplianceDeclarationsRequest request,
