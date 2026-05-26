@@ -16,9 +16,9 @@ public static class ReadObligations
             .WithSummary("Obligations for an organisation by year")
             .WithDescription("Returns the obligations for an organisation by organisation ID for the specified year")
             .Produces<OrganisationObligations>()
-            .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status500InternalServerError)
             .RequireAuthorization(PolicyNames.Read);
     }

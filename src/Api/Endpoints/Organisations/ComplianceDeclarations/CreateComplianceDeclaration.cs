@@ -18,9 +18,10 @@ public static class CreateComplianceDeclaration
             .WithSummary("Create a compliance declaration")
             .WithDescription("Create a compliance declaration for the specified organisation ID")
             .Produces<ComplianceDeclaration>(StatusCodes.Status201Created)
-            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status500InternalServerError)
             .RequireAuthorization(PolicyNames.Write);
     }

@@ -19,9 +19,9 @@ public static class ReadComplianceDeclarations
                 "Returns the compliance declarations for an organisation by organisation ID for the specified year"
             )
             .Produces<OrganisationComplianceDeclarations>()
-            .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status500InternalServerError)
             .RequireAuthorization(PolicyNames.Read);
     }

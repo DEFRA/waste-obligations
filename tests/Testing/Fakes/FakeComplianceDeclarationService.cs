@@ -1,4 +1,5 @@
 using AutoFixture;
+using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
 using MongoDB.Bson;
@@ -10,6 +11,7 @@ public class FakeComplianceDeclarationService : IComplianceDeclarationService
 {
     public Func<ObjectId> CreateNewId = ObjectId.GenerateNewId;
     public Func<DateTimeOffset> UtcNow = () => DateTimeOffset.UtcNow;
+    public bool ConcurrencyError = false;
 
     private static readonly DateTime s_start = new(2026, 4, 26, 14, 0, 0, DateTimeKind.Utc);
 
@@ -86,5 +88,28 @@ public class FakeComplianceDeclarationService : IComplianceDeclarationService
             );
 
         return Task.FromResult(Enumerable.Empty<ComplianceDeclaration>());
+    }
+
+    public Task<ComplianceDeclaration> Update(
+        ComplianceDeclaration complianceDeclaration,
+        CancellationToken cancellationToken
+    )
+    {
+        if (ConcurrencyError)
+            throw new ConcurrencyException(
+                $"Concurrency issue on write, compliance declaration with id '{complianceDeclaration.Id}' was not updated"
+            );
+
+        if (s_complianceDeclarations.TryGetValue(complianceDeclaration.Organisation.Id, out var complianceDeclarations))
+        {
+            var index = complianceDeclarations.FindIndex(x => x.Id == complianceDeclaration.Id);
+            if (index > 0)
+            {
+                complianceDeclarations[index] = complianceDeclaration with { Updated = UtcNow().UtcDateTime };
+                return Task.FromResult(complianceDeclarations[index]);
+            }
+        }
+
+        throw new Exception("Compliance declaration could not be found");
     }
 }

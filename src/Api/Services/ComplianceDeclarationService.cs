@@ -47,4 +47,40 @@ public class ComplianceDeclarationService(
             .ComplianceDeclarations.AsQueryable()
             .Where(x => x.Organisation.Id == organisationId && x.ObligationYear == obligationYear)
             .ToListAsync(cancellationToken);
+
+    public async Task<ComplianceDeclaration> Update(
+        ComplianceDeclaration complianceDeclaration,
+        CancellationToken cancellationToken
+    )
+    {
+        var filter = Builders<ComplianceDeclaration>.Filter.And(
+            Builders<ComplianceDeclaration>.Filter.Eq(x => x.Id, complianceDeclaration.Id),
+            Builders<ComplianceDeclaration>.Filter.Eq(x => x.Version, complianceDeclaration.Version)
+        );
+
+        complianceDeclaration = complianceDeclaration with
+        {
+            Version = complianceDeclaration.Version + 1,
+            Updated = timeProvider.GetUtcNowWithoutMicroseconds(),
+        };
+
+        var replaceOneResult = await dbContext.ComplianceDeclarations.ReplaceOneAsync(
+            filter,
+            complianceDeclaration,
+            new ReplaceOptions { IsUpsert = false },
+            cancellationToken: cancellationToken
+        );
+
+        if (replaceOneResult.ModifiedCount == 0)
+            throw new ConcurrencyException(
+                $"Concurrency issue on write, compliance declaration with id '{complianceDeclaration.Id}' was not updated"
+            );
+
+        logger.LogInformation(
+            "Updated compliance declaration with id '{ComplianceDeclarationId}'",
+            complianceDeclaration.Id
+        );
+
+        return complianceDeclaration;
+    }
 }

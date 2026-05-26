@@ -47,6 +47,9 @@ public static class Endpoints
 
             public static string Read(Guid organisationId, string complianceDeclarationId) =>
                 $"{Create(organisationId)}/{complianceDeclarationId}";
+
+            public static string Update(Guid organisationId, string complianceDeclarationId) =>
+                $"{Read(organisationId, complianceDeclarationId)}";
         }
     }
 }

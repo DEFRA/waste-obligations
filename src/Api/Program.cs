@@ -17,6 +17,7 @@ using Defra.WasteObligations.Api.Utils.Metrics;
 using Defra.WasteObligations.Api.Utils.Security;
 using Elastic.CommonSchema.Serilog;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Mvc;
 using Serilog;
 
 Log.Logger = new LoggerConfiguration().WriteTo.Console(new EcsTextFormatter()).CreateBootstrapLogger();
@@ -64,12 +65,36 @@ try
             {
                 var exceptionHandlerFeature = context.Features.Get<IExceptionHandlerFeature>();
                 var error = exceptionHandlerFeature?.Error;
-                string? detail = null;
+                var problemDetails = new ProblemDetails();
 
-                if (error is BadHttpRequestException badHttpRequestException)
+                switch (error)
                 {
-                    context.Response.StatusCode = badHttpRequestException.StatusCode;
-                    detail = badHttpRequestException.Message;
+                    case BadHttpRequestException badHttpRequestException:
+                        context.Response.StatusCode = badHttpRequestException.StatusCode;
+                        problemDetails.Title = "Bad request";
+                        problemDetails.Detail = badHttpRequestException.Message;
+                        problemDetails.Status = badHttpRequestException.StatusCode;
+                        break;
+
+                    case EntityException entityException:
+                        context.Response.StatusCode = StatusCodes.Status409Conflict;
+                        problemDetails.Title = "Conflict occurred";
+                        problemDetails.Detail = entityException.Message;
+                        problemDetails.Status = StatusCodes.Status409Conflict;
+                        break;
+
+                    case ConcurrencyException concurrencyException:
+                        context.Response.StatusCode = StatusCodes.Status422UnprocessableEntity;
+                        problemDetails.Title = "Concurrency conflict";
+                        problemDetails.Detail = concurrencyException.Message;
+                        problemDetails.Status = StatusCodes.Status422UnprocessableEntity;
+                        break;
+
+                    default:
+                        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+                        problemDetails.Title = "An error occurred while processing your request.";
+                        problemDetails.Status = StatusCodes.Status500InternalServerError;
+                        break;
                 }
 
                 await context
@@ -79,7 +104,7 @@ try
                         {
                             HttpContext = context,
                             AdditionalMetadata = exceptionHandlerFeature?.Endpoint?.Metadata,
-                            ProblemDetails = { Status = context.Response.StatusCode, Detail = detail },
+                            ProblemDetails = problemDetails,
                         }
                     );
             },

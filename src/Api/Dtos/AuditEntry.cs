@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace Defra.WasteObligations.Api.Dtos;
 
-[JsonDerivedType(typeof(CancelledAuditEntry))]
+[JsonDerivedType(typeof(ReasonAuditEntry))]
 public record AuditEntry
 {
     [JsonPropertyName("user")]
@@ -15,7 +15,7 @@ public record AuditEntry
     public required string Action { get; init; }
 }
 
-public record CancelledAuditEntry : AuditEntry
+public record ReasonAuditEntry : AuditEntry
 {
     [JsonPropertyName("reason")]
     public required string Reason { get; init; }

@@ -6,4 +6,6 @@ namespace Defra.WasteObligations.Api.Dtos;
 public enum ComplianceDeclarationStatus
 {
     Submitted,
+    Accepted,
+    Cancelled,
 }

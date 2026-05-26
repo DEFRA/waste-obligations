@@ -31,7 +31,7 @@ public static class OAuth2Extensions
         ];
 
         if (scope is not null)
-            patterns = patterns.Append($"scope={scope}").ToArray();
+            patterns = [.. patterns, $"scope={scope}"];
 
         wireMock
             .Given(
@@ -63,7 +63,7 @@ public static class OAuth2Extensions
         object[] patterns = ["grant_type=client_credentials", $"client_id={clientId}", "client_secret=client_secret"];
 
         if (scope is not null)
-            patterns = patterns.Append($"scope={scope}").ToArray();
+            patterns = [.. patterns, $"scope={scope}"];
 
         builder.Given(x =>
             x.WithRequest(r =>
@@ -73,14 +73,15 @@ public static class OAuth2Extensions
                         .WithBody(() =>
                             new BodyModel
                             {
-                                Matchers = patterns
-                                    .Select(p => new MatcherModel
+                                Matchers =
+                                [
+                                    .. patterns.Select(p => new MatcherModel
                                     {
                                         Name = "FormUrlEncodedMatcher",
                                         Pattern = p,
                                         MatchOperator = "And",
-                                    })
-                                    .ToArray(),
+                                    }),
+                                ],
                                 MatchOperator = "And",
                             }
                         )

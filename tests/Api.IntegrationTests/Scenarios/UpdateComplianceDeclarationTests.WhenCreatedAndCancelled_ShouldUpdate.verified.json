@@ -1,0 +1,63 @@
+﻿{
+  "id": "{Scrubbed}",
+  "created": "{Scrubbed}",
+  "updated": "{Scrubbed}",
+  "status": "Cancelled",
+  "organisation": {
+    "id": "Guid_1",
+    "name": "Org Name",
+    "complianceSchemeName": null,
+    "schemeOperatorName": null,
+    "referenceNumber": "123456",
+    "address": {
+      "addressLine1": "Test Name Ltd",
+      "addressLine2": "123 Street",
+      "town": "Town",
+      "county": "County",
+      "postcode": "UK1",
+      "country": "UK"
+    },
+    "regulator": "Regulator",
+    "regulatorEmail": "regulator@email.com"
+  },
+  "obligationYear": 2026,
+  "obligations": [
+    {
+      "material": "Plastic",
+      "recyclingTarget": 0.75,
+      "tonnages": {
+        "material": 100,
+        "awaitingAcceptance": 10,
+        "accepted": 2,
+        "outstanding": 20,
+        "obligated": 5
+      },
+      "status": "NoDataYet"
+    }
+  ],
+  "obligationStatus": "NotMet",
+  "declarationText": {
+    "text": "This is the text",
+    "language": "en"
+  },
+  "submitterName": "Submitter Name",
+  "audit": [
+    {
+      "user": {
+        "id": "Guid_2",
+        "email": "submitter@email.com"
+      },
+      "timestamp": "{Scrubbed}",
+      "action": "Submitted"
+    },
+    {
+      "reason": "Cancelled reason",
+      "user": {
+        "id": "Guid_3",
+        "email": "approved-person@email.com"
+      },
+      "timestamp": "{Scrubbed}",
+      "action": "Cancelled"
+    }
+  ]
+}

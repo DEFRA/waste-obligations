@@ -1,11 +1,13 @@
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
+// ReSharper disable MemberCanBePrivate.Global
+
 namespace Defra.WasteObligations.Api.Data.Entities;
 
 public record ComplianceDeclaration
 {
-    public required ObjectId Id { get; init; }
+    public ObjectId Id { get; init; }
     public int Version { get; init; } = 1;
 
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
@@ -21,4 +23,64 @@ public record ComplianceDeclaration
     public required LocalizedText DeclarationText { get; init; }
     public required string SubmitterName { get; init; }
     public IEnumerable<AuditEntry> Audit { get; init; } = [];
+
+    public ComplianceDeclaration Submit(User user, DateTime timestamp)
+    {
+        GuardTimestamp(timestamp);
+
+        return this with
+        {
+            Id = ObjectId.GenerateNewId(),
+            Status = ComplianceDeclarationStatus.Submitted,
+            Audit = new List<AuditEntry>
+            {
+                new(nameof(ComplianceDeclarationStatus.Submitted)) { User = user, Timestamp = timestamp },
+            },
+        };
+    }
+
+    public ComplianceDeclaration UpdateStatus(
+        ComplianceDeclarationStatus newStatus,
+        string? reason,
+        User user,
+        DateTime timestamp
+    )
+    {
+        GuardTimestamp(timestamp);
+
+        if (!CanTransition(Status, newStatus))
+            throw new EntityException($"Invalid status transition from {Status} to {newStatus}");
+
+        return this with
+        {
+            Status = newStatus,
+            Audit =
+            [
+                .. Audit,
+                reason is not null
+                    ? new ReasonAuditEntry(newStatus.ToString())
+                    {
+                        User = user,
+                        Timestamp = timestamp,
+                        Reason = reason,
+                    }
+                    : new AuditEntry(newStatus.ToString()) { User = user, Timestamp = timestamp },
+            ],
+        };
+    }
+
+    private static void GuardTimestamp(DateTime timestamp)
+    {
+        if (timestamp.Kind is not DateTimeKind.Utc)
+            throw new ArgumentException("Timestamp should be UTC");
+    }
+
+    private static bool CanTransition(ComplianceDeclarationStatus current, ComplianceDeclarationStatus next) =>
+        current switch
+        {
+            ComplianceDeclarationStatus.Submitted => next
+                is ComplianceDeclarationStatus.Accepted
+                    or ComplianceDeclarationStatus.Cancelled,
+            _ => false,
+        };
 }
