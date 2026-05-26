@@ -31,7 +31,7 @@ public static class UpdateComplianceDeclarationRequestFixture
     {
         return Default()
             .With(x => x.Status, ComplianceDeclarationStatus.Accepted)
-            .With(x => x.Reason, "Accepted reason")
+            .With(x => x.Reason, (string?)null)
             .With(x => x.User, UserFixture.Regulator().Create());
     }
 

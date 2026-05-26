@@ -1,7 +1,7 @@
 ﻿{
-  "id": "{Scrubbed}",
-  "created": "{Scrubbed}",
-  "updated": "{Scrubbed}",
+  "id": "6830b14f9d2a7c61f4e8b935",
+  "created": "DateTimeOffset_1",
+  "updated": "DateTimeOffset_1",
   "status": "Accepted",
   "organisation": {
     "id": "Guid_1",
@@ -47,7 +47,7 @@
         "id": "Guid_2",
         "email": "submitter@email.com"
       },
-      "timestamp": "{Scrubbed}",
+      "timestamp": "DateTimeOffset_1",
       "action": "Submitted"
     },
     {
@@ -55,7 +55,7 @@
         "id": "Guid_3",
         "email": "regulator@email.com"
       },
-      "timestamp": "{Scrubbed}",
+      "timestamp": "DateTimeOffset_1",
       "action": "Accepted"
     }
   ]

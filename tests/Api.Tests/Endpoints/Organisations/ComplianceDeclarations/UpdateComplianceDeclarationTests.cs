@@ -68,10 +68,10 @@ public class UpdateComplianceDeclarationTests : EndpointTestBase
     }
 
     [Fact]
-    public async Task Validation_WhenStatusIsChangingAndReasonIsMissing_ShouldBeBadRequest()
+    public async Task Validation_WhenCancellingAndReasonIsMissing_ShouldBeBadRequest()
     {
         var content = await RequestShouldBeBadRequest(
-            UpdateComplianceDeclarationRequestFixture.Default().With(x => x.Reason, (string?)null).Create()
+            UpdateComplianceDeclarationRequestFixture.Cancelled().With(x => x.Reason, (string?)null).Create()
         );
 
         await VerifyJson(content);
@@ -143,6 +143,24 @@ public class UpdateComplianceDeclarationTests : EndpointTestBase
         );
 
         response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        await VerifyJson(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task WhenUpdated_ShouldBeOk()
+    {
+        var client = CreateClient(testUser: TestUser.WriteOnly);
+
+        var response = await client.PatchAsJsonAsync(
+            Testing.Endpoints.Organisations.ComplianceDeclarations.Update(
+                FakeWasteOrganisationsService.OrganisationId,
+                FakeComplianceDeclarationService.ComplianceDeclarationId.ToString()
+            ),
+            UpdateComplianceDeclarationRequestFixture.Accepted().Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
         await VerifyJson(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
     }
 

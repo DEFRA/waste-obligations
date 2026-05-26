@@ -4,7 +4,7 @@
   "status": 400,
   "errors": {
     "Reason": [
-      "Reason is required when status is provided."
+      "Reason is required when cancelling a compliance declaration."
     ]
   },
   "traceId": "{Scrubbed}"

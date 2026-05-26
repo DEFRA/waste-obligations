@@ -30,7 +30,7 @@ public class FakeComplianceDeclarationService : IComplianceDeclarationService
                     .With(x => x.Id, ComplianceDeclarationId)
                     .With(x => x.Created, s_start)
                     .With(x => x.Updated, s_start)
-                    .With(x => x.Audit, AuditEntryFixture.SubmittedThenCancelled())
+                    .With(x => x.Audit, AuditEntryFixture.Submitted())
                     .Create(),
                 ComplianceDeclarationFixture
                     .DirectProducer(FakeWasteOrganisationsService.OrganisationId)
@@ -103,10 +103,9 @@ public class FakeComplianceDeclarationService : IComplianceDeclarationService
         if (s_complianceDeclarations.TryGetValue(complianceDeclaration.Organisation.Id, out var complianceDeclarations))
         {
             var index = complianceDeclarations.FindIndex(x => x.Id == complianceDeclaration.Id);
-            if (index > 0)
+            if (index != -1)
             {
-                complianceDeclarations[index] = complianceDeclaration with { Updated = UtcNow().UtcDateTime };
-                return Task.FromResult(complianceDeclarations[index]);
+                return Task.FromResult(complianceDeclaration with { Updated = UtcNow().UtcDateTime });
             }
         }
 

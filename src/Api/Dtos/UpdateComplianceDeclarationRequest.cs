@@ -17,9 +17,12 @@ public record UpdateComplianceDeclarationRequest : IValidatableObject
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
-        if (Status.HasValue && string.IsNullOrWhiteSpace(Reason))
+        if (Status is ComplianceDeclarationStatus.Cancelled && string.IsNullOrWhiteSpace(Reason))
         {
-            yield return new ValidationResult("Reason is required when status is provided.", [nameof(Reason)]);
+            yield return new ValidationResult(
+                "Reason is required when cancelling a compliance declaration.",
+                [nameof(Reason)]
+            );
         }
     }
 }
