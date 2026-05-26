@@ -88,6 +88,14 @@ public class UpdateComplianceDeclarationTests : EndpointTestBase
     }
 
     [Fact]
+    public async Task Validation_WhenUnknownPayload_ShouldBeBadRequest()
+    {
+        var content = await RequestShouldBeBadRequest(new { Status = "Unknown" });
+
+        await VerifyJson(content);
+    }
+
+    [Fact]
     public async Task WhenException_ShouldBeInternalServerError()
     {
         var client = CreateClient(testUser: TestUser.WriteOnly);
@@ -164,7 +172,24 @@ public class UpdateComplianceDeclarationTests : EndpointTestBase
         await VerifyJson(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
     }
 
-    private async Task<string> RequestShouldBeBadRequest(UpdateComplianceDeclarationRequest request)
+    [Fact]
+    public async Task WhenOrganisationFound_ButOrganisationDoesNotMatch_ShouldBeNotFound()
+    {
+        var client = CreateClient(testUser: TestUser.WriteOnly);
+
+        var response = await client.PatchAsJsonAsync(
+            Testing.Endpoints.Organisations.ComplianceDeclarations.Update(
+                FakeWasteOrganisationsService.OrganisationId,
+                FakeComplianceDeclarationService.NonMatchingOrganisationComplianceDeclarationId.ToString()
+            ),
+            UpdateComplianceDeclarationRequestFixture.Accepted().Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    private async Task<string> RequestShouldBeBadRequest(object request)
     {
         var client = CreateClient(testUser: TestUser.WriteOnly);
 

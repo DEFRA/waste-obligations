@@ -1,0 +1,7 @@
+﻿{
+  "type": "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+  "title": "Bad request",
+  "status": 400,
+  "detail": "Failed to read parameter \"UpdateComplianceDeclarationRequest request\" from the request body as JSON.",
+  "traceId": "{Scrubbed}"
+}
