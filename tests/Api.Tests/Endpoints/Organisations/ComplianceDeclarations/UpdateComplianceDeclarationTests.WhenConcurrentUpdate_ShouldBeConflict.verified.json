@@ -1,7 +1,7 @@
 ﻿{
-  "type": "https://tools.ietf.org/html/rfc4918#section-11.2",
+  "type": "https://tools.ietf.org/html/rfc9110#section-15.5.10",
   "title": "Concurrency conflict",
-  "status": 422,
+  "status": 409,
   "detail": "Concurrency issue on write, compliance declaration with id '6830b14f9d2a7c61f4e8b935' was not updated",
   "traceId": "{Scrubbed}"
 }

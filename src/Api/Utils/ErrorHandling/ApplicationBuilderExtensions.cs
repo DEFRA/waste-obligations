@@ -28,17 +28,17 @@ public static class ApplicationBuilderExtensions
                             break;
 
                         case EntityException entityException:
-                            context.Response.StatusCode = StatusCodes.Status409Conflict;
-                            problemDetails.Title = "Conflict occurred";
+                            context.Response.StatusCode = StatusCodes.Status422UnprocessableEntity;
+                            problemDetails.Title = "Entity state conflict";
                             problemDetails.Detail = entityException.Message;
-                            problemDetails.Status = StatusCodes.Status409Conflict;
+                            problemDetails.Status = StatusCodes.Status422UnprocessableEntity;
                             break;
 
                         case ConcurrencyException concurrencyException:
-                            context.Response.StatusCode = StatusCodes.Status422UnprocessableEntity;
+                            context.Response.StatusCode = StatusCodes.Status409Conflict;
                             problemDetails.Title = "Concurrency conflict";
                             problemDetails.Detail = concurrencyException.Message;
-                            problemDetails.Status = StatusCodes.Status422UnprocessableEntity;
+                            problemDetails.Status = StatusCodes.Status409Conflict;
                             break;
 
                         default:

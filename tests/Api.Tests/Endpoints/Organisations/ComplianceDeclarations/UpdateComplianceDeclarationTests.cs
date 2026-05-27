@@ -115,7 +115,7 @@ public class UpdateComplianceDeclarationTests : EndpointTestBase
     }
 
     [Fact]
-    public async Task WhenStatusIsNotChanging_ShouldBeConflict()
+    public async Task WhenStatusIsNotChanging_ShouldBeUnprocessableEntity()
     {
         var client = CreateClient(testUser: TestUser.WriteOnly);
 
@@ -128,12 +128,12 @@ public class UpdateComplianceDeclarationTests : EndpointTestBase
             TestContext.Current.CancellationToken
         );
 
-        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
         await VerifyJson(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
-    public async Task WhenConcurrentUpdate_ShouldBeUnprocessableEntity()
+    public async Task WhenConcurrentUpdate_ShouldBeConflict()
     {
         var client = CreateClient(testUser: TestUser.WriteOnly);
         ComplianceDeclarationService.ConcurrencyError = true;
@@ -150,7 +150,7 @@ public class UpdateComplianceDeclarationTests : EndpointTestBase
             TestContext.Current.CancellationToken
         );
 
-        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
         await VerifyJson(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
     }
 
