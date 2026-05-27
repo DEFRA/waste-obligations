@@ -14,7 +14,7 @@ public static class UpdateComplianceDeclaration
     {
         app.MapPatch("/organisations/{organisationId:guid}/compliance-declarations/{complianceDeclarationId}", Handle)
             .WithName("UpdateOrganisationComplianceDeclaration")
-            .WithTags("ComplianceDeclarations")
+            .WithTags("Compliance Declarations")
             .WithSummary("Update compliance declaration by ID")
             .WithDescription("Update a compliance declaration by compliance declaration ID")
             .Produces<ComplianceDeclaration>()

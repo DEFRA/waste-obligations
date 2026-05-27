@@ -52,4 +52,11 @@ public static class Endpoints
                 $"{Read(organisationId, complianceDeclarationId)}";
         }
     }
+
+    public static class ComplianceDeclarations
+    {
+        private static string Root = "compliance-declarations";
+
+        public static string Search(EndpointQuery? query = null) => $"{Root}{query}";
+    }
 }

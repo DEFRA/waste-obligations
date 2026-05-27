@@ -14,7 +14,7 @@ public static class CreateComplianceDeclaration
     {
         app.MapPost("/organisations/{organisationId:guid}/compliance-declarations", Handle)
             .WithName("CreateOrganisationComplianceDeclaration")
-            .WithTags("ComplianceDeclarations")
+            .WithTags("Compliance Declarations")
             .WithSummary("Create a compliance declaration")
             .WithDescription("Create a compliance declaration for the specified organisation ID")
             .Produces<ComplianceDeclaration>(StatusCodes.Status201Created)

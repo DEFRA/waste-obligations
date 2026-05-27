@@ -101,7 +101,7 @@
     "/organisations/{organisationId}/compliance-declarations": {
       "post": {
         "tags": [
-          "ComplianceDeclarations"
+          "Compliance Declarations"
         ],
         "summary": "Create a compliance declaration",
         "description": "Create a compliance declaration for the specified organisation ID",
@@ -192,7 +192,7 @@
       },
       "get": {
         "tags": [
-          "ComplianceDeclarations"
+          "Compliance Declarations"
         ],
         "summary": "Compliance declarations for an organisation by year",
         "description": "Returns the compliance declarations for an organisation by organisation ID for the specified year",
@@ -279,7 +279,7 @@
     "/organisations/{organisationId}/compliance-declarations/{complianceDeclarationId}": {
       "get": {
         "tags": [
-          "ComplianceDeclarations"
+          "Compliance Declarations"
         ],
         "summary": "Compliance declaration by ID",
         "description": "Return a compliance declaration by compliance declaration ID",
@@ -358,7 +358,7 @@
       },
       "patch": {
         "tags": [
-          "ComplianceDeclarations"
+          "Compliance Declarations"
         ],
         "summary": "Update compliance declaration by ID",
         "description": "Update a compliance declaration by compliance declaration ID",
@@ -455,6 +455,122 @@
           },
           "422": {
             "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/compliance-declarations": {
+      "get": {
+        "tags": [
+          "Search"
+        ],
+        "summary": "Search compliance declarations",
+        "description": "Returns a paged list of compliance declarations filtered by optional parameters",
+        "operationId": "SearchComplianceDeclarations",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Comma separated list of compliance declaration status",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/ComplianceDeclarationStatus"
+              }
+            }
+          },
+          {
+            "name": "obligationYear",
+            "in": "query",
+            "schema": {
+              "maximum": 2050,
+              "minimum": 2023,
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "organisationName",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (1-based), defaults to 1 if not specified",
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "Number of items per page, defaults to 20 if not specified, max of 100",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplianceDeclarationsPaged"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -636,6 +752,41 @@
             "items": {
               "$ref": "#/components/schemas/AuditEntry"
             }
+          }
+        }
+      },
+      "ComplianceDeclarationsPaged": {
+        "type": "object",
+        "properties": {
+          "complianceDeclarations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ComplianceDeclaration"
+            }
+          },
+          "total": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "page": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "pageSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -972,7 +1123,10 @@
       "name": "Obligations"
     },
     {
-      "name": "ComplianceDeclarations"
+      "name": "Compliance Declarations"
+    },
+    {
+      "name": "Search"
     }
   ]
 }
