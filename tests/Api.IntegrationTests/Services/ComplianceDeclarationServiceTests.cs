@@ -1,6 +1,7 @@
 using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
+using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
 using Microsoft.Extensions.Logging;
@@ -145,5 +146,195 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         await act.Should()
             .ThrowAsync<ConcurrencyException>()
             .WithMessage($"Concurrency issue on write, compliance declaration with id '{initial.Id}' was not updated");
+    }
+
+    [Fact]
+    public async Task Search_WhenFilteringByObligationYear_ShouldReturnMatchingResults()
+    {
+        const int targetYear = 2025;
+        const int otherYear = 2026;
+
+        await Subject.Create(
+            ComplianceDeclarationFixture.Default().With(x => x.ObligationYear, targetYear).Create(),
+            TestContext.Current.CancellationToken
+        );
+        await Subject.Create(
+            ComplianceDeclarationFixture.Default().With(x => x.ObligationYear, targetYear).Create(),
+            TestContext.Current.CancellationToken
+        );
+        await Subject.Create(
+            ComplianceDeclarationFixture.Default().With(x => x.ObligationYear, otherYear).Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        var result = await Subject.Search(targetYear, null, null, 1, 10, TestContext.Current.CancellationToken);
+
+        result.ComplianceDeclarations.Should().HaveCount(2);
+        result.Total.Should().Be(2);
+        result.ComplianceDeclarations.Should().AllSatisfy(x => x.ObligationYear.Should().Be(targetYear));
+    }
+
+    [Fact]
+    public async Task Search_WhenFilteringByStatus_ShouldReturnMatchingResults()
+    {
+        await Subject.Create(
+            ComplianceDeclarationFixture.Default().With(x => x.Status, ComplianceDeclarationStatus.Submitted).Create(),
+            TestContext.Current.CancellationToken
+        );
+        await Subject.Create(
+            ComplianceDeclarationFixture.Default().With(x => x.Status, ComplianceDeclarationStatus.Cancelled).Create(),
+            TestContext.Current.CancellationToken
+        );
+        await Subject.Create(
+            ComplianceDeclarationFixture.Default().With(x => x.Status, ComplianceDeclarationStatus.Accepted).Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        var result = await Subject.Search(
+            null,
+            [ComplianceDeclarationStatus.Submitted, ComplianceDeclarationStatus.Cancelled],
+            null,
+            1,
+            10,
+            TestContext.Current.CancellationToken
+        );
+
+        result.ComplianceDeclarations.Should().HaveCount(2);
+        result.Total.Should().Be(2);
+        result
+            .ComplianceDeclarations.Should()
+            .AllSatisfy(x =>
+                x.Status.Should().BeOneOf(ComplianceDeclarationStatus.Submitted, ComplianceDeclarationStatus.Cancelled)
+            );
+    }
+
+    [Fact]
+    public async Task Search_WhenFilteringByOrganisationName_ShouldBeCaseInsensitive()
+    {
+        const string name = "Waste Management Ltd";
+
+        await Subject.Create(
+            ComplianceDeclarationFixture
+                .Default()
+                .With(x => x.Organisation, OrganisationFixture.Organisation().With(y => y.Name, name).Create())
+                .Create(),
+            TestContext.Current.CancellationToken
+        );
+        await Subject.Create(
+            ComplianceDeclarationFixture
+                .Default()
+                .With(
+                    x => x.Organisation,
+                    OrganisationFixture.Organisation().With(y => y.Name, name.ToUpper()).Create()
+                )
+                .Create(),
+            TestContext.Current.CancellationToken
+        );
+        await Subject.Create(
+            ComplianceDeclarationFixture
+                .Default()
+                .With(x => x.Organisation, OrganisationFixture.Organisation().With(y => y.Name, "Other Corp").Create())
+                .Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        var resultLowercase = await Subject.Search(
+            null,
+            null,
+            name.ToLower(),
+            1,
+            10,
+            TestContext.Current.CancellationToken
+        );
+        var resultUppercase = await Subject.Search(
+            null,
+            null,
+            name.ToUpper(),
+            1,
+            10,
+            TestContext.Current.CancellationToken
+        );
+
+        resultLowercase.ComplianceDeclarations.Should().HaveCount(2);
+        resultUppercase.ComplianceDeclarations.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task Search_WhenPaging_ShouldReturnCorrectPageAndTotal()
+    {
+        const int pageSize = 2;
+        for (var i = 0; i < 5; i++)
+        {
+            await Subject.Create(
+                ComplianceDeclarationFixture.Default().Create(),
+                TestContext.Current.CancellationToken
+            );
+        }
+
+        var page1 = await Subject.Search(null, null, null, 1, pageSize, TestContext.Current.CancellationToken);
+        var page2 = await Subject.Search(null, null, null, 2, pageSize, TestContext.Current.CancellationToken);
+        var page3 = await Subject.Search(null, null, null, 3, pageSize, TestContext.Current.CancellationToken);
+
+        page1.ComplianceDeclarations.Should().HaveCount(pageSize);
+        page1.Total.Should().Be(5);
+
+        page2.ComplianceDeclarations.Should().HaveCount(pageSize);
+        page2.Total.Should().Be(5);
+
+        page3.ComplianceDeclarations.Should().HaveCount(1);
+        page3.Total.Should().Be(5);
+    }
+
+    [Fact]
+    public async Task Search_WhenPageOutOfBounds_ShouldReturnEmptyWithCorrectTotal()
+    {
+        await Subject.Create(ComplianceDeclarationFixture.Default().Create(), TestContext.Current.CancellationToken);
+
+        var result = await Subject.Search(null, null, null, 10, 10, TestContext.Current.CancellationToken);
+
+        result.ComplianceDeclarations.Should().BeEmpty();
+        result.Total.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Search_WhenDeclarationUpdated_ShouldRetainPositionInPagedList()
+    {
+        const int pageSize = 1;
+        var records = new List<ComplianceDeclaration>();
+
+        // Create records in a way that we know their order (by ID)
+        // Since we use SortBy(x => x.Id), we need to ensure the ID is the sort key
+        for (var i = 0; i < 3; i++)
+        {
+            records.Add(
+                await Subject.Create(
+                    ComplianceDeclarationFixture.Default().Create(),
+                    TestContext.Current.CancellationToken
+                )
+            );
+        }
+
+        var sortedIds = records.Select(x => x.Id).OrderBy(id => id).ToList();
+        var targetRecord = records.First(x => x.Id == sortedIds[1]);
+
+        // Verify initial position (Page 2)
+        var search1 = await Subject.Search(null, null, null, 2, pageSize, TestContext.Current.CancellationToken);
+        search1.ComplianceDeclarations.First().Id.Should().Be(targetRecord.Id);
+
+        // Update the record
+        var updated = await Subject.Update(
+            targetRecord with
+            {
+                ObligationYear = 9999,
+            },
+            TestContext.Current.CancellationToken
+        );
+
+        // Verify position is retained (still Page 2)
+        var search2 = await Subject.Search(null, null, null, 2, pageSize, TestContext.Current.CancellationToken);
+        search2.ComplianceDeclarations.First().Id.Should().Be(targetRecord.Id);
+        search2.ComplianceDeclarations.First().ObligationYear.Should().Be(9999);
+        updated.Updated.Should().BeAfter(targetRecord.Updated);
+        search2.ComplianceDeclarations.First().Updated.Should().Be(updated.Updated);
     }
 }

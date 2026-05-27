@@ -48,6 +48,62 @@ public class ComplianceDeclarationService(
             .Where(x => x.Organisation.Id == organisationId && x.ObligationYear == obligationYear)
             .ToListAsync(cancellationToken);
 
+    public async Task<ComplianceDeclarationSearchResult> Search(
+        int? obligationYear,
+        ComplianceDeclarationStatus[]? status,
+        string? organisationName,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken
+    )
+    {
+        var filters = new List<FilterDefinition<ComplianceDeclaration>>();
+
+        if (obligationYear.HasValue)
+        {
+            filters.Add(Builders<ComplianceDeclaration>.Filter.Eq(x => x.ObligationYear, obligationYear.Value));
+        }
+
+        if (status is { Length: > 0 })
+        {
+            filters.Add(Builders<ComplianceDeclaration>.Filter.In(x => x.Status, status));
+        }
+
+        if (!string.IsNullOrWhiteSpace(organisationName))
+        {
+            filters.Add(
+                Builders<ComplianceDeclaration>.Filter.Regex(
+                    x => x.Organisation.Name,
+                    new BsonRegularExpression(organisationName, "i")
+                )
+            );
+        }
+
+        var combinedFilter =
+            filters.Count == 0
+                ? Builders<ComplianceDeclaration>.Filter.Empty
+                : Builders<ComplianceDeclaration>.Filter.And(filters);
+
+        var countTask = dbContext.ComplianceDeclarations.CountDocumentsAsync(
+            combinedFilter,
+            cancellationToken: cancellationToken
+        );
+        var resultsTask = dbContext
+            .ComplianceDeclarations.Find(combinedFilter)
+            .SortBy(x => x.Id)
+            .Skip((page - 1) * pageSize)
+            .Limit(pageSize)
+            .ToListAsync(cancellationToken);
+
+        await Task.WhenAll(countTask, resultsTask);
+
+        return new ComplianceDeclarationSearchResult
+        {
+            ComplianceDeclarations = resultsTask.Result,
+            Total = (int)countTask.Result,
+        };
+    }
+
     public async Task<ComplianceDeclaration> Update(
         ComplianceDeclaration complianceDeclaration,
         CancellationToken cancellationToken
