@@ -10,14 +10,13 @@ using Defra.WasteObligations.Api.Services.GovukNotify;
 using Defra.WasteObligations.Api.Services.PrnCommonBackend;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
 using Defra.WasteObligations.Api.Utils;
+using Defra.WasteObligations.Api.Utils.ErrorHandling;
 using Defra.WasteObligations.Api.Utils.Health;
 using Defra.WasteObligations.Api.Utils.Http;
 using Defra.WasteObligations.Api.Utils.Logging;
 using Defra.WasteObligations.Api.Utils.Metrics;
 using Defra.WasteObligations.Api.Utils.Security;
 using Elastic.CommonSchema.Serilog;
-using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.AspNetCore.Mvc;
 using Serilog;
 
 Log.Logger = new LoggerConfiguration().WriteTo.Console(new EcsTextFormatter()).CreateBootstrapLogger();
@@ -57,59 +56,7 @@ try
 
     var app = builder.Build();
 
-    app.UseExceptionHandler(
-        new ExceptionHandlerOptions
-        {
-            AllowStatusCode404Response = true,
-            ExceptionHandler = async context =>
-            {
-                var exceptionHandlerFeature = context.Features.Get<IExceptionHandlerFeature>();
-                var error = exceptionHandlerFeature?.Error;
-                var problemDetails = new ProblemDetails();
-
-                switch (error)
-                {
-                    case BadHttpRequestException badHttpRequestException:
-                        context.Response.StatusCode = badHttpRequestException.StatusCode;
-                        problemDetails.Title = "Bad request";
-                        problemDetails.Detail = badHttpRequestException.Message;
-                        problemDetails.Status = badHttpRequestException.StatusCode;
-                        break;
-
-                    case EntityException entityException:
-                        context.Response.StatusCode = StatusCodes.Status409Conflict;
-                        problemDetails.Title = "Conflict occurred";
-                        problemDetails.Detail = entityException.Message;
-                        problemDetails.Status = StatusCodes.Status409Conflict;
-                        break;
-
-                    case ConcurrencyException concurrencyException:
-                        context.Response.StatusCode = StatusCodes.Status422UnprocessableEntity;
-                        problemDetails.Title = "Concurrency conflict";
-                        problemDetails.Detail = concurrencyException.Message;
-                        problemDetails.Status = StatusCodes.Status422UnprocessableEntity;
-                        break;
-
-                    default:
-                        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-                        problemDetails.Title = "An error occurred while processing your request.";
-                        problemDetails.Status = StatusCodes.Status500InternalServerError;
-                        break;
-                }
-
-                await context
-                    .RequestServices.GetRequiredService<IProblemDetailsService>()
-                    .WriteAsync(
-                        new ProblemDetailsContext
-                        {
-                            HttpContext = context,
-                            AdditionalMetadata = exceptionHandlerFeature?.Endpoint?.Metadata,
-                            ProblemDetails = problemDetails,
-                        }
-                    );
-            },
-        }
-    );
+    app.UseErrorHandling();
     app.UseHstsUnconditionally();
     app.UseHeaderPropagation();
     app.UseAuthentication();
