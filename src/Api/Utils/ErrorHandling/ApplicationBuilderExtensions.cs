@@ -16,37 +16,30 @@ public static class ApplicationBuilderExtensions
                 {
                     var exceptionHandlerFeature = context.Features.Get<IExceptionHandlerFeature>();
                     var error = exceptionHandlerFeature?.Error;
-                    var problemDetails = new ProblemDetails();
-
-                    switch (error)
+                    var (statusCode, title, detail) = error switch
                     {
-                        case BadHttpRequestException badHttpRequestException:
-                            context.Response.StatusCode = badHttpRequestException.StatusCode;
-                            problemDetails.Title = "Bad request";
-                            problemDetails.Detail = badHttpRequestException.Message;
-                            problemDetails.Status = badHttpRequestException.StatusCode;
-                            break;
+                        BadHttpRequestException ex => (ex.StatusCode, "Bad request", ex.Message),
+                        EntityException ex => (
+                            StatusCodes.Status422UnprocessableEntity,
+                            "Entity state conflict",
+                            ex.Message
+                        ),
+                        ConcurrencyException ex => (StatusCodes.Status409Conflict, "Concurrency conflict", ex.Message),
+                        _ => (
+                            StatusCodes.Status500InternalServerError,
+                            "An error occurred while processing your request.",
+                            null
+                        ),
+                    };
 
-                        case EntityException entityException:
-                            context.Response.StatusCode = StatusCodes.Status422UnprocessableEntity;
-                            problemDetails.Title = "Entity state conflict";
-                            problemDetails.Detail = entityException.Message;
-                            problemDetails.Status = StatusCodes.Status422UnprocessableEntity;
-                            break;
+                    context.Response.StatusCode = statusCode;
 
-                        case ConcurrencyException concurrencyException:
-                            context.Response.StatusCode = StatusCodes.Status409Conflict;
-                            problemDetails.Title = "Concurrency conflict";
-                            problemDetails.Detail = concurrencyException.Message;
-                            problemDetails.Status = StatusCodes.Status409Conflict;
-                            break;
-
-                        default:
-                            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-                            problemDetails.Title = "An error occurred while processing your request.";
-                            problemDetails.Status = StatusCodes.Status500InternalServerError;
-                            break;
-                    }
+                    var problemDetails = new ProblemDetails
+                    {
+                        Title = title,
+                        Detail = detail,
+                        Status = statusCode,
+                    };
 
                     await context
                         .RequestServices.GetRequiredService<IProblemDetailsService>()
