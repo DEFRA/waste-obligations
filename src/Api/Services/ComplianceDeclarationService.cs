@@ -74,7 +74,7 @@ public class ComplianceDeclarationService(
             filters.Add(
                 Builders<ComplianceDeclaration>.Filter.Regex(
                     x => x.Organisation.Name,
-                    new BsonRegularExpression(organisationName, "i")
+                    new BsonRegularExpression(System.Text.RegularExpressions.Regex.Escape(organisationName), "i")
                 )
             );
         }

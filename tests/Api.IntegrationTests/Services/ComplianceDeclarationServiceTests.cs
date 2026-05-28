@@ -337,4 +337,31 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         updated.Updated.Should().BeAfter(targetRecord.Updated);
         search2.ComplianceDeclarations.First().Updated.Should().Be(updated.Updated);
     }
+
+    [Fact]
+    public async Task Search_WhenFilteringByOrganisationNameWithRegexCharacters_ShouldTreatLiterally()
+    {
+        const string regexName = "Waste Management Ltd (UK)";
+        const string otherName = "Waste Management Ltd";
+
+        await Subject.Create(
+            ComplianceDeclarationFixture
+                .Default()
+                .With(x => x.Organisation, OrganisationFixture.Organisation().With(y => y.Name, regexName).Create())
+                .Create(),
+            TestContext.Current.CancellationToken
+        );
+        await Subject.Create(
+            ComplianceDeclarationFixture
+                .Default()
+                .With(x => x.Organisation, OrganisationFixture.Organisation().With(y => y.Name, otherName).Create())
+                .Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        var result = await Subject.Search(null, null, regexName, 1, 10, TestContext.Current.CancellationToken);
+
+        result.ComplianceDeclarations.Should().ContainSingle();
+        result.ComplianceDeclarations.Should().Contain(x => x.Organisation.Name == regexName);
+    }
 }
