@@ -13,7 +13,7 @@ public static class ReadComplianceDeclaration
     {
         app.MapGet("/organisations/{organisationId:guid}/compliance-declarations/{complianceDeclarationId}", Handle)
             .WithName("ReadOrganisationComplianceDeclaration")
-            .WithTags("ComplianceDeclarations")
+            .WithTags("Compliance Declarations")
             .WithSummary("Compliance declaration by ID")
             .WithDescription("Return a compliance declaration by compliance declaration ID")
             .Produces<ComplianceDeclaration>()

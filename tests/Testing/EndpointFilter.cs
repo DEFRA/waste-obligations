@@ -1,3 +1,6 @@
+using Defra.WasteObligations.Api.Dtos;
+using Defra.WasteObligations.Api.Extensions;
+
 namespace Defra.WasteObligations.Testing;
 
 public class EndpointFilter
@@ -8,5 +11,12 @@ public class EndpointFilter
 
     public static EndpointFilter ObligationYear(int obligationYear) => new($"obligationYear={obligationYear}");
 
-    public static EndpointFilter Include(string? type) => new($"include={type}");
+    public static EndpointFilter Status(ComplianceDeclarationStatus[] status) =>
+        Status(string.Join(",", status.Select(x => x.ToJsonValue())));
+
+    public static EndpointFilter Status(string? status) => new($"status={status}");
+
+    public static EndpointFilter Page(int page) => new($"page={page}");
+
+    public static EndpointFilter PageSize(int pageSize) => new($"pageSize={pageSize}");
 }
