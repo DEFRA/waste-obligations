@@ -35,4 +35,7 @@ public record CreateComplianceDeclarationRequest
     [Required]
     [JsonPropertyName("user")]
     public required User User { get; init; }
+
+    [JsonPropertyName("isRegulation43Compliant")]
+    public bool IsRegulation43Compliant { get; init; }
 }

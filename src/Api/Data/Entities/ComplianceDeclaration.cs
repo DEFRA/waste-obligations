@@ -23,6 +23,7 @@ public record ComplianceDeclaration
     public required LocalizedText DeclarationText { get; init; }
     public required string SubmitterName { get; init; }
     public IEnumerable<AuditEntry> Audit { get; init; } = [];
+    public bool IsRegulation43Compliant { get; init; }
 
     public ComplianceDeclaration Submit(User user, DateTime timestamp)
     {
