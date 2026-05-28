@@ -45,6 +45,32 @@ public class SearchComplianceDeclarationsOperationTransformer : IOpenApiOperatio
             operation.Parameters?.Insert(0, newTypeParameter);
         }
 
+        var pageParameter = operation.Parameters?.FirstOrDefault(p =>
+            p is { Name: "page", In: ParameterLocation.Query }
+        );
+
+        if (pageParameter != null)
+        {
+            operation.Parameters?.Remove(pageParameter);
+
+            var newPageParameter = new OpenApiParameter
+            {
+                Name = "page",
+                In = ParameterLocation.Query,
+                Description = pageParameter.Description,
+                Schema = new OpenApiSchema
+                {
+                    Type = pageParameter.Schema!.Type,
+                    Minimum = pageParameter.Schema!.Minimum,
+                    Maximum = null,
+                    Pattern = pageParameter.Schema!.Pattern,
+                    Format = pageParameter.Schema!.Format,
+                },
+            };
+
+            operation.Parameters?.Insert(3, newPageParameter);
+        }
+
         return Task.CompletedTask;
     }
 }

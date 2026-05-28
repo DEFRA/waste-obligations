@@ -21,7 +21,7 @@ public record SearchComplianceDeclarationsRequest
     public string? OrganisationName { get; init; }
 
     [Description("Page number (1-based), defaults to 1 if not specified")]
-    [Range(1, int.MaxValue)]
+    [Minimum(1)]
     [FromQuery(Name = "page")]
     public int? Page { get; init; }
 
