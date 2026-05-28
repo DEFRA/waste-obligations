@@ -1,3 +1,4 @@
+using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 
 namespace Defra.WasteObligations.Api.Services;
@@ -14,6 +15,15 @@ public interface IComplianceDeclarationService
     Task<IEnumerable<ComplianceDeclaration>> Read(
         Guid organisationId,
         int obligationYear,
+        CancellationToken cancellationToken
+    );
+
+    Task<ComplianceDeclarationSearchResult> Search(
+        int? obligationYear,
+        ComplianceDeclarationStatus[]? status,
+        string? organisationName,
+        int page,
+        int pageSize,
         CancellationToken cancellationToken
     );
 

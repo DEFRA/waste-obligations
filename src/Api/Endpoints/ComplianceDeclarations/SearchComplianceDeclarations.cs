@@ -1,5 +1,8 @@
 using Defra.WasteObligations.Api.Authentication;
+using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Dtos;
+using Defra.WasteObligations.Api.Services;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Defra.WasteObligations.Api.Endpoints.ComplianceDeclarations;
 
@@ -23,13 +26,21 @@ public static class SearchComplianceDeclarations
 
     private static async Task<IResult> Handle(
         [AsParameters] SearchComplianceDeclarationsRequest request,
+        [FromServices] IComplianceDeclarationService complianceDeclarationService,
         CancellationToken cancellationToken
     )
     {
-        request.ParsedStatus();
+        var page = request.EffectivePage;
+        var pageSize = request.EffectivePageSize;
+        var result = await complianceDeclarationService.Search(
+            request.ObligationYear,
+            [.. request.ParsedStatus().Select(x => x.ToEntity())],
+            request.OrganisationName,
+            page,
+            pageSize,
+            cancellationToken
+        );
 
-        await Task.Delay(1, cancellationToken);
-
-        return Results.Ok(new ComplianceDeclarationsPaged());
+        return Results.Ok(result.ToDto(page, pageSize));
     }
 }

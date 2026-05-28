@@ -8,7 +8,7 @@ public abstract class BaseCommaSeparatedListAttribute : ValidationAttribute
     {
         var values = (value as string)?.Split(',');
 
-        if (values is null || values.Length <= 0)
+        if (values is null)
             return [];
 
         var invalidValues = new List<string>();

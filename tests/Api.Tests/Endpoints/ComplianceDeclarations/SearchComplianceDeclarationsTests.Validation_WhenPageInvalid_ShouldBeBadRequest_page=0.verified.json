@@ -4,7 +4,7 @@
   "status": 400,
   "errors": {
     "Page": [
-      "The field Page must be between 1 and 2147483647."
+      "The field Page must be 1 or more."
     ]
   },
   "traceId": "{Scrubbed}"

@@ -17,6 +17,18 @@ public class MongoIndexService(IMongoDatabase database, ILogger<MongoIndexServic
                 .Ascending(x => x.ObligationYear),
             cancellationToken: cancellationToken
         );
+
+        await CreateIndex(
+            "ObligationYear_Status",
+            Builders<ComplianceDeclaration>.IndexKeys.Ascending(x => x.ObligationYear).Ascending(x => x.Status),
+            cancellationToken: cancellationToken
+        );
+
+        await CreateIndex(
+            "OrganisationName",
+            Builders<ComplianceDeclaration>.IndexKeys.Ascending(x => x.Organisation.Name),
+            cancellationToken: cancellationToken
+        );
     }
 
     public Task StopAsync(CancellationToken cancellationToken)

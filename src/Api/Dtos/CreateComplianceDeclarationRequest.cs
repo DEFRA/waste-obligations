@@ -8,7 +8,7 @@ public record CreateComplianceDeclarationRequest
 {
     [Required]
     [JsonPropertyName("organisation")]
-    public required OrganisationRequest Organisation { get; init; }
+    public required Organisation Organisation { get; init; }
 
     [Required]
     [Range(Dtos.ObligationYear.Minimum, Dtos.ObligationYear.Maximum)]

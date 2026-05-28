@@ -15,8 +15,9 @@ public class SearchComplianceDeclarationsOperationTransformer : IOpenApiOperatio
         if (operation.OperationId is not SearchComplianceDeclarations.OperationId)
             return Task.CompletedTask;
 
+        var statusName = ToCamelCase(nameof(SearchComplianceDeclarationsRequest.Status));
         var statusParameter = operation.Parameters?.FirstOrDefault(p =>
-            p is { Name: "status", In: ParameterLocation.Query }
+            p.In == ParameterLocation.Query && p.Name == statusName
         );
 
         if (statusParameter != null)
@@ -25,7 +26,7 @@ public class SearchComplianceDeclarationsOperationTransformer : IOpenApiOperatio
 
             var newTypeParameter = new OpenApiParameter
             {
-                Name = "status",
+                Name = statusName,
                 In = ParameterLocation.Query,
                 Description = statusParameter.Description,
                 Schema = new OpenApiSchema
@@ -45,6 +46,35 @@ public class SearchComplianceDeclarationsOperationTransformer : IOpenApiOperatio
             operation.Parameters?.Insert(0, newTypeParameter);
         }
 
+        var pageName = ToCamelCase(nameof(SearchComplianceDeclarationsRequest.Page));
+        var pageParameter = operation.Parameters?.FirstOrDefault(p =>
+            p.In == ParameterLocation.Query && p.Name == pageName
+        );
+
+        if (pageParameter != null)
+        {
+            operation.Parameters?.Remove(pageParameter);
+
+            var newPageParameter = new OpenApiParameter
+            {
+                Name = pageName,
+                In = ParameterLocation.Query,
+                Description = pageParameter.Description,
+                Schema = new OpenApiSchema
+                {
+                    Type = pageParameter.Schema!.Type,
+                    Minimum = pageParameter.Schema!.Minimum,
+                    Maximum = null,
+                    Pattern = pageParameter.Schema!.Pattern,
+                    Format = pageParameter.Schema!.Format,
+                },
+            };
+
+            operation.Parameters?.Insert(3, newPageParameter);
+        }
+
         return Task.CompletedTask;
     }
+
+    private static string ToCamelCase(string input) => char.ToLowerInvariant(input[0]) + input[1..];
 }

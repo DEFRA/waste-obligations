@@ -48,7 +48,7 @@ public static class Mappers
 
     public static Data.Entities.User ToEntity(this User dto) => new() { Id = dto.Id, Email = dto.Email };
 
-    private static Data.Entities.Organisation ToEntity(this OrganisationRequest dto) =>
+    private static Data.Entities.Organisation ToEntity(this Organisation dto) =>
         new()
         {
             Id = dto.Id,
@@ -72,7 +72,7 @@ public static class Mappers
             Country = dto.Country,
         };
 
-    public static Data.Entities.ComplianceDeclarationStatus ToEntity(this ComplianceDeclarationStatus? dto) =>
+    public static Data.Entities.ComplianceDeclarationStatus ToEntity(this ComplianceDeclarationStatus dto) =>
         dto switch
         {
             ComplianceDeclarationStatus.Submitted => Data.Entities.ComplianceDeclarationStatus.Submitted,

@@ -1,5 +1,6 @@
 using AutoFixture;
 using Defra.WasteObligations.Api.Data;
+using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
 using MongoDB.Bson;
@@ -88,6 +89,18 @@ public class FakeComplianceDeclarationService : IComplianceDeclarationService
             );
 
         return Task.FromResult(Enumerable.Empty<ComplianceDeclaration>());
+    }
+
+    public Task<ComplianceDeclarationSearchResult> Search(
+        int? obligationYear,
+        ComplianceDeclarationStatus[]? status,
+        string? organisationName,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken
+    )
+    {
+        throw new NotImplementedException();
     }
 
     public Task<ComplianceDeclaration> Update(

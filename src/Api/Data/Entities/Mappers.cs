@@ -48,7 +48,7 @@ public static class Mappers
 
     private static Dtos.User ToDto(this User entity) => new() { Id = entity.Id, Email = entity.Email };
 
-    private static Dtos.OrganisationRequest ToDto(this Organisation entity) =>
+    private static Dtos.Organisation ToDto(this Organisation entity) =>
         new()
         {
             Id = entity.Id,
