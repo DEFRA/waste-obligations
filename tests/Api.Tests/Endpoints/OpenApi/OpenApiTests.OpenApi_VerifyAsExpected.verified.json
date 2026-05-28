@@ -717,7 +717,7 @@
             "$ref": "#/components/schemas/ComplianceDeclarationStatus"
           },
           "organisation": {
-            "$ref": "#/components/schemas/OrganisationRequest"
+            "$ref": "#/components/schemas/Organisation"
           },
           "obligationYear": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -809,7 +809,7 @@
         "type": "object",
         "properties": {
           "organisation": {
-            "$ref": "#/components/schemas/OrganisationRequest"
+            "$ref": "#/components/schemas/Organisation"
           },
           "obligationYear": {
             "maximum": 2050,
@@ -962,29 +962,7 @@
           }
         }
       },
-      "OrganisationComplianceDeclarations": {
-        "type": "object",
-        "properties": {
-          "complianceDeclarations": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ComplianceDeclaration"
-            }
-          }
-        }
-      },
-      "OrganisationObligations": {
-        "type": "object",
-        "properties": {
-          "obligations": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Obligation"
-            }
-          }
-        }
-      },
-      "OrganisationRequest": {
+      "Organisation": {
         "required": [
           "id",
           "name",
@@ -1033,6 +1011,28 @@
           },
           "regulatorEmail": {
             "type": "string"
+          }
+        }
+      },
+      "OrganisationComplianceDeclarations": {
+        "type": "object",
+        "properties": {
+          "complianceDeclarations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ComplianceDeclaration"
+            }
+          }
+        }
+      },
+      "OrganisationObligations": {
+        "type": "object",
+        "properties": {
+          "obligations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Obligation"
+            }
           }
         }
       },

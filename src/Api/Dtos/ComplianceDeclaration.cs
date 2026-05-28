@@ -22,7 +22,7 @@ public record ComplianceDeclaration
     public ComplianceDeclarationStatus Status { get; init; }
 
     [JsonPropertyName("organisation")]
-    public required OrganisationRequest Organisation { get; init; }
+    public required Organisation Organisation { get; init; }
 
     [Description("Obligation year of compliance declaration")]
     [JsonPropertyName("obligationYear")]

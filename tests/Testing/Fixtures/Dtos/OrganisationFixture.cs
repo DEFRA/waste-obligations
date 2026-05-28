@@ -8,12 +8,12 @@ public static class OrganisationFixture
 {
     private static Fixture GetFixture() => new();
 
-    public static IPostprocessComposer<OrganisationRequest> Organisation()
+    public static IPostprocessComposer<Organisation> Organisation()
     {
-        return GetFixture().Build<OrganisationRequest>();
+        return GetFixture().Build<Organisation>();
     }
 
-    public static IPostprocessComposer<OrganisationRequest> DirectProducer(Guid? id = null)
+    public static IPostprocessComposer<Organisation> DirectProducer(Guid? id = null)
     {
         return Organisation()
             .With(x => x.Id, () => id ?? Guid.NewGuid())
@@ -26,7 +26,7 @@ public static class OrganisationFixture
             .With(x => x.SchemeOperatorName, (string?)null);
     }
 
-    public static IPostprocessComposer<OrganisationRequest> ComplianceScheme(Guid? id = null)
+    public static IPostprocessComposer<Organisation> ComplianceScheme(Guid? id = null)
     {
         return Organisation()
             .With(x => x.Id, () => id ?? Guid.NewGuid())
