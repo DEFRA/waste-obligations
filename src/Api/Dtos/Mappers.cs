@@ -72,7 +72,7 @@ public static class Mappers
             Country = dto.Country,
         };
 
-    public static Data.Entities.ComplianceDeclarationStatus ToEntity(this ComplianceDeclarationStatus? dto) =>
+    public static Data.Entities.ComplianceDeclarationStatus ToEntity(this ComplianceDeclarationStatus dto) =>
         dto switch
         {
             ComplianceDeclarationStatus.Submitted => Data.Entities.ComplianceDeclarationStatus.Submitted,

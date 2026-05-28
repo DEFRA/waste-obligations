@@ -1,6 +1,61 @@
 ﻿{
-  "complianceDeclarations": [],
-  "total": 0,
-  "page": 0,
-  "pageSize": 0
+  "complianceDeclarations": [
+    {
+      "id": "000000000000000000000000",
+      "created": "DateTimeOffset_1",
+      "updated": "DateTimeOffset_2",
+      "status": "Submitted",
+      "organisation": {
+        "id": "Guid_1",
+        "name": "Org Name",
+        "complianceSchemeName": null,
+        "schemeOperatorName": null,
+        "referenceNumber": "123456",
+        "address": {
+          "addressLine1": "Test Name Ltd",
+          "addressLine2": "123 Street",
+          "town": "Town",
+          "county": "County",
+          "postcode": "UK1",
+          "country": "UK"
+        },
+        "regulator": "Regulator",
+        "regulatorEmail": "regulator@email.com"
+      },
+      "obligationYear": 2026,
+      "obligations": [
+        {
+          "material": "Plastic",
+          "recyclingTarget": 0.75,
+          "tonnages": {
+            "material": 100,
+            "awaitingAcceptance": 10,
+            "accepted": 2,
+            "outstanding": 20,
+            "obligated": 5
+          },
+          "status": "NoDataYet"
+        }
+      ],
+      "obligationStatus": "NotMet",
+      "declarationText": {
+        "text": "This is the text",
+        "language": "en"
+      },
+      "submitterName": "Submitter Name",
+      "audit": [
+        {
+          "user": {
+            "id": "Guid_2",
+            "email": "submitter@email.com"
+          },
+          "timestamp": "DateTimeOffset_3",
+          "action": "Submitted"
+        }
+      ]
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "pageSize": 20
 }

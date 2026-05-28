@@ -1,10 +1,11 @@
 using Defra.WasteObligations.Api.Authentication;
 using Defra.WasteObligations.Api.Data;
+using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
 using Microsoft.AspNetCore.Mvc;
-using Mappers = Defra.WasteObligations.Api.Data.Entities.Mappers;
+using ComplianceDeclaration = Defra.WasteObligations.Api.Dtos.ComplianceDeclaration;
 
 namespace Defra.WasteObligations.Api.Endpoints.Organisations.ComplianceDeclarations;
 
@@ -54,15 +55,15 @@ public static class UpdateComplianceDeclaration
         if (request.Status.HasValue)
         {
             complianceDeclaration = complianceDeclaration.UpdateStatus(
-                request.Status.ToEntity(),
+                request.Status.Value.ToEntity(),
                 request.Reason,
                 request.User.ToEntity(),
                 timeProvider.GetUtcNowWithoutMicroseconds()
             );
 
-            await complianceDeclarationService.Update(complianceDeclaration, cancellationToken);
+            complianceDeclaration = await complianceDeclarationService.Update(complianceDeclaration, cancellationToken);
         }
 
-        return Results.Ok(Mappers.ToDto(complianceDeclaration));
+        return Results.Ok(complianceDeclaration.ToDto());
     }
 }

@@ -14,7 +14,10 @@ public class EndpointFilter
     public static EndpointFilter Status(ComplianceDeclarationStatus[] status) =>
         Status(string.Join(",", status.Select(x => x.ToJsonValue())));
 
-    public static EndpointFilter Status(string? status) => new($"status={status}");
+    public static EndpointFilter Status(string status) => new($"status={status}");
+
+    public static EndpointFilter OrganisationName(string organisationName) =>
+        new($"organisationName={Uri.EscapeDataString(organisationName)}");
 
     public static EndpointFilter Page(int page) => new($"page={page}");
 

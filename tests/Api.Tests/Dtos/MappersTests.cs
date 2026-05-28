@@ -8,7 +8,7 @@ public class MappersTests
     [Fact]
     public void WhenUnknownStatus_ShouldThrow()
     {
-        var act = () => ((ComplianceDeclarationStatus?)999).ToEntity();
+        var act = () => ((ComplianceDeclarationStatus?)999).Value.ToEntity();
 
         act.Should().Throw<InvalidOperationException>().And.Message.Should().Be("Unknown status");
     }
@@ -18,7 +18,7 @@ public class MappersTests
     {
         foreach (var name in Enum.GetNames<ComplianceDeclarationStatus>())
         {
-            ((ComplianceDeclarationStatus?)Enum.Parse<ComplianceDeclarationStatus>(name))
+            Enum.Parse<ComplianceDeclarationStatus>(name)
                 .ToEntity()
                 .Should()
                 .Be(Enum.Parse<Api.Data.Entities.ComplianceDeclarationStatus>(name));

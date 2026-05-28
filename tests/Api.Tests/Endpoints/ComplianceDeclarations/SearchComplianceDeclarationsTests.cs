@@ -1,13 +1,28 @@
 using System.Net;
+using AutoFixture;
 using AwesomeAssertions;
+using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Dtos;
+using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Testing;
+using Defra.WasteObligations.Testing.Fixtures.Entities;
+using Microsoft.Extensions.DependencyInjection;
+using MongoDB.Bson;
+using NSubstitute;
 
 namespace Defra.WasteObligations.Api.Tests.Endpoints.ComplianceDeclarations;
 
 public class SearchComplianceDeclarationsTests(ApiWebApplicationFactory factory, ITestOutputHelper outputHelper)
     : EndpointTestBase(factory, outputHelper)
 {
+    private IComplianceDeclarationService ComplianceDeclarationService { get; } =
+        Substitute.For<IComplianceDeclarationService>();
+
+    protected override void ConfigureTestServices(IServiceCollection services)
+    {
+        services.AddTransient<IComplianceDeclarationService>(_ => ComplianceDeclarationService);
+    }
+
     [Fact]
     public async Task WhenWriteOnlyUser_ShouldBeForbidden()
     {
@@ -64,6 +79,35 @@ public class SearchComplianceDeclarationsTests(ApiWebApplicationFactory factory,
     public async Task WhenValid_ShouldBeOk()
     {
         var client = CreateClient(testUser: TestUser.ReadOnly);
+        ComplianceDeclarationService
+            .Search(
+                obligationYear: 2026,
+                status: Arg.Is<Api.Data.Entities.ComplianceDeclarationStatus[]?>(x =>
+                    x != null
+                    // ReSharper disable once CSharp14OverloadResolutionWithSpanBreakingChange
+                    && x.SequenceEqual(
+                        new[]
+                        {
+                            Api.Data.Entities.ComplianceDeclarationStatus.Submitted,
+                            Api.Data.Entities.ComplianceDeclarationStatus.Accepted,
+                        }
+                    )
+                ),
+                organisationName: "org name",
+                page: 1,
+                pageSize: 20,
+                cancellationToken: Arg.Any<CancellationToken>()
+            )
+            .Returns(
+                new ComplianceDeclarationSearchResult
+                {
+                    ComplianceDeclarations =
+                    [
+                        ComplianceDeclarationFixture.DirectProducer().With(x => x.Id, ObjectId.Empty).Create(),
+                    ],
+                    Total = 1,
+                }
+            );
 
         var response = await client.GetAsync(
             Testing.Endpoints.ComplianceDeclarations.Search(
@@ -75,6 +119,7 @@ public class SearchComplianceDeclarationsTests(ApiWebApplicationFactory factory,
                             ComplianceDeclarationStatus.Accepted,
                         ])
                     )
+                    .Where(EndpointFilter.OrganisationName("org name"))
             ),
             TestContext.Current.CancellationToken
         );
