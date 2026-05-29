@@ -17,7 +17,7 @@ public class EndpointFilter
     public static EndpointFilter Status(string status) => new($"status={status}");
 
     public static EndpointFilter RegistrationType(RegistrationType[] registrationType) =>
-        Status(string.Join(",", registrationType.Select(x => x.ToJsonValue())));
+        RegistrationType(string.Join(",", registrationType.Select(x => x.ToJsonValue())));
 
     public static EndpointFilter RegistrationType(string registrationType) =>
         new($"registrationType={registrationType}");

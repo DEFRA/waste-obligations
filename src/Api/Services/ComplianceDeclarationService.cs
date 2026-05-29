@@ -51,6 +51,7 @@ public class ComplianceDeclarationService(
     public async Task<ComplianceDeclarationSearchResult> Search(
         int? obligationYear,
         ComplianceDeclarationStatus[]? status,
+        RegistrationType[]? registrationType,
         string? organisationName,
         int page,
         int pageSize,
@@ -67,6 +68,13 @@ public class ComplianceDeclarationService(
         if (status is { Length: > 0 })
         {
             filters.Add(Builders<ComplianceDeclaration>.Filter.In(x => x.Status, status));
+        }
+
+        if (registrationType is { Length: > 0 })
+        {
+            filters.Add(
+                Builders<ComplianceDeclaration>.Filter.In(x => x.Organisation.RegistrationType, registrationType)
+            );
         }
 
         if (!string.IsNullOrWhiteSpace(organisationName))

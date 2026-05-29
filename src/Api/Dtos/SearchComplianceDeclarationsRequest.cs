@@ -40,4 +40,7 @@ public record SearchComplianceDeclarationsRequest
 
     public ComplianceDeclarationStatus[] ParsedStatus() =>
         Status?.Split(',').NotNull().Select(x => x.FromJsonValue<ComplianceDeclarationStatus>()).ToArray() ?? [];
+
+    public RegistrationType[] ParsedRegistrationType() =>
+        RegistrationType?.Split(',').NotNull().Select(x => x.FromJsonValue<RegistrationType>()).ToArray() ?? [];
 }

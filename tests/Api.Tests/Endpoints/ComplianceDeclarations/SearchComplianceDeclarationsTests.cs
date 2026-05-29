@@ -103,6 +103,17 @@ public class SearchComplianceDeclarationsTests(ApiWebApplicationFactory factory,
                         }
                     )
                 ),
+                registrationType: Arg.Is<Api.Data.Entities.RegistrationType[]?>(x =>
+                    x != null
+                    // ReSharper disable once CSharp14OverloadResolutionWithSpanBreakingChange
+                    && x.SequenceEqual(
+                        new[]
+                        {
+                            Api.Data.Entities.RegistrationType.DirectProducer,
+                            Api.Data.Entities.RegistrationType.ComplianceScheme,
+                        }
+                    )
+                ),
                 organisationName: "org name",
                 page: 1,
                 pageSize: 20,
@@ -127,6 +138,12 @@ public class SearchComplianceDeclarationsTests(ApiWebApplicationFactory factory,
                         EndpointFilter.Status([
                             ComplianceDeclarationStatus.Submitted,
                             ComplianceDeclarationStatus.Accepted,
+                        ])
+                    )
+                    .Where(
+                        EndpointFilter.RegistrationType([
+                            RegistrationType.DirectProducer,
+                            RegistrationType.ComplianceScheme,
                         ])
                     )
                     .Where(EndpointFilter.OrganisationName("org name"))

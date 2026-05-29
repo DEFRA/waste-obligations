@@ -35,6 +35,7 @@ public static class SearchComplianceDeclarations
         var result = await complianceDeclarationService.Search(
             request.ObligationYear,
             [.. request.ParsedStatus().Select(x => x.ToEntity())],
+            [.. request.ParsedRegistrationType().Select(x => x.ToEntity())],
             request.OrganisationName,
             page,
             pageSize,

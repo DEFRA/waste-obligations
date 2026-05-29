@@ -21,6 +21,7 @@ public interface IComplianceDeclarationService
     Task<ComplianceDeclarationSearchResult> Search(
         int? obligationYear,
         ComplianceDeclarationStatus[]? status,
+        RegistrationType[]? registrationType,
         string? organisationName,
         int page,
         int pageSize,

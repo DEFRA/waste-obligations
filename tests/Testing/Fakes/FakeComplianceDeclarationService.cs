@@ -94,6 +94,7 @@ public class FakeComplianceDeclarationService : IComplianceDeclarationService
     public Task<ComplianceDeclarationSearchResult> Search(
         int? obligationYear,
         ComplianceDeclarationStatus[]? status,
+        RegistrationType[]? registrationType,
         string? organisationName,
         int page,
         int pageSize,
