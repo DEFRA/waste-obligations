@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using AutoFixture;
 using AwesomeAssertions;
@@ -86,35 +87,30 @@ public class SearchComplianceDeclarationsTests(ApiWebApplicationFactory factory,
     }
 
     [Fact]
+    [SuppressMessage("ReSharper", "CSharp14OverloadResolutionWithSpanBreakingChange")]
     public async Task WhenValid_ShouldBeOk()
     {
         var client = CreateClient(testUser: TestUser.ReadOnly);
         ComplianceDeclarationService
             .Search(
-                obligationYear: 2026,
-                status: Arg.Is<Api.Data.Entities.ComplianceDeclarationStatus[]?>(x =>
-                    x != null
-                    // ReSharper disable once CSharp14OverloadResolutionWithSpanBreakingChange
-                    && x.SequenceEqual(
+                Arg.Is<ComplianceDeclarationSearchQuery>(x =>
+                    x.ObligationYear == 2026
+                    && x.Status.SequenceEqual(
                         new[]
                         {
                             Api.Data.Entities.ComplianceDeclarationStatus.Submitted,
                             Api.Data.Entities.ComplianceDeclarationStatus.Accepted,
                         }
                     )
-                ),
-                registrationType: Arg.Is<Api.Data.Entities.RegistrationType[]?>(x =>
-                    x != null
-                    // ReSharper disable once CSharp14OverloadResolutionWithSpanBreakingChange
-                    && x.SequenceEqual(
+                    && x.RegistrationType.SequenceEqual(
                         new[]
                         {
                             Api.Data.Entities.RegistrationType.DirectProducer,
                             Api.Data.Entities.RegistrationType.ComplianceScheme,
                         }
                     )
+                    && x.OrganisationName == "org name"
                 ),
-                organisationName: "org name",
                 page: 1,
                 pageSize: 20,
                 cancellationToken: Arg.Any<CancellationToken>()

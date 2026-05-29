@@ -167,7 +167,12 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             TestContext.Current.CancellationToken
         );
 
-        var result = await Subject.Search(targetYear, null, null, null, 1, 10, TestContext.Current.CancellationToken);
+        var result = await Subject.Search(
+            new ComplianceDeclarationSearchQuery { ObligationYear = targetYear },
+            1,
+            10,
+            TestContext.Current.CancellationToken
+        );
 
         result.ComplianceDeclarations.Should().HaveCount(2);
         result.Total.Should().Be(2);
@@ -191,10 +196,10 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         );
 
         var result = await Subject.Search(
-            null,
-            [ComplianceDeclarationStatus.Submitted, ComplianceDeclarationStatus.Cancelled],
-            null,
-            null,
+            new ComplianceDeclarationSearchQuery
+            {
+                Status = [ComplianceDeclarationStatus.Submitted, ComplianceDeclarationStatus.Cancelled],
+            },
             1,
             10,
             TestContext.Current.CancellationToken
@@ -227,10 +232,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         );
 
         var result = await Subject.Search(
-            null,
-            null,
-            registrationTypes,
-            null,
+            new ComplianceDeclarationSearchQuery { RegistrationType = registrationTypes },
             1,
             10,
             TestContext.Current.CancellationToken
@@ -274,19 +276,13 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         );
 
         var resultLowercase = await Subject.Search(
-            null,
-            null,
-            null,
-            name.ToLower(),
+            new ComplianceDeclarationSearchQuery { OrganisationName = name.ToLower() },
             1,
             10,
             TestContext.Current.CancellationToken
         );
         var resultUppercase = await Subject.Search(
-            null,
-            null,
-            null,
-            name.ToUpper(),
+            new ComplianceDeclarationSearchQuery { OrganisationName = name.ToUpper() },
             1,
             10,
             TestContext.Current.CancellationToken
@@ -308,9 +304,24 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             );
         }
 
-        var page1 = await Subject.Search(null, null, null, null, 1, pageSize, TestContext.Current.CancellationToken);
-        var page2 = await Subject.Search(null, null, null, null, 2, pageSize, TestContext.Current.CancellationToken);
-        var page3 = await Subject.Search(null, null, null, null, 3, pageSize, TestContext.Current.CancellationToken);
+        var page1 = await Subject.Search(
+            new ComplianceDeclarationSearchQuery(),
+            1,
+            pageSize,
+            TestContext.Current.CancellationToken
+        );
+        var page2 = await Subject.Search(
+            new ComplianceDeclarationSearchQuery(),
+            2,
+            pageSize,
+            TestContext.Current.CancellationToken
+        );
+        var page3 = await Subject.Search(
+            new ComplianceDeclarationSearchQuery(),
+            3,
+            pageSize,
+            TestContext.Current.CancellationToken
+        );
 
         page1.ComplianceDeclarations.Should().HaveCount(pageSize);
         page1.Total.Should().Be(5);
@@ -327,7 +338,12 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
     {
         await Subject.Create(ComplianceDeclarationFixture.Default().Create(), TestContext.Current.CancellationToken);
 
-        var result = await Subject.Search(null, null, null, null, 10, 10, TestContext.Current.CancellationToken);
+        var result = await Subject.Search(
+            new ComplianceDeclarationSearchQuery(),
+            10,
+            10,
+            TestContext.Current.CancellationToken
+        );
 
         result.ComplianceDeclarations.Should().BeEmpty();
         result.Total.Should().Be(1);
@@ -355,7 +371,12 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         var targetRecord = records.First(x => x.Id == sortedIds[1]);
 
         // Verify initial position (Page 2)
-        var search1 = await Subject.Search(null, null, null, null, 2, pageSize, TestContext.Current.CancellationToken);
+        var search1 = await Subject.Search(
+            new ComplianceDeclarationSearchQuery(),
+            2,
+            pageSize,
+            TestContext.Current.CancellationToken
+        );
         search1.ComplianceDeclarations.First().Id.Should().Be(targetRecord.Id);
 
         // Update the record
@@ -368,7 +389,12 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         );
 
         // Verify position is retained (still Page 2)
-        var search2 = await Subject.Search(null, null, null, null, 2, pageSize, TestContext.Current.CancellationToken);
+        var search2 = await Subject.Search(
+            new ComplianceDeclarationSearchQuery(),
+            2,
+            pageSize,
+            TestContext.Current.CancellationToken
+        );
         search2.ComplianceDeclarations.First().Id.Should().Be(targetRecord.Id);
         search2.ComplianceDeclarations.First().ObligationYear.Should().Be(9999);
         updated.Updated.Should().BeAfter(targetRecord.Updated);
@@ -396,7 +422,12 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             TestContext.Current.CancellationToken
         );
 
-        var result = await Subject.Search(null, null, null, regexName, 1, 10, TestContext.Current.CancellationToken);
+        var result = await Subject.Search(
+            new ComplianceDeclarationSearchQuery { OrganisationName = regexName },
+            1,
+            10,
+            TestContext.Current.CancellationToken
+        );
 
         result.ComplianceDeclarations.Should().ContainSingle();
         result.ComplianceDeclarations.Should().Contain(x => x.Organisation.Name == regexName);

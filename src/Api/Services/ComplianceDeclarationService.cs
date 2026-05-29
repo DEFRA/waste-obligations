@@ -49,10 +49,7 @@ public class ComplianceDeclarationService(
             .ToListAsync(cancellationToken);
 
     public async Task<ComplianceDeclarationSearchResult> Search(
-        int? obligationYear,
-        ComplianceDeclarationStatus[]? status,
-        RegistrationType[]? registrationType,
-        string? organisationName,
+        ComplianceDeclarationSearchQuery query,
         int page,
         int pageSize,
         CancellationToken cancellationToken
@@ -60,29 +57,29 @@ public class ComplianceDeclarationService(
     {
         var filters = new List<FilterDefinition<ComplianceDeclaration>>();
 
-        if (obligationYear.HasValue)
+        if (query.ObligationYear.HasValue)
         {
-            filters.Add(Builders<ComplianceDeclaration>.Filter.Eq(x => x.ObligationYear, obligationYear.Value));
+            filters.Add(Builders<ComplianceDeclaration>.Filter.Eq(x => x.ObligationYear, query.ObligationYear.Value));
         }
 
-        if (status is { Length: > 0 })
+        if (query.Status is { Length: > 0 })
         {
-            filters.Add(Builders<ComplianceDeclaration>.Filter.In(x => x.Status, status));
+            filters.Add(Builders<ComplianceDeclaration>.Filter.In(x => x.Status, query.Status));
         }
 
-        if (registrationType is { Length: > 0 })
+        if (query.RegistrationType is { Length: > 0 })
         {
             filters.Add(
-                Builders<ComplianceDeclaration>.Filter.In(x => x.Organisation.RegistrationType, registrationType)
+                Builders<ComplianceDeclaration>.Filter.In(x => x.Organisation.RegistrationType, query.RegistrationType)
             );
         }
 
-        if (!string.IsNullOrWhiteSpace(organisationName))
+        if (!string.IsNullOrWhiteSpace(query.OrganisationName))
         {
             filters.Add(
                 Builders<ComplianceDeclaration>.Filter.Regex(
                     x => x.Organisation.Name,
-                    new BsonRegularExpression(System.Text.RegularExpressions.Regex.Escape(organisationName), "i")
+                    new BsonRegularExpression(System.Text.RegularExpressions.Regex.Escape(query.OrganisationName), "i")
                 )
             );
         }
