@@ -49,10 +49,16 @@ public static class Mappers
 
     private static Dtos.User ToDto(this User entity) => new() { Id = entity.Id, Email = entity.Email };
 
-    private static Dtos.Organisation ToDto(this Organisation entity) =>
+    public static Dtos.Organisation ToDto(this Organisation entity) =>
         new()
         {
             Id = entity.Id,
+            RegistrationType = entity.RegistrationType switch
+            {
+                RegistrationType.DirectProducer => Dtos.RegistrationType.DirectProducer,
+                RegistrationType.ComplianceScheme => Dtos.RegistrationType.ComplianceScheme,
+                _ => throw new InvalidOperationException("Unknown registration type"),
+            },
             Name = entity.Name,
             ComplianceSchemeName = entity.ComplianceSchemeName,
             SchemeOperatorName = entity.SchemeOperatorName,

@@ -17,6 +17,11 @@ public record SearchComplianceDeclarationsRequest
     [EnumCommaSeparatedList<ComplianceDeclarationStatus>(ErrorMessage = "Invalid compliance declaration status(s)")]
     public string? Status { get; init; }
 
+    [Description("Comma separated list of organisation registration type")]
+    [FromQuery(Name = "registrationType")]
+    [EnumCommaSeparatedList<RegistrationType>(ErrorMessage = "Invalid organisation registration type(s)")]
+    public string? RegistrationType { get; init; }
+
     [FromQuery(Name = "organisationName")]
     public string? OrganisationName { get; init; }
 
@@ -35,4 +40,7 @@ public record SearchComplianceDeclarationsRequest
 
     public ComplianceDeclarationStatus[] ParsedStatus() =>
         Status?.Split(',').NotNull().Select(x => x.FromJsonValue<ComplianceDeclarationStatus>()).ToArray() ?? [];
+
+    public RegistrationType[] ParsedRegistrationType() =>
+        RegistrationType?.Split(',').NotNull().Select(x => x.FromJsonValue<RegistrationType>()).ToArray() ?? [];
 }

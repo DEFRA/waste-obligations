@@ -10,8 +10,11 @@ public record Organisation
     public Guid Id { get; init; }
 
     [Required]
+    [JsonPropertyName("registrationType")]
+    public RegistrationType RegistrationType { get; init; }
+
     [JsonPropertyName("name")]
-    public required string Name { get; init; }
+    public string? Name { get; init; }
 
     [JsonPropertyName("complianceSchemeName")]
     public string? ComplianceSchemeName { get; init; }

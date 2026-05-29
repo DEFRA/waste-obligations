@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using AutoFixture;
 using AwesomeAssertions;
@@ -56,6 +57,16 @@ public class SearchComplianceDeclarationsTests(ApiWebApplicationFactory factory,
         await VerifyJson(content);
     }
 
+    [Fact]
+    public async Task Validation_WhenRegistrationTypeUnknown_ShouldBeBadRequest()
+    {
+        var content = await RequestShouldBeBadRequest(
+            EndpointQuery.New.Where(EndpointFilter.RegistrationType("unknown"))
+        );
+
+        await VerifyJson(content);
+    }
+
     [Theory]
     [InlineData(0)]
     public async Task Validation_WhenPageInvalid_ShouldBeBadRequest(int page)
@@ -76,24 +87,30 @@ public class SearchComplianceDeclarationsTests(ApiWebApplicationFactory factory,
     }
 
     [Fact]
+    [SuppressMessage("ReSharper", "CSharp14OverloadResolutionWithSpanBreakingChange")]
     public async Task WhenValid_ShouldBeOk()
     {
         var client = CreateClient(testUser: TestUser.ReadOnly);
         ComplianceDeclarationService
             .Search(
-                obligationYear: 2026,
-                status: Arg.Is<Api.Data.Entities.ComplianceDeclarationStatus[]?>(x =>
-                    x != null
-                    // ReSharper disable once CSharp14OverloadResolutionWithSpanBreakingChange
-                    && x.SequenceEqual(
+                Arg.Is<ComplianceDeclarationSearchQuery>(x =>
+                    x.ObligationYear == 2026
+                    && x.Status.SequenceEqual(
                         new[]
                         {
                             Api.Data.Entities.ComplianceDeclarationStatus.Submitted,
                             Api.Data.Entities.ComplianceDeclarationStatus.Accepted,
                         }
                     )
+                    && x.RegistrationType.SequenceEqual(
+                        new[]
+                        {
+                            Api.Data.Entities.RegistrationType.DirectProducer,
+                            Api.Data.Entities.RegistrationType.ComplianceScheme,
+                        }
+                    )
+                    && x.OrganisationName == "org name"
                 ),
-                organisationName: "org name",
                 page: 1,
                 pageSize: 20,
                 cancellationToken: Arg.Any<CancellationToken>()
@@ -117,6 +134,12 @@ public class SearchComplianceDeclarationsTests(ApiWebApplicationFactory factory,
                         EndpointFilter.Status([
                             ComplianceDeclarationStatus.Submitted,
                             ComplianceDeclarationStatus.Accepted,
+                        ])
+                    )
+                    .Where(
+                        EndpointFilter.RegistrationType([
+                            RegistrationType.DirectProducer,
+                            RegistrationType.ComplianceScheme,
                         ])
                     )
                     .Where(EndpointFilter.OrganisationName("org name"))

@@ -24,4 +24,24 @@ public class MappersTests
                 .Be(Enum.Parse<Api.Data.Entities.ComplianceDeclarationStatus>(name));
         }
     }
+
+    [Fact]
+    public void WhenUnknownRegistrationType_ShouldThrow()
+    {
+        var act = () => ((RegistrationType?)999).Value.ToEntity();
+
+        act.Should().Throw<InvalidOperationException>().And.Message.Should().Be("Unknown registration type");
+    }
+
+    [Fact]
+    public void WhenRegistrationTypeIsKnown_ShouldMap()
+    {
+        foreach (var name in Enum.GetNames<RegistrationType>())
+        {
+            Enum.Parse<RegistrationType>(name)
+                .ToEntity()
+                .Should()
+                .Be(Enum.Parse<Api.Data.Entities.RegistrationType>(name));
+        }
+    }
 }

@@ -486,17 +486,6 @@
         "operationId": "SearchComplianceDeclarations",
         "parameters": [
           {
-            "name": "status",
-            "in": "query",
-            "description": "Comma separated list of compliance declaration status",
-            "schema": {
-              "type": "array",
-              "items": {
-                "$ref": "#/components/schemas/ComplianceDeclarationStatus"
-              }
-            }
-          },
-          {
             "name": "obligationYear",
             "in": "query",
             "schema": {
@@ -508,6 +497,28 @@
                 "string"
               ],
               "format": "int32"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Comma separated list of compliance declaration status",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/ComplianceDeclarationStatus"
+              }
+            }
+          },
+          {
+            "name": "registrationType",
+            "in": "query",
+            "description": "Comma separated list of organisation registration type",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/RegistrationType"
+              }
             }
           },
           {
@@ -970,7 +981,7 @@
       "Organisation": {
         "required": [
           "id",
-          "name",
+          "registrationType",
           "regulator",
           "regulatorEmail"
         ],
@@ -980,8 +991,14 @@
             "type": "string",
             "format": "uuid"
           },
+          "registrationType": {
+            "$ref": "#/components/schemas/RegistrationType"
+          },
           "name": {
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "complianceSchemeName": {
             "type": [
@@ -1078,6 +1095,12 @@
             ]
           }
         }
+      },
+      "RegistrationType": {
+        "enum": [
+          "DirectProducer",
+          "ComplianceScheme"
+        ]
       },
       "UpdateComplianceDeclarationRequest": {
         "required": [

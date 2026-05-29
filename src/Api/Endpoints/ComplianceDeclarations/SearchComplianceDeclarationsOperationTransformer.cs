@@ -15,65 +15,79 @@ public class SearchComplianceDeclarationsOperationTransformer : IOpenApiOperatio
         if (operation.OperationId is not SearchComplianceDeclarations.OperationId)
             return Task.CompletedTask;
 
-        var statusName = ToCamelCase(nameof(SearchComplianceDeclarationsRequest.Status));
-        var statusParameter = operation.Parameters?.FirstOrDefault(p =>
-            p.In == ParameterLocation.Query && p.Name == statusName
+        ReplaceParameter(
+            operation,
+            nameof(SearchComplianceDeclarationsRequest.Status),
+            index: 1,
+            source => CreateEnumArrayParameter(source, nameof(ComplianceDeclarationStatus))
         );
 
-        if (statusParameter != null)
-        {
-            operation.Parameters?.Remove(statusParameter);
-
-            var newTypeParameter = new OpenApiParameter
-            {
-                Name = statusName,
-                In = ParameterLocation.Query,
-                Description = statusParameter.Description,
-                Schema = new OpenApiSchema
-                {
-                    Type = JsonSchemaType.Array,
-                    Items = new OpenApiSchemaReference(nameof(ComplianceDeclarationStatus))
-                    {
-                        Reference = new JsonSchemaReference
-                        {
-                            Type = ReferenceType.Schema,
-                            Id = nameof(ComplianceDeclarationStatus),
-                        },
-                    },
-                },
-            };
-
-            operation.Parameters?.Insert(0, newTypeParameter);
-        }
-
-        var pageName = ToCamelCase(nameof(SearchComplianceDeclarationsRequest.Page));
-        var pageParameter = operation.Parameters?.FirstOrDefault(p =>
-            p.In == ParameterLocation.Query && p.Name == pageName
+        ReplaceParameter(
+            operation,
+            nameof(SearchComplianceDeclarationsRequest.RegistrationType),
+            index: 2,
+            source => CreateEnumArrayParameter(source, nameof(RegistrationType))
         );
 
-        if (pageParameter != null)
-        {
-            operation.Parameters?.Remove(pageParameter);
-
-            var newPageParameter = new OpenApiParameter
+        ReplaceParameter(
+            operation,
+            nameof(SearchComplianceDeclarationsRequest.Page),
+            index: 4,
+            source => new OpenApiParameter
             {
-                Name = pageName,
+                Name = source.Name,
                 In = ParameterLocation.Query,
-                Description = pageParameter.Description,
+                Description = source.Description,
                 Schema = new OpenApiSchema
                 {
-                    Type = pageParameter.Schema!.Type,
-                    Minimum = pageParameter.Schema!.Minimum,
+                    Type = source.Schema!.Type,
+                    Minimum = source.Schema.Minimum,
                     Maximum = null,
-                    Pattern = pageParameter.Schema!.Pattern,
-                    Format = pageParameter.Schema!.Format,
+                    Pattern = source.Schema.Pattern,
+                    Format = source.Schema.Format,
                 },
-            };
-
-            operation.Parameters?.Insert(3, newPageParameter);
-        }
+            }
+        );
 
         return Task.CompletedTask;
+    }
+
+    private static void ReplaceParameter(
+        OpenApiOperation operation,
+        string propertyName,
+        int index,
+        Func<OpenApiParameter, OpenApiParameter> transform
+    )
+    {
+        var parameterName = ToCamelCase(propertyName);
+
+        if (
+            operation.Parameters?.FirstOrDefault(p => p.In == ParameterLocation.Query && p.Name == parameterName)
+                is not OpenApiParameter parameter
+            || operation.Parameters is null
+        )
+            return;
+
+        operation.Parameters.Remove(parameter);
+        operation.Parameters.Insert(index, transform(parameter));
+    }
+
+    private static OpenApiParameter CreateEnumArrayParameter(OpenApiParameter source, string schemaName)
+    {
+        return new OpenApiParameter
+        {
+            Name = source.Name,
+            In = ParameterLocation.Query,
+            Description = source.Description,
+            Schema = new OpenApiSchema
+            {
+                Type = JsonSchemaType.Array,
+                Items = new OpenApiSchemaReference(schemaName)
+                {
+                    Reference = new JsonSchemaReference { Type = ReferenceType.Schema, Id = schemaName },
+                },
+            },
+        };
     }
 
     private static string ToCamelCase(string input) => char.ToLowerInvariant(input[0]) + input[1..];

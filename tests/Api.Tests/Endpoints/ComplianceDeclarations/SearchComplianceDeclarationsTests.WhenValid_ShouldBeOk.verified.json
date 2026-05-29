@@ -7,6 +7,7 @@
       "status": "Submitted",
       "organisation": {
         "id": "Guid_1",
+        "registrationType": "DirectProducer",
         "name": "Org Name",
         "complianceSchemeName": null,
         "schemeOperatorName": null,

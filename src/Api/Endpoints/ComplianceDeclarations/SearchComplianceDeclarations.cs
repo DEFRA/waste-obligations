@@ -33,9 +33,13 @@ public static class SearchComplianceDeclarations
         var page = request.EffectivePage;
         var pageSize = request.EffectivePageSize;
         var result = await complianceDeclarationService.Search(
-            request.ObligationYear,
-            [.. request.ParsedStatus().Select(x => x.ToEntity())],
-            request.OrganisationName,
+            new ComplianceDeclarationSearchQuery
+            {
+                ObligationYear = request.ObligationYear,
+                Status = [.. request.ParsedStatus().Select(x => x.ToEntity())],
+                RegistrationType = [.. request.ParsedRegistrationType().Select(x => x.ToEntity())],
+                OrganisationName = request.OrganisationName,
+            },
             page,
             pageSize,
             cancellationToken
