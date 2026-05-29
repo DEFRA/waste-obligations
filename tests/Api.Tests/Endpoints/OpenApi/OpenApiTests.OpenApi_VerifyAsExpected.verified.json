@@ -486,17 +486,6 @@
         "operationId": "SearchComplianceDeclarations",
         "parameters": [
           {
-            "name": "status",
-            "in": "query",
-            "description": "Comma separated list of compliance declaration status",
-            "schema": {
-              "type": "array",
-              "items": {
-                "$ref": "#/components/schemas/ComplianceDeclarationStatus"
-              }
-            }
-          },
-          {
             "name": "obligationYear",
             "in": "query",
             "schema": {
@@ -508,6 +497,28 @@
                 "string"
               ],
               "format": "int32"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Comma separated list of compliance declaration status",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/ComplianceDeclarationStatus"
+              }
+            }
+          },
+          {
+            "name": "registrationType",
+            "in": "query",
+            "description": "Comma separated list of organisation registration type",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/RegistrationType"
+              }
             }
           },
           {

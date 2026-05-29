@@ -43,7 +43,38 @@ public class SearchComplianceDeclarationsOperationTransformer : IOpenApiOperatio
                 },
             };
 
-            operation.Parameters?.Insert(0, newTypeParameter);
+            operation.Parameters?.Insert(1, newTypeParameter);
+        }
+
+        var registrationTypeName = ToCamelCase(nameof(SearchComplianceDeclarationsRequest.RegistrationType));
+        var registrationTypeParameter = operation.Parameters?.FirstOrDefault(p =>
+            p.In == ParameterLocation.Query && p.Name == registrationTypeName
+        );
+
+        if (registrationTypeParameter != null)
+        {
+            operation.Parameters?.Remove(registrationTypeParameter);
+
+            var newTypeParameter = new OpenApiParameter
+            {
+                Name = registrationTypeName,
+                In = ParameterLocation.Query,
+                Description = registrationTypeParameter.Description,
+                Schema = new OpenApiSchema
+                {
+                    Type = JsonSchemaType.Array,
+                    Items = new OpenApiSchemaReference(nameof(RegistrationType))
+                    {
+                        Reference = new JsonSchemaReference
+                        {
+                            Type = ReferenceType.Schema,
+                            Id = nameof(RegistrationType),
+                        },
+                    },
+                },
+            };
+
+            operation.Parameters?.Insert(2, newTypeParameter);
         }
 
         var pageName = ToCamelCase(nameof(SearchComplianceDeclarationsRequest.Page));
@@ -70,7 +101,7 @@ public class SearchComplianceDeclarationsOperationTransformer : IOpenApiOperatio
                 },
             };
 
-            operation.Parameters?.Insert(3, newPageParameter);
+            operation.Parameters?.Insert(4, newPageParameter);
         }
 
         return Task.CompletedTask;

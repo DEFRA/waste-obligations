@@ -56,6 +56,16 @@ public class SearchComplianceDeclarationsTests(ApiWebApplicationFactory factory,
         await VerifyJson(content);
     }
 
+    [Fact]
+    public async Task Validation_WhenRegistrationTypeUnknown_ShouldBeBadRequest()
+    {
+        var content = await RequestShouldBeBadRequest(
+            EndpointQuery.New.Where(EndpointFilter.RegistrationType("unknown"))
+        );
+
+        await VerifyJson(content);
+    }
+
     [Theory]
     [InlineData(0)]
     public async Task Validation_WhenPageInvalid_ShouldBeBadRequest(int page)
