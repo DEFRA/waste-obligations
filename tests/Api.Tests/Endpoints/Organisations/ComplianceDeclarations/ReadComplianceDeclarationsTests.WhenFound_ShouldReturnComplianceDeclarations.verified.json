@@ -43,6 +43,7 @@
         "language": "en"
       },
       "submitterName": "Submitter Name",
+      "isRegulation43Compliant": true,
       "audit": [
         {
           "user": {
@@ -97,6 +98,7 @@
         "language": "en"
       },
       "submitterName": "Submitter Name",
+      "isRegulation43Compliant": true,
       "audit": [
         {
           "user": {
@@ -151,6 +153,7 @@
         "language": "en"
       },
       "submitterName": "Submitter Name",
+      "isRegulation43Compliant": true,
       "audit": [
         {
           "user": {

@@ -19,6 +19,7 @@ public static class Mappers
             ObligationStatus = dto.ObligationStatus,
             DeclarationText = dto.DeclarationText.ToEntity(),
             SubmitterName = dto.SubmitterName,
+            IsRegulation43Compliant = dto.IsRegulation43Compliant,
         };
 
         return draft.Submit(dto.User.ToEntity(), timeProvider.GetUtcNowWithoutMicroseconds());

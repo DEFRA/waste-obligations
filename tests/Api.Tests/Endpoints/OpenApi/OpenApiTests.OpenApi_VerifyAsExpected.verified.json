@@ -746,6 +746,9 @@
           "submitterName": {
             "type": "string"
           },
+          "isRegulation43Compliant": {
+            "type": "boolean"
+          },
           "audit": {
             "type": "array",
             "items": {
@@ -841,6 +844,9 @@
           },
           "user": {
             "$ref": "#/components/schemas/User"
+          },
+          "isRegulation43Compliant": {
+            "type": "boolean"
           }
         }
       },

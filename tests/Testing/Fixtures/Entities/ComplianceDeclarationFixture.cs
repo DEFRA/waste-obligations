@@ -47,6 +47,7 @@ public static class ComplianceDeclarationFixture
             .With(x => x.DeclarationText, LocalizedTextFixture.Default().Create())
             .With(x => x.SubmitterName, "Submitter Name")
             .With(x => x.Status, ComplianceDeclarationStatus.Submitted)
+            .With(x => x.IsRegulation43Compliant, true)
             .With(x => x.Audit, AuditEntryFixture.Submitted());
     }
 
