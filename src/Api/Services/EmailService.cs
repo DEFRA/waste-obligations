@@ -2,7 +2,6 @@ using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.AccountBackend;
 using Defra.WasteObligations.Api.Services.GovukNotify;
 using Organisation = Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation;
-using RegistrationType = Defra.WasteObligations.Api.Services.WasteOrganisations.RegistrationType;
 
 namespace Defra.WasteObligations.Api.Services;
 
@@ -23,9 +22,10 @@ public class EmailService(
 
         try
         {
-            var registrationType = organisation.RegistrationType(complianceDeclaration.ObligationYear);
             var entityTypeCode =
-                registrationType == RegistrationType.ComplianceScheme ? EntityTypeCode.CS : EntityTypeCode.DR;
+                complianceDeclaration.Organisation.RegistrationType == RegistrationType.ComplianceScheme
+                    ? EntityTypeCode.CS
+                    : EntityTypeCode.DR;
             var personEmails = await accountBackendService.ReadPersonEmails(
                 organisation.Id,
                 entityTypeCode,

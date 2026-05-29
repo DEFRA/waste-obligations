@@ -26,17 +26,14 @@ public class EmailServiceTests
     }
 
     [Theory]
-    [InlineData(RegistrationType.ComplianceScheme, EntityTypeCode.CS)]
-    [InlineData(RegistrationType.LargeProducer, EntityTypeCode.DR)]
-    public async Task SendSubmittedEmail_ShouldCallGovukNotify(string registrationType, EntityTypeCode entityTypeCode)
+    [InlineData(false, EntityTypeCode.CS)]
+    [InlineData(true, EntityTypeCode.DR)]
+    public async Task SendSubmittedEmail_ShouldCallGovukNotify(bool directProducer, EntityTypeCode entityTypeCode)
     {
-        var complianceDeclaration = ComplianceDeclarationFixture
-            .DirectProducer(OrganisationFixture.OrganisationId)
-            .Create();
-        var organisation = OrganisationFixture
-            .Default()
-            .With(x => x.Registrations, [RegistrationFixture.Default().With(x => x.Type, registrationType).Create()])
-            .Create();
+        var complianceDeclaration = directProducer
+            ? ComplianceDeclarationFixture.DirectProducer(OrganisationFixture.OrganisationId).Create()
+            : ComplianceDeclarationFixture.ComplianceScheme(OrganisationFixture.OrganisationId).Create();
+        var organisation = OrganisationFixture.Default().Create();
         AccountBackendService
             .ReadPersonEmails(OrganisationFixture.OrganisationId, entityTypeCode, TestContext.Current.CancellationToken)
             .Returns([PersonEmailFixture.Default()]);
