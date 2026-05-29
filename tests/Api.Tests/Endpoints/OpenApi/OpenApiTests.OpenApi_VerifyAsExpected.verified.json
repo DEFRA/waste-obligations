@@ -970,7 +970,7 @@
       "Organisation": {
         "required": [
           "id",
-          "name",
+          "registrationType",
           "regulator",
           "regulatorEmail"
         ],
@@ -980,8 +980,14 @@
             "type": "string",
             "format": "uuid"
           },
+          "registrationType": {
+            "$ref": "#/components/schemas/RegistrationType"
+          },
           "name": {
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "complianceSchemeName": {
             "type": [
@@ -1078,6 +1084,12 @@
             ]
           }
         }
+      },
+      "RegistrationType": {
+        "enum": [
+          "DirectProducer",
+          "ComplianceScheme"
+        ]
       },
       "UpdateComplianceDeclarationRequest": {
         "required": [

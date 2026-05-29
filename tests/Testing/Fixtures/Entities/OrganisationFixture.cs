@@ -19,6 +19,7 @@ public static class OrganisationFixture
     {
         return Organisation()
             .With(x => x.Id, () => id ?? Guid.NewGuid())
+            .With(x => x.RegistrationType, RegistrationType.DirectProducer)
             .With(x => x.Name, "Org Name")
             .With(x => x.ReferenceNumber, "123456")
             .With(x => x.Address, AddressFixture.Default().Create())
@@ -32,6 +33,7 @@ public static class OrganisationFixture
     {
         return Organisation()
             .With(x => x.Id, () => id ?? Guid.NewGuid())
+            .With(x => x.RegistrationType, RegistrationType.ComplianceScheme)
             .With(x => x.ComplianceSchemeName, "Scheme Name")
             .With(x => x.SchemeOperatorName, "Operator Name")
             .With(x => x.ReferenceNumber, "123456")

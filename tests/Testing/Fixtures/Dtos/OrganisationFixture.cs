@@ -18,6 +18,7 @@ public static class OrganisationFixture
         return Organisation()
             .With(x => x.Id, () => id ?? Guid.NewGuid())
             .With(x => x.Name, "Org Name")
+            .With(x => x.RegistrationType, RegistrationType.DirectProducer)
             .With(x => x.ReferenceNumber, "123456")
             .With(x => x.Address, AddressFixture.Default().Create())
             .With(x => x.Regulator, "Regulator")

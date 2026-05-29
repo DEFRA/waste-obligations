@@ -53,6 +53,12 @@ public static class Mappers
         new()
         {
             Id = entity.Id,
+            RegistrationType = entity.RegistrationType switch
+            {
+                RegistrationType.DirectProducer => Dtos.RegistrationType.DirectProducer,
+                RegistrationType.ComplianceScheme => Dtos.RegistrationType.ComplianceScheme,
+                _ => throw new InvalidOperationException("Unknown registration type"),
+            },
             Name = entity.Name,
             ComplianceSchemeName = entity.ComplianceSchemeName,
             SchemeOperatorName = entity.SchemeOperatorName,

@@ -1,8 +1,8 @@
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.AccountBackend;
 using Defra.WasteObligations.Api.Services.GovukNotify;
-using Defra.WasteObligations.Api.Services.WasteOrganisations;
 using Organisation = Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation;
+using RegistrationType = Defra.WasteObligations.Api.Services.WasteOrganisations.RegistrationType;
 
 namespace Defra.WasteObligations.Api.Services;
 

@@ -5,6 +5,7 @@
   "status": "Submitted",
   "organisation": {
     "id": "923fa611-571c-4948-ab7d-fbb75e75ed65",
+    "registrationType": "DirectProducer",
     "name": "Org Name",
     "complianceSchemeName": null,
     "schemeOperatorName": null,
