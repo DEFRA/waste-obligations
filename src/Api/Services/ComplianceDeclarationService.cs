@@ -48,6 +48,21 @@ public class ComplianceDeclarationService(
             .Where(x => x.Organisation.Id == organisationId && x.ObligationYear == obligationYear)
             .ToListAsync(cancellationToken);
 
+    public async Task<bool> Delete(string id, CancellationToken cancellationToken)
+    {
+        var deleteResult = await dbContext.ComplianceDeclarations.DeleteOneAsync(
+            Builders<ComplianceDeclaration>.Filter.Eq(x => x.Id, ObjectId.Parse(id)),
+            cancellationToken
+        );
+
+        if (deleteResult.DeletedCount == 0)
+            return false;
+
+        logger.LogInformation("Deleted compliance declaration with id '{ComplianceDeclarationId}'", id);
+
+        return true;
+    }
+
     public async Task<ComplianceDeclarationSearchResult> Search(
         ComplianceDeclarationSearchQuery query,
         int page,

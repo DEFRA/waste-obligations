@@ -18,6 +18,8 @@ public interface IComplianceDeclarationService
         CancellationToken cancellationToken
     );
 
+    Task<bool> Delete(string id, CancellationToken cancellationToken);
+
     Task<ComplianceDeclarationSearchResult> Search(
         ComplianceDeclarationSearchQuery query,
         int page,

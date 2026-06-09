@@ -58,5 +58,7 @@ public static class Endpoints
         private static string Root = "compliance-declarations";
 
         public static string Search(EndpointQuery? query = null) => $"{Root}{query}";
+
+        public static string Delete(string id) => $"{Root}/{id}";
     }
 }

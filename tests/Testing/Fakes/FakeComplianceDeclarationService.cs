@@ -91,6 +91,8 @@ public class FakeComplianceDeclarationService : IComplianceDeclarationService
         return Task.FromResult(Enumerable.Empty<ComplianceDeclaration>());
     }
 
+    public Task<bool> Delete(string id, CancellationToken cancellationToken) => Task.FromResult(false);
+
     public Task<ComplianceDeclarationSearchResult> Search(
         ComplianceDeclarationSearchQuery query,
         int page,
