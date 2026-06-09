@@ -97,6 +97,29 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Delete_WhenNoComplianceDeclaration_ShouldReturnFalse()
+    {
+        var deleted = await Subject.Delete(ObjectId.GenerateNewId().ToString(), TestContext.Current.CancellationToken);
+
+        deleted.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Delete_WhenDeleted_ShouldRemove()
+    {
+        var initial = await Subject.Create(
+            ComplianceDeclarationFixture.DirectProducer().Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        var deleted = await Subject.Delete(initial.Id.ToString(), TestContext.Current.CancellationToken);
+        var retrieved = await Subject.Read(initial.Id.ToString(), TestContext.Current.CancellationToken);
+
+        deleted.Should().BeTrue();
+        retrieved.Should().BeNull();
+    }
+
+    [Fact]
     public async Task Update_WhenUpdated_ShouldChange()
     {
         var initial = await Subject.Create(
