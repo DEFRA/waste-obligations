@@ -6,11 +6,15 @@ namespace Defra.WasteObligations.Api.Endpoints.ComplianceDeclarations;
 
 public static class DeleteComplianceDeclaration
 {
+    public const string OperationId = "DeleteComplianceDeclaration";
+
     public static void MapComplianceDeclarationDelete(this IEndpointRouteBuilder app)
     {
         app.MapDelete("/compliance-declarations/{id}", Handle)
+            .WithName(OperationId)
             .ExcludeFromDescription()
-            .RequireAuthorization(PolicyNames.Write);
+            .RequireAuthorization(PolicyNames.Write)
+            .AddEndpointFilter<AllowedEndpointFilter>();
     }
 
     private static async Task<IResult> Handle(

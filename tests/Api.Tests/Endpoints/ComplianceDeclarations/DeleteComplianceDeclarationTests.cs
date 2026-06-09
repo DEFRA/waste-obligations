@@ -35,7 +35,7 @@ public class DeleteComplianceDeclarationTests(ApiWebApplicationFactory factory, 
     public async Task WhenNotFound_ShouldBeNotFound()
     {
         var id = ObjectId.GenerateNewId().ToString();
-        var client = CreateClient(testUser: TestUser.WriteOnly);
+        var client = CreateClient(testUser: TestUser.ReadWrite);
 
         var response = await client.DeleteAsync(
             Testing.Endpoints.ComplianceDeclarations.Delete(id),
@@ -46,10 +46,26 @@ public class DeleteComplianceDeclarationTests(ApiWebApplicationFactory factory, 
     }
 
     [Fact]
-    public async Task WhenDeleted_ShouldBeNoContent()
+    public async Task WhenWriteOnlyUserAndEndpointNotAllowed_ShouldBeNotFound()
     {
         var id = ObjectId.GenerateNewId().ToString();
         var client = CreateClient(testUser: TestUser.WriteOnly);
+        ComplianceDeclarationService.Delete(id, Arg.Any<CancellationToken>()).Returns(true);
+
+        var response = await client.DeleteAsync(
+            Testing.Endpoints.ComplianceDeclarations.Delete(id),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        await ComplianceDeclarationService.DidNotReceive().Delete(id, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task WhenDeleted_ShouldBeNoContent()
+    {
+        var id = ObjectId.GenerateNewId().ToString();
+        var client = CreateClient(testUser: TestUser.ReadWrite);
         ComplianceDeclarationService.Delete(id, Arg.Any<CancellationToken>()).Returns(true);
 
         var response = await client.DeleteAsync(

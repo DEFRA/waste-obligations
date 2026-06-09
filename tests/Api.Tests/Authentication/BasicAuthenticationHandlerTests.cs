@@ -159,6 +159,42 @@ public class BasicAuthenticationHandlerTests
         await AuthenticateAndAssertFailure();
     }
 
+    [Fact]
+    public async Task WhenMatchingClientIdAndSecret_ShouldMapClientIdAndScopeClaims()
+    {
+        const string clientId = "client";
+        AclOptions.Clients.Add(
+            clientId,
+            new AclOptions.Client
+            {
+                Type = AclOptions.ClientType.ApiKey,
+                Secret = "secret",
+                Scopes = ["scope1", "scope2"],
+            }
+        );
+        await Subject.InitializeAsync(
+            Scheme(),
+            new DefaultHttpContext
+            {
+                Request =
+                {
+                    Headers = { Authorization = $"Basic {Convert.ToBase64String("client:secret"u8.ToArray())}" },
+                },
+            }
+        );
+
+        var result = await Subject.AuthenticateAsync();
+
+        result.Succeeded.Should().BeTrue();
+        result.Principal.Should().NotBeNull();
+        result
+            .Principal.Claims.FirstOrDefault(x => x is { Type: Claims.ClientId, Value: clientId })
+            .Should()
+            .NotBeNull();
+        result.Principal.Claims.FirstOrDefault(x => x is { Type: Claims.Scope, Value: "scope1" }).Should().NotBeNull();
+        result.Principal.Claims.FirstOrDefault(x => x is { Type: Claims.Scope, Value: "scope2" }).Should().NotBeNull();
+    }
+
     private static AuthenticationScheme Scheme()
     {
         return new AuthenticationScheme("Basic", "Basic", typeof(BasicAuthenticationHandler));

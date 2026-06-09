@@ -10,6 +10,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddAuthenticationAuthorization(this IServiceCollection services)
     {
         services.AddOptions<AclOptions>().BindConfiguration("Acl").ValidateDataAnnotations().ValidateOnStart();
+        services.AddTransient<AllowedEndpointFilter>();
 
         services
             .AddAuthentication(BasicAuthenticationHandler.SchemeName)

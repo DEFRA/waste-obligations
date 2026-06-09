@@ -43,7 +43,7 @@ public class BasicAuthenticationHandler(
         if (client is not { Type: AclOptions.ClientType.ApiKey } || client.Secret != secret)
             return Fail();
 
-        var claims = new List<Claim> { new(ClaimTypes.Name, clientId) };
+        var claims = new List<Claim> { new(ClaimTypes.Name, clientId), new(Claims.ClientId, clientId) };
         claims.AddRange(client.Scopes.Select(scope => new Claim(Claims.Scope, scope)));
 
         var identity = new ClaimsIdentity(claims, Scheme.Name);
