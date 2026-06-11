@@ -15,6 +15,8 @@ public class AclOptions
 
         [Required]
         public required string[] Scopes { get; init; } = [];
+
+        public string[] AllowedEndpoints { get; set; } = [];
     }
 
     public enum ClientType
