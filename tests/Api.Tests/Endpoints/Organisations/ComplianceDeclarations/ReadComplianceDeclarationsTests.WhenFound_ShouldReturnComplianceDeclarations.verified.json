@@ -39,10 +39,6 @@
         }
       ],
       "obligationStatus": "NotMet",
-      "declarationText": {
-        "text": "This is the text",
-        "language": "en"
-      },
       "submitterName": "Submitter Name",
       "isRegulation43Compliant": true,
       "audit": [
@@ -95,10 +91,6 @@
         }
       ],
       "obligationStatus": "NotMet",
-      "declarationText": {
-        "text": "This is the text",
-        "language": "en"
-      },
       "submitterName": "Submitter Name",
       "isRegulation43Compliant": true,
       "audit": [
@@ -151,10 +143,6 @@
         }
       ],
       "obligationStatus": "NotMet",
-      "declarationText": {
-        "text": "This is the text",
-        "language": "en"
-      },
       "submitterName": "Submitter Name",
       "isRegulation43Compliant": true,
       "audit": [

@@ -705,7 +705,6 @@
           "organisation",
           "obligationYear",
           "obligationStatus",
-          "declarationText",
           "submitterName"
         ],
         "type": "object",
@@ -750,9 +749,6 @@
               "NotMet"
             ],
             "type": "string"
-          },
-          "declarationText": {
-            "$ref": "#/components/schemas/LocalizedText"
           },
           "submitterName": {
             "type": "string"
@@ -815,7 +811,6 @@
           "organisation",
           "obligationYear",
           "obligationStatus",
-          "declarationText",
           "submitterName",
           "user"
         ],
@@ -847,9 +842,6 @@
             ],
             "type": "string"
           },
-          "declarationText": {
-            "$ref": "#/components/schemas/LocalizedText"
-          },
           "submitterName": {
             "type": "string"
           },
@@ -858,22 +850,6 @@
           },
           "isRegulation43Compliant": {
             "type": "boolean"
-          }
-        }
-      },
-      "LocalizedText": {
-        "required": [
-          "text",
-          "language"
-        ],
-        "type": "object",
-        "properties": {
-          "text": {
-            "type": "string"
-          },
-          "language": {
-            "type": "string",
-            "description": "Language string for ISO 639-1 (example en) or BCP 47 (example en-GB)"
           }
         }
       },

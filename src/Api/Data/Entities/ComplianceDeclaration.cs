@@ -20,7 +20,6 @@ public record ComplianceDeclaration
     public int ObligationYear { get; init; }
     public IEnumerable<Obligation> Obligations { get; init; } = [];
     public required string ObligationStatus { get; init; }
-    public required LocalizedText DeclarationText { get; init; }
     public required string SubmitterName { get; init; }
     public IEnumerable<AuditEntry> Audit { get; init; } = [];
     public bool IsRegulation43Compliant { get; init; }

@@ -44,7 +44,7 @@ public class EmailService(
                     { "regulator", complianceDeclaration.Organisation.Regulator },
                     { "regulatorEmail", complianceDeclaration.Organisation.RegulatorEmail },
                 },
-                complianceDeclaration.DeclarationText.Language
+                "en"
             );
 
             logger.LogInformation("Sent submitted email");
