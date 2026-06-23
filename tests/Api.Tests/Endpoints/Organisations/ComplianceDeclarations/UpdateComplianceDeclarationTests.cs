@@ -88,6 +88,27 @@ public class UpdateComplianceDeclarationTests : EndpointTestBase
     }
 
     [Fact]
+    public async Task Validation_WhenNoUserDetail_ShouldBeBadRequest()
+    {
+        var content = await RequestShouldBeBadRequest(
+            UpdateComplianceDeclarationRequestFixture
+                .Default()
+                .With(
+                    x => x.User,
+                    new User
+                    {
+                        Id = null!,
+                        Email = null!,
+                        Name = null!,
+                    }
+                )
+                .Create()
+        );
+
+        await VerifyJson(content);
+    }
+
+    [Fact]
     public async Task Validation_WhenUnknownPayload_ShouldBeBadRequest()
     {
         var content = await RequestShouldBeBadRequest(new { Status = "Unknown" });

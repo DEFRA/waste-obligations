@@ -12,4 +12,8 @@ public record User
     [Required]
     [JsonPropertyName("email")]
     public required string Email { get; init; }
+
+    [Required]
+    [JsonPropertyName("name")]
+    public required string Name { get; init; }
 }

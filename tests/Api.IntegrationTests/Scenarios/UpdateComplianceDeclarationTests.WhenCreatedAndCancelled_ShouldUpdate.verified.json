@@ -43,7 +43,8 @@
     {
       "user": {
         "id": "Guid_2",
-        "email": "submitter@email.com"
+        "email": "submitter@email.com",
+        "name": "Submitter Name"
       },
       "timestamp": "{Scrubbed}",
       "action": "Submitted"
@@ -52,7 +53,8 @@
       "reason": "Cancelled reason",
       "user": {
         "id": "Guid_3",
-        "email": "approved-person@email.com"
+        "email": "approved-person@email.com",
+        "name": "Approved Person Name"
       },
       "timestamp": "{Scrubbed}",
       "action": "Cancelled"

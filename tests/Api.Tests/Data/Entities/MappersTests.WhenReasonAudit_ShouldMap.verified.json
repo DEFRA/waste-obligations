@@ -2,7 +2,8 @@
   {
     "User": {
       "Id": "Guid_1",
-      "Email": "submitter@email.com"
+      "Email": "submitter@email.com",
+      "Name": "Submitter Name"
     },
     "Timestamp": "DateTimeOffset_1",
     "Action": "Submitted"
@@ -11,7 +12,8 @@
     "Reason": "Invalid",
     "User": {
       "Id": "Guid_1",
-      "Email": "submitter@email.com"
+      "Email": "submitter@email.com",
+      "Name": "Submitter Name"
     },
     "Timestamp": "DateTimeOffset_2",
     "Action": "Cancelled"

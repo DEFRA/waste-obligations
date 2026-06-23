@@ -43,7 +43,13 @@ public static class Mappers
             Obligated = entity.Obligated,
         };
 
-    private static Dtos.User ToDto(this User entity) => new() { Id = entity.Id, Email = entity.Email };
+    private static Dtos.User ToDto(this User entity) =>
+        new()
+        {
+            Id = entity.Id,
+            Email = entity.Email,
+            Name = entity.Name,
+        };
 
     public static Dtos.Organisation ToDto(this Organisation entity) =>
         new()

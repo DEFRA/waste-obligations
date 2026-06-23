@@ -5,6 +5,7 @@ using MongoDB.Bson.Serialization.Attributes;
 
 namespace Defra.WasteObligations.Api.Data.Entities;
 
+[BsonIgnoreExtraElements]
 public record ComplianceDeclaration
 {
     public ObjectId Id { get; init; }

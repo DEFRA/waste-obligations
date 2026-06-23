@@ -45,7 +45,8 @@
         {
           "user": {
             "id": "Guid_2",
-            "email": "submitter@email.com"
+            "email": "submitter@email.com",
+            "name": "Submitter Name"
           },
           "timestamp": "DateTimeOffset_3",
           "action": "Submitted"

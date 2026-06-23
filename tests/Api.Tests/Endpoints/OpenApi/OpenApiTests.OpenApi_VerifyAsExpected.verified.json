@@ -1108,7 +1108,8 @@
       "User": {
         "required": [
           "id",
-          "email"
+          "email",
+          "name"
         ],
         "type": "object",
         "properties": {
@@ -1116,6 +1117,9 @@
             "type": "string"
           },
           "email": {
+            "type": "string"
+          },
+          "name": {
             "type": "string"
           }
         }
