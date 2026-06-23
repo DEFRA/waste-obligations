@@ -7,7 +7,7 @@ public static class AuditEntryFixture
 {
     public static IEnumerable<AuditEntry> Submitted(DateTime? timestamp = null) =>
         [
-            new("Submitted")
+            new(nameof(ComplianceDeclarationStatus.Submitted))
             {
                 User = UserFixture.Default().Create(),
                 Timestamp = timestamp ?? new DateTime(2026, 4, 26, 14, 0, 0, DateTimeKind.Utc),
@@ -16,7 +16,7 @@ public static class AuditEntryFixture
 
     public static IEnumerable<AuditEntry> Cancelled(DateTime? timestamp = null) =>
         [
-            new ReasonAuditEntry("Cancelled")
+            new ReasonAuditEntry(nameof(ComplianceDeclarationStatus.Cancelled))
             {
                 Reason = "Invalid",
                 User = UserFixture.Default().Create(),

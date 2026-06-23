@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Options;
 
 namespace Defra.WasteObligations.Api.Authentication;

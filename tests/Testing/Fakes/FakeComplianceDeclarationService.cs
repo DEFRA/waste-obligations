@@ -1,6 +1,5 @@
 using AutoFixture;
 using Defra.WasteObligations.Api.Data;
-using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
 using MongoDB.Bson;

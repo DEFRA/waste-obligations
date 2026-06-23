@@ -3,7 +3,6 @@ using System.Net.Http.Json;
 using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Dtos;
-using Defra.WasteObligations.Api.Services.AccountBackend;
 using Defra.WasteObligations.Testing.Authentication;
 using Defra.WasteObligations.Testing.Extensions;
 using Defra.WasteObligations.Testing.Extensions.WireMock;
@@ -24,11 +23,6 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
         await WireMockContext.WireMockAdminApi.StubTokenRequest(
             expiryInSeconds: 60,
             clientId: ClientIds.AccountBackend
-        );
-        await WireMockContext.WireMockAdminApi.StubAccountBackendPersonEmailsRequest(
-            organisationId,
-            EntityTypeCode.DR,
-            OAuth2Extensions.AccessToken
         );
 
         var client = CreateClient();
@@ -74,11 +68,6 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
         await WireMockContext.WireMockAdminApi.StubTokenRequest(
             expiryInSeconds: 60,
             clientId: ClientIds.AccountBackend
-        );
-        await WireMockContext.WireMockAdminApi.StubAccountBackendPersonEmailsRequest(
-            organisationId,
-            EntityTypeCode.DR,
-            OAuth2Extensions.AccessToken
         );
 
         var client = CreateClient();
