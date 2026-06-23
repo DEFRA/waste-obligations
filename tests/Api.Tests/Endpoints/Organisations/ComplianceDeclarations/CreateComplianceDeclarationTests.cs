@@ -139,6 +139,23 @@ public class CreateComplianceDeclarationTests : EndpointTestBase
     }
 
     [Fact]
+    public async Task Validation_WhenRequestInvalid_ShouldBeBadRequest()
+    {
+        var content = await RequestShouldBeBadRequest(
+            new CreateComplianceDeclarationRequest
+            {
+                Organisation = null!,
+                ObligationYear = 0,
+                ObligationStatus = null!,
+                SubmitterName = null!,
+                User = null!,
+            }
+        );
+
+        await VerifyJson(content);
+    }
+
+    [Fact]
     public async Task WhenException_ShouldBeInternalServerError()
     {
         var client = CreateClient(testUser: TestUser.WriteOnly);

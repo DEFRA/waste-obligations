@@ -20,6 +20,9 @@ public static class UserFixture
 
     public static IPostprocessComposer<User> Default()
     {
-        return User().With(x => x.Id, "e72be574-8b5b-4836-af47-dd7e0c0d1d87").With(x => x.Email, "submitter@email.com");
+        return User()
+            .With(x => x.Id, "e72be574-8b5b-4836-af47-dd7e0c0d1d87")
+            .With(x => x.Email, "submitter@email.com")
+            .With(x => x.Name, "Submitter Name");
     }
 }
