@@ -25,10 +25,6 @@ public record CreateComplianceDeclarationRequest
     public required string ObligationStatus { get; init; }
 
     [Required]
-    [JsonPropertyName("declarationText")]
-    public required LocalizedText DeclarationText { get; init; }
-
-    [Required]
     [JsonPropertyName("submitterName")]
     public required string SubmitterName { get; init; }
 

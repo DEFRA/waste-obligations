@@ -51,7 +51,7 @@ public class EmailServiceTests
                     && (string)x["regulator"] == complianceDeclaration.Organisation.Regulator
                     && (string)x["regulatorEmail"] == complianceDeclaration.Organisation.RegulatorEmail
                 ),
-                complianceDeclaration.DeclarationText.Language
+                "en"
             );
     }
 

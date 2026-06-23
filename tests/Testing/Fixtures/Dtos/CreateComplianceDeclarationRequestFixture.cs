@@ -33,7 +33,6 @@ public static class CreateComplianceDeclarationRequestFixture
             .With(x => x.ObligationYear, 2026)
             .With(x => x.Obligations, [ObligationFixture.Default().Create()])
             .With(x => x.ObligationStatus, ObligationStatus.NotMet)
-            .With(x => x.DeclarationText, LocalizedTextFixture.Default().Create())
             .With(x => x.SubmitterName, "Submitter Name")
             .With(x => x.User, UserFixture.Default().Create())
             .With(x => x.IsRegulation43Compliant, true);

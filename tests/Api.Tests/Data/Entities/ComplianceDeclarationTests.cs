@@ -80,7 +80,6 @@ public class ComplianceDeclarationTests
         {
             Organisation = OrganisationFixture.Organisation().Create(),
             ObligationStatus = "Met",
-            DeclarationText = LocalizedTextFixture.Default().Create(),
             SubmitterName = "Submitter",
         };
 }

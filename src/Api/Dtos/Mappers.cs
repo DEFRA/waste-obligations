@@ -17,7 +17,6 @@ public static class Mappers
             ObligationYear = dto.ObligationYear,
             Obligations = [.. dto.Obligations.Select(x => x.ToEntity())],
             ObligationStatus = dto.ObligationStatus,
-            DeclarationText = dto.DeclarationText.ToEntity(),
             SubmitterName = dto.SubmitterName,
             IsRegulation43Compliant = dto.IsRegulation43Compliant,
         };
@@ -43,9 +42,6 @@ public static class Mappers
             Outstanding = dto.Outstanding,
             Obligated = dto.Obligated,
         };
-
-    private static Data.Entities.LocalizedText ToEntity(this LocalizedText dto) =>
-        new() { Text = dto.Text, Language = dto.Language };
 
     public static Data.Entities.User ToEntity(this User dto) => new() { Id = dto.Id, Email = dto.Email };
 
