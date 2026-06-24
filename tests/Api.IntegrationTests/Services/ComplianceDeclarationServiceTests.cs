@@ -239,8 +239,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             .SortBy(x => x.Sequence)
             .ToListAsync(TestContext.Current.CancellationToken);
 
-        auditEvents.Should().HaveCount(2);
-        auditEvents.Select(x => x.Sequence).Should().BeEquivalentTo([1, 2], options => options.WithStrictOrdering());
+        await Verify(ToVerifyAuditEvents(auditEvents)).ScrubMembers("EntityId", "_id");
     }
 
     [Fact]
@@ -263,9 +262,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             .SortBy(x => x.Sequence)
             .ToListAsync(TestContext.Current.CancellationToken);
 
-        auditEvents.Select(x => x.Sequence).Should().BeEquivalentTo([1, 2, 3, 4], x => x.WithStrictOrdering());
-        auditEvents.Where(x => x.EntityId == first.Id.ToString()).Select(x => x.Version).Should().Equal(1, 2);
-        auditEvents.Where(x => x.EntityId == second.Id.ToString()).Select(x => x.Version).Should().Equal(1, 2);
+        await Verify(ToVerifyAuditEvents(auditEvents)).ScrubMembers("EntityId", "_id");
     }
 
     [Fact]
@@ -553,4 +550,43 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         result.ComplianceDeclarations.Should().ContainSingle();
         result.ComplianceDeclarations.Should().Contain(x => x.Organisation.Name == regexName);
     }
+
+    private static IEnumerable<object> ToVerifyAuditEvents(IEnumerable<AuditEvent> auditEvents) =>
+        auditEvents.Select(x => new
+        {
+            x.EventId,
+            x.Sequence,
+            x.Entity,
+            x.EntityId,
+            x.Operation,
+            x.OccurredAt,
+            x.RecordedAt,
+            x.Actor,
+            x.Version,
+            Before = ToPlainDocument(x.Before),
+            After = ToPlainDocument(x.After),
+            x.SchemaVersion,
+        });
+
+    private static object? ToPlainDocument(BsonDocument? document)
+    {
+        return document is null ? null : ToPlainValue(document);
+    }
+
+    private static object? ToPlainValue(BsonValue value) =>
+        value.BsonType switch
+        {
+            BsonType.Array => value.AsBsonArray.Select(ToPlainValue).ToList(),
+            BsonType.Boolean => value.AsBoolean,
+            BsonType.DateTime => value.ToUniversalTime(),
+            BsonType.Decimal128 => value.AsDecimal,
+            BsonType.Document => value.AsBsonDocument.ToDictionary(x => x.Name, x => ToPlainValue(x.Value)),
+            BsonType.Double => value.AsDouble,
+            BsonType.Int32 => value.AsInt32,
+            BsonType.Int64 => value.AsInt64,
+            BsonType.Null => null,
+            BsonType.ObjectId => value.AsObjectId.ToString(),
+            BsonType.String => value.AsString,
+            _ => BsonTypeMapper.MapToDotNetValue(value),
+        };
 }

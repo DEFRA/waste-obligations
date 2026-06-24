@@ -1,0 +1,374 @@
+﻿[
+  {
+    "EventId": "01HXYZ00000000000000000001",
+    "Sequence": 1,
+    "Entity": "compliance_declaration",
+    "EntityId": "{Scrubbed}",
+    "Operation": "insert",
+    "OccurredAt": "DateTime_1",
+    "RecordedAt": "DateTime_2",
+    "Actor": "service:waste-obligations",
+    "Version": 1,
+    "After": {
+      "_id": "{Scrubbed}",
+      "audit": [
+        {
+          "action": "Submitted",
+          "timestamp": "DateTime_3",
+          "user": {
+            "_id": "{Scrubbed}",
+            "email": "submitter@email.com",
+            "name": "Submitter Name"
+          }
+        }
+      ],
+      "created": "DateTime_1",
+      "isRegulation43Compliant": true,
+      "obligations": [
+        {
+          "material": "Plastic",
+          "recyclingTarget": 0.75,
+          "status": "NoDataYet",
+          "tonnages": {
+            "accepted": 2,
+            "awaitingAcceptance": 10,
+            "material": 100,
+            "obligated": 5,
+            "outstanding": 20
+          }
+        }
+      ],
+      "obligationStatus": "NotMet",
+      "obligationYear": 2026,
+      "organisation": {
+        "_id": "{Scrubbed}",
+        "address": {
+          "addressLine1": "Test Name Ltd",
+          "addressLine2": "123 Street",
+          "country": "UK",
+          "county": "County",
+          "postcode": "UK1",
+          "town": "Town"
+        },
+        "complianceSchemeName": null,
+        "name": "Org Name",
+        "referenceNumber": "123456",
+        "registrationType": "DirectProducer",
+        "regulator": "Regulator",
+        "regulatorEmail": "regulator@email.com",
+        "schemeOperatorName": null
+      },
+      "status": "Submitted",
+      "submitterName": "Submitter Name",
+      "updated": "DateTime_1",
+      "version": 1
+    },
+    "SchemaVersion": "compliance_declaration.v1"
+  },
+  {
+    "EventId": "01HXYZ00000000000000000002",
+    "Sequence": 2,
+    "Entity": "compliance_declaration",
+    "EntityId": "{Scrubbed}",
+    "Operation": "insert",
+    "OccurredAt": "DateTime_4",
+    "RecordedAt": "DateTime_5",
+    "Actor": "service:waste-obligations",
+    "Version": 1,
+    "After": {
+      "_id": "{Scrubbed}",
+      "audit": [
+        {
+          "action": "Submitted",
+          "timestamp": "DateTime_3",
+          "user": {
+            "_id": "{Scrubbed}",
+            "email": "submitter@email.com",
+            "name": "Submitter Name"
+          }
+        }
+      ],
+      "created": "DateTime_4",
+      "isRegulation43Compliant": true,
+      "obligations": [
+        {
+          "material": "Plastic",
+          "recyclingTarget": 0.75,
+          "status": "NoDataYet",
+          "tonnages": {
+            "accepted": 2,
+            "awaitingAcceptance": 10,
+            "material": 100,
+            "obligated": 5,
+            "outstanding": 20
+          }
+        }
+      ],
+      "obligationStatus": "NotMet",
+      "obligationYear": 2026,
+      "organisation": {
+        "_id": "{Scrubbed}",
+        "address": {
+          "addressLine1": "Test Name Ltd",
+          "addressLine2": "123 Street",
+          "country": "UK",
+          "county": "County",
+          "postcode": "UK1",
+          "town": "Town"
+        },
+        "complianceSchemeName": null,
+        "name": "Org Name",
+        "referenceNumber": "123456",
+        "registrationType": "DirectProducer",
+        "regulator": "Regulator",
+        "regulatorEmail": "regulator@email.com",
+        "schemeOperatorName": null
+      },
+      "status": "Submitted",
+      "submitterName": "Submitter Name",
+      "updated": "DateTime_4",
+      "version": 1
+    },
+    "SchemaVersion": "compliance_declaration.v1"
+  },
+  {
+    "EventId": "01HXYZ00000000000000000003",
+    "Sequence": 3,
+    "Entity": "compliance_declaration",
+    "EntityId": "{Scrubbed}",
+    "Operation": "update",
+    "OccurredAt": "DateTime_6",
+    "RecordedAt": "DateTime_7",
+    "Actor": "service:waste-obligations",
+    "Version": 2,
+    "Before": {
+      "_id": "{Scrubbed}",
+      "audit": [
+        {
+          "action": "Submitted",
+          "timestamp": "DateTime_3",
+          "user": {
+            "_id": "{Scrubbed}",
+            "email": "submitter@email.com",
+            "name": "Submitter Name"
+          }
+        }
+      ],
+      "created": "DateTime_1",
+      "isRegulation43Compliant": true,
+      "obligations": [
+        {
+          "material": "Plastic",
+          "recyclingTarget": 0.75,
+          "status": "NoDataYet",
+          "tonnages": {
+            "accepted": 2,
+            "awaitingAcceptance": 10,
+            "material": 100,
+            "obligated": 5,
+            "outstanding": 20
+          }
+        }
+      ],
+      "obligationStatus": "NotMet",
+      "obligationYear": 2026,
+      "organisation": {
+        "_id": "{Scrubbed}",
+        "address": {
+          "addressLine1": "Test Name Ltd",
+          "addressLine2": "123 Street",
+          "country": "UK",
+          "county": "County",
+          "postcode": "UK1",
+          "town": "Town"
+        },
+        "complianceSchemeName": null,
+        "name": "Org Name",
+        "referenceNumber": "123456",
+        "registrationType": "DirectProducer",
+        "regulator": "Regulator",
+        "regulatorEmail": "regulator@email.com",
+        "schemeOperatorName": null
+      },
+      "status": "Submitted",
+      "submitterName": "Submitter Name",
+      "updated": "DateTime_1",
+      "version": 1
+    },
+    "After": {
+      "_id": "{Scrubbed}",
+      "audit": [
+        {
+          "action": "Submitted",
+          "timestamp": "DateTime_3",
+          "user": {
+            "_id": "{Scrubbed}",
+            "email": "submitter@email.com",
+            "name": "Submitter Name"
+          }
+        }
+      ],
+      "created": "DateTime_1",
+      "isRegulation43Compliant": true,
+      "obligations": [
+        {
+          "material": "Plastic",
+          "recyclingTarget": 0.75,
+          "status": "NoDataYet",
+          "tonnages": {
+            "accepted": 2,
+            "awaitingAcceptance": 10,
+            "material": 100,
+            "obligated": 5,
+            "outstanding": 20
+          }
+        }
+      ],
+      "obligationStatus": "NotMet",
+      "obligationYear": 2027,
+      "organisation": {
+        "_id": "{Scrubbed}",
+        "address": {
+          "addressLine1": "Test Name Ltd",
+          "addressLine2": "123 Street",
+          "country": "UK",
+          "county": "County",
+          "postcode": "UK1",
+          "town": "Town"
+        },
+        "complianceSchemeName": null,
+        "name": "Org Name",
+        "referenceNumber": "123456",
+        "registrationType": "DirectProducer",
+        "regulator": "Regulator",
+        "regulatorEmail": "regulator@email.com",
+        "schemeOperatorName": null
+      },
+      "status": "Submitted",
+      "submitterName": "Submitter Name",
+      "updated": "DateTime_6",
+      "version": 2
+    },
+    "SchemaVersion": "compliance_declaration.v1"
+  },
+  {
+    "EventId": "01HXYZ00000000000000000004",
+    "Sequence": 4,
+    "Entity": "compliance_declaration",
+    "EntityId": "{Scrubbed}",
+    "Operation": "update",
+    "OccurredAt": "DateTime_8",
+    "RecordedAt": "DateTime_9",
+    "Actor": "service:waste-obligations",
+    "Version": 2,
+    "Before": {
+      "_id": "{Scrubbed}",
+      "audit": [
+        {
+          "action": "Submitted",
+          "timestamp": "DateTime_3",
+          "user": {
+            "_id": "{Scrubbed}",
+            "email": "submitter@email.com",
+            "name": "Submitter Name"
+          }
+        }
+      ],
+      "created": "DateTime_4",
+      "isRegulation43Compliant": true,
+      "obligations": [
+        {
+          "material": "Plastic",
+          "recyclingTarget": 0.75,
+          "status": "NoDataYet",
+          "tonnages": {
+            "accepted": 2,
+            "awaitingAcceptance": 10,
+            "material": 100,
+            "obligated": 5,
+            "outstanding": 20
+          }
+        }
+      ],
+      "obligationStatus": "NotMet",
+      "obligationYear": 2026,
+      "organisation": {
+        "_id": "{Scrubbed}",
+        "address": {
+          "addressLine1": "Test Name Ltd",
+          "addressLine2": "123 Street",
+          "country": "UK",
+          "county": "County",
+          "postcode": "UK1",
+          "town": "Town"
+        },
+        "complianceSchemeName": null,
+        "name": "Org Name",
+        "referenceNumber": "123456",
+        "registrationType": "DirectProducer",
+        "regulator": "Regulator",
+        "regulatorEmail": "regulator@email.com",
+        "schemeOperatorName": null
+      },
+      "status": "Submitted",
+      "submitterName": "Submitter Name",
+      "updated": "DateTime_4",
+      "version": 1
+    },
+    "After": {
+      "_id": "{Scrubbed}",
+      "audit": [
+        {
+          "action": "Submitted",
+          "timestamp": "DateTime_3",
+          "user": {
+            "_id": "{Scrubbed}",
+            "email": "submitter@email.com",
+            "name": "Submitter Name"
+          }
+        }
+      ],
+      "created": "DateTime_4",
+      "isRegulation43Compliant": true,
+      "obligations": [
+        {
+          "material": "Plastic",
+          "recyclingTarget": 0.75,
+          "status": "NoDataYet",
+          "tonnages": {
+            "accepted": 2,
+            "awaitingAcceptance": 10,
+            "material": 100,
+            "obligated": 5,
+            "outstanding": 20
+          }
+        }
+      ],
+      "obligationStatus": "NotMet",
+      "obligationYear": 2028,
+      "organisation": {
+        "_id": "{Scrubbed}",
+        "address": {
+          "addressLine1": "Test Name Ltd",
+          "addressLine2": "123 Street",
+          "country": "UK",
+          "county": "County",
+          "postcode": "UK1",
+          "town": "Town"
+        },
+        "complianceSchemeName": null,
+        "name": "Org Name",
+        "referenceNumber": "123456",
+        "registrationType": "DirectProducer",
+        "regulator": "Regulator",
+        "regulatorEmail": "regulator@email.com",
+        "schemeOperatorName": null
+      },
+      "status": "Submitted",
+      "submitterName": "Submitter Name",
+      "updated": "DateTime_8",
+      "version": 2
+    },
+    "SchemaVersion": "compliance_declaration.v1"
+  }
+]
