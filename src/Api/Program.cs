@@ -53,6 +53,7 @@ try
     builder.Services.AddAccountBackendService();
     builder.Services.AddWasteOrganisationsService();
     builder.Services.AddGovukNotify();
+    builder.Services.AddTransient<IAuditEventService, AuditEventService>();
     builder.Services.AddTransient<IComplianceDeclarationService, ComplianceDeclarationService>();
     builder.Services.AddTransient<IEmailService, EmailService>();
 

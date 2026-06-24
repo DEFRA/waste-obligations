@@ -16,13 +16,20 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
 {
     private const string Entity = "compliance_declaration";
 
-    private ComplianceDeclarationService Subject { get; } =
-        new(
-            new MongoDbContext(GetMongoDatabase()),
+    private ComplianceDeclarationService Subject { get; }
+
+    public ComplianceDeclarationServiceTests()
+    {
+        var dbContext = new MongoDbContext(GetMongoDatabase());
+        var auditEventService = new AuditEventService(dbContext, TimeProvider.System, new FakeEventIdGenerator());
+
+        Subject = new(
+            dbContext,
             Substitute.For<ILogger<ComplianceDeclarationService>>(),
             TimeProvider.System,
-            new FakeEventIdGenerator()
+            auditEventService
         );
+    }
 
     [Fact]
     public async Task Read_WhenNoComplianceDeclaration_ShouldBeNull()

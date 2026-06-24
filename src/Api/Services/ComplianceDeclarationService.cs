@@ -10,16 +10,12 @@ public class ComplianceDeclarationService(
     IDbContext dbContext,
     ILogger<ComplianceDeclarationService> logger,
     TimeProvider timeProvider,
-    IEventIdGenerator eventIdGenerator
+    IAuditEventService auditEventService
 ) : IComplianceDeclarationService
 {
     private const string Actor = "service:waste-obligations";
-    private const string CounterId = "audit_event";
-    private const string Entity = "compliance_declaration";
-    private const string InsertOperation = "insert";
-    private const string UpdateOperation = "update";
-    private const string DeleteOperation = "delete";
-    private const string SchemaVersion = "compliance_declaration.v1";
+    private const string ComplianceDeclarationEntity = "compliance_declaration";
+    private const string ComplianceDeclarationSchemaVersion = "compliance_declaration.v1";
 
     public async Task<ComplianceDeclaration> Create(
         ComplianceDeclaration complianceDeclaration,
@@ -40,13 +36,16 @@ public class ComplianceDeclarationService(
                 cancellationToken: cancellationToken
             );
 
-            await InsertAuditEvent(
+            await auditEventService.RecordEvent(
                 session,
-                InsertOperation,
+                Actor,
+                ComplianceDeclarationEntity,
+                AuditEventOperation.Insert,
                 complianceDeclaration.Id.ToString(),
                 complianceDeclaration.Version,
                 null,
                 complianceDeclaration.ToBsonDocument(),
+                ComplianceDeclarationSchemaVersion,
                 utcNow,
                 cancellationToken
             );
@@ -119,13 +118,16 @@ public class ComplianceDeclarationService(
                 );
 
             var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
-            await InsertAuditEvent(
+            await auditEventService.RecordEvent(
                 session,
-                DeleteOperation,
+                Actor,
+                ComplianceDeclarationEntity,
+                AuditEventOperation.Delete,
                 current.Id.ToString(),
                 current.Version + 1,
                 current.ToBsonDocument(),
                 null,
+                ComplianceDeclarationSchemaVersion,
                 utcNow,
                 cancellationToken
             );
@@ -235,13 +237,16 @@ public class ComplianceDeclarationService(
                     $"Concurrency issue on write, compliance declaration with id '{current.Id}' was not updated"
                 );
 
-            await InsertAuditEvent(
+            await auditEventService.RecordEvent(
                 session,
-                UpdateOperation,
+                Actor,
+                ComplianceDeclarationEntity,
+                AuditEventOperation.Update,
                 updated.Id.ToString(),
                 updated.Version,
                 current.ToBsonDocument(),
                 updated.ToBsonDocument(),
+                ComplianceDeclarationSchemaVersion,
                 updated.Updated,
                 cancellationToken
             );
@@ -257,53 +262,5 @@ public class ComplianceDeclarationService(
         logger.LogInformation("Updated compliance declaration with id '{ComplianceDeclarationId}'", updated.Id);
 
         return updated;
-    }
-
-    private async Task InsertAuditEvent(
-        IClientSessionHandle session,
-        string operation,
-        string entityId,
-        int version,
-        BsonDocument? before,
-        BsonDocument? after,
-        DateTime occurredAt,
-        CancellationToken cancellationToken
-    )
-    {
-        var sequence = await AllocateSequence(session, cancellationToken);
-        var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
-
-        await dbContext.AuditEvents.InsertOneAsync(
-            session,
-            new AuditEvent
-            {
-                EventId = eventIdGenerator.Generate(),
-                Sequence = sequence,
-                Entity = Entity,
-                EntityId = entityId,
-                Operation = operation,
-                OccurredAt = occurredAt,
-                RecordedAt = utcNow,
-                Actor = Actor,
-                Version = version,
-                Before = before,
-                After = after,
-                SchemaVersion = SchemaVersion,
-            },
-            cancellationToken: cancellationToken
-        );
-    }
-
-    private async Task<long> AllocateSequence(IClientSessionHandle session, CancellationToken cancellationToken)
-    {
-        var counter = await dbContext.AuditEventCounters.FindOneAndUpdateAsync(
-            session,
-            Builders<AuditEventCounter>.Filter.Eq(x => x.Id, CounterId),
-            Builders<AuditEventCounter>.Update.Inc(x => x.Sequence, 1),
-            new FindOneAndUpdateOptions<AuditEventCounter> { IsUpsert = true, ReturnDocument = ReturnDocument.After },
-            cancellationToken
-        );
-
-        return counter.Sequence;
     }
 }

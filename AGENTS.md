@@ -17,14 +17,20 @@
 - Work backwards through tests to assess changes
 - Attempt to mask use of ToString where possible
 - Check work has been successful by building the solution
+- Run Api.Tests after any change
+- Run Api.IntegrationTests after any change
 
 ## Build guidance
 - In the sandbox environment, avoid plain `dotnet build` because it can hang or take significantly longer due to workload notification/build-server delays
-- Before building, run `dotnet build-server shutdown`
-- Build with `DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE=1 dotnet build waste-obligations.slnx --no-restore -p:OpenApiGenerateDocuments=false -m:1 -nodeReuse:false -v:minimal`
-- If a build is unexpectedly slow, stop it, rerun `dotnet build-server shutdown`, and retry the sandbox build command above
+- Build with `DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE=1 dotnet build waste-obligations.slnx --no-restore -p:OpenApiGenerateDocuments=false -m:1 -nodeReuse:false --disable-build-servers -v:minimal`
+- If a build is unexpectedly slow, stop it, run `dotnet build-server shutdown`, and retry the sandbox build command above
+
+## Test guidance
+- Run Api.Tests with `DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE=1 dotnet test tests/Api.Tests/Api.Tests.csproj --no-restore -p:OpenApiGenerateDocuments=false -m:1 -nodeReuse:false --disable-build-servers -v:minimal`
+- In the sandbox environment, Api.Tests may need escalation because VSTest binds a local socket for test host communication
 
 ## Integration tests
 - Run the local environment with `docker compose up --build -d`
+- Run Api.IntegrationTests with `DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE=1 dotnet test tests/Api.IntegrationTests/Api.IntegrationTests.csproj --no-restore -p:OpenApiGenerateDocuments=false -m:1 -nodeReuse:false --disable-build-servers -v:minimal`
 - Stop the local environment with `docker compose down -v --remove-orphans`
-- The Api.IntegrationTests project can be run once the local environment is running
+- In the sandbox environment, Api.IntegrationTests need escalation because VSTest binds a local socket and the tests access Docker Compose services

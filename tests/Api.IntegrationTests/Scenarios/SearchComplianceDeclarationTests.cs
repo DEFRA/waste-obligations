@@ -13,13 +13,20 @@ namespace Defra.WasteObligations.Api.IntegrationTests.Scenarios;
 
 public class SearchComplianceDeclarationTests : IntegrationTestBase
 {
-    private ComplianceDeclarationService Subject { get; } =
-        new(
-            new MongoDbContext(GetMongoDatabase()),
+    private ComplianceDeclarationService Subject { get; }
+
+    public SearchComplianceDeclarationTests()
+    {
+        var dbContext = new MongoDbContext(GetMongoDatabase());
+        var auditEventService = new AuditEventService(dbContext, TimeProvider.System, new FakeEventIdGenerator());
+
+        Subject = new(
+            dbContext,
             Substitute.For<Microsoft.Extensions.Logging.ILogger<ComplianceDeclarationService>>(),
             TimeProvider.System,
-            new FakeEventIdGenerator()
+            auditEventService
         );
+    }
 
     [Fact]
     public async Task Search_WhenPaginationIsUsed_ShouldReturnAllResults()
