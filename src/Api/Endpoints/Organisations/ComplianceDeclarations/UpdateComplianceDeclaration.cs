@@ -54,14 +54,18 @@ public static class UpdateComplianceDeclaration
 
         if (request.Status.HasValue)
         {
-            complianceDeclaration = complianceDeclaration.UpdateStatus(
+            var updated = complianceDeclaration.UpdateStatus(
                 request.Status.Value.ToEntity(),
                 request.Reason,
                 request.User.ToEntity(),
                 timeProvider.GetUtcNowWithoutMicroseconds()
             );
 
-            complianceDeclaration = await complianceDeclarationService.Update(complianceDeclaration, cancellationToken);
+            complianceDeclaration = await complianceDeclarationService.Update(
+                complianceDeclaration,
+                updated,
+                cancellationToken
+            );
         }
 
         return Results.Ok(complianceDeclaration.ToDto());

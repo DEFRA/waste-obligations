@@ -3,20 +3,25 @@ using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services;
+using Defra.WasteObligations.Testing.Fakes;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
+using MongoDB.Driver;
 using NSubstitute;
 
 namespace Defra.WasteObligations.Api.IntegrationTests.Services;
 
 public class ComplianceDeclarationServiceTests : IntegrationTestBase
 {
+    private const string Entity = "compliance_declaration";
+
     private ComplianceDeclarationService Subject { get; } =
         new(
             new MongoDbContext(GetMongoDatabase()),
             Substitute.For<ILogger<ComplianceDeclarationService>>(),
-            TimeProvider.System
+            TimeProvider.System,
+            new FakeEventIdGenerator()
         );
 
     [Fact]
@@ -39,9 +44,23 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         );
 
         var retrieved = await Subject.Read(initial.Id.ToString(), TestContext.Current.CancellationToken);
+        var auditEvent = await AuditEvents
+            .Find(x => x.Sequence == 1)
+            .SingleAsync(TestContext.Current.CancellationToken);
 
         retrieved.Should().NotBeNull();
         retrieved.Should().BeEquivalentTo(initial);
+        auditEvent.EventId.Should().Be("01HXYZ00000000000000000001");
+        auditEvent.Entity.Should().Be(Entity);
+        auditEvent.EntityId.Should().Be(initial.Id.ToString());
+        auditEvent.Operation.Should().Be("insert");
+        auditEvent.Actor.Should().Be("service:waste-obligations");
+        auditEvent.Version.Should().Be(1);
+        auditEvent.SchemaVersion.Should().Be($"{Entity}.v1");
+        auditEvent.Before.Should().BeNull();
+        auditEvent.After.Should().NotBeNull();
+        auditEvent.After!["_id"].Should().Be(initial.Id);
+        auditEvent.After["version"].Should().Be(1);
     }
 
     [Fact]
@@ -117,6 +136,19 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
 
         deleted.Should().BeTrue();
         retrieved.Should().BeNull();
+
+        var auditEvents = await AuditEvents
+            .Find(FilterDefinition<AuditEvent>.Empty)
+            .SortBy(x => x.Sequence)
+            .ToListAsync(TestContext.Current.CancellationToken);
+
+        auditEvents.Should().HaveCount(2);
+        auditEvents[1].Sequence.Should().Be(2);
+        auditEvents[1].EntityId.Should().Be(initial.Id.ToString());
+        auditEvents[1].Operation.Should().Be("delete");
+        auditEvents[1].Version.Should().Be(2);
+        auditEvents[1].Before.Should().NotBeNull();
+        auditEvents[1].After.Should().BeNull();
     }
 
     [Fact]
@@ -132,9 +164,9 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         var retrieved = await Subject.Read(initial.Id.ToString(), TestContext.Current.CancellationToken);
 
         retrieved.Should().NotBeNull();
-        retrieved = retrieved with { ObligationYear = 2027 };
+        var updated = retrieved with { ObligationYear = 2027 };
 
-        retrieved = await Subject.Update(retrieved, TestContext.Current.CancellationToken);
+        retrieved = await Subject.Update(retrieved, updated, TestContext.Current.CancellationToken);
         retrieved.Version.Should().Be(2);
         retrieved.Updated.Should().BeAfter(retrieved.Created);
 
@@ -144,6 +176,22 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
 
         retrieved.Should().NotBeNull();
         retrieved.ObligationYear.Should().Be(2027);
+
+        var auditEvents = await AuditEvents
+            .Find(FilterDefinition<AuditEvent>.Empty)
+            .SortBy(x => x.Sequence)
+            .ToListAsync(TestContext.Current.CancellationToken);
+
+        auditEvents.Should().HaveCount(2);
+        auditEvents[1].Sequence.Should().Be(2);
+        auditEvents[1].EntityId.Should().Be(initial.Id.ToString());
+        auditEvents[1].Operation.Should().Be("update");
+        auditEvents[1].Version.Should().Be(2);
+        auditEvents[1].Before.Should().NotBeNull();
+        auditEvents[1].Before!["version"].Should().Be(1);
+        auditEvents[1].After.Should().NotBeNull();
+        auditEvents[1].After!["version"].Should().Be(2);
+        auditEvents[1].After!["obligationYear"].Should().Be(2027);
     }
 
     [Fact]
@@ -160,15 +208,48 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         retrieved1.Should().NotBeNull();
         retrieved2.Should().NotBeNull();
 
-        retrieved1 = retrieved1 with { ObligationYear = 2027 };
-        await Subject.Update(retrieved1, TestContext.Current.CancellationToken);
+        var updated1 = retrieved1 with { ObligationYear = 2027 };
+        await Subject.Update(retrieved1, updated1, TestContext.Current.CancellationToken);
 
-        retrieved2 = retrieved2 with { ObligationYear = 2028 };
-        var act = async () => await Subject.Update(retrieved2, TestContext.Current.CancellationToken);
+        var updated2 = retrieved2 with { ObligationYear = 2028 };
+        var act = async () => await Subject.Update(retrieved2, updated2, TestContext.Current.CancellationToken);
 
         await act.Should()
             .ThrowAsync<ConcurrencyException>()
             .WithMessage($"Concurrency issue on write, compliance declaration with id '{initial.Id}' was not updated");
+
+        var auditEvents = await AuditEvents
+            .Find(FilterDefinition<AuditEvent>.Empty)
+            .SortBy(x => x.Sequence)
+            .ToListAsync(TestContext.Current.CancellationToken);
+
+        auditEvents.Should().HaveCount(2);
+        auditEvents.Select(x => x.Sequence).Should().BeEquivalentTo([1, 2], options => options.WithStrictOrdering());
+    }
+
+    [Fact]
+    public async Task Write_WhenMultipleDeclarations_ShouldUseGlobalSequenceAndPerEntityVersion()
+    {
+        var first = await Subject.Create(
+            ComplianceDeclarationFixture.DirectProducer().Create(),
+            TestContext.Current.CancellationToken
+        );
+        var second = await Subject.Create(
+            ComplianceDeclarationFixture.DirectProducer().Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        await Subject.Update(first, first with { ObligationYear = 2027 }, TestContext.Current.CancellationToken);
+        await Subject.Update(second, second with { ObligationYear = 2028 }, TestContext.Current.CancellationToken);
+
+        var auditEvents = await AuditEvents
+            .Find(FilterDefinition<AuditEvent>.Empty)
+            .SortBy(x => x.Sequence)
+            .ToListAsync(TestContext.Current.CancellationToken);
+
+        auditEvents.Select(x => x.Sequence).Should().BeEquivalentTo([1, 2, 3, 4], x => x.WithStrictOrdering());
+        auditEvents.Where(x => x.EntityId == first.Id.ToString()).Select(x => x.Version).Should().Equal(1, 2);
+        auditEvents.Where(x => x.EntityId == second.Id.ToString()).Select(x => x.Version).Should().Equal(1, 2);
     }
 
     [Fact]
@@ -404,6 +485,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
 
         // Update the record
         var updated = await Subject.Update(
+            targetRecord,
             targetRecord with
             {
                 ObligationYear = 9999,

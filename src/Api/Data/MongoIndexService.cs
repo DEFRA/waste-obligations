@@ -32,6 +32,22 @@ public class MongoIndexService(IMongoDatabase database, ILogger<MongoIndexServic
             Builders<ComplianceDeclaration>.IndexKeys.Ascending(x => x.Organisation.Name),
             cancellationToken: cancellationToken
         );
+
+        await CreateIndex(
+            "Sequence",
+            Builders<AuditEvent>.IndexKeys.Ascending(x => x.Sequence),
+            unique: true,
+            cancellationToken: cancellationToken
+        );
+
+        await CreateIndex(
+            "Entity_EntityId_Version",
+            Builders<AuditEvent>
+                .IndexKeys.Ascending(x => x.Entity)
+                .Ascending(x => x.EntityId)
+                .Ascending(x => x.Version),
+            cancellationToken: cancellationToken
+        );
     }
 
     public Task StopAsync(CancellationToken cancellationToken)

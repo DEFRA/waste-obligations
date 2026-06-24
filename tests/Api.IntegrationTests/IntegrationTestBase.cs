@@ -15,6 +15,8 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     public required WireMockContext WireMockContext;
 
     public required IMongoCollection<ComplianceDeclaration> ComplianceDeclarations { get; set; }
+    public required IMongoCollection<AuditEventCounter> AuditEventCounters { get; set; }
+    public required IMongoCollection<AuditEvent> AuditEvents { get; set; }
 
     public ValueTask DisposeAsync()
     {
@@ -29,11 +31,18 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         await WireMockContext.InitializeAsync();
 
         ComplianceDeclarations = GetMongoCollection<ComplianceDeclaration>();
+        AuditEventCounters = GetMongoCollection<AuditEventCounter>();
+        AuditEvents = GetMongoCollection<AuditEvent>();
 
         await ComplianceDeclarations.DeleteManyAsync(
             FilterDefinition<ComplianceDeclaration>.Empty,
             TestContext.Current.CancellationToken
         );
+        await AuditEventCounters.DeleteManyAsync(
+            FilterDefinition<AuditEventCounter>.Empty,
+            TestContext.Current.CancellationToken
+        );
+        await AuditEvents.DeleteManyAsync(FilterDefinition<AuditEvent>.Empty, TestContext.Current.CancellationToken);
     }
 
     protected static HttpClient CreateClient()
@@ -58,7 +67,9 @@ public abstract class IntegrationTestBase : IAsyncLifetime
 
     protected static IMongoDatabase GetMongoDatabase()
     {
-        var settings = MongoClientSettings.FromConnectionString("mongodb://127.0.0.1:27017");
+        var settings = MongoClientSettings.FromConnectionString(
+            "mongodb://127.0.0.1:27017/?replicaSet=rs0&directConnection=true"
+        );
         settings.ServerSelectionTimeout = TimeSpan.FromSeconds(5);
         settings.ConnectTimeout = TimeSpan.FromSeconds(5);
         settings.SocketTimeout = TimeSpan.FromSeconds(5);

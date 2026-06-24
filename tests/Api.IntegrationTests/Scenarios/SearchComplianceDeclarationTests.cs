@@ -5,6 +5,7 @@ using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Testing;
+using Defra.WasteObligations.Testing.Fakes;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
 using NSubstitute;
 
@@ -16,7 +17,8 @@ public class SearchComplianceDeclarationTests : IntegrationTestBase
         new(
             new MongoDbContext(GetMongoDatabase()),
             Substitute.For<Microsoft.Extensions.Logging.ILogger<ComplianceDeclarationService>>(),
-            TimeProvider.System
+            TimeProvider.System,
+            new FakeEventIdGenerator()
         );
 
     [Fact]
