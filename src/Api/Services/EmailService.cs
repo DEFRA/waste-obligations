@@ -1,15 +1,10 @@
 using Defra.WasteObligations.Api.Data.Entities;
-using Defra.WasteObligations.Api.Services.AccountBackend;
 using Defra.WasteObligations.Api.Services.GovukNotify;
 using Organisation = Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation;
 
 namespace Defra.WasteObligations.Api.Services;
 
-public class EmailService(
-    IGovukNotifyService govukNotifyService,
-    IAccountBackendService accountBackendService,
-    ILogger<EmailService> logger
-) : IEmailService
+public class EmailService(IGovukNotifyService govukNotifyService, ILogger<EmailService> logger) : IEmailService
 {
     public async Task SendSubmittedEmail(
         ComplianceDeclaration complianceDeclaration,
@@ -22,22 +17,15 @@ public class EmailService(
 
         try
         {
-            var entityTypeCode =
-                complianceDeclaration.Organisation.RegistrationType == RegistrationType.ComplianceScheme
-                    ? EntityTypeCode.CS
-                    : EntityTypeCode.DR;
-            var personEmails = await accountBackendService.ReadPersonEmails(
-                organisation.Id,
-                entityTypeCode,
-                cancellationToken
-            );
-            var recipients = personEmails.Select(x => x.Email).ToList();
+            var recipient = complianceDeclaration
+                .Audit.First(x => x.Action == nameof(ComplianceDeclarationStatus.Submitted))
+                .User.Email;
 
-            logger.LogInformation("Found {Count} recipient(s) for submitted email", recipients.Count);
+            logger.LogInformation("Sending submitted email to submitter email address");
 
             await govukNotifyService.SendComplianceDeclarationSubmittedEmail(
                 GovukNotifyOptions.TemplateName.ComplianceDeclarationSubmissionDirectProducer,
-                recipients,
+                [recipient],
                 new Dictionary<string, object>
                 {
                     { "obligationYear", complianceDeclaration.ObligationYear },
