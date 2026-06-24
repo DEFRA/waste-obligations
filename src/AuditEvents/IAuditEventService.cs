@@ -1,7 +1,7 @@
 using MongoDB.Bson;
 using MongoDB.Driver;
 
-namespace Defra.WasteObligations.Api.Services;
+namespace Defra.WasteObligations.AuditEvents;
 
 public interface IAuditEventService
 {

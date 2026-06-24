@@ -1,4 +1,4 @@
-using Defra.WasteObligations.Api.Data;
+using Defra.WasteObligations.AuditEvents;
 
 namespace Defra.WasteObligations.Testing.Fakes;
 

@@ -1,13 +1,21 @@
-using Defra.WasteObligations.Api.Data;
-using Defra.WasteObligations.Api.Data.Entities;
+using Defra.WasteObligations.AuditEvents.Data;
+using Defra.WasteObligations.AuditEvents.Entities;
 using MongoDB.Bson;
 using MongoDB.Driver;
 
-namespace Defra.WasteObligations.Api.Services;
+namespace Defra.WasteObligations.AuditEvents;
 
-public class AuditEventService(IDbContext dbContext, TimeProvider timeProvider, IEventIdGenerator eventIdGenerator)
-    : IAuditEventService
+public class AuditEventService(
+    IAuditEventDbContext dbContext,
+    TimeProvider timeProvider,
+    IEventIdGenerator eventIdGenerator
+) : IAuditEventService
 {
+    private const string AuditEventCounterId = "audit_event";
+    private const string InsertOperation = "insert";
+    private const string UpdateOperation = "update";
+    private const string DeleteOperation = "delete";
+
     public async Task RecordEvent(
         IClientSessionHandle session,
         string actor,
@@ -50,7 +58,7 @@ public class AuditEventService(IDbContext dbContext, TimeProvider timeProvider, 
     {
         var counter = await dbContext.AuditEventCounters.FindOneAndUpdateAsync(
             session,
-            Builders<AuditEventCounter>.Filter.Eq(x => x.Id, "audit_event"),
+            Builders<AuditEventCounter>.Filter.Eq(x => x.Id, AuditEventCounterId),
             Builders<AuditEventCounter>.Update.Inc(x => x.Sequence, 1),
             new FindOneAndUpdateOptions<AuditEventCounter> { IsUpsert = true, ReturnDocument = ReturnDocument.After },
             cancellationToken
@@ -62,9 +70,9 @@ public class AuditEventService(IDbContext dbContext, TimeProvider timeProvider, 
     private static string ToValue(AuditEventOperation operation) =>
         operation switch
         {
-            AuditEventOperation.Insert => "insert",
-            AuditEventOperation.Update => "update",
-            AuditEventOperation.Delete => "delete",
+            AuditEventOperation.Insert => InsertOperation,
+            AuditEventOperation.Update => UpdateOperation,
+            AuditEventOperation.Delete => DeleteOperation,
             _ => throw new ArgumentOutOfRangeException(nameof(operation), operation, null),
         };
 }

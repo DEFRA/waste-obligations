@@ -1,4 +1,4 @@
-namespace Defra.WasteObligations.Api.Data;
+namespace Defra.WasteObligations.AuditEvents;
 
 public interface IEventIdGenerator
 {

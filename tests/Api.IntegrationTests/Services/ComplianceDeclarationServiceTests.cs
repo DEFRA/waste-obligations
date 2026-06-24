@@ -3,6 +3,9 @@ using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services;
+using Defra.WasteObligations.AuditEvents;
+using Defra.WasteObligations.AuditEvents.Data;
+using Defra.WasteObligations.AuditEvents.Entities;
 using Defra.WasteObligations.Testing.Fakes;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
 using Microsoft.Extensions.Logging;
@@ -20,8 +23,14 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
 
     public ComplianceDeclarationServiceTests()
     {
-        var dbContext = new MongoDbContext(GetMongoDatabase());
-        var auditEventService = new AuditEventService(dbContext, TimeProvider.System, new FakeEventIdGenerator());
+        var database = GetMongoDatabase();
+        var auditEventDbContext = new AuditEventDbContext(database);
+        var dbContext = new MongoDbContext(database);
+        var auditEventService = new AuditEventService(
+            auditEventDbContext,
+            TimeProvider.System,
+            new FakeEventIdGenerator()
+        );
 
         Subject = new(
             dbContext,

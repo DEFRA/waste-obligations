@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Defra.WasteObligations.Api.Data.Entities;
+using Defra.WasteObligations.AuditEvents;
 using MongoDB.Bson;
 using MongoDB.Driver;
 
@@ -33,21 +34,10 @@ public class MongoIndexService(IMongoDatabase database, ILogger<MongoIndexServic
             cancellationToken: cancellationToken
         );
 
-        await CreateIndex(
-            "Sequence",
-            Builders<AuditEvent>.IndexKeys.Ascending(x => x.Sequence),
-            unique: true,
-            cancellationToken: cancellationToken
-        );
-
-        await CreateIndex(
-            "Entity_EntityId_Version",
-            Builders<AuditEvent>
-                .IndexKeys.Ascending(x => x.Entity)
-                .Ascending(x => x.EntityId)
-                .Ascending(x => x.Version),
-            cancellationToken: cancellationToken
-        );
+        foreach (var index in AuditEventIndexes.All())
+        {
+            await CreateIndex(index.Name, index.Keys, index.Unique, cancellationToken);
+        }
     }
 
     public Task StopAsync(CancellationToken cancellationToken)

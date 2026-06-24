@@ -26,7 +26,6 @@ public static class ServiceCollectionExtensions
 
         services.AddHostedService<MongoIndexService>();
         services.AddScoped<IDbContext, MongoDbContext>();
-        services.AddSingleton<IEventIdGenerator, UlidEventIdGenerator>();
         services.AddSingleton(sp =>
         {
             MongoClientSettings.Extensions.AddAWSAuthentication();

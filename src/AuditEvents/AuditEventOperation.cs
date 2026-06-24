@@ -1,4 +1,4 @@
-namespace Defra.WasteObligations.Api.Services;
+namespace Defra.WasteObligations.AuditEvents;
 
 public enum AuditEventOperation
 {

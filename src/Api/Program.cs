@@ -17,6 +17,7 @@ using Defra.WasteObligations.Api.Utils.Http;
 using Defra.WasteObligations.Api.Utils.Logging;
 using Defra.WasteObligations.Api.Utils.Metrics;
 using Defra.WasteObligations.Api.Utils.Security;
+using Defra.WasteObligations.AuditEvents;
 using Elastic.CommonSchema.Serilog;
 using Serilog;
 
@@ -53,7 +54,7 @@ try
     builder.Services.AddAccountBackendService();
     builder.Services.AddWasteOrganisationsService();
     builder.Services.AddGovukNotify();
-    builder.Services.AddTransient<IAuditEventService, AuditEventService>();
+    builder.Services.AddAuditEvents();
     builder.Services.AddTransient<IComplianceDeclarationService, ComplianceDeclarationService>();
     builder.Services.AddTransient<IEmailService, EmailService>();
 

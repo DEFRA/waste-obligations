@@ -4,6 +4,8 @@ using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.Api.Services;
+using Defra.WasteObligations.AuditEvents;
+using Defra.WasteObligations.AuditEvents.Data;
 using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Fakes;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
@@ -17,8 +19,14 @@ public class SearchComplianceDeclarationTests : IntegrationTestBase
 
     public SearchComplianceDeclarationTests()
     {
-        var dbContext = new MongoDbContext(GetMongoDatabase());
-        var auditEventService = new AuditEventService(dbContext, TimeProvider.System, new FakeEventIdGenerator());
+        var database = GetMongoDatabase();
+        var auditEventDbContext = new AuditEventDbContext(database);
+        var dbContext = new MongoDbContext(database);
+        var auditEventService = new AuditEventService(
+            auditEventDbContext,
+            TimeProvider.System,
+            new FakeEventIdGenerator()
+        );
 
         Subject = new(
             dbContext,
