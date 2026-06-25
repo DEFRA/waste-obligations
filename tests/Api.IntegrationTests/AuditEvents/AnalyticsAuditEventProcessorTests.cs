@@ -101,6 +101,61 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
         sender.SentEvents.Should().NotBeEmpty();
     }
 
+    [Fact]
+    public async Task Start_WhenLeaseRenewalFails_ShouldStopProcessingRemainingEvents()
+    {
+        const string anotherInstance = "another-instance";
+
+        var database = CreateProcessorDatabase();
+        var auditEvents = database.GetCollection<AuditEvent>(nameof(AuditEvent));
+        var leases = database.GetCollection<AuditEventDispatchLease>(nameof(AuditEventDispatchLease));
+        var firstAuditEvent = CreateAuditEvent("event-1", 1);
+        var secondAuditEvent = CreateAuditEvent("event-2", 2);
+        var leaseOwnerChanged = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await auditEvents.InsertManyAsync(
+            [firstAuditEvent, secondAuditEvent],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+
+        var sender = new RecordingAnalyticsEventSender();
+        sender.OnSend = async (_, cancellationToken) =>
+        {
+            await leases.UpdateOneAsync(
+                x => x.Id == Analytics,
+                Builders<AuditEventDispatchLease>.Update.Set(x => x.Owner, anotherInstance),
+                cancellationToken: cancellationToken
+            );
+            leaseOwnerChanged.TrySetResult();
+        };
+        var subject = CreateSubject(database, new FakeTimeProvider(), sender);
+
+        await subject.StartAsync(TestContext.Current.CancellationToken);
+        await sender.WaitForSend(TestContext.Current.CancellationToken);
+        await leaseOwnerChanged.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        await AsyncWaiter.WaitForAsync(
+            async () =>
+            {
+                var firstResult = await auditEvents
+                    .Find(x => x.EventId == firstAuditEvent.EventId)
+                    .SingleAsync(TestContext.Current.CancellationToken);
+                firstResult.Dispatches.Should().ContainKey(Analytics);
+            },
+            timeout: 5,
+            delay: TimeSpan.FromMilliseconds(50)
+        );
+        await Task.Delay(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
+        await subject.StopAsync(TestContext.Current.CancellationToken);
+
+        sender.SentEvents.Should().ContainSingle();
+        sender.SentEvents.Single().EventId.Should().Be(firstAuditEvent.EventId);
+        var secondResult = await auditEvents
+            .Find(x => x.EventId == secondAuditEvent.EventId)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        secondResult.Dispatches.Should().NotContainKey(Analytics);
+    }
+
     private static AnalyticsAuditEventProcessor CreateSubject(
         IMongoDatabase database,
         TimeProvider timeProvider,

@@ -10,7 +10,7 @@ namespace Defra.WasteObligations.Api.IntegrationTests.AuditEvents;
 
 public class AuditEventLeaseServiceTests : IntegrationTestBase
 {
-    private const string Analytics = "analytics";
+    private const string Analytics = "analytics-lease-test";
 
     [Fact]
     public async Task TryAcquire_ShouldCreateAndOwnLease()

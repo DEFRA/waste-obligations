@@ -11,7 +11,7 @@ namespace Defra.WasteObligations.Api.IntegrationTests.AuditEvents;
 
 public class AuditEventDispatchServiceTests : IntegrationTestBase
 {
-    private const string Analytics = "analytics";
+    private const string Analytics = "analytics-dispatch-test";
     private const string SomeOtherProcess = "someOtherProcess";
 
     [Fact]
