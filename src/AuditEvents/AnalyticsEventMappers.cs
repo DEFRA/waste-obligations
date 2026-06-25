@@ -1,0 +1,23 @@
+using Defra.WasteObligations.AuditEvents.Entities;
+
+namespace Defra.WasteObligations.AuditEvents;
+
+public static class AnalyticsEventMappers
+{
+    public static AnalyticsEvent ToAnalyticsEvent(this AuditEvent auditEvent) =>
+        new()
+        {
+            EventId = $"{auditEvent.Entity}_{auditEvent.EventId}",
+            Sequence = auditEvent.Sequence,
+            Entity = auditEvent.Entity,
+            EntityId = auditEvent.EntityId,
+            Operation = auditEvent.Operation,
+            OccurredAt = auditEvent.OccurredAt,
+            RecordedAt = auditEvent.RecordedAt,
+            Actor = auditEvent.Actor,
+            Version = auditEvent.Version,
+            Before = auditEvent.Before,
+            After = auditEvent.After,
+            SchemaVersion = auditEvent.SchemaVersion,
+        };
+}

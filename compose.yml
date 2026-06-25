@@ -43,6 +43,9 @@ services:
       PORT: 8080
       AWS_EMF_ENABLED: false
       AWS_EMF_ENVIRONMENT: Local
+      AnalyticsAuditEventProcessor__ProcessName: analytics
+      AnalyticsAuditEventProcessor__PollIntervalSeconds: 1
+      AnalyticsAuditEventProcessor__PollJitterSeconds: 0
       # See appsettings.json for additional settings related to auth
       PrnCommonBackend__TokenEndpoint: http://wiremock/oauth2/v2.0/token
       PrnCommonBackend__BaseAddress: http://wiremock/

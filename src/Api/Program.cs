@@ -54,7 +54,7 @@ try
     builder.Services.AddAccountBackendService();
     builder.Services.AddWasteOrganisationsService();
     builder.Services.AddGovukNotify();
-    builder.Services.AddAuditEvents();
+    builder.Services.AddAuditEvents(builder.Configuration, !integrationTest && !openApiBuild);
     builder.Services.AddTransient<IComplianceDeclarationService, ComplianceDeclarationService>();
     builder.Services.AddTransient<IEmailService, EmailService>();
 

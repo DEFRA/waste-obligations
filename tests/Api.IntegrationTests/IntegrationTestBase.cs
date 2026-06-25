@@ -18,6 +18,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     public required IMongoCollection<ComplianceDeclaration> ComplianceDeclarations { get; set; }
     public required IMongoCollection<AuditEventCounter> AuditEventCounters { get; set; }
     public required IMongoCollection<AuditEvent> AuditEvents { get; set; }
+    public required IMongoCollection<AuditEventDispatchLease> AuditEventDispatchLeases { get; set; }
 
     public ValueTask DisposeAsync()
     {
@@ -34,10 +35,12 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         ComplianceDeclarations = GetMongoCollection<ComplianceDeclaration>();
         AuditEventCounters = GetMongoCollection<AuditEventCounter>();
         AuditEvents = GetMongoCollection<AuditEvent>();
+        AuditEventDispatchLeases = GetMongoCollection<AuditEventDispatchLease>();
 
         await DeleteMany(ComplianceDeclarations);
         await DeleteMany(AuditEventCounters);
         await DeleteMany(AuditEvents);
+        await DeleteMany(AuditEventDispatchLeases);
     }
 
     protected static HttpClient CreateClient()
