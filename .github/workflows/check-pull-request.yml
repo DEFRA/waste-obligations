@@ -10,6 +10,7 @@ on:
       - reopened
       - synchronize
       - ready_for_review
+  workflow_dispatch:
 
 jobs:
   pr-validator:
@@ -36,9 +37,9 @@ jobs:
           output=$(dotnet test \
             --filter "Category=IntegrationTests" \
             --logger "console;verbosity=detailed" 2>&1)
-      
+
           echo "$output"
-      
+
           if echo "$output" | grep -q "GOVUKNOTIFY_APIKEY is not set"; then
             echo "❌ GOVUKNOTIFY_APIKEY warning found in test output"
             exit 1
