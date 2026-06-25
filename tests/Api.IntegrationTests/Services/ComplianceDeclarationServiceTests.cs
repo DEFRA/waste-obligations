@@ -97,6 +97,25 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Create_WhenAuditEventFails_ShouldAbortTransaction()
+    {
+        var database = GetMongoDatabase();
+        var subject = new ComplianceDeclarationService(
+            new MongoDbContext(database),
+            Substitute.For<ILogger<ComplianceDeclarationService>>(),
+            TimeProvider.System,
+            new ThrowingAuditEventService()
+        );
+        var complianceDeclaration = ComplianceDeclarationFixture.Default().Create();
+        var act = async () => await subject.Create(complianceDeclaration, TestContext.Current.CancellationToken);
+
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage(ThrowingAuditEventService.Message);
+
+        var retrieved = await Subject.Read(complianceDeclaration.Id.ToString(), TestContext.Current.CancellationToken);
+        retrieved.Should().BeNull();
+    }
+
+    [Fact]
     public async Task Read_WhenMatchingData_ShouldReturn()
     {
         var organisationId = Guid.NewGuid();
@@ -165,6 +184,73 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         auditEvents[1].Version.Should().Be(2);
         auditEvents[1].Before.Should().NotBeNull();
         auditEvents[1].After.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Delete_WhenConcurrent_ShouldFail()
+    {
+        var current = ComplianceDeclarationFixture.DirectProducer().Create();
+        var session = Substitute.For<IClientSessionHandle>();
+        var cursor = Substitute.For<IAsyncCursor<ComplianceDeclaration>>();
+        cursor.MoveNextAsync(TestContext.Current.CancellationToken).Returns(true, false);
+        cursor.Current.Returns([current]);
+
+        var collection = Substitute.For<IMongoCollection<ComplianceDeclaration>>();
+        collection
+            .FindAsync(
+                session,
+                Arg.Any<FilterDefinition<ComplianceDeclaration>>(),
+                Arg.Any<FindOptions<ComplianceDeclaration, ComplianceDeclaration>>(),
+                TestContext.Current.CancellationToken
+            )
+            .Returns(cursor);
+        collection
+            .DeleteOneAsync(
+                session,
+                Arg.Any<FilterDefinition<ComplianceDeclaration>>(),
+                Arg.Any<DeleteOptions>(),
+                TestContext.Current.CancellationToken
+            )
+            .Returns(new DeleteResult.Acknowledged(0));
+
+        var dbContext = Substitute.For<IDbContext>();
+        dbContext.ComplianceDeclarations.Returns(collection);
+        dbContext.StartSession(TestContext.Current.CancellationToken).Returns(session);
+
+        var subject = new ComplianceDeclarationService(
+            dbContext,
+            Substitute.For<ILogger<ComplianceDeclarationService>>(),
+            TimeProvider.System,
+            Substitute.For<IAuditEventService>()
+        );
+        var act = async () => await subject.Delete(current.Id.ToString(), TestContext.Current.CancellationToken);
+
+        await act.Should()
+            .ThrowAsync<ConcurrencyException>()
+            .WithMessage($"Concurrency issue on delete, compliance declaration with id '{current.Id}' was not deleted");
+        await session.Received(1).AbortTransactionAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task Delete_WhenAuditEventFails_ShouldAbortTransaction()
+    {
+        var database = GetMongoDatabase();
+        var subject = new ComplianceDeclarationService(
+            new MongoDbContext(database),
+            Substitute.For<ILogger<ComplianceDeclarationService>>(),
+            TimeProvider.System,
+            new ThrowingAuditEventService()
+        );
+        var initial = await Subject.Create(
+            ComplianceDeclarationFixture.DirectProducer().Create(),
+            TestContext.Current.CancellationToken
+        );
+        var act = async () => await subject.Delete(initial.Id.ToString(), TestContext.Current.CancellationToken);
+
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage(ThrowingAuditEventService.Message);
+
+        var retrieved = await Subject.Read(initial.Id.ToString(), TestContext.Current.CancellationToken);
+        retrieved.Should().BeEquivalentTo(initial);
     }
 
     [Fact]
@@ -589,4 +675,15 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             BsonType.String => value.AsString,
             _ => BsonTypeMapper.MapToDotNetValue(value),
         };
+
+    private class ThrowingAuditEventService : IAuditEventService
+    {
+        public const string Message = "Audit event failed";
+
+        public Task RecordEvent(
+            IClientSessionHandle session,
+            AuditEventRequest auditEvent,
+            CancellationToken cancellationToken
+        ) => throw new InvalidOperationException(Message);
+    }
 }
