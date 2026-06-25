@@ -18,15 +18,7 @@ public class AuditEventService(
 
     public async Task RecordEvent(
         IClientSessionHandle session,
-        string actor,
-        string entity,
-        AuditEventOperation operation,
-        string entityId,
-        int version,
-        BsonDocument? before,
-        BsonDocument? after,
-        string schemaVersion,
-        DateTime occurredAt,
+        AuditEventRequest auditEvent,
         CancellationToken cancellationToken
     )
     {
@@ -39,16 +31,16 @@ public class AuditEventService(
             {
                 EventId = eventIdGenerator.Generate(),
                 Sequence = sequence,
-                Entity = entity,
-                EntityId = entityId,
-                Operation = ToValue(operation),
-                OccurredAt = occurredAt,
+                Entity = auditEvent.Entity,
+                EntityId = auditEvent.EntityId,
+                Operation = ToValue(auditEvent.Operation),
+                OccurredAt = auditEvent.OccurredAt,
                 RecordedAt = utcNow,
-                Actor = actor,
-                Version = version,
-                Before = before,
-                After = after,
-                SchemaVersion = schemaVersion,
+                Actor = auditEvent.Actor,
+                Version = auditEvent.Version,
+                Before = auditEvent.Before,
+                After = auditEvent.After,
+                SchemaVersion = auditEvent.SchemaVersion,
             },
             cancellationToken: cancellationToken
         );

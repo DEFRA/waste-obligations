@@ -39,15 +39,17 @@ public class ComplianceDeclarationService(
 
             await auditEventService.RecordEvent(
                 session,
-                Actor,
-                ComplianceDeclarationEntity,
-                AuditEventOperation.Insert,
-                complianceDeclaration.Id.ToString(),
-                complianceDeclaration.Version,
-                null,
-                complianceDeclaration.ToBsonDocument(),
-                ComplianceDeclarationSchemaVersion,
-                utcNow,
+                new AuditEventRequest(
+                    Actor,
+                    ComplianceDeclarationEntity,
+                    AuditEventOperation.Insert,
+                    complianceDeclaration.Id.ToString(),
+                    complianceDeclaration.Version,
+                    null,
+                    complianceDeclaration.ToBsonDocument(),
+                    ComplianceDeclarationSchemaVersion,
+                    utcNow
+                ),
                 cancellationToken
             );
 
@@ -121,15 +123,17 @@ public class ComplianceDeclarationService(
             var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
             await auditEventService.RecordEvent(
                 session,
-                Actor,
-                ComplianceDeclarationEntity,
-                AuditEventOperation.Delete,
-                current.Id.ToString(),
-                current.Version + 1,
-                current.ToBsonDocument(),
-                null,
-                ComplianceDeclarationSchemaVersion,
-                utcNow,
+                new AuditEventRequest(
+                    Actor,
+                    ComplianceDeclarationEntity,
+                    AuditEventOperation.Delete,
+                    current.Id.ToString(),
+                    current.Version + 1,
+                    current.ToBsonDocument(),
+                    null,
+                    ComplianceDeclarationSchemaVersion,
+                    utcNow
+                ),
                 cancellationToken
             );
 
@@ -240,15 +244,17 @@ public class ComplianceDeclarationService(
 
             await auditEventService.RecordEvent(
                 session,
-                Actor,
-                ComplianceDeclarationEntity,
-                AuditEventOperation.Update,
-                updated.Id.ToString(),
-                updated.Version,
-                current.ToBsonDocument(),
-                updated.ToBsonDocument(),
-                ComplianceDeclarationSchemaVersion,
-                updated.Updated,
+                new AuditEventRequest(
+                    Actor,
+                    ComplianceDeclarationEntity,
+                    AuditEventOperation.Update,
+                    updated.Id.ToString(),
+                    updated.Version,
+                    current.ToBsonDocument(),
+                    updated.ToBsonDocument(),
+                    ComplianceDeclarationSchemaVersion,
+                    updated.Updated
+                ),
                 cancellationToken
             );
 
