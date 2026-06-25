@@ -7,10 +7,10 @@ public static class AnalyticsEventMappers
     public static AnalyticsEvent ToAnalyticsEvent(this AuditEvent auditEvent) =>
         new()
         {
-            EventId = $"{auditEvent.Entity}_{auditEvent.EventId}",
+            EventId = auditEvent.EventId,
             Sequence = auditEvent.Sequence,
             Entity = auditEvent.Entity,
-            EntityId = auditEvent.EntityId,
+            EntityId = $"{auditEvent.Entity}_{auditEvent.EntityId}",
             Operation = auditEvent.Operation,
             OccurredAt = auditEvent.OccurredAt,
             RecordedAt = auditEvent.RecordedAt,
