@@ -37,10 +37,7 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
                 var result = await auditEvents
                     .Find(x => x.EventId == auditEvent.EventId)
                     .SingleAsync(TestContext.Current.CancellationToken);
-                result
-                    .Dispatches[Analytics]
-                    .Should()
-                    .BeEquivalentTo(new AuditEventDispatch { SentAt = sentAt.UtcDateTime, SentBy = Analytics });
+                result.Dispatches[Analytics].Should().Be(sentAt.UtcDateTime);
             },
             timeout: 5,
             delay: TimeSpan.FromMilliseconds(50)
@@ -56,14 +53,7 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
         var auditEvent = CreateAuditEvent(
             "event-1",
             1,
-            new Dictionary<string, AuditEventDispatch>
-            {
-                [Analytics] = new()
-                {
-                    SentAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
-                    SentBy = Analytics,
-                },
-            }
+            new Dictionary<string, DateTime> { [Analytics] = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
         );
         await auditEvents.InsertOneAsync(auditEvent, cancellationToken: TestContext.Current.CancellationToken);
         var sender = new RecordingAnalyticsEventSender();
@@ -194,7 +184,7 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
     private static AuditEvent CreateAuditEvent(
         string eventId,
         long sequence,
-        Dictionary<string, AuditEventDispatch>? dispatches = null
+        Dictionary<string, DateTime>? dispatches = null
     ) =>
         new()
         {

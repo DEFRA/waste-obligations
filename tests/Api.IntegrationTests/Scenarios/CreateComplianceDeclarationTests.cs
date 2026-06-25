@@ -72,8 +72,7 @@ public class CreateComplianceDeclarationTests : IntegrationTestBase
                     .SingleAsync(TestContext.Current.CancellationToken);
 
                 auditEvent.Dispatches.Should().ContainKey(Analytics);
-                auditEvent.Dispatches[Analytics].SentBy.Should().Be(Analytics);
-                auditEvent.Dispatches[Analytics].SentAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
+                auditEvent.Dispatches[Analytics].Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
             },
             delay: TimeSpan.FromMilliseconds(100)
         );

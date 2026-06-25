@@ -35,10 +35,7 @@ public class AuditEventDispatchService(
             Builders<AuditEvent>.Filter.Exists(AuditEventDispatchFieldNames.DispatchPath(processName), false)
         );
 
-        var update = Builders<AuditEvent>.Update.Set(
-            AuditEventDispatchFieldNames.DispatchPath(processName),
-            new AuditEventDispatch { SentAt = utcNow, SentBy = processName }
-        );
+        var update = Builders<AuditEvent>.Update.Set(AuditEventDispatchFieldNames.DispatchPath(processName), utcNow);
 
         var result = await dbContext.AuditEvents.UpdateOneAsync(filter, update, cancellationToken: cancellationToken);
 

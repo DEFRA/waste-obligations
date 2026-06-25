@@ -26,5 +26,6 @@ public record AuditEvent
     public BsonDocument? After { get; init; }
     public required string SchemaVersion { get; init; }
 
-    public Dictionary<string, AuditEventDispatch> Dispatches { get; init; } = [];
+    [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
+    public Dictionary<string, DateTime> Dispatches { get; init; } = [];
 }

@@ -20,26 +20,12 @@ public class AuditEventDispatchServiceTests : IntegrationTestBase
         var alreadyDispatched = CreateAuditEvent(
             "event-2",
             2,
-            new Dictionary<string, AuditEventDispatch>
-            {
-                [Analytics] = new()
-                {
-                    SentAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
-                    SentBy = Analytics,
-                },
-            }
+            new Dictionary<string, DateTime> { [Analytics] = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
         );
         var dispatchedForOtherProcess = CreateAuditEvent(
             "event-3",
             3,
-            new Dictionary<string, AuditEventDispatch>
-            {
-                [SomeOtherProcess] = new()
-                {
-                    SentAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
-                    SentBy = SomeOtherProcess,
-                },
-            }
+            new Dictionary<string, DateTime> { [SomeOtherProcess] = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
         );
         var undispatched = CreateAuditEvent("event-1", 1);
         var cappedOut = CreateAuditEvent("event-4", 4);
@@ -70,24 +56,17 @@ public class AuditEventDispatchServiceTests : IntegrationTestBase
         var result = await AuditEvents
             .Find(x => x.EventId == auditEvent.EventId)
             .SingleAsync(TestContext.Current.CancellationToken);
-        result
-            .Dispatches[Analytics]
-            .Should()
-            .BeEquivalentTo(new AuditEventDispatch { SentAt = sentAt.UtcDateTime, SentBy = Analytics });
+        result.Dispatches[Analytics].Should().Be(sentAt.UtcDateTime);
     }
 
     [Fact]
     public async Task MarkDispatched_WhenAlreadyDispatched_ShouldNotOverwriteDispatch()
     {
-        var existingDispatch = new AuditEventDispatch
-        {
-            SentAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
-            SentBy = Analytics,
-        };
+        var existingDispatch = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         var auditEvent = CreateAuditEvent(
             "event-1",
             1,
-            new Dictionary<string, AuditEventDispatch> { [Analytics] = existingDispatch }
+            new Dictionary<string, DateTime> { [Analytics] = existingDispatch }
         );
         await AuditEvents.InsertOneAsync(auditEvent, cancellationToken: TestContext.Current.CancellationToken);
         var timeProvider = new FakeTimeProvider(new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero));
@@ -98,7 +77,7 @@ public class AuditEventDispatchServiceTests : IntegrationTestBase
         var result = await AuditEvents
             .Find(x => x.EventId == auditEvent.EventId)
             .SingleAsync(TestContext.Current.CancellationToken);
-        result.Dispatches[Analytics].Should().BeEquivalentTo(existingDispatch);
+        result.Dispatches[Analytics].Should().Be(existingDispatch);
     }
 
     private static AuditEventDispatchService CreateSubject(TimeProvider? timeProvider = null) =>
@@ -111,7 +90,7 @@ public class AuditEventDispatchServiceTests : IntegrationTestBase
     private static AuditEvent CreateAuditEvent(
         string eventId,
         long sequence,
-        Dictionary<string, AuditEventDispatch>? dispatches = null
+        Dictionary<string, DateTime>? dispatches = null
     ) =>
         new()
         {
