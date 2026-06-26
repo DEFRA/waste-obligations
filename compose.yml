@@ -29,18 +29,50 @@ services:
     ports:
       - "9090:80"
 
+  floci:
+    image: floci/floci:latest
+    ports:
+      - 4566:4566
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+
+  floci-init:
+    image: amazon/aws-cli:latest
+    entrypoint: ["/bin/sh", "/compose/init-floci.sh"]
+    depends_on:
+      floci:
+        condition: service_healthy
+    env_file:
+      - compose/aws.env
+    environment:
+      AWS_ENDPOINT_URL: http://floci:4566
+    volumes:
+      - ./compose/init-floci.sh:/compose/init-floci.sh:ro
+
   api:
     build:
       dockerfile: Dockerfile
     depends_on:
+      floci:
+        condition: service_healthy
+      floci-init:
+        condition: service_completed_successfully
       mongodb:
         condition: service_healthy
       wiremock:
         condition: service_started
+    env_file:
+      - compose/aws.env
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       Mongo__DatabaseUri: mongodb://mongodb:27017/?replicaSet=rs0&directConnection=true
       PORT: 8080
+      AWS_ENDPOINT_URL: http://floci:4566
       AWS_EMF_ENABLED: false
       AWS_EMF_ENVIRONMENT: Local
       AnalyticsAuditEventProcessor__ProcessName: analytics
