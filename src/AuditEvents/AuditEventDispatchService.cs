@@ -19,6 +19,8 @@ public class AuditEventDispatchService(
     {
         var filter = Builders<AuditEvent>.Filter.Exists(AuditEventDispatchFieldNames.DispatchPath(processName), false);
 
+        // With secondaryPreferred reads this can see stale dispatch state, so an event may be sent more than once.
+        // The topic/queue pipeline is at-least-once delivery, and consumers are expected to handle duplicates.
         return await dbContext
             .AuditEvents.Find(filter)
             .SortBy(x => x.Sequence)
