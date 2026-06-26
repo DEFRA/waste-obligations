@@ -16,7 +16,6 @@ public class ComplianceDeclarationService(
 {
     private const string Actor = "service:waste-obligations";
     private const string ComplianceDeclarationEntity = "compliance_declaration";
-    private const string ComplianceDeclarationSchemaVersion = "compliance_declaration.v1";
 
     public async Task<ComplianceDeclaration> Create(
         ComplianceDeclaration complianceDeclaration,
@@ -47,7 +46,7 @@ public class ComplianceDeclarationService(
                     complianceDeclaration.Version,
                     null,
                     complianceDeclaration.ToBsonDocument(),
-                    ComplianceDeclarationSchemaVersion,
+                    complianceDeclaration.SchemaVersion,
                     utcNow
                 ),
                 cancellationToken
@@ -131,7 +130,7 @@ public class ComplianceDeclarationService(
                     current.Version + 1,
                     current.ToBsonDocument(),
                     null,
-                    ComplianceDeclarationSchemaVersion,
+                    current.SchemaVersion,
                     utcNow
                 ),
                 cancellationToken
@@ -252,7 +251,7 @@ public class ComplianceDeclarationService(
                     updated.Version,
                     current.ToBsonDocument(),
                     updated.ToBsonDocument(),
-                    ComplianceDeclarationSchemaVersion,
+                    updated.SchemaVersion,
                     updated.Updated
                 ),
                 cancellationToken

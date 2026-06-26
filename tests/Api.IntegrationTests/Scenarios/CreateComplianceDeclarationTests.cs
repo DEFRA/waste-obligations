@@ -3,7 +3,6 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using AutoFixture;
 using AwesomeAssertions;
-using Defra.WasteObligations.AuditEvents.Entities;
 using Defra.WasteObligations.Testing.Authentication;
 using Defra.WasteObligations.Testing.Extensions.WireMock;
 using Defra.WasteObligations.Testing.Fixtures.Dtos;

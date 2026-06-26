@@ -1,5 +1,5 @@
 using AwesomeAssertions;
-using Defra.WasteObligations.AuditEvents;
+using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.AuditEvents.Analytics;
 using Defra.WasteObligations.AuditEvents.Entities;
 
@@ -25,7 +25,7 @@ public class AnalyticsEventMappersTests
             RecordedAt = DateTime.UtcNow,
             Actor = "user@example.com",
             Version = 1,
-            SchemaVersion = "compliance_declaration.v1",
+            SchemaVersion = ComplianceDeclaration.SchemaVersionValue,
         };
 
         var result = auditEvent.ToAnalyticsEvent();
@@ -34,6 +34,6 @@ public class AnalyticsEventMappersTests
         result.Entity.Should().Be(auditEvent.Entity);
         result.EntityId.Should().Be($"{entity}_{entityId}");
         result.Operation.Should().Be(auditEvent.Operation);
-        result.SchemaVersion.Should().Be(auditEvent.SchemaVersion);
+        result.SchemaVersion.Should().Be($"{entity}.{ComplianceDeclaration.SchemaVersionValue}");
     }
 }

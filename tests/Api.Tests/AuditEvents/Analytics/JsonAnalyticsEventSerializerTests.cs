@@ -1,3 +1,4 @@
+using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.AuditEvents.Analytics;
 using MongoDB.Bson;
 
@@ -5,6 +6,9 @@ namespace Defra.WasteObligations.Api.Tests.AuditEvents.Analytics;
 
 public class JsonAnalyticsEventSerializerTests
 {
+    private const string Entity = "compliance_declaration";
+    private const string AnalyticsSchemaVersion = $"{Entity}.{ComplianceDeclaration.SchemaVersionValue}";
+
     [Fact]
     public async Task Serialize_WhenInsertWithAfter_ShouldSerializeAsJson()
     {
@@ -13,7 +17,7 @@ public class JsonAnalyticsEventSerializerTests
         {
             EventId = "01JZ8RXBMTY2K15SJB3PCFN3D5",
             Sequence = 123,
-            Entity = "compliance_declaration",
+            Entity = Entity,
             EntityId = "compliance_declaration_65f1f6570bb08052a8a27b01",
             Operation = "insert",
             OccurredAt = new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero),
@@ -36,7 +40,7 @@ public class JsonAnalyticsEventSerializerTests
                     },
                 },
             },
-            SchemaVersion = "compliance_declaration.v1",
+            SchemaVersion = AnalyticsSchemaVersion,
         };
 
         var result = subject.Serialize(analyticsEvent);
@@ -52,7 +56,7 @@ public class JsonAnalyticsEventSerializerTests
         {
             EventId = "01JZ8RXBMTY2K15SJB3PCFN3D6",
             Sequence = 124,
-            Entity = "compliance_declaration",
+            Entity = Entity,
             EntityId = "compliance_declaration_65f1f6570bb08052a8a27b01",
             Operation = "update",
             OccurredAt = new DateTimeOffset(2026, 1, 2, 3, 5, 5, TimeSpan.Zero),
@@ -73,7 +77,7 @@ public class JsonAnalyticsEventSerializerTests
                 ["status"] = "Submitted",
                 ["updated"] = new DateTime(2026, 1, 2, 3, 5, 5, DateTimeKind.Utc),
             },
-            SchemaVersion = "compliance_declaration.v1",
+            SchemaVersion = AnalyticsSchemaVersion,
         };
 
         var result = subject.Serialize(analyticsEvent);

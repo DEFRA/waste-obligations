@@ -18,6 +18,6 @@ public static class AnalyticsEventMappers
             Version = auditEvent.Version,
             Before = auditEvent.Before,
             After = auditEvent.After,
-            SchemaVersion = auditEvent.SchemaVersion,
+            SchemaVersion = $"{auditEvent.Entity}.{auditEvent.SchemaVersion}",
         };
 }

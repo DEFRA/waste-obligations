@@ -58,12 +58,13 @@
         "regulatorEmail": "regulator@email.com",
         "schemeOperatorName": null
       },
+      "schemaVersion": "v1.0.0",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "DateTime_1",
       "version": 1
     },
-    "SchemaVersion": "compliance_declaration.v1"
+    "SchemaVersion": "v1.0.0"
   },
   {
     "EventId": "01HXYZ00000000000000000002",
@@ -124,12 +125,13 @@
         "regulatorEmail": "regulator@email.com",
         "schemeOperatorName": null
       },
+      "schemaVersion": "v1.0.0",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "DateTime_4",
       "version": 1
     },
-    "SchemaVersion": "compliance_declaration.v1"
+    "SchemaVersion": "v1.0.0"
   },
   {
     "EventId": "01HXYZ00000000000000000003",
@@ -190,6 +192,7 @@
         "regulatorEmail": "regulator@email.com",
         "schemeOperatorName": null
       },
+      "schemaVersion": "v1.0.0",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "DateTime_1",
@@ -244,12 +247,13 @@
         "regulatorEmail": "regulator@email.com",
         "schemeOperatorName": null
       },
+      "schemaVersion": "v1.0.0",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "DateTime_6",
       "version": 2
     },
-    "SchemaVersion": "compliance_declaration.v1"
+    "SchemaVersion": "v1.0.0"
   },
   {
     "EventId": "01HXYZ00000000000000000004",
@@ -310,6 +314,7 @@
         "regulatorEmail": "regulator@email.com",
         "schemeOperatorName": null
       },
+      "schemaVersion": "v1.0.0",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "DateTime_4",
@@ -364,11 +369,12 @@
         "regulatorEmail": "regulator@email.com",
         "schemeOperatorName": null
       },
+      "schemaVersion": "v1.0.0",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "DateTime_8",
       "version": 2
     },
-    "SchemaVersion": "compliance_declaration.v1"
+    "SchemaVersion": "v1.0.0"
   }
 ]

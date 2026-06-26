@@ -1,6 +1,5 @@
 using Defra.WasteObligations.AuditEvents.Data;
 using Defra.WasteObligations.AuditEvents.Entities;
-using MongoDB.Bson;
 using MongoDB.Driver;
 
 namespace Defra.WasteObligations.AuditEvents;

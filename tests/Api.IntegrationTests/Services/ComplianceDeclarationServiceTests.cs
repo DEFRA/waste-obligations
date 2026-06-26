@@ -72,7 +72,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         auditEvent.Operation.Should().Be("insert");
         auditEvent.Actor.Should().Be("service:waste-obligations");
         auditEvent.Version.Should().Be(1);
-        auditEvent.SchemaVersion.Should().Be($"{Entity}.v1");
+        auditEvent.SchemaVersion.Should().Be(ComplianceDeclaration.SchemaVersionValue);
         auditEvent.Before.Should().BeNull();
         auditEvent.After.Should().NotBeNull();
         auditEvent.After!["_id"].Should().Be(initial.Id);

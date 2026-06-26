@@ -10,6 +10,7 @@ using Defra.WasteObligations.Testing.Authentication;
 using Defra.WasteObligations.Testing.Extensions.WireMock;
 using Defra.WasteObligations.Testing.Fixtures.Dtos;
 using ComplianceDeclaration = Defra.WasteObligations.Api.Dtos.ComplianceDeclaration;
+using ComplianceDeclarationEntity = Defra.WasteObligations.Api.Data.Entities.ComplianceDeclaration;
 
 namespace Defra.WasteObligations.Api.IntegrationTests.AuditEvents.Analytics;
 
@@ -55,7 +56,10 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
         root.GetProperty("eventId").GetString().Should().NotBeNullOrWhiteSpace();
         root.GetProperty("entityId").GetString().Should().Be($"compliance_declaration_{complianceDeclaration!.Id}");
         root.GetProperty("operation").GetString().Should().Be("insert");
-        root.GetProperty("schemaVersion").GetString().Should().Be("compliance_declaration.v1");
+        root.GetProperty("schemaVersion")
+            .GetString()
+            .Should()
+            .Be($"compliance_declaration.{ComplianceDeclarationEntity.SchemaVersionValue}");
         after.GetProperty("_id").GetString().Should().Be(complianceDeclaration.Id);
     }
 

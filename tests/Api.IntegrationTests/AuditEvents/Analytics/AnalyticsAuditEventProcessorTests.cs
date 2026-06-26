@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.AuditEvents;
 using Defra.WasteObligations.AuditEvents.Analytics;
 using Defra.WasteObligations.AuditEvents.Data;
@@ -199,7 +200,7 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
             RecordedAt = new DateTime(2026, 1, 1, 0, 0, 1, DateTimeKind.Utc),
             Actor = "user@example.com",
             Version = 1,
-            SchemaVersion = "compliance_declaration.v1",
+            SchemaVersion = ComplianceDeclaration.SchemaVersionValue,
             Dispatches = dispatches ?? [],
         };
 
