@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Defra.WasteObligations.AuditEvents;
+namespace Defra.WasteObligations.AuditEvents.Analytics;
 
 public record AnalyticsAuditEventProcessorOptions
 {

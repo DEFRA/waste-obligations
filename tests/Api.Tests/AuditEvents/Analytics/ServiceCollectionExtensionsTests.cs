@@ -1,10 +1,11 @@
 using AwesomeAssertions;
 using Defra.WasteObligations.AuditEvents;
+using Defra.WasteObligations.AuditEvents.Analytics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
-namespace Defra.WasteObligations.Api.Tests.AuditEvents;
+namespace Defra.WasteObligations.Api.Tests.AuditEvents.Analytics;
 
 public class ServiceCollectionExtensionsTests
 {

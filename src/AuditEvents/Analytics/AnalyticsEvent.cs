@@ -1,6 +1,6 @@
 using MongoDB.Bson;
 
-namespace Defra.WasteObligations.AuditEvents;
+namespace Defra.WasteObligations.AuditEvents.Analytics;
 
 public record AnalyticsEvent
 {

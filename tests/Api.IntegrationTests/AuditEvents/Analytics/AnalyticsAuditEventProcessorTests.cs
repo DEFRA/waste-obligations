@@ -1,5 +1,6 @@
 using AwesomeAssertions;
 using Defra.WasteObligations.AuditEvents;
+using Defra.WasteObligations.AuditEvents.Analytics;
 using Defra.WasteObligations.AuditEvents.Data;
 using Defra.WasteObligations.AuditEvents.Entities;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,7 +10,7 @@ using Microsoft.Extensions.Time.Testing;
 using MongoDB.Driver;
 using NSubstitute;
 
-namespace Defra.WasteObligations.Api.IntegrationTests.AuditEvents;
+namespace Defra.WasteObligations.Api.IntegrationTests.AuditEvents.Analytics;
 
 public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
 {

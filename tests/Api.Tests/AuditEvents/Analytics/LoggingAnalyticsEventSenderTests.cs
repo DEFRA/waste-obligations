@@ -1,9 +1,9 @@
 using AwesomeAssertions;
-using Defra.WasteObligations.AuditEvents;
+using Defra.WasteObligations.AuditEvents.Analytics;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 
-namespace Defra.WasteObligations.Api.Tests.AuditEvents;
+namespace Defra.WasteObligations.Api.Tests.AuditEvents.Analytics;
 
 public class LoggingAnalyticsEventSenderTests
 {

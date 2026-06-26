@@ -1,6 +1,6 @@
 using Defra.WasteObligations.AuditEvents.Entities;
 
-namespace Defra.WasteObligations.AuditEvents;
+namespace Defra.WasteObligations.AuditEvents.Analytics;
 
 public static class AnalyticsEventMappers
 {

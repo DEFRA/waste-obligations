@@ -1,8 +1,9 @@
 using AwesomeAssertions;
 using Defra.WasteObligations.AuditEvents;
+using Defra.WasteObligations.AuditEvents.Analytics;
 using Defra.WasteObligations.AuditEvents.Entities;
 
-namespace Defra.WasteObligations.Api.Tests.AuditEvents;
+namespace Defra.WasteObligations.Api.Tests.AuditEvents.Analytics;
 
 public class AnalyticsEventMappersTests
 {

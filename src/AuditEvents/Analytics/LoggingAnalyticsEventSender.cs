@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace Defra.WasteObligations.AuditEvents;
+namespace Defra.WasteObligations.AuditEvents.Analytics;
 
 public class LoggingAnalyticsEventSender(ILogger<LoggingAnalyticsEventSender> logger) : IAnalyticsEventSender
 {

@@ -1,4 +1,4 @@
-namespace Defra.WasteObligations.AuditEvents;
+namespace Defra.WasteObligations.AuditEvents.Analytics;
 
 public interface IAnalyticsEventSender
 {
