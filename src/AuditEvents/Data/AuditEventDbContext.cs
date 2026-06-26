@@ -9,4 +9,7 @@ public class AuditEventDbContext(IMongoDatabase database) : IAuditEventDbContext
         database.GetCollection<AuditEventCounter>(nameof(AuditEventCounter));
 
     public IMongoCollection<AuditEvent> AuditEvents { get; } = database.GetCollection<AuditEvent>(nameof(AuditEvent));
+
+    public IMongoCollection<AuditEventDispatchLease> AuditEventDispatchLeases { get; } =
+        database.GetCollection<AuditEventDispatchLease>(nameof(AuditEventDispatchLease));
 }

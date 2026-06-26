@@ -7,4 +7,5 @@ public interface IAuditEventDbContext
 {
     IMongoCollection<AuditEventCounter> AuditEventCounters { get; }
     IMongoCollection<AuditEvent> AuditEvents { get; }
+    IMongoCollection<AuditEventDispatchLease> AuditEventDispatchLeases { get; }
 }

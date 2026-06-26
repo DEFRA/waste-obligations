@@ -3,15 +3,19 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using AutoFixture;
 using AwesomeAssertions;
+using Defra.WasteObligations.AuditEvents.Entities;
 using Defra.WasteObligations.Testing.Authentication;
 using Defra.WasteObligations.Testing.Extensions.WireMock;
 using Defra.WasteObligations.Testing.Fixtures.Dtos;
+using MongoDB.Driver;
 using ComplianceDeclaration = Defra.WasteObligations.Api.Dtos.ComplianceDeclaration;
 
 namespace Defra.WasteObligations.Api.IntegrationTests.Scenarios;
 
 public class CreateComplianceDeclarationTests : IntegrationTestBase
 {
+    private const string Analytics = "analytics";
+
     [Fact]
     public async Task WhenOrganisationFound_ShouldBeCreated()
     {
@@ -59,5 +63,18 @@ public class CreateComplianceDeclarationTests : IntegrationTestBase
 
             jsonDocument.RootElement.GetProperty("email_address").GetString().Should().Be("submitter@email.com");
         });
+
+        await AsyncWaiter.WaitForAsync(
+            async () =>
+            {
+                var auditEvent = await AuditEvents
+                    .Find(x => x.EntityId == result.Id)
+                    .SingleAsync(TestContext.Current.CancellationToken);
+
+                auditEvent.Dispatches.Should().ContainKey(Analytics);
+                auditEvent.Dispatches[Analytics].Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
+            },
+            delay: TimeSpan.FromMilliseconds(100)
+        );
     }
 }
