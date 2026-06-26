@@ -169,6 +169,7 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
                 new AnalyticsAuditEventProcessorOptions
                 {
                     ProcessName = Analytics,
+                    TopicArn = "arn:aws:sns:eu-west-2:000000000000:waste_obligations_analytics_events",
                     BatchSize = 25,
                     PollIntervalSeconds = 0,
                     PollJitterSeconds = 0,

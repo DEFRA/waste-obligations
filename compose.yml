@@ -73,9 +73,12 @@ services:
       Mongo__DatabaseUri: mongodb://mongodb:27017/?replicaSet=rs0&directConnection=true
       PORT: 8080
       AWS_ENDPOINT_URL: http://floci:4566
+      AWS__AuthenticationRegion: eu-west-2
+      AWS__ServiceURL: http://floci:4566
       AWS_EMF_ENABLED: false
       AWS_EMF_ENVIRONMENT: Local
       AnalyticsAuditEventProcessor__ProcessName: analytics
+      AnalyticsAuditEventProcessor__TopicArn: arn:aws:sns:eu-west-2:000000000000:waste_obligations_analytics_events
       AnalyticsAuditEventProcessor__PollIntervalSeconds: 1
       AnalyticsAuditEventProcessor__PollJitterSeconds: 0
       # See appsettings.json for additional settings related to auth

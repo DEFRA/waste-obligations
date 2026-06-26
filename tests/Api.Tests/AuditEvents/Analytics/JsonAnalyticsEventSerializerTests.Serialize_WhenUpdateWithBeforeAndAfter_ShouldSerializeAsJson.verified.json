@@ -1,0 +1,24 @@
+﻿{
+  "eventId": "01JZ8RXBMTY2K15SJB3PCFN3D6",
+  "sequence": 124,
+  "entity": "compliance_declaration",
+  "entityId": "compliance_declaration_65f1f6570bb08052a8a27b01",
+  "operation": "update",
+  "occurredAt": "2026-01-02T03:05:05+00:00",
+  "recordedAt": "2026-01-02T03:05:06+00:00",
+  "actor": "service:waste-obligations",
+  "version": 2,
+  "before": {
+    "_id": "65f1f6570bb08052a8a27b01",
+    "obligationYear": 2026,
+    "status": "Submitted",
+    "updated": "2026-01-02T03:04:05Z"
+  },
+  "after": {
+    "_id": "65f1f6570bb08052a8a27b01",
+    "obligationYear": 2027,
+    "status": "Submitted",
+    "updated": "2026-01-02T03:05:05Z"
+  },
+  "schemaVersion": "compliance_declaration.v1"
+}

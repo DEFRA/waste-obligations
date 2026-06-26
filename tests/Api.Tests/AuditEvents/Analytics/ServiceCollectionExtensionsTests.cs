@@ -47,7 +47,12 @@ public class ServiceCollectionExtensionsTests
         services.Should().Contain(x => x.ServiceType == typeof(IAuditEventService));
         services.Should().Contain(x => x.ServiceType == typeof(AuditEventLeaseService));
         services.Should().Contain(x => x.ServiceType == typeof(AuditEventDispatchService));
-        services.Should().Contain(x => x.ServiceType == typeof(IAnalyticsEventSender));
+        services
+            .Should()
+            .Contain(x =>
+                x.ServiceType == typeof(IAnalyticsEventSender)
+                && x.ImplementationType == typeof(SnsAnalyticsEventSender)
+            );
     }
 
     private static IConfiguration CreateConfiguration()
@@ -55,6 +60,8 @@ public class ServiceCollectionExtensionsTests
         var values = new Dictionary<string, string?>
         {
             [$"{AnalyticsAuditEventProcessorOptions.SectionName}:ProcessName"] = "analytics",
+            [$"{AnalyticsAuditEventProcessorOptions.SectionName}:TopicArn"] =
+                "arn:aws:sns:eu-west-2:000000000000:waste_obligations_analytics_events",
             [$"{AnalyticsAuditEventProcessorOptions.SectionName}:BatchSize"] = "25",
             [$"{AnalyticsAuditEventProcessorOptions.SectionName}:PollIntervalSeconds"] = "15",
             [$"{AnalyticsAuditEventProcessorOptions.SectionName}:PollJitterSeconds"] = "5",

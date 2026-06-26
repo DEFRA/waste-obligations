@@ -9,6 +9,9 @@ public record AnalyticsAuditEventProcessorOptions
     [Required]
     public required string ProcessName { get; init; }
 
+    [Required]
+    public required string TopicArn { get; init; }
+
     [Range(1, 500)]
     public int BatchSize { get; init; } = 25;
 

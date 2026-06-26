@@ -30,6 +30,7 @@
 - In the sandbox environment, Api.Tests may need escalation because VSTest binds a local socket for test host communication
 
 ## Integration tests
+- Keep integration tests focused on integration boundaries. Use them to prove real components are wired together and observable side effects happen; put detailed formatting, serialisation, and field-by-field assertions in fast unit tests where possible.
 - Run the local environment with `docker compose up --build -d`
 - Run Api.IntegrationTests with `DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE=1 dotnet test tests/Api.IntegrationTests/Api.IntegrationTests.csproj --no-restore -p:OpenApiGenerateDocuments=false -m:1 -nodeReuse:false --disable-build-servers -v:minimal`
 - Stop the local environment with `docker compose down -v --remove-orphans`
