@@ -12,6 +12,8 @@ public record AnalyticsAuditEventProcessorOptions
     [Required]
     public required string TopicArn { get; init; }
 
+    public bool ProcessingEnabled { get; init; }
+
     [Range(1, 500)]
     public int BatchSize { get; init; } = 25;
 

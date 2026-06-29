@@ -16,6 +16,7 @@ namespace Defra.WasteObligations.Api.IntegrationTests.AuditEvents.Analytics;
 public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
 {
     private const string Analytics = "analytics-test";
+    private const string ProcessingEnabledConfigKey = "AnalyticsAuditEventProcessor:ProcessingEnabled";
 
     [Fact]
     public async Task Start_WhenAuditEventIsUnsent_ShouldSendAndMarkDispatched()
@@ -88,6 +89,29 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Start_WhenProcessingIsDisabled_ShouldLogAndNotSend()
+    {
+        var auditEvent = CreateAuditEvent("event-1", 1);
+        await AuditEvents.InsertOneAsync(auditEvent, cancellationToken: TestContext.Current.CancellationToken);
+        var sender = new RecordingAnalyticsEventSender();
+        var logger = new RecordingLogger<AnalyticsAuditEventProcessor>();
+        var subject = CreateSubject(
+            GetMongoDatabase(),
+            new FakeTimeProvider(),
+            sender,
+            processingEnabled: false,
+            logger: logger
+        );
+
+        await subject.StartAsync(TestContext.Current.CancellationToken);
+        await Task.Delay(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
+        await subject.StopAsync(TestContext.Current.CancellationToken);
+
+        sender.SentEvents.Should().BeEmpty();
+        logger.Messages.Should().ContainSingle(x => x.Contains(ProcessingEnabledConfigKey));
+    }
+
+    [Fact]
     public async Task Start_WhenLeaseRenewalFails_ShouldStopProcessingRemainingEvents()
     {
         const string anotherInstance = "another-instance";
@@ -142,7 +166,9 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
     private static AnalyticsAuditEventProcessor CreateSubject(
         IMongoDatabase database,
         TimeProvider timeProvider,
-        IAnalyticsEventSender sender
+        IAnalyticsEventSender sender,
+        bool processingEnabled = true,
+        ILogger<AnalyticsAuditEventProcessor>? logger = null
     )
     {
         var services = new ServiceCollection();
@@ -162,13 +188,14 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
                 {
                     ProcessName = Analytics,
                     TopicArn = "arn:aws:sns:eu-west-2:000000000000:waste_obligations_analytics_events",
+                    ProcessingEnabled = processingEnabled,
                     BatchSize = 25,
                     PollIntervalSeconds = 0,
                     PollJitterSeconds = 0,
                     LeaseDurationSeconds = 60,
                 }
             ),
-            Substitute.For<ILogger<AnalyticsAuditEventProcessor>>()
+            logger ?? Substitute.For<ILogger<AnalyticsAuditEventProcessor>>()
         );
     }
 
@@ -212,6 +239,27 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
             {
                 await OnSend(analyticsEvent, cancellationToken);
             }
+        }
+    }
+
+    private sealed class RecordingLogger<T> : ILogger<T>
+    {
+        public List<string> Messages { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter
+        )
+        {
+            Messages.Add(formatter(state, exception));
         }
     }
 }

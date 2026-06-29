@@ -62,6 +62,7 @@ public class ServiceCollectionExtensionsTests
             [$"{AnalyticsAuditEventProcessorOptions.SectionName}:ProcessName"] = "analytics",
             [$"{AnalyticsAuditEventProcessorOptions.SectionName}:TopicArn"] =
                 "arn:aws:sns:eu-west-2:000000000000:waste_obligations_analytics_events",
+            [$"{AnalyticsAuditEventProcessorOptions.SectionName}:ProcessingEnabled"] = "true",
             [$"{AnalyticsAuditEventProcessorOptions.SectionName}:BatchSize"] = "25",
             [$"{AnalyticsAuditEventProcessorOptions.SectionName}:PollIntervalSeconds"] = "15",
             [$"{AnalyticsAuditEventProcessorOptions.SectionName}:PollJitterSeconds"] = "5",
