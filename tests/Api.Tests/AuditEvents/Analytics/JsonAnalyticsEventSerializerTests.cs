@@ -163,7 +163,7 @@ public class JsonAnalyticsEventSerializerTests
                 {
                   "type": "object",
                   "properties": {
-                    "id": { "type": "string" },
+                    "id": { "type": "string", "x-bson-name": "_id" },
                     "doubleValue": { "type": "number" },
                     "longValue": { "type": "integer" },
                     "bytes": { "type": "string" },

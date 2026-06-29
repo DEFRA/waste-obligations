@@ -22,6 +22,7 @@
   "properties": {
     "id": {
       "type": "string",
+      "x-bson-name": "_id",
       "pattern": "^[a-fA-F0-9]{24}$"
     },
     "schemaVersion": {
@@ -100,6 +101,7 @@
       "properties": {
         "id": {
           "type": "string",
+          "x-bson-name": "_id",
           "format": "uuid"
         },
         "registrationType": {
@@ -221,7 +223,8 @@
       "required": ["id", "email", "name"],
       "properties": {
         "id": {
-          "type": "string"
+          "type": "string",
+          "x-bson-name": "_id"
         },
         "email": {
           "type": "string"

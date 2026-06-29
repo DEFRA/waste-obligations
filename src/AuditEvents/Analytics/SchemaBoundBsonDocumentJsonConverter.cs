@@ -6,9 +6,6 @@ namespace Defra.WasteObligations.AuditEvents.Analytics;
 
 internal sealed class SchemaBoundBsonDocumentJsonConverter : JsonConverter<SchemaBoundBsonDocument>
 {
-    private const string Id = "id";
-    private const string MongoId = "_id";
-
     public override SchemaBoundBsonDocument Read(
         ref Utf8JsonReader reader,
         Type typeToConvert,
@@ -35,7 +32,7 @@ internal sealed class SchemaBoundBsonDocumentJsonConverter : JsonConverter<Schem
         {
             foreach (var property in properties.EnumerateObject())
             {
-                if (!TryGetDocumentValue(document, property.Name, out var value))
+                if (!TryGetDocumentValue(document, property.Name, property.Value, out var value))
                 {
                     continue;
                 }
@@ -179,7 +176,7 @@ internal sealed class SchemaBoundBsonDocumentJsonConverter : JsonConverter<Schem
                 return candidate;
             }
 
-            if (required.EnumerateArray().All(x => HasDocumentValue(document, x.GetString()!)))
+            if (required.EnumerateArray().All(x => HasDocumentValue(document, candidate, x.GetString()!)))
             {
                 return candidate;
             }
@@ -191,14 +188,16 @@ internal sealed class SchemaBoundBsonDocumentJsonConverter : JsonConverter<Schem
     private static int RequiredCount(JsonElement schema) =>
         schema.TryGetProperty("required", out var required) ? required.GetArrayLength() : 0;
 
-    private static bool TryGetDocumentValue(BsonDocument document, string propertyName, out BsonValue value)
+    private static bool TryGetDocumentValue(
+        BsonDocument document,
+        string propertyName,
+        JsonElement schemaElement,
+        out BsonValue value
+    )
     {
-        if (document.TryGetValue(propertyName, out value))
-        {
-            return true;
-        }
+        var bsonName = GetBsonName(propertyName, schemaElement);
 
-        if (propertyName is Id && document.TryGetValue(MongoId, out value))
+        if (document.TryGetValue(bsonName, out value))
         {
             return true;
         }
@@ -208,8 +207,23 @@ internal sealed class SchemaBoundBsonDocumentJsonConverter : JsonConverter<Schem
         return false;
     }
 
-    private static bool HasDocumentValue(BsonDocument document, string propertyName) =>
-        document.Contains(propertyName) || propertyName is Id && document.Contains(MongoId);
+    private static bool HasDocumentValue(BsonDocument document, JsonElement schemaElement, string propertyName)
+    {
+        if (
+            schemaElement.TryGetProperty("properties", out var properties)
+            && properties.TryGetProperty(propertyName, out var propertySchema)
+        )
+        {
+            return document.Contains(GetBsonName(propertyName, propertySchema));
+        }
+
+        return document.Contains(propertyName);
+    }
+
+    private static string GetBsonName(string propertyName, JsonElement schemaElement) =>
+        schemaElement.TryGetProperty("x-bson-name", out var bsonName) && bsonName.GetString() is { } name
+            ? name
+            : propertyName;
 }
 
 internal sealed record SchemaBoundBsonDocument(BsonDocument Document, JsonSchemaDocument Schema);
