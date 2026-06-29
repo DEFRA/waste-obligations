@@ -11,6 +11,7 @@
 - When enums are used as variables, inline them instead of creating a property
 - Do not use Arrange Act Assert comments in tests
 - Use _camelCase for private instance fields
+- Prefer AwesomeAssertions for assertions; where `Should().NotBeNull()` provides nullable flow information, do not add redundant null suppression operators or extra null guards
 
 ## Change iterations
 - When changing entity or DTO types, inspect fixtures in tests and assess changes needed
