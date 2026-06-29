@@ -65,6 +65,27 @@ public class JsonAnalyticsEventSerializerTests
     }
 
     [Fact]
+    public async Task Serialize_WhenDeleteWithBefore_ShouldSerializeAsJson()
+    {
+        var subject = CreateSubject();
+        var analyticsEvent = AnalyticsEventFixture
+            .ComplianceDeclaration("01JZ8RXBMTY2K15SJB3PCFN3D7", 125)
+            .With(x => x.EntityId, "compliance_declaration_65f1f6570bb08052a8a27b01")
+            .With(x => x.Operation, "delete")
+            .With(x => x.OccurredAt, new DateTimeOffset(2026, 1, 2, 3, 5, 5, TimeSpan.Zero))
+            .With(x => x.RecordedAt, new DateTimeOffset(2026, 1, 2, 3, 5, 6, TimeSpan.Zero))
+            .With(x => x.Actor, "service:waste-obligations")
+            .With(x => x.Version, 2)
+            .With(x => x.Before, ComplianceDeclarationDocument(ComplianceDeclarationStatus.Submitted))
+            .With(x => x.SchemaVersion, AnalyticsEventSchemaVersion)
+            .Create();
+
+        var result = subject.Serialize(analyticsEvent);
+
+        await VerifyJson(result).DontScrubDateTimes().DontScrubGuids();
+    }
+
+    [Fact]
     public void Serialize_WhenDateSerializationIsNotSpecified_ShouldSerializeDateTimeValue()
     {
         var subject = new JsonAnalyticsEventSerializer(
@@ -88,7 +109,7 @@ public class JsonAnalyticsEventSerializerTests
             )
         );
         var analyticsEvent = AnalyticsEventFixture
-            .Default("01JZ8RXBMTY2K15SJB3PCFN3D7", 125)
+            .Default("01JZ8RXBMTY2K15SJB3PCFN3D8", 126)
             .With(x => x.Entity, "test_entity")
             .With(x => x.EntityId, "test_entity_65f1f6570bb08052a8a27b01")
             .With(x => x.OccurredAt, new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero))
@@ -120,7 +141,7 @@ public class JsonAnalyticsEventSerializerTests
             new InlineSchemaProvider("""{ "type": "object", "properties": {} }""")
         );
         var analyticsEvent = AnalyticsEventFixture
-            .Default("01JZ8RXBMTY2K15SJB3PCFN3D8", 126)
+            .Default("01JZ8RXBMTY2K15SJB3PCFN3D9", 127)
             .With(x => x.Entity, "test_entity")
             .With(x => x.SchemaVersion, "test_entity.v1.0")
             .With(x => x.Before, "not a BSON document")
@@ -195,7 +216,7 @@ public class JsonAnalyticsEventSerializerTests
             )
         );
         var analyticsEvent = AnalyticsEventFixture
-            .Default("01JZ8RXBMTY2K15SJB3PCFN3D9", 127)
+            .Default("01JZ8RXBMTY2K15SJB3PCFN3DA", 128)
             .With(x => x.Entity, "test_entity")
             .With(x => x.SchemaVersion, "test_entity.v1.0")
             .With(

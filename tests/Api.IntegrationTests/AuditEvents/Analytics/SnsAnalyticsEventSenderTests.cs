@@ -24,6 +24,79 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
     {
         using var sqsClient = CreateSqsClient();
         await DrainQueue(sqsClient);
+        var client = CreateClient();
+
+        var complianceDeclaration = await CreateComplianceDeclaration(client);
+        using var deserializedMessage = await ReceiveJsonMessage(sqsClient);
+        var root = deserializedMessage.RootElement;
+
+        root.GetProperty("eventId").GetString().Should().NotBeNullOrWhiteSpace();
+        root.GetProperty("entityId").GetString().Should().Be($"compliance_declaration_{complianceDeclaration.Id}");
+        root.GetProperty("operation").GetString().Should().Be("insert");
+        root.GetProperty("schemaVersion")
+            .GetString()
+            .Should()
+            .Be($"compliance_declaration.{ComplianceDeclarationEntity.SchemaVersionValue}");
+        root.GetProperty("before").ValueKind.Should().Be(JsonValueKind.Null);
+        root.GetProperty("after").GetProperty("id").GetString().Should().Be(complianceDeclaration.Id);
+    }
+
+    [Fact]
+    public async Task WhenAuditEventUpdated_ShouldPublishJsonToSubscribedQueue()
+    {
+        using var sqsClient = CreateSqsClient();
+        await DrainQueue(sqsClient);
+        var client = CreateClient();
+        var complianceDeclaration = await CreateComplianceDeclaration(client);
+        await ReceiveJsonMessage(sqsClient);
+
+        var response = await client.PatchAsJsonAsync(
+            Testing.Endpoints.Organisations.ComplianceDeclarations.Update(
+                complianceDeclaration.Organisation.Id,
+                complianceDeclaration.Id
+            ),
+            UpdateComplianceDeclarationRequestFixture.Accepted().Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var deserializedMessage = await ReceiveJsonMessage(sqsClient);
+        var root = deserializedMessage.RootElement;
+
+        root.GetProperty("entityId").GetString().Should().Be($"compliance_declaration_{complianceDeclaration.Id}");
+        root.GetProperty("operation").GetString().Should().Be("update");
+        root.GetProperty("version").GetInt32().Should().Be(2);
+        root.GetProperty("before").GetProperty("status").GetString().Should().Be("Submitted");
+        root.GetProperty("after").GetProperty("status").GetString().Should().Be("Accepted");
+    }
+
+    [Fact]
+    public async Task WhenAuditEventDeleted_ShouldPublishJsonToSubscribedQueue()
+    {
+        using var sqsClient = CreateSqsClient();
+        await DrainQueue(sqsClient);
+        var client = CreateClient();
+        var complianceDeclaration = await CreateComplianceDeclaration(client);
+        await ReceiveJsonMessage(sqsClient);
+
+        var response = await client.DeleteAsync(
+            Testing.Endpoints.ComplianceDeclarations.Delete(complianceDeclaration.Id),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        using var deserializedMessage = await ReceiveJsonMessage(sqsClient);
+        var root = deserializedMessage.RootElement;
+
+        root.GetProperty("entityId").GetString().Should().Be($"compliance_declaration_{complianceDeclaration.Id}");
+        root.GetProperty("operation").GetString().Should().Be("delete");
+        root.GetProperty("version").GetInt32().Should().Be(2);
+        root.GetProperty("before").GetProperty("id").GetString().Should().Be(complianceDeclaration.Id);
+        root.GetProperty("after").ValueKind.Should().Be(JsonValueKind.Null);
+    }
+
+    private async Task<ComplianceDeclaration> CreateComplianceDeclaration(HttpClient client)
+    {
         var organisationId = Guid.NewGuid();
         await WireMockContext.WireMockAdminApi.StubWasteOrganisationsOrganisationRequest(
             organisationId,
@@ -33,7 +106,6 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
             expiryInSeconds: 60,
             clientId: ClientIds.AccountBackend
         );
-        var client = CreateClient();
 
         var response = await client.PostAsJsonAsync(
             Testing.Endpoints.Organisations.ComplianceDeclarations.Create(organisationId),
@@ -45,22 +117,10 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
         var complianceDeclaration = await response.Content.ReadFromJsonAsync<ComplianceDeclaration>(
             TestContext.Current.CancellationToken
         );
-        var message = await ReceiveMessage(sqsClient);
-        using var deserializedMessage = JsonSerializer.Deserialize<JsonDocument>(message.Body);
 
-        deserializedMessage.Should().NotBeNull();
         complianceDeclaration.Should().NotBeNull();
-        var root = deserializedMessage!.RootElement;
-        var after = root.GetProperty("after");
 
-        root.GetProperty("eventId").GetString().Should().NotBeNullOrWhiteSpace();
-        root.GetProperty("entityId").GetString().Should().Be($"compliance_declaration_{complianceDeclaration!.Id}");
-        root.GetProperty("operation").GetString().Should().Be("insert");
-        root.GetProperty("schemaVersion")
-            .GetString()
-            .Should()
-            .Be($"compliance_declaration.{ComplianceDeclarationEntity.SchemaVersionValue}");
-        after.GetProperty("id").GetString().Should().Be(complianceDeclaration.Id);
+        return complianceDeclaration!;
     }
 
     private static IAmazonSQS CreateSqsClient()
@@ -129,5 +189,15 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
         );
 
         return receivedMessage;
+    }
+
+    private static async Task<JsonDocument> ReceiveJsonMessage(IAmazonSQS sqsClient)
+    {
+        var message = await ReceiveMessage(sqsClient);
+        var deserializedMessage = JsonSerializer.Deserialize<JsonDocument>(message.Body);
+
+        deserializedMessage.Should().NotBeNull();
+
+        return deserializedMessage!;
     }
 }
