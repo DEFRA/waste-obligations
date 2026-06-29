@@ -20,14 +20,12 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
     [Fact]
     public async Task Start_WhenAuditEventIsUnsent_ShouldSendAndMarkDispatched()
     {
-        var database = CreateProcessorDatabase();
-        var auditEvents = database.GetCollection<AuditEvent>(nameof(AuditEvent));
         var sentAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
         var timeProvider = new FakeTimeProvider(sentAt);
         var sender = new RecordingAnalyticsEventSender();
         var auditEvent = CreateAuditEvent("event-1", 1);
-        await auditEvents.InsertOneAsync(auditEvent, cancellationToken: TestContext.Current.CancellationToken);
-        var subject = CreateSubject(database, timeProvider, sender);
+        await AuditEvents.InsertOneAsync(auditEvent, cancellationToken: TestContext.Current.CancellationToken);
+        var subject = CreateSubject(GetMongoDatabase(), timeProvider, sender);
 
         await subject.StartAsync(TestContext.Current.CancellationToken);
         await sender.WaitForSend(TestContext.Current.CancellationToken);
@@ -36,7 +34,7 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
         await AsyncWaiter.WaitForAsync(
             async () =>
             {
-                var result = await auditEvents
+                var result = await AuditEvents
                     .Find(x => x.EventId == auditEvent.EventId)
                     .SingleAsync(TestContext.Current.CancellationToken);
                 result.Dispatches[Analytics].Should().Be(sentAt.UtcDateTime);
@@ -50,16 +48,14 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
     [Fact]
     public async Task Start_WhenAuditEventAlreadyDispatched_ShouldNotSend()
     {
-        var database = CreateProcessorDatabase();
-        var auditEvents = database.GetCollection<AuditEvent>(nameof(AuditEvent));
         var auditEvent = CreateAuditEvent(
             "event-1",
             1,
             new Dictionary<string, DateTime> { [Analytics] = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
         );
-        await auditEvents.InsertOneAsync(auditEvent, cancellationToken: TestContext.Current.CancellationToken);
+        await AuditEvents.InsertOneAsync(auditEvent, cancellationToken: TestContext.Current.CancellationToken);
         var sender = new RecordingAnalyticsEventSender();
-        var subject = CreateSubject(database, new FakeTimeProvider(), sender);
+        var subject = CreateSubject(GetMongoDatabase(), new FakeTimeProvider(), sender);
 
         await subject.StartAsync(TestContext.Current.CancellationToken);
         await Task.Delay(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
@@ -71,10 +67,8 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
     [Fact]
     public async Task Start_WhenSenderThrows_ShouldContinueUntilStopped()
     {
-        var database = CreateProcessorDatabase();
-        var auditEvents = database.GetCollection<AuditEvent>(nameof(AuditEvent));
         var auditEvent = CreateAuditEvent("event-1", 1);
-        await auditEvents.InsertOneAsync(auditEvent, cancellationToken: TestContext.Current.CancellationToken);
+        await AuditEvents.InsertOneAsync(auditEvent, cancellationToken: TestContext.Current.CancellationToken);
         var sender = new RecordingAnalyticsEventSender();
         sender.OnSend = (_, cancellationToken) =>
         {
@@ -83,7 +77,7 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
 
             return Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
         };
-        var subject = CreateSubject(database, new FakeTimeProvider(), sender);
+        var subject = CreateSubject(GetMongoDatabase(), new FakeTimeProvider(), sender);
 
         await subject.StartAsync(TestContext.Current.CancellationToken);
         await sender.WaitForSend(TestContext.Current.CancellationToken);
@@ -98,14 +92,11 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
     {
         const string anotherInstance = "another-instance";
 
-        var database = CreateProcessorDatabase();
-        var auditEvents = database.GetCollection<AuditEvent>(nameof(AuditEvent));
-        var leases = database.GetCollection<AuditEventDispatchLease>(nameof(AuditEventDispatchLease));
         var firstAuditEvent = CreateAuditEvent("event-1", 1);
         var secondAuditEvent = CreateAuditEvent("event-2", 2);
         var leaseOwnerChanged = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        await auditEvents.InsertManyAsync(
+        await AuditEvents.InsertManyAsync(
             [firstAuditEvent, secondAuditEvent],
             cancellationToken: TestContext.Current.CancellationToken
         );
@@ -113,14 +104,14 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
         var sender = new RecordingAnalyticsEventSender();
         sender.OnSend = async (_, cancellationToken) =>
         {
-            await leases.UpdateOneAsync(
+            await AuditEventDispatchLeases.UpdateOneAsync(
                 x => x.Id == Analytics,
                 Builders<AuditEventDispatchLease>.Update.Set(x => x.Owner, anotherInstance),
                 cancellationToken: cancellationToken
             );
             leaseOwnerChanged.TrySetResult();
         };
-        var subject = CreateSubject(database, new FakeTimeProvider(), sender);
+        var subject = CreateSubject(GetMongoDatabase(), new FakeTimeProvider(), sender);
 
         await subject.StartAsync(TestContext.Current.CancellationToken);
         await sender.WaitForSend(TestContext.Current.CancellationToken);
@@ -129,7 +120,7 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
         await AsyncWaiter.WaitForAsync(
             async () =>
             {
-                var firstResult = await auditEvents
+                var firstResult = await AuditEvents
                     .Find(x => x.EventId == firstAuditEvent.EventId)
                     .SingleAsync(TestContext.Current.CancellationToken);
                 firstResult.Dispatches.Should().ContainKey(Analytics);
@@ -142,7 +133,7 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
 
         sender.SentEvents.Should().ContainSingle();
         sender.SentEvents.Single().EventId.Should().Be(firstAuditEvent.EventId);
-        var secondResult = await auditEvents
+        var secondResult = await AuditEvents
             .Find(x => x.EventId == secondAuditEvent.EventId)
             .SingleAsync(TestContext.Current.CancellationToken);
         secondResult.Dispatches.Should().NotContainKey(Analytics);
@@ -180,9 +171,6 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
             Substitute.For<ILogger<AnalyticsAuditEventProcessor>>()
         );
     }
-
-    private static IMongoDatabase CreateProcessorDatabase() =>
-        GetMongoDatabase().Client.GetDatabase($"wo-processor-tests-{Guid.NewGuid():N}");
 
     private static AuditEvent CreateAuditEvent(
         string eventId,

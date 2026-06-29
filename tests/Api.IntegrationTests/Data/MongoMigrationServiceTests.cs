@@ -7,13 +7,17 @@ using NSubstitute;
 
 namespace Defra.WasteObligations.Api.IntegrationTests.Data;
 
-public class MongoIndexServiceTests : IntegrationTestBase
+public class MongoMigrationServiceTests : IntegrationTestBase
 {
     [Fact]
     public async Task Start_ShouldCreateIndex()
     {
         var database = GetMongoDatabase();
-        var subject = new MongoIndexService(database, Substitute.For<ILogger<MongoIndexService>>());
+        var subject = new MongoMigrationService(
+            database,
+            TimeProvider.System,
+            Substitute.For<ILogger<MongoMigrationService>>()
+        );
 
         await subject.StartAsync(TestContext.Current.CancellationToken);
 

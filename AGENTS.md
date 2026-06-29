@@ -20,6 +20,13 @@
 - Run Api.Tests after any change
 - Run Api.IntegrationTests after any change
 
+## Mongo migrations
+- Mongo migrations run on API host startup, so they must be guarded by a distributed Mongo lease before any migration work is attempted
+- Migrations must be compatible with the previous deployed application version because outgoing hosts can continue processing requests during rollout
+- Use an expand/backfill/contract rollout for breaking Mongo changes, including required fields, field renames/removals, incompatible type changes, strict validation, dropped indexes, or unique constraints
+- Prefer adding indexes, optional fields, and permissive validation first; backfill existing data; then enforce stricter validation or remove old structures in a later deployment after old hosts are drained
+- Keep historical audit events unchanged when schema versions move forward
+
 ## Build guidance
 - In the sandbox environment, avoid plain `dotnet build` because it can hang or take significantly longer due to workload notification/build-server delays
 - Build with `DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE=1 dotnet build waste-obligations.slnx --no-restore -p:OpenApiGenerateDocuments=false -m:1 -nodeReuse:false --disable-build-servers -v:minimal`

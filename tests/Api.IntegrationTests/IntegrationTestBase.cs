@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Security.Claims;
 using Defra.WasteObligations.Api.Authentication;
 using Defra.WasteObligations.Api.Data.Entities;
+using Defra.WasteObligations.AuditEvents.Data;
 using Defra.WasteObligations.AuditEvents.Entities;
 using Defra.WasteObligations.Testing;
 using MongoDB.Driver;
@@ -35,7 +36,9 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         ComplianceDeclarations = GetMongoCollection<ComplianceDeclaration>();
         AuditEventCounters = GetMongoCollection<AuditEventCounter>();
         AuditEvents = GetMongoCollection<AuditEvent>();
-        AuditEventDispatchLeases = GetMongoCollection<AuditEventDispatchLease>();
+        AuditEventDispatchLeases = GetMongoCollection<AuditEventDispatchLease>(
+            AuditEventDbContext.AuditEventDispatchLeaseCollectionName
+        );
 
         await DeleteMany(ComplianceDeclarations);
         await DeleteMany(AuditEventCounters);
@@ -75,7 +78,10 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         return new MongoClient(settings).GetDatabase("waste-obligations");
     }
 
-    private static IMongoCollection<T> GetMongoCollection<T>() => GetMongoDatabase().GetCollection<T>(typeof(T).Name);
+    private static IMongoCollection<T> GetMongoCollection<T>() => GetMongoCollection<T>(typeof(T).Name);
+
+    private static IMongoCollection<T> GetMongoCollection<T>(string collectionName) =>
+        GetMongoDatabase().GetCollection<T>(collectionName);
 
     private static async Task DeleteMany<T>(IMongoCollection<T> collection) =>
         await collection.DeleteManyAsync(FilterDefinition<T>.Empty, TestContext.Current.CancellationToken);
