@@ -67,7 +67,26 @@ public class JsonAnalyticsEventSerializerTests
     [Fact]
     public void Serialize_WhenDateSerializationIsNotSpecified_ShouldSerializeDateTimeValue()
     {
-        var subject = new JsonAnalyticsEventSerializer(new InlineSchemaProvider());
+        var subject = new JsonAnalyticsEventSerializer(
+            new InlineSchemaProvider(
+                """
+                {
+                  "type": "object",
+                  "properties": {
+                    "dateWithOffset": {
+                      "type": "string",
+                      "format": "date-time",
+                      "x-date-serialization": "date-time-offset"
+                    },
+                    "dateWithoutOffset": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+                """
+            )
+        );
         var analyticsEvent = AnalyticsEventFixture
             .Default("01JZ8RXBMTY2K15SJB3PCFN3D7", 125)
             .With(x => x.Entity, "test_entity")
@@ -92,6 +111,134 @@ public class JsonAnalyticsEventSerializerTests
 
         after.GetProperty("dateWithOffset").GetString().Should().Be("2026-01-02T03:04:05+00:00");
         after.GetProperty("dateWithoutOffset").GetString().Should().Be("2026-01-02T03:04:05Z");
+    }
+
+    [Fact]
+    public void Serialize_WhenBeforeOrAfterIsNotABsonDocument_ShouldThrow()
+    {
+        var subject = new JsonAnalyticsEventSerializer(
+            new InlineSchemaProvider("""{ "type": "object", "properties": {} }""")
+        );
+        var analyticsEvent = AnalyticsEventFixture
+            .Default("01JZ8RXBMTY2K15SJB3PCFN3D8", 126)
+            .With(x => x.Entity, "test_entity")
+            .With(x => x.SchemaVersion, "test_entity.v1.0")
+            .With(x => x.Before, "not a BSON document")
+            .Create();
+
+        var act = () => subject.Serialize(analyticsEvent);
+
+        act.Should()
+            .Throw<InvalidOperationException>()
+            .WithMessage("AnalyticsEvent before and after values must be BsonDocument instances.");
+    }
+
+    [Fact]
+    public void Serialize_WhenBsonDocumentContainsSchemaBoundValues_ShouldSerializeUsingSchema()
+    {
+        var subject = new JsonAnalyticsEventSerializer(
+            new InlineSchemaProvider(
+                """
+                {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "doubleValue": { "type": "number" },
+                    "longValue": { "type": "integer" },
+                    "bytes": { "type": "string" },
+                    "absent": { "type": "string" },
+                    "choice": {
+                      "oneOf": [
+                        { "type": "string" },
+                        { "type": "integer" }
+                      ]
+                    },
+                    "nested": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "required": [ "known" ],
+                          "properties": {
+                            "known": { "type": "string" }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "required": [ "other" ],
+                          "properties": {
+                            "other": { "type": "string" }
+                          }
+                        }
+                      ]
+                    },
+                    "fallbackNested": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "required": [ "missing" ],
+                          "properties": {
+                            "missing": { "type": "string" }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "required": [ "alsoMissing" ],
+                          "properties": {
+                            "alsoMissing": { "type": "string" }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+                """
+            )
+        );
+        var analyticsEvent = AnalyticsEventFixture
+            .Default("01JZ8RXBMTY2K15SJB3PCFN3D9", 127)
+            .With(x => x.Entity, "test_entity")
+            .With(x => x.SchemaVersion, "test_entity.v1.0")
+            .With(
+                x => x.After,
+                new BsonDocument
+                {
+                    ["_id"] = s_complianceDeclarationId,
+                    ["doubleValue"] = 1.25,
+                    ["longValue"] = 1234567890123L,
+                    ["bytes"] = new BsonBinaryData([1, 2, 3]),
+                    ["choice"] = "selected",
+                    ["nested"] = new BsonDocument { ["known"] = "present", ["other"] = "ignored" },
+                    ["fallbackNested"] = new BsonDocument { ["unknown"] = "ignored" },
+                }
+            )
+            .Create();
+
+        var result = subject.Serialize(analyticsEvent);
+        using var document = JsonDocument.Parse(result);
+        var after = document.RootElement.GetProperty("after");
+
+        after.GetProperty("id").GetString().Should().Be(s_complianceDeclarationId.ToString());
+        after.GetProperty("doubleValue").GetDouble().Should().Be(1.25);
+        after.GetProperty("longValue").GetInt64().Should().Be(1234567890123L);
+        after.GetProperty("bytes").GetString().Should().Be("AQID");
+        after.TryGetProperty("absent", out _).Should().BeFalse();
+        after.GetProperty("choice").GetString().Should().Be("selected");
+        after.GetProperty("nested").EnumerateObject().Should().ContainSingle(x => x.Name == "known");
+        after.GetProperty("fallbackNested").EnumerateObject().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ResolveLocalReference_WhenReferenceIsNotLocalDefinition_ShouldThrow()
+    {
+        using var document = JsonDocument.Parse("""{ "$defs": {} }""");
+        using var reference = JsonDocument.Parse("""{ "$ref": "https://example.com/schema.json" }""");
+        var schema = new JsonSchemaDocument(document.RootElement.Clone());
+
+        var act = () => schema.ResolveLocalReference(reference.RootElement);
+
+        act.Should()
+            .Throw<InvalidOperationException>()
+            .WithMessage("Unsupported schema reference 'https://example.com/schema.json'.");
     }
 
     private static BsonDocument ComplianceDeclarationDocument(ComplianceDeclarationStatus status)
@@ -123,27 +270,10 @@ public class JsonAnalyticsEventSerializerTests
         return new JsonAnalyticsEventSerializer(new EmbeddedEntityJsonSchemaProvider());
     }
 
-    private sealed class InlineSchemaProvider : IEntityJsonSchemaProvider
+    private sealed class InlineSchemaProvider(string schema) : IEntityJsonSchemaProvider
     {
         public JsonSchemaDocument Get(string entity, string schemaVersion)
         {
-            const string schema = """
-                {
-                  "type": "object",
-                  "properties": {
-                    "dateWithOffset": {
-                      "type": "string",
-                      "format": "date-time",
-                      "x-date-serialization": "date-time-offset"
-                    },
-                    "dateWithoutOffset": {
-                      "type": "string",
-                      "format": "date-time"
-                    }
-                  }
-                }
-                """;
-
             using var document = JsonDocument.Parse(schema);
 
             return new JsonSchemaDocument(document.RootElement.Clone());
