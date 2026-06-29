@@ -1,8 +1,9 @@
 using Amazon.SimpleNotificationService;
 using Amazon.SimpleNotificationService.Model;
+using AutoFixture;
 using AwesomeAssertions;
-using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.AuditEvents.Analytics;
+using Defra.WasteObligations.Testing.Fixtures.Entities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -12,7 +13,6 @@ namespace Defra.WasteObligations.Api.Tests.AuditEvents.Analytics;
 public class SnsAnalyticsEventSenderTests
 {
     private const string TopicArn = "arn:aws:sns:eu-west-2:000000000000:waste_obligations_analytics_events";
-    private const string Entity = "compliance_declaration";
 
     [Fact]
     public async Task Send_ShouldPublishAnalyticsEventAsJson()
@@ -30,19 +30,7 @@ public class SnsAnalyticsEventSenderTests
             Substitute.For<ILogger<SnsAnalyticsEventSender>>(),
             Options.Create(new AnalyticsAuditEventProcessorOptions { ProcessName = "analytics", TopicArn = TopicArn })
         );
-        var analyticsEvent = new AnalyticsEvent
-        {
-            EventId = "event-1",
-            Sequence = 1,
-            Entity = Entity,
-            EntityId = "compliance_declaration_entity-1",
-            Operation = "insert",
-            OccurredAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
-            RecordedAt = new DateTime(2026, 1, 1, 0, 0, 1, DateTimeKind.Utc),
-            Actor = "user@example.com",
-            Version = 1,
-            SchemaVersion = $"{Entity}.{ComplianceDeclaration.SchemaVersionValue}",
-        };
+        var analyticsEvent = AnalyticsEventFixture.ComplianceDeclaration().Create();
 
         await subject.Send(analyticsEvent, TestContext.Current.CancellationToken);
 

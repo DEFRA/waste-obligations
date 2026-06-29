@@ -15,6 +15,8 @@
 ## Change iterations
 - When changing entity or DTO types, inspect fixtures in tests and assess changes needed
 - Work backwards through tests to assess changes
+- In tests, prefer the fixtures in the Testing support project for repeated valid entity, DTO, and service response shapes; direct instantiation is fine for intentionally malformed/null payloads or small one-off values where a fixture would add noise
+- Fixture location should follow the `tests/Testing/Fixtures` folder taxonomy: DTO fixtures in `Dtos`, entity fixtures in `Entities`, and service integration response fixtures in folders named for that integration
 - Attempt to mask use of ToString where possible
 - Check work has been successful by building the solution
 - Run Api.Tests after any change

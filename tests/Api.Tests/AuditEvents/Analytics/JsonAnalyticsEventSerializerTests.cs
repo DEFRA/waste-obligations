@@ -27,20 +27,15 @@ public class JsonAnalyticsEventSerializerTests
     public async Task Serialize_WhenInsertWithAfter_ShouldSerializeAsJson()
     {
         var subject = CreateSubject();
-        var analyticsEvent = new AnalyticsEvent
-        {
-            EventId = "01JZ8RXBMTY2K15SJB3PCFN3D5",
-            Sequence = 123,
-            Entity = Entity,
-            EntityId = "compliance_declaration_65f1f6570bb08052a8a27b01",
-            Operation = "insert",
-            OccurredAt = new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero),
-            RecordedAt = new DateTimeOffset(2026, 1, 2, 3, 4, 6, TimeSpan.Zero),
-            Actor = "service:waste-obligations",
-            Version = 1,
-            After = ComplianceDeclarationDocument(ComplianceDeclarationStatus.Submitted),
-            SchemaVersion = AnalyticsEventSchemaVersion,
-        };
+        var analyticsEvent = AnalyticsEventFixture
+            .ComplianceDeclaration("01JZ8RXBMTY2K15SJB3PCFN3D5", 123)
+            .With(x => x.EntityId, "compliance_declaration_65f1f6570bb08052a8a27b01")
+            .With(x => x.OccurredAt, new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero))
+            .With(x => x.RecordedAt, new DateTimeOffset(2026, 1, 2, 3, 4, 6, TimeSpan.Zero))
+            .With(x => x.Actor, "service:waste-obligations")
+            .With(x => x.After, ComplianceDeclarationDocument(ComplianceDeclarationStatus.Submitted))
+            .With(x => x.SchemaVersion, AnalyticsEventSchemaVersion)
+            .Create();
 
         var result = subject.Serialize(analyticsEvent);
 
@@ -51,21 +46,18 @@ public class JsonAnalyticsEventSerializerTests
     public async Task Serialize_WhenUpdateWithBeforeAndAfter_ShouldSerializeAsJson()
     {
         var subject = CreateSubject();
-        var analyticsEvent = new AnalyticsEvent
-        {
-            EventId = "01JZ8RXBMTY2K15SJB3PCFN3D6",
-            Sequence = 124,
-            Entity = Entity,
-            EntityId = "compliance_declaration_65f1f6570bb08052a8a27b01",
-            Operation = "update",
-            OccurredAt = new DateTimeOffset(2026, 1, 2, 3, 5, 5, TimeSpan.Zero),
-            RecordedAt = new DateTimeOffset(2026, 1, 2, 3, 5, 6, TimeSpan.Zero),
-            Actor = "service:waste-obligations",
-            Version = 2,
-            Before = ComplianceDeclarationDocument(ComplianceDeclarationStatus.Submitted),
-            After = ComplianceDeclarationDocument(ComplianceDeclarationStatus.Accepted),
-            SchemaVersion = AnalyticsEventSchemaVersion,
-        };
+        var analyticsEvent = AnalyticsEventFixture
+            .ComplianceDeclaration("01JZ8RXBMTY2K15SJB3PCFN3D6", 124)
+            .With(x => x.EntityId, "compliance_declaration_65f1f6570bb08052a8a27b01")
+            .With(x => x.Operation, "update")
+            .With(x => x.OccurredAt, new DateTimeOffset(2026, 1, 2, 3, 5, 5, TimeSpan.Zero))
+            .With(x => x.RecordedAt, new DateTimeOffset(2026, 1, 2, 3, 5, 6, TimeSpan.Zero))
+            .With(x => x.Actor, "service:waste-obligations")
+            .With(x => x.Version, 2)
+            .With(x => x.Before, ComplianceDeclarationDocument(ComplianceDeclarationStatus.Submitted))
+            .With(x => x.After, ComplianceDeclarationDocument(ComplianceDeclarationStatus.Accepted))
+            .With(x => x.SchemaVersion, AnalyticsEventSchemaVersion)
+            .Create();
 
         var result = subject.Serialize(analyticsEvent);
 
@@ -76,24 +68,23 @@ public class JsonAnalyticsEventSerializerTests
     public void Serialize_WhenDateSerializationIsNotSpecified_ShouldSerializeDateTimeValue()
     {
         var subject = new JsonAnalyticsEventSerializer(new InlineSchemaProvider());
-        var analyticsEvent = new AnalyticsEvent
-        {
-            EventId = "01JZ8RXBMTY2K15SJB3PCFN3D7",
-            Sequence = 125,
-            Entity = "test_entity",
-            EntityId = "test_entity_65f1f6570bb08052a8a27b01",
-            Operation = "insert",
-            OccurredAt = new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero),
-            RecordedAt = new DateTimeOffset(2026, 1, 2, 3, 4, 6, TimeSpan.Zero),
-            Actor = "service:waste-obligations",
-            Version = 1,
-            After = new BsonDocument
-            {
-                ["dateWithOffset"] = new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc),
-                ["dateWithoutOffset"] = new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc),
-            },
-            SchemaVersion = "test_entity.v1.0",
-        };
+        var analyticsEvent = AnalyticsEventFixture
+            .Default("01JZ8RXBMTY2K15SJB3PCFN3D7", 125)
+            .With(x => x.Entity, "test_entity")
+            .With(x => x.EntityId, "test_entity_65f1f6570bb08052a8a27b01")
+            .With(x => x.OccurredAt, new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero))
+            .With(x => x.RecordedAt, new DateTimeOffset(2026, 1, 2, 3, 4, 6, TimeSpan.Zero))
+            .With(x => x.Actor, "service:waste-obligations")
+            .With(
+                x => x.After,
+                new BsonDocument
+                {
+                    ["dateWithOffset"] = new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc),
+                    ["dateWithoutOffset"] = new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc),
+                }
+            )
+            .With(x => x.SchemaVersion, "test_entity.v1.0")
+            .Create();
 
         var result = subject.Serialize(analyticsEvent);
         using var document = JsonDocument.Parse(result);

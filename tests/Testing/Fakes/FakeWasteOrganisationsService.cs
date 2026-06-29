@@ -1,4 +1,6 @@
+using AutoFixture;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
+using Defra.WasteObligations.Testing.Fixtures.WasteOrganisations;
 using Organisation = Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation;
 
 namespace Defra.WasteObligations.Testing.Fakes;
@@ -14,29 +16,26 @@ public class FakeWasteOrganisationsService : IWasteOrganisationsService
     {
         {
             OrganisationId,
-            new Organisation
-            {
-                Id = OrganisationId,
-                Name = "Organisation Name",
-                TradingName = "Trading Name",
-                BusinessCountry = BusinessCountry.England,
-                Address = new Address(),
-                Registrations =
-                [
-                    new Registration
-                    {
-                        Status = RegistrationStatus.Registered,
-                        Type = RegistrationType.ComplianceScheme,
-                        RegistrationYear = Year,
-                    },
-                    new Registration
-                    {
-                        Status = RegistrationStatus.Registered,
-                        Type = RegistrationType.LargeProducer,
-                        RegistrationYear = Year + 1,
-                    },
-                ],
-            }
+            OrganisationFixture
+                .Default(OrganisationId)
+                .With(x => x.Name, "Organisation Name")
+                .With(x => x.TradingName, "Trading Name")
+                .With(
+                    x => x.Registrations,
+                    [
+                        RegistrationFixture
+                            .Default()
+                            .With(x => x.Type, RegistrationType.ComplianceScheme)
+                            .With(x => x.RegistrationYear, Year)
+                            .Create(),
+                        RegistrationFixture
+                            .Default()
+                            .With(x => x.Type, RegistrationType.LargeProducer)
+                            .With(x => x.RegistrationYear, Year + 1)
+                            .Create(),
+                    ]
+                )
+                .Create()
         },
     };
 

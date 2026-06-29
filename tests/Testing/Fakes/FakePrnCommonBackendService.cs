@@ -1,5 +1,7 @@
+using AutoFixture;
 using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.Api.Services.PrnCommonBackend;
+using Defra.WasteObligations.Testing.Fixtures.PrnCommonBackend;
 using Obligation = Defra.WasteObligations.Api.Services.PrnCommonBackend.Obligation;
 
 namespace Defra.WasteObligations.Testing.Fakes;
@@ -11,30 +13,18 @@ public class FakePrnCommonBackendService : IPrnCommonBackendService
         {
             (FakeWasteOrganisationsService.OrganisationId, FakeWasteOrganisationsService.Year),
             [
-                new Obligation
-                {
-                    OrganisationId = FakeWasteOrganisationsService.OrganisationId,
-                    MaterialName = Material.Plastic,
-                    Tonnage = 100,
-                    MaterialTarget = 0.75m,
-                    ObligationToMeet = null,
-                    TonnageAwaitingAcceptance = 10,
-                    TonnageAccepted = 2,
-                    TonnageOutstanding = null,
-                    Status = ObligationStatus.NoDataYet,
-                },
-                new Obligation
-                {
-                    OrganisationId = FakeWasteOrganisationsService.OrganisationId,
-                    MaterialName = Material.Paper,
-                    Tonnage = 100,
-                    MaterialTarget = 0.75m,
-                    ObligationToMeet = 200,
-                    TonnageAwaitingAcceptance = 10,
-                    TonnageAccepted = 2,
-                    TonnageOutstanding = 198,
-                    Status = ObligationStatus.NotMet,
-                },
+                ObligationFixture
+                    .Default()
+                    .With(x => x.OrganisationId, FakeWasteOrganisationsService.OrganisationId)
+                    .Create(),
+                ObligationFixture
+                    .Default()
+                    .With(x => x.OrganisationId, FakeWasteOrganisationsService.OrganisationId)
+                    .With(x => x.MaterialName, Material.Paper)
+                    .With(x => x.ObligationToMeet, 200)
+                    .With(x => x.TonnageOutstanding, 198)
+                    .With(x => x.Status, ObligationStatus.NotMet)
+                    .Create(),
             ]
         },
     };

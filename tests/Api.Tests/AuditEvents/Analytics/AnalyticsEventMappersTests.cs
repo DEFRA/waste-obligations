@@ -1,7 +1,8 @@
+using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.AuditEvents.Analytics;
-using Defra.WasteObligations.AuditEvents.Entities;
+using Defra.WasteObligations.Testing.Fixtures.Entities;
 
 namespace Defra.WasteObligations.Api.Tests.AuditEvents.Analytics;
 
@@ -14,19 +15,12 @@ public class AnalyticsEventMappersTests
         const string entityId = "6830b14f9d2a7c61f4e8b935";
         const string eventId = "01JZ8RXBMTY2K15SJB3PCFN3D5";
 
-        var auditEvent = new AuditEvent
-        {
-            EventId = eventId,
-            Sequence = 1,
-            Entity = entity,
-            EntityId = entityId,
-            Operation = "insert",
-            OccurredAt = DateTime.UtcNow,
-            RecordedAt = DateTime.UtcNow,
-            Actor = "user@example.com",
-            Version = 1,
-            SchemaVersion = ComplianceDeclaration.SchemaVersionValue,
-        };
+        var auditEvent = AuditEventFixture
+            .ComplianceDeclaration(eventId)
+            .With(x => x.Entity, entity)
+            .With(x => x.EntityId, entityId)
+            .With(x => x.SchemaVersion, ComplianceDeclaration.SchemaVersionValue)
+            .Create();
 
         var result = auditEvent.ToAnalyticsEvent();
 

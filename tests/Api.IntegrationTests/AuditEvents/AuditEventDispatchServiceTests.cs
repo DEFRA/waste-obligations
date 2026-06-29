@@ -1,8 +1,9 @@
+using AutoFixture;
 using AwesomeAssertions;
-using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.AuditEvents;
 using Defra.WasteObligations.AuditEvents.Data;
 using Defra.WasteObligations.AuditEvents.Entities;
+using Defra.WasteObligations.Testing.Fixtures.Entities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
 using MongoDB.Driver;
@@ -92,19 +93,5 @@ public class AuditEventDispatchServiceTests : IntegrationTestBase
         string eventId,
         long sequence,
         Dictionary<string, DateTime>? dispatches = null
-    ) =>
-        new()
-        {
-            EventId = eventId,
-            Sequence = sequence,
-            Entity = "compliance_declaration",
-            EntityId = $"entity-{sequence}",
-            Operation = "insert",
-            OccurredAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
-            RecordedAt = new DateTime(2026, 1, 1, 0, 0, 1, DateTimeKind.Utc),
-            Actor = "user@example.com",
-            Version = 1,
-            SchemaVersion = ComplianceDeclaration.SchemaVersionValue,
-            Dispatches = dispatches ?? [],
-        };
+    ) => AuditEventFixture.ComplianceDeclaration(eventId, sequence).With(x => x.Dispatches, dispatches ?? []).Create();
 }
