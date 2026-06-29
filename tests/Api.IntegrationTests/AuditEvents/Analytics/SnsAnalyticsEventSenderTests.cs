@@ -16,6 +16,8 @@ namespace Defra.WasteObligations.Api.IntegrationTests.AuditEvents.Analytics;
 
 public class SnsAnalyticsEventSenderTests : IntegrationTestBase
 {
+    private const string ContentEncodingHeader = "Content-Encoding";
+    private const string ContentTypeHeader = "Content-Type";
     private const string ServiceUrl = "http://localhost:4566";
     private const string QueueUrl = ServiceUrl + "/000000000000/waste_obligations_analytics_events_queue";
 
@@ -170,6 +172,7 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
                     {
                         QueueUrl = QueueUrl,
                         MaxNumberOfMessages = 1,
+                        MessageAttributeNames = ["All"],
                         WaitTimeSeconds = 1,
                     },
                     TestContext.Current.CancellationToken
@@ -177,6 +180,9 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
 
                 response.Messages.Should().ContainSingle();
                 receivedMessage = response.Messages!.Single();
+                receivedMessage.MessageAttributes.Should().ContainKey(ContentTypeHeader);
+                receivedMessage.MessageAttributes[ContentTypeHeader].StringValue.Should().Be("application/json");
+                receivedMessage.MessageAttributes.Should().NotContainKey(ContentEncodingHeader);
             },
             timeout: 10,
             delay: TimeSpan.FromMilliseconds(100)
