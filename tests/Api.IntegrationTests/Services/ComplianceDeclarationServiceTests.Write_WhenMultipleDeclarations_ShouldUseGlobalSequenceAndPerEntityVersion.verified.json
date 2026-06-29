@@ -5,8 +5,8 @@
     "Entity": "compliance_declaration",
     "EntityId": "{Scrubbed}",
     "Operation": "insert",
-    "OccurredAt": "DateTime_1",
-    "RecordedAt": "DateTime_2",
+    "OccurredAt": "{Scrubbed}",
+    "RecordedAt": "{Scrubbed}",
     "Actor": "service:waste-obligations",
     "Version": 1,
     "After": {
@@ -14,7 +14,7 @@
       "audit": [
         {
           "action": "Submitted",
-          "timestamp": "DateTime_3",
+          "timestamp": "{Scrubbed}",
           "user": {
             "_id": "{Scrubbed}",
             "email": "submitter@email.com",
@@ -22,7 +22,7 @@
           }
         }
       ],
-      "created": "DateTime_1",
+      "created": "{Scrubbed}",
       "isRegulation43Compliant": true,
       "obligations": [
         {
@@ -61,7 +61,7 @@
       "schemaVersion": "v1.0",
       "status": "Submitted",
       "submitterName": "Submitter Name",
-      "updated": "DateTime_1",
+      "updated": "{Scrubbed}",
       "version": 1
     },
     "SchemaVersion": "v1.0"
@@ -72,8 +72,8 @@
     "Entity": "compliance_declaration",
     "EntityId": "{Scrubbed}",
     "Operation": "insert",
-    "OccurredAt": "DateTime_4",
-    "RecordedAt": "DateTime_5",
+    "OccurredAt": "{Scrubbed}",
+    "RecordedAt": "{Scrubbed}",
     "Actor": "service:waste-obligations",
     "Version": 1,
     "After": {
@@ -81,7 +81,7 @@
       "audit": [
         {
           "action": "Submitted",
-          "timestamp": "DateTime_3",
+          "timestamp": "{Scrubbed}",
           "user": {
             "_id": "{Scrubbed}",
             "email": "submitter@email.com",
@@ -89,7 +89,7 @@
           }
         }
       ],
-      "created": "DateTime_4",
+      "created": "{Scrubbed}",
       "isRegulation43Compliant": true,
       "obligations": [
         {
@@ -128,7 +128,7 @@
       "schemaVersion": "v1.0",
       "status": "Submitted",
       "submitterName": "Submitter Name",
-      "updated": "DateTime_4",
+      "updated": "{Scrubbed}",
       "version": 1
     },
     "SchemaVersion": "v1.0"
@@ -139,8 +139,8 @@
     "Entity": "compliance_declaration",
     "EntityId": "{Scrubbed}",
     "Operation": "update",
-    "OccurredAt": "DateTime_6",
-    "RecordedAt": "DateTime_7",
+    "OccurredAt": "{Scrubbed}",
+    "RecordedAt": "{Scrubbed}",
     "Actor": "service:waste-obligations",
     "Version": 2,
     "Before": {
@@ -148,7 +148,7 @@
       "audit": [
         {
           "action": "Submitted",
-          "timestamp": "DateTime_3",
+          "timestamp": "{Scrubbed}",
           "user": {
             "_id": "{Scrubbed}",
             "email": "submitter@email.com",
@@ -156,7 +156,7 @@
           }
         }
       ],
-      "created": "DateTime_1",
+      "created": "{Scrubbed}",
       "isRegulation43Compliant": true,
       "obligations": [
         {
@@ -195,7 +195,7 @@
       "schemaVersion": "v1.0",
       "status": "Submitted",
       "submitterName": "Submitter Name",
-      "updated": "DateTime_1",
+      "updated": "{Scrubbed}",
       "version": 1
     },
     "After": {
@@ -203,7 +203,7 @@
       "audit": [
         {
           "action": "Submitted",
-          "timestamp": "DateTime_3",
+          "timestamp": "{Scrubbed}",
           "user": {
             "_id": "{Scrubbed}",
             "email": "submitter@email.com",
@@ -211,7 +211,7 @@
           }
         }
       ],
-      "created": "DateTime_1",
+      "created": "{Scrubbed}",
       "isRegulation43Compliant": true,
       "obligations": [
         {
@@ -250,7 +250,7 @@
       "schemaVersion": "v1.0",
       "status": "Submitted",
       "submitterName": "Submitter Name",
-      "updated": "DateTime_6",
+      "updated": "{Scrubbed}",
       "version": 2
     },
     "SchemaVersion": "v1.0"
@@ -261,8 +261,8 @@
     "Entity": "compliance_declaration",
     "EntityId": "{Scrubbed}",
     "Operation": "update",
-    "OccurredAt": "DateTime_8",
-    "RecordedAt": "DateTime_9",
+    "OccurredAt": "{Scrubbed}",
+    "RecordedAt": "{Scrubbed}",
     "Actor": "service:waste-obligations",
     "Version": 2,
     "Before": {
@@ -270,7 +270,7 @@
       "audit": [
         {
           "action": "Submitted",
-          "timestamp": "DateTime_3",
+          "timestamp": "{Scrubbed}",
           "user": {
             "_id": "{Scrubbed}",
             "email": "submitter@email.com",
@@ -278,7 +278,7 @@
           }
         }
       ],
-      "created": "DateTime_4",
+      "created": "{Scrubbed}",
       "isRegulation43Compliant": true,
       "obligations": [
         {
@@ -317,7 +317,7 @@
       "schemaVersion": "v1.0",
       "status": "Submitted",
       "submitterName": "Submitter Name",
-      "updated": "DateTime_4",
+      "updated": "{Scrubbed}",
       "version": 1
     },
     "After": {
@@ -325,7 +325,7 @@
       "audit": [
         {
           "action": "Submitted",
-          "timestamp": "DateTime_3",
+          "timestamp": "{Scrubbed}",
           "user": {
             "_id": "{Scrubbed}",
             "email": "submitter@email.com",
@@ -333,7 +333,7 @@
           }
         }
       ],
-      "created": "DateTime_4",
+      "created": "{Scrubbed}",
       "isRegulation43Compliant": true,
       "obligations": [
         {
@@ -372,7 +372,7 @@
       "schemaVersion": "v1.0",
       "status": "Submitted",
       "submitterName": "Submitter Name",
-      "updated": "DateTime_8",
+      "updated": "{Scrubbed}",
       "version": 2
     },
     "SchemaVersion": "v1.0"

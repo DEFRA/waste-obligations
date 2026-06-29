@@ -3,7 +3,7 @@
 ## Coding conventions
 - Do not use the `Async` suffix for asynchronous methods
 - Add blank line before return statement
-- Use constants for common strings when they are used more than once
+- Use constants for common strings when they are used more than once; inline strings that are only used once
 - Lint files changed/created using "dotnet csharpier format ."
 - Name expressions with x => x. syntax where possible
 - Specify variables as const in tests where possible

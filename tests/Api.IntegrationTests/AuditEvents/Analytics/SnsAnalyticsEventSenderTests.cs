@@ -60,7 +60,7 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
             .GetString()
             .Should()
             .Be($"compliance_declaration.{ComplianceDeclarationEntity.SchemaVersionValue}");
-        after.GetProperty("_id").GetString().Should().Be(complianceDeclaration.Id);
+        after.GetProperty("id").GetString().Should().Be(complianceDeclaration.Id);
     }
 
     private static IAmazonSQS CreateSqsClient()

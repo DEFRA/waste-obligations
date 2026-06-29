@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.Text.Json.Serialization;
-using MongoDB.Bson;
 
 namespace Defra.WasteObligations.AuditEvents.Analytics;
 
@@ -36,10 +35,10 @@ public record AnalyticsEvent
     public int Version { get; init; }
 
     [JsonPropertyName("before")]
-    public BsonDocument? Before { get; init; }
+    public object? Before { get; init; }
 
     [JsonPropertyName("after")]
-    public BsonDocument? After { get; init; }
+    public object? After { get; init; }
 
     [JsonPropertyName("schemaVersion")]
     public required string SchemaVersion { get; init; }

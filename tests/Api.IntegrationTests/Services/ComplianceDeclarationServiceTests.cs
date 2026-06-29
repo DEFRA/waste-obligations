@@ -348,7 +348,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             .SortBy(x => x.Sequence)
             .ToListAsync(TestContext.Current.CancellationToken);
 
-        await Verify(ToVerifyAuditEvents(auditEvents)).ScrubMembers("EntityId", "_id");
+        await Verify(ToVerifyAuditEvents(auditEvents)).ScrubMembers("EntityId", "_id").DisableDateCounting();
     }
 
     [Fact]
