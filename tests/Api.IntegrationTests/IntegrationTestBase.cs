@@ -49,7 +49,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         await WireMockContext.InitializeAsync();
 
         ComplianceDeclarations = GetMongoCollection<ComplianceDeclaration>();
-        AuditEventCounters = GetMongoCollection<AuditEventCounter>();
+        AuditEventCounters = GetMongoCollection<AuditEventCounter>(AuditEventDbContext.AuditEventCounterCollectionName);
         AuditEvents = GetMongoCollection<AuditEvent>();
         AuditEventDispatchLeases = GetMongoCollection<AuditEventDispatchLease>(
             AuditEventDbContext.AuditEventDispatchLeaseCollectionName

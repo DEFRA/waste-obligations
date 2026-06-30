@@ -3,6 +3,7 @@ using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Data.Migrations;
+using Defra.WasteObligations.AuditEvents.Data;
 using Defra.WasteObligations.AuditEvents.Entities;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
@@ -52,6 +53,14 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         auditEventIndexes.Should().Contain(x => IsIndex(x, SequenceIndexName, sequenceKeys, unique: true));
         auditEventIndexes.Should().Contain(x => IsIndex(x, EntityEntityIdVersionIndexName, entityKeys));
         auditEventIndexes.Should().Contain(x => IsIndex(x, DispatchAnalyticsIndexName, dispatchKeys));
+    }
+
+    [Fact]
+    public void AuditEventDbContext_ShouldUseSupportCollectionNameForCounters()
+    {
+        AuditEventCounters
+            .CollectionNamespace.CollectionName.Should()
+            .Be(AuditEventDbContext.AuditEventCounterCollectionName);
     }
 
     [Fact]
