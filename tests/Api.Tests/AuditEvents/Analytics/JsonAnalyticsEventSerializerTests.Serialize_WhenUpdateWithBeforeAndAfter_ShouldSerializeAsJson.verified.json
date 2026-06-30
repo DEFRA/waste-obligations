@@ -10,7 +10,6 @@
   "version": 2,
   "before": {
     "id": "65f1f6570bb08052a8a27b01",
-    "schemaVersion": "v1.0",
     "version": 1,
     "created": "2026-01-02T03:04:05+00:00",
     "updated": "2026-01-02T03:04:05+00:00",
@@ -65,7 +64,6 @@
   },
   "after": {
     "id": "65f1f6570bb08052a8a27b01",
-    "schemaVersion": "v1.0",
     "version": 2,
     "created": "2026-01-02T03:04:05+00:00",
     "updated": "2026-01-02T03:05:05+00:00",
