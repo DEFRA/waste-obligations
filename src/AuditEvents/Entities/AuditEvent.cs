@@ -15,6 +15,9 @@ public record AuditEvent
     public required string Operation { get; init; }
     public required string EventType { get; init; }
 
+    [BsonIgnoreIfNull]
+    public string? DeletedReason { get; init; }
+
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime OccurredAt { get; init; }
 

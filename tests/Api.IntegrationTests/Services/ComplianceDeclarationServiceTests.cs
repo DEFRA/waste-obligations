@@ -77,6 +77,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         auditEvent.EntityId.Should().Be(initial.Id.ToString());
         auditEvent.Operation.Should().Be("insert");
         auditEvent.EventType.Should().Be("submission.created");
+        auditEvent.DeletedReason.Should().BeNull();
         auditEvent.Actor.Should().Be("service:waste-obligations");
         auditEvent.Version.Should().Be(1);
         auditEvent.SchemaVersion.Should().Be(ComplianceDeclaration.SchemaVersionValue);
@@ -192,6 +193,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         auditEvents[1].EntityId.Should().Be(initial.Id.ToString());
         auditEvents[1].Operation.Should().Be("delete");
         auditEvents[1].EventType.Should().Be("submission.removed");
+        auditEvents[1].DeletedReason.Should().Be("System allowed endpoint access to delete");
         auditEvents[1].Version.Should().Be(2);
         auditEvents[1].TraceId.Should().Be(TraceId);
         auditEvents[1].Before.Should().NotBeNull();
@@ -305,6 +307,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         auditEvents[1].EntityId.Should().Be(initial.Id.ToString());
         auditEvents[1].Operation.Should().Be("update");
         auditEvents[1].EventType.Should().Be("submission.amended");
+        auditEvents[1].DeletedReason.Should().BeNull();
         auditEvents[1].Version.Should().Be(2);
         auditEvents[1].TraceId.Should().Be(TraceId);
         auditEvents[1].Before.Should().NotBeNull();
@@ -664,6 +667,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             x.EntityId,
             x.Operation,
             x.EventType,
+            x.DeletedReason,
             x.OccurredAt,
             x.RecordedAt,
             x.Actor,

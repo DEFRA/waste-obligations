@@ -62,6 +62,12 @@ public class DeleteComplianceDeclarationTests : IntegrationTestBase
         );
 
         deletedCount.Should().Be(0);
-        await AssertAnalyticsEventQueued(sqsClient, created.Id, "delete", "submission.removed");
+        await AssertAnalyticsEventQueued(
+            sqsClient,
+            created.Id,
+            "delete",
+            "submission.removed",
+            "System allowed endpoint access to delete"
+        );
     }
 }

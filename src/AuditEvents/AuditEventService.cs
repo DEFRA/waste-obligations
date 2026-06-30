@@ -34,6 +34,7 @@ public class AuditEventService(
                 EntityId = auditEvent.EntityId,
                 Operation = ToValue(auditEvent.Operation),
                 EventType = auditEvent.EventType,
+                DeletedReason = auditEvent.DeletedReason,
                 OccurredAt = auditEvent.OccurredAt,
                 RecordedAt = utcNow,
                 Actor = auditEvent.Actor,

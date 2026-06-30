@@ -23,6 +23,9 @@ public record AnalyticsEvent
     [JsonPropertyName("eventType")]
     public required string EventType { get; init; }
 
+    [JsonPropertyName("deletedReason")]
+    public string? DeletedReason { get; init; }
+
     [Description("ISO 8601 extended format with offset")]
     [JsonPropertyName("occurredAt")]
     public DateTimeOffset OccurredAt { get; init; }

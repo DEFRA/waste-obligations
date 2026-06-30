@@ -13,6 +13,7 @@ public static class AnalyticsEventMappers
             EntityId = $"{auditEvent.Entity}_{auditEvent.EntityId}",
             Operation = auditEvent.Operation,
             EventType = auditEvent.EventType,
+            DeletedReason = auditEvent.DeletedReason,
             OccurredAt = auditEvent.OccurredAt,
             RecordedAt = auditEvent.RecordedAt,
             Actor = auditEvent.Actor,

@@ -7,6 +7,7 @@ public record AuditEventRequest(
     string Entity,
     AuditEventOperation Operation,
     string EventType,
+    string? DeletedReason,
     string EntityId,
     int Version,
     BsonDocument? Before,

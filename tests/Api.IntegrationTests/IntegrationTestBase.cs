@@ -168,7 +168,8 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         IAmazonSQS sqsClient,
         string complianceDeclarationId,
         string operation,
-        string eventType
+        string eventType,
+        string? deletedReason = null
     )
     {
         using var deserializedMessage = await ReceiveAnalyticsEventsQueueJsonMessage(sqsClient);
@@ -177,6 +178,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         root.GetProperty("entityId").GetString().Should().Be($"compliance_declaration_{complianceDeclarationId}");
         root.GetProperty("operation").GetString().Should().Be(operation);
         root.GetProperty("eventType").GetString().Should().Be(eventType);
+        root.GetProperty("deletedReason").GetString().Should().Be(deletedReason);
     }
 
     private static string GenerateJwt(string clientId)

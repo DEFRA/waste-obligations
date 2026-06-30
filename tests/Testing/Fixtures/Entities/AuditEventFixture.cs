@@ -15,6 +15,7 @@ public static class AuditEventFixture
             .With(x => x.EntityId, "entity-1")
             .With(x => x.Operation, "insert")
             .With(x => x.EventType, "submission.created")
+            .Without(x => x.DeletedReason)
             .With(x => x.OccurredAt, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc))
             .With(x => x.RecordedAt, new DateTime(2026, 1, 1, 0, 0, 1, DateTimeKind.Utc))
             .With(x => x.Actor, "user@example.com")

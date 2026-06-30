@@ -27,6 +27,7 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
         root.GetProperty("entityId").GetString().Should().Be($"compliance_declaration_{complianceDeclaration.Id}");
         root.GetProperty("operation").GetString().Should().Be("insert");
         root.GetProperty("eventType").GetString().Should().Be("submission.created");
+        root.GetProperty("deletedReason").ValueKind.Should().Be(JsonValueKind.Null);
         root.GetProperty("schemaVersion")
             .GetString()
             .Should()
@@ -60,6 +61,7 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
         root.GetProperty("entityId").GetString().Should().Be($"compliance_declaration_{complianceDeclaration.Id}");
         root.GetProperty("operation").GetString().Should().Be("update");
         root.GetProperty("eventType").GetString().Should().Be("submission.amended");
+        root.GetProperty("deletedReason").ValueKind.Should().Be(JsonValueKind.Null);
         root.GetProperty("version").GetInt32().Should().Be(2);
         root.GetProperty("before").GetProperty("status").GetString().Should().Be("Submitted");
         root.GetProperty("after").GetProperty("status").GetString().Should().Be("Accepted");
@@ -85,6 +87,7 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
         root.GetProperty("entityId").GetString().Should().Be($"compliance_declaration_{complianceDeclaration.Id}");
         root.GetProperty("operation").GetString().Should().Be("delete");
         root.GetProperty("eventType").GetString().Should().Be("submission.removed");
+        root.GetProperty("deletedReason").GetString().Should().Be("System allowed endpoint access to delete");
         root.GetProperty("version").GetInt32().Should().Be(2);
         root.TryGetProperty("traceId", out _).Should().BeFalse();
         root.GetProperty("before").GetProperty("id").GetString().Should().Be(complianceDeclaration.Id);
