@@ -39,7 +39,16 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
                 var result = await AuditEvents
                     .Find(x => x.EventId == auditEvent.EventId)
                     .SingleAsync(TestContext.Current.CancellationToken);
-                result.Dispatches[Analytics].Should().Be(sentAt.UtcDateTime);
+                result
+                    .Dispatches[Analytics]
+                    .Should()
+                    .BeEquivalentTo(
+                        new AuditEventDispatch
+                        {
+                            Status = AuditEventDispatchStatus.Dispatched,
+                            Date = sentAt.UtcDateTime,
+                        }
+                    );
             },
             timeout: 5,
             delay: TimeSpan.FromMilliseconds(50)
@@ -54,7 +63,14 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
         var auditEvent = CreateAuditEvent(
             "event-1",
             1,
-            new Dictionary<string, DateTime> { [Analytics] = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
+            new Dictionary<string, AuditEventDispatch>
+            {
+                [Analytics] = new()
+                {
+                    Status = AuditEventDispatchStatus.Dispatched,
+                    Date = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                },
+            }
         );
         await AuditEvents.InsertOneAsync(auditEvent, cancellationToken: TestContext.Current.CancellationToken);
         var sender = new RecordingAnalyticsEventSender();
@@ -72,13 +88,15 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
     {
         var auditEvent = CreateAuditEvent("event-1", 1);
         await AuditEvents.InsertOneAsync(auditEvent, cancellationToken: TestContext.Current.CancellationToken);
-        var sender = new RecordingAnalyticsEventSender();
-        sender.OnSend = (_, cancellationToken) =>
+        var sender = new RecordingAnalyticsEventSender
         {
-            if (sender.SentEvents.Count == 1)
-                throw new InvalidOperationException("Sender failed");
+            OnSend = (x, cancellationToken) =>
+            {
+                if (x.EventId == auditEvent.EventId)
+                    throw new InvalidOperationException("Sender failed");
 
-            return Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                return Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            },
         };
         var subject = CreateSubject(GetMongoDatabase(), new FakeTimeProvider(), sender);
 
@@ -88,6 +106,68 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
 
         await act.Should().NotThrowAsync();
         sender.SentEvents.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public async Task Start_WhenSenderThrows_ShouldMarkFailedAndContinueProcessingRemainingEvents()
+    {
+        const string message = "Sender failed";
+
+        var failedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var firstAuditEvent = CreateAuditEvent("event-1", 1);
+        var secondAuditEvent = CreateAuditEvent("event-2", 2);
+        await AuditEvents.InsertManyAsync(
+            [firstAuditEvent, secondAuditEvent],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        var sender = new RecordingAnalyticsEventSender
+        {
+            OnSend = (x, _) =>
+            {
+                if (x.EventId == firstAuditEvent.EventId)
+                    throw new InvalidOperationException(message);
+
+                return Task.CompletedTask;
+            },
+        };
+        var subject = CreateSubject(GetMongoDatabase(), new FakeTimeProvider(failedAt), sender);
+
+        await subject.StartAsync(TestContext.Current.CancellationToken);
+
+        await AsyncWaiter.WaitForAsync(
+            () =>
+            {
+                sender
+                    .SentEvents.Select(x => x.EventId)
+                    .Should()
+                    .Contain(firstAuditEvent.EventId)
+                    .And.Contain(secondAuditEvent.EventId);
+
+                return Task.CompletedTask;
+            },
+            timeout: 5,
+            delay: TimeSpan.FromMilliseconds(50)
+        );
+        await subject.StopAsync(TestContext.Current.CancellationToken);
+
+        var results = await AuditEvents.Find(_ => true).ToListAsync(TestContext.Current.CancellationToken);
+        results
+            .Single(x => x.EventId == firstAuditEvent.EventId)
+            .Dispatches[Analytics]
+            .Should()
+            .BeEquivalentTo(
+                new AuditEventDispatch
+                {
+                    Status = AuditEventDispatchStatus.Failed,
+                    Date = failedAt.UtcDateTime,
+                    Message = message,
+                }
+            );
+        results
+            .Single(x => x.EventId == secondAuditEvent.EventId)
+            .Dispatches[Analytics]
+            .Status.Should()
+            .Be(AuditEventDispatchStatus.Dispatched);
     }
 
     [Fact]
@@ -127,15 +207,17 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
             cancellationToken: TestContext.Current.CancellationToken
         );
 
-        var sender = new RecordingAnalyticsEventSender();
-        sender.OnSend = async (_, cancellationToken) =>
+        var sender = new RecordingAnalyticsEventSender
         {
-            await AuditEventDispatchLeases.UpdateOneAsync(
-                x => x.Id == Analytics,
-                Builders<AuditEventDispatchLease>.Update.Set(x => x.Owner, anotherInstance),
-                cancellationToken: cancellationToken
-            );
-            leaseOwnerChanged.TrySetResult();
+            OnSend = async (_, cancellationToken) =>
+            {
+                await AuditEventDispatchLeases.UpdateOneAsync(
+                    x => x.Id == Analytics,
+                    Builders<AuditEventDispatchLease>.Update.Set(x => x.Owner, anotherInstance),
+                    cancellationToken: cancellationToken
+                );
+                leaseOwnerChanged.TrySetResult();
+            },
         };
         var subject = CreateSubject(GetMongoDatabase(), new FakeTimeProvider(), sender);
 
@@ -204,7 +286,7 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
     private static AuditEvent CreateAuditEvent(
         string eventId,
         long sequence,
-        Dictionary<string, DateTime>? dispatches = null
+        Dictionary<string, AuditEventDispatch>? dispatches = null
     ) => AuditEventFixture.ComplianceDeclaration(eventId, sequence).With(x => x.Dispatches, dispatches ?? []).Create();
 
     private sealed class RecordingAnalyticsEventSender : IAnalyticsEventSender

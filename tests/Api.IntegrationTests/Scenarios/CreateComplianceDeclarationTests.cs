@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using AutoFixture;
 using AwesomeAssertions;
+using Defra.WasteObligations.AuditEvents.Entities;
 using Defra.WasteObligations.Testing.Authentication;
 using Defra.WasteObligations.Testing.Extensions.WireMock;
 using Defra.WasteObligations.Testing.Fixtures.Dtos;
@@ -77,7 +78,8 @@ public class CreateComplianceDeclarationTests : IntegrationTestBase
 
                 auditEvent.TraceId.Should().Be(TraceId);
                 auditEvent.Dispatches.Should().ContainKey(Analytics);
-                auditEvent.Dispatches[Analytics].Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
+                auditEvent.Dispatches[Analytics].Status.Should().Be(AuditEventDispatchStatus.Dispatched);
+                auditEvent.Dispatches[Analytics].Date.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
             },
             delay: TimeSpan.FromMilliseconds(100)
         );

@@ -8,6 +8,7 @@
 - Name expressions with x => x. syntax where possible
 - Specify variables as const in tests where possible
 - Use collection expressions where possible
+- Use object initializers where possible
 - When enums are used as variables, inline them instead of creating a property
 - Do not use Arrange Act Assert comments in tests
 - Use _camelCase for private instance fields

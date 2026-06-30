@@ -22,5 +22,12 @@ public static class AuditEventIndexes
                 .IndexKeys.Ascending(AuditEventDispatchFieldNames.DispatchPath(AnalyticsProcessName))
                 .Ascending(x => x.Sequence)
         );
+
+        yield return new AuditEventIndex(
+            $"Dispatch_{AnalyticsProcessName}_Status_Date",
+            Builders<AuditEvent>
+                .IndexKeys.Ascending(AuditEventDispatchFieldNames.DispatchStatusPath(AnalyticsProcessName))
+                .Ascending(AuditEventDispatchFieldNames.DispatchDatePath(AnalyticsProcessName))
+        );
     }
 }

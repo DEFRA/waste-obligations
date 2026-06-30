@@ -29,6 +29,5 @@ public record AuditEvent
     [BsonIgnoreIfNull]
     public string? TraceId { get; init; }
 
-    [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
-    public Dictionary<string, DateTime> Dispatches { get; init; } = [];
+    public Dictionary<string, AuditEventDispatch> Dispatches { get; init; } = [];
 }

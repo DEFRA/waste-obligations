@@ -81,14 +81,29 @@ public class AnalyticsAuditEventProcessor(
                     break;
                 }
 
-                await analyticsEventSender.Send(auditEvent.ToAnalyticsEvent(), cancellationToken);
-                await auditEventDispatchService.MarkDispatched(processName, auditEvent, cancellationToken);
-                logger.LogInformation(
-                    "Processed audit event {EventId} for {ProcessName} with trace id {TraceId}",
-                    auditEvent.EventId,
-                    processName,
-                    auditEvent.TraceId
-                );
+                try
+                {
+                    await analyticsEventSender.Send(auditEvent.ToAnalyticsEvent(), cancellationToken);
+                    await auditEventDispatchService.MarkDispatched(processName, auditEvent, cancellationToken);
+                    logger.LogInformation(
+                        "Processed audit event {EventId} for {ProcessName} with trace id {TraceId}",
+                        auditEvent.EventId,
+                        processName,
+                        auditEvent.TraceId
+                    );
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                    await auditEventDispatchService.MarkFailed(processName, auditEvent, exception, cancellationToken);
+                    logger.LogError(
+                        exception,
+                        "Failed to process audit event {EventId} for {ProcessName} with trace id {TraceId}",
+                        auditEvent.EventId,
+                        processName,
+                        auditEvent.TraceId
+                    );
+                }
+
                 dispatchedCount++;
             }
 
