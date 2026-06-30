@@ -84,6 +84,6 @@ public class CreateComplianceDeclarationTests : IntegrationTestBase
             delay: TimeSpan.FromMilliseconds(100)
         );
 
-        await AssertAnalyticsEventQueued(sqsClient, result.Id, "insert");
+        await AssertAnalyticsEventQueued(sqsClient, result.Id, "insert", "submission.created");
     }
 }

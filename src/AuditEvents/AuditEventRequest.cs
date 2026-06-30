@@ -6,6 +6,7 @@ public record AuditEventRequest(
     string Actor,
     string Entity,
     AuditEventOperation Operation,
+    string EventType,
     string EntityId,
     int Version,
     BsonDocument? Before,

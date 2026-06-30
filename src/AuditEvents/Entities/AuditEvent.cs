@@ -13,6 +13,7 @@ public record AuditEvent
     public required string Entity { get; init; }
     public required string EntityId { get; init; }
     public required string Operation { get; init; }
+    public required string EventType { get; init; }
 
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime OccurredAt { get; init; }

@@ -33,6 +33,7 @@ public class AuditEventService(
                 Entity = auditEvent.Entity,
                 EntityId = auditEvent.EntityId,
                 Operation = ToValue(auditEvent.Operation),
+                EventType = auditEvent.EventType,
                 OccurredAt = auditEvent.OccurredAt,
                 RecordedAt = utcNow,
                 Actor = auditEvent.Actor,

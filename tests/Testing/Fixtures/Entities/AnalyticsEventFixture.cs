@@ -14,6 +14,7 @@ public static class AnalyticsEventFixture
             .With(x => x.Entity, "entity")
             .With(x => x.EntityId, "entity-1")
             .With(x => x.Operation, "insert")
+            .With(x => x.EventType, "submission.created")
             .With(x => x.OccurredAt, new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero))
             .With(x => x.RecordedAt, new DateTimeOffset(2026, 1, 1, 0, 0, 1, TimeSpan.Zero))
             .With(x => x.Actor, "user@example.com")

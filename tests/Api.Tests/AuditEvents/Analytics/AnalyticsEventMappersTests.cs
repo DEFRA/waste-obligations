@@ -28,6 +28,7 @@ public class AnalyticsEventMappersTests
         result.Entity.Should().Be(auditEvent.Entity);
         result.EntityId.Should().Be($"{entity}_{entityId}");
         result.Operation.Should().Be(auditEvent.Operation);
+        result.EventType.Should().Be(auditEvent.EventType);
         result.SchemaVersion.Should().Be($"{entity}.{ComplianceDeclaration.SchemaVersionValue}");
     }
 }

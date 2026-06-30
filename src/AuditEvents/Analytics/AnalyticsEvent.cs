@@ -20,6 +20,9 @@ public record AnalyticsEvent
     [JsonPropertyName("operation")]
     public required string Operation { get; init; }
 
+    [JsonPropertyName("eventType")]
+    public required string EventType { get; init; }
+
     [Description("ISO 8601 extended format with offset")]
     [JsonPropertyName("occurredAt")]
     public DateTimeOffset OccurredAt { get; init; }

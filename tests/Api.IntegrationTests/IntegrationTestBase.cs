@@ -167,7 +167,8 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     protected static async Task AssertAnalyticsEventQueued(
         IAmazonSQS sqsClient,
         string complianceDeclarationId,
-        string operation
+        string operation,
+        string eventType
     )
     {
         using var deserializedMessage = await ReceiveAnalyticsEventsQueueJsonMessage(sqsClient);
@@ -175,6 +176,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
 
         root.GetProperty("entityId").GetString().Should().Be($"compliance_declaration_{complianceDeclarationId}");
         root.GetProperty("operation").GetString().Should().Be(operation);
+        root.GetProperty("eventType").GetString().Should().Be(eventType);
     }
 
     private static string GenerateJwt(string clientId)
