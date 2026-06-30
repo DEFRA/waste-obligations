@@ -12,6 +12,7 @@
 - Do not use Arrange Act Assert comments in tests
 - Use _camelCase for private instance fields
 - Prefer AwesomeAssertions for assertions; where `Should().NotBeNull()` provides nullable flow information, do not add redundant null suppression operators or extra null guards
+- Place new appsettings.json (and related environment variant files) config sections at the bottom of existing settings
 
 ## Change iterations
 - When changing entity or DTO types, inspect fixtures in tests and assess changes needed
