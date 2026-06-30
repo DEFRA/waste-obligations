@@ -40,6 +40,7 @@ public class AuditEventService(
                 Before = auditEvent.Before,
                 After = auditEvent.After,
                 SchemaVersion = auditEvent.SchemaVersion,
+                TraceId = auditEvent.TraceId,
             },
             cancellationToken: cancellationToken
         );

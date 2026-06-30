@@ -30,6 +30,7 @@ public class CreateComplianceDeclarationTests : IntegrationTestBase
         );
 
         var client = CreateClient();
+        client.DefaultRequestHeaders.Add(TraceHeaderName, TraceId);
 
         var response = await client.PostAsJsonAsync(
             Testing.Endpoints.Organisations.ComplianceDeclarations.Create(organisationId),
@@ -74,6 +75,7 @@ public class CreateComplianceDeclarationTests : IntegrationTestBase
                     .Find(x => x.EntityId == result.Id)
                     .SingleAsync(TestContext.Current.CancellationToken);
 
+                auditEvent.TraceId.Should().Be(TraceId);
                 auditEvent.Dispatches.Should().ContainKey(Analytics);
                 auditEvent.Dispatches[Analytics].Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
             },

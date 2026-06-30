@@ -11,5 +11,6 @@ public record AuditEventRequest(
     BsonDocument? Before,
     BsonDocument? After,
     string SchemaVersion,
-    DateTime OccurredAt
+    DateTime OccurredAt,
+    string? TraceId = null
 );

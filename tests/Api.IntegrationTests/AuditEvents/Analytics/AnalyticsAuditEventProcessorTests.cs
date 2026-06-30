@@ -25,9 +25,10 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
         var sentAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
         var timeProvider = new FakeTimeProvider(sentAt);
         var sender = new RecordingAnalyticsEventSender();
-        var auditEvent = CreateAuditEvent("event-1", 1);
+        var logger = new RecordingLogger<AnalyticsAuditEventProcessor>();
+        var auditEvent = CreateAuditEvent("event-1", 1) with { TraceId = TraceId };
         await AuditEvents.InsertOneAsync(auditEvent, cancellationToken: TestContext.Current.CancellationToken);
-        var subject = CreateSubject(GetMongoDatabase(), timeProvider, sender);
+        var subject = CreateSubject(GetMongoDatabase(), timeProvider, sender, logger: logger);
 
         await subject.StartAsync(TestContext.Current.CancellationToken);
         await sender.WaitForSend(TestContext.Current.CancellationToken);
@@ -44,6 +45,7 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
             timeout: 5,
             delay: TimeSpan.FromMilliseconds(50)
         );
+        logger.Messages.Should().Contain(x => x.Contains(auditEvent.EventId) && x.Contains(TraceId));
         await subject.StopAsync(TestContext.Current.CancellationToken);
     }
 
