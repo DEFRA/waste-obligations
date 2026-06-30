@@ -17,7 +17,6 @@ namespace Defra.WasteObligations.Api.IntegrationTests.AuditEvents.Analytics;
 public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
 {
     private const string Analytics = "analytics-test";
-    private const string ProcessingEnabledConfigKey = "AnalyticsAuditEventProcessor:ProcessingEnabled";
 
     [Fact]
     public async Task Start_WhenAuditEventIsUnsent_ShouldSendAndMarkDispatched()
@@ -111,7 +110,7 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
         await subject.StopAsync(TestContext.Current.CancellationToken);
 
         sender.SentEvents.Should().BeEmpty();
-        logger.Messages.Should().ContainSingle(x => x.Contains(ProcessingEnabledConfigKey));
+        logger.Messages.Should().ContainSingle("Analytics audit event processing is off");
     }
 
     [Fact]

@@ -15,10 +15,7 @@ public class AnalyticsAuditEventProcessor(
     {
         if (!options.Value.ProcessingEnabled)
         {
-            logger.LogInformation(
-                "Analytics audit event processing is currently turned off. Set {ConfigKey} to true to turn it on",
-                $"{AnalyticsAuditEventProcessorOptions.SectionName}:ProcessingEnabled"
-            );
+            logger.LogInformation("Analytics audit event processing is off");
 
             await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken);
 

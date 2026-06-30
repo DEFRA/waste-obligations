@@ -21,9 +21,9 @@ public abstract class IntegrationTestBase : IAsyncLifetime
 {
     protected const string TraceHeaderName = "x-cdp-request-id";
     protected const string TraceId = "trace-id-1";
-
-    private const string AnalyticsEventsQueueUrl =
+    protected const string AnalyticsEventsQueueUrl =
         "http://localhost:4566/000000000000/waste_obligations_analytics_events_queue";
+
     private const string ContentEncodingHeader = "Content-Encoding";
     private const string ContentTypeHeader = "Content-Type";
     private const string JsonContentType = "application/json";
