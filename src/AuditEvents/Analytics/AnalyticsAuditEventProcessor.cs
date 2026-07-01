@@ -15,10 +15,7 @@ public class AnalyticsAuditEventProcessor(
     {
         if (!options.Value.ProcessingEnabled)
         {
-            logger.LogInformation(
-                "Analytics audit event processing is currently turned off. Set {ConfigKey} to true to turn it on",
-                $"{AnalyticsAuditEventProcessorOptions.SectionName}:ProcessingEnabled"
-            );
+            logger.LogInformation("Analytics audit event processing is off");
 
             await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken);
 
@@ -84,9 +81,29 @@ public class AnalyticsAuditEventProcessor(
                     break;
                 }
 
-                await analyticsEventSender.Send(auditEvent.ToAnalyticsEvent(), cancellationToken);
-                await auditEventDispatchService.MarkDispatched(processName, auditEvent, cancellationToken);
-                dispatchedCount++;
+                try
+                {
+                    await analyticsEventSender.Send(auditEvent.ToAnalyticsEvent(), cancellationToken);
+                    await auditEventDispatchService.MarkDispatched(processName, auditEvent, cancellationToken);
+                    dispatchedCount++;
+                    logger.LogInformation(
+                        "Processed audit event {EventId} for {ProcessName} with trace id {TraceId}",
+                        auditEvent.EventId,
+                        processName,
+                        auditEvent.TraceId
+                    );
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                    await auditEventDispatchService.MarkFailed(processName, auditEvent, exception, cancellationToken);
+                    logger.LogError(
+                        exception,
+                        "Failed to process audit event {EventId} for {ProcessName} with trace id {TraceId}",
+                        auditEvent.EventId,
+                        processName,
+                        auditEvent.TraceId
+                    );
+                }
             }
 
             return dispatchedCount;

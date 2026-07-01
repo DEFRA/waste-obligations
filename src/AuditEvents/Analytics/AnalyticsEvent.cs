@@ -20,6 +20,15 @@ public record AnalyticsEvent
     [JsonPropertyName("operation")]
     public required string Operation { get; init; }
 
+    [JsonPropertyName("eventType")]
+    public required string EventType { get; init; }
+
+    [JsonPropertyName("deletedReason")]
+    public string? DeletedReason { get; init; }
+
+    [JsonPropertyName("piiKeyRef")]
+    public string? PiiKeyRef { get; init; }
+
     [Description("ISO 8601 extended format with offset")]
     [JsonPropertyName("occurredAt")]
     public DateTimeOffset OccurredAt { get; init; }

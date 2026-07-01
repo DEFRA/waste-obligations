@@ -3,12 +3,16 @@ using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services;
+using Defra.WasteObligations.Api.Utils.Logging;
 using Defra.WasteObligations.AuditEvents;
 using Defra.WasteObligations.AuditEvents.Data;
 using Defra.WasteObligations.AuditEvents.Entities;
 using Defra.WasteObligations.Testing.Fakes;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
+using Microsoft.AspNetCore.HeaderPropagation;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Primitives;
 using MongoDB.Bson;
 using MongoDB.Driver;
 using NSubstitute;
@@ -36,7 +40,9 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             dbContext,
             Substitute.For<ILogger<ComplianceDeclarationService>>(),
             TimeProvider.System,
-            auditEventService
+            auditEventService,
+            HeaderPropagationValues(),
+            Options.Create(new TraceHeader { Name = TraceHeaderName })
         );
     }
 
@@ -70,9 +76,12 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         auditEvent.Entity.Should().Be(Entity);
         auditEvent.EntityId.Should().Be(initial.Id.ToString());
         auditEvent.Operation.Should().Be("insert");
+        auditEvent.EventType.Should().Be("submission.created");
+        auditEvent.DeletedReason.Should().BeNull();
         auditEvent.Actor.Should().Be("service:waste-obligations");
         auditEvent.Version.Should().Be(1);
         auditEvent.SchemaVersion.Should().Be(ComplianceDeclaration.SchemaVersionValue);
+        auditEvent.TraceId.Should().Be(TraceId);
         auditEvent.Before.Should().BeNull();
         auditEvent.After.Should().NotBeNull();
         auditEvent.After!["_id"].Should().Be(initial.Id);
@@ -104,7 +113,9 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             new MongoDbContext(database),
             Substitute.For<ILogger<ComplianceDeclarationService>>(),
             TimeProvider.System,
-            new ThrowingAuditEventService()
+            new ThrowingAuditEventService(),
+            HeaderPropagationValues(),
+            Options.Create(new TraceHeader { Name = TraceHeaderName })
         );
         var complianceDeclaration = ComplianceDeclarationFixture.Default().Create();
         var act = async () => await subject.Create(complianceDeclaration, TestContext.Current.CancellationToken);
@@ -181,7 +192,10 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         auditEvents[1].Sequence.Should().Be(2);
         auditEvents[1].EntityId.Should().Be(initial.Id.ToString());
         auditEvents[1].Operation.Should().Be("delete");
+        auditEvents[1].EventType.Should().Be("submission.removed");
+        auditEvents[1].DeletedReason.Should().Be("elevated system allowed removal");
         auditEvents[1].Version.Should().Be(2);
+        auditEvents[1].TraceId.Should().Be(TraceId);
         auditEvents[1].Before.Should().NotBeNull();
         auditEvents[1].After.Should().BeNull();
     }
@@ -221,7 +235,9 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             dbContext,
             Substitute.For<ILogger<ComplianceDeclarationService>>(),
             TimeProvider.System,
-            Substitute.For<IAuditEventService>()
+            Substitute.For<IAuditEventService>(),
+            HeaderPropagationValues(),
+            Options.Create(new TraceHeader { Name = TraceHeaderName })
         );
         var act = async () => await subject.Delete(current.Id.ToString(), TestContext.Current.CancellationToken);
 
@@ -239,7 +255,9 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             new MongoDbContext(database),
             Substitute.For<ILogger<ComplianceDeclarationService>>(),
             TimeProvider.System,
-            new ThrowingAuditEventService()
+            new ThrowingAuditEventService(),
+            HeaderPropagationValues(),
+            Options.Create(new TraceHeader { Name = TraceHeaderName })
         );
         var initial = await Subject.Create(
             ComplianceDeclarationFixture.DirectProducer().Create(),
@@ -288,7 +306,10 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         auditEvents[1].Sequence.Should().Be(2);
         auditEvents[1].EntityId.Should().Be(initial.Id.ToString());
         auditEvents[1].Operation.Should().Be("update");
+        auditEvents[1].EventType.Should().Be("submission.amended");
+        auditEvents[1].DeletedReason.Should().BeNull();
         auditEvents[1].Version.Should().Be(2);
+        auditEvents[1].TraceId.Should().Be(TraceId);
         auditEvents[1].Before.Should().NotBeNull();
         auditEvents[1].Before!["version"].Should().Be(1);
         auditEvents[1].After.Should().NotBeNull();
@@ -645,6 +666,8 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             x.Entity,
             x.EntityId,
             x.Operation,
+            x.EventType,
+            x.DeletedReason,
             x.OccurredAt,
             x.RecordedAt,
             x.Actor,
@@ -653,6 +676,9 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             After = ToPlainDocument(x.After),
             x.SchemaVersion,
         });
+
+    private static HeaderPropagationValues HeaderPropagationValues() =>
+        new() { Headers = new Dictionary<string, StringValues> { [TraceHeaderName] = TraceId } };
 
     private static object? ToPlainDocument(BsonDocument? document)
     {

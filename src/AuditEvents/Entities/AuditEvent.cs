@@ -13,6 +13,10 @@ public record AuditEvent
     public required string Entity { get; init; }
     public required string EntityId { get; init; }
     public required string Operation { get; init; }
+    public required string EventType { get; init; }
+
+    [BsonIgnoreIfNull]
+    public string? DeletedReason { get; init; }
 
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime OccurredAt { get; init; }
@@ -26,6 +30,8 @@ public record AuditEvent
     public BsonDocument? After { get; init; }
     public required string SchemaVersion { get; init; }
 
-    [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
-    public Dictionary<string, DateTime> Dispatches { get; init; } = [];
+    [BsonIgnoreIfNull]
+    public string? TraceId { get; init; }
+
+    public Dictionary<string, AuditEventDispatch> Dispatches { get; init; } = [];
 }

@@ -1,6 +1,9 @@
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
+using Defra.WasteObligations.Api.Utils.Logging;
 using Defra.WasteObligations.AuditEvents;
+using Microsoft.AspNetCore.HeaderPropagation;
+using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Driver;
 using MongoDB.Driver.Linq;
@@ -11,7 +14,9 @@ public class ComplianceDeclarationService(
     IDbContext dbContext,
     ILogger<ComplianceDeclarationService> logger,
     TimeProvider timeProvider,
-    IAuditEventService auditEventService
+    IAuditEventService auditEventService,
+    HeaderPropagationValues headerPropagationValues,
+    IOptions<TraceHeader> traceHeaderOptions
 ) : IComplianceDeclarationService
 {
     private const string Actor = "service:waste-obligations";
@@ -42,12 +47,15 @@ public class ComplianceDeclarationService(
                     Actor,
                     ComplianceDeclarationEntity,
                     AuditEventOperation.Insert,
+                    "submission.created",
+                    null,
                     complianceDeclaration.Id.ToString(),
                     complianceDeclaration.Version,
                     null,
                     complianceDeclaration.ToBsonDocument(),
                     complianceDeclaration.SchemaVersion,
-                    utcNow
+                    utcNow,
+                    ReadTraceId()
                 ),
                 cancellationToken
             );
@@ -126,12 +134,15 @@ public class ComplianceDeclarationService(
                     Actor,
                     ComplianceDeclarationEntity,
                     AuditEventOperation.Delete,
+                    "submission.removed",
+                    "elevated system allowed removal",
                     current.Id.ToString(),
                     current.Version + 1,
                     current.ToBsonDocument(),
                     null,
                     current.SchemaVersion,
-                    utcNow
+                    utcNow,
+                    ReadTraceId()
                 ),
                 cancellationToken
             );
@@ -247,12 +258,15 @@ public class ComplianceDeclarationService(
                     Actor,
                     ComplianceDeclarationEntity,
                     AuditEventOperation.Update,
+                    "submission.amended",
+                    null,
                     updated.Id.ToString(),
                     updated.Version,
                     current.ToBsonDocument(),
                     updated.ToBsonDocument(),
                     updated.SchemaVersion,
-                    updated.Updated
+                    updated.Updated,
+                    ReadTraceId()
                 ),
                 cancellationToken
             );
@@ -268,5 +282,18 @@ public class ComplianceDeclarationService(
         logger.LogInformation("Updated compliance declaration with id '{ComplianceDeclarationId}'", updated.Id);
 
         return updated;
+    }
+
+    private string? ReadTraceId()
+    {
+        if (headerPropagationValues.Headers is null)
+            return null;
+
+        if (!headerPropagationValues.Headers.TryGetValue(traceHeaderOptions.Value.Name, out var values))
+            return null;
+
+        var traceId = values.ToString();
+
+        return string.IsNullOrWhiteSpace(traceId) ? null : traceId;
     }
 }

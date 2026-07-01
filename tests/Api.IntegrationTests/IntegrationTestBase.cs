@@ -19,8 +19,11 @@ namespace Defra.WasteObligations.Api.IntegrationTests;
 [Collection("Integration Tests")]
 public abstract class IntegrationTestBase : IAsyncLifetime
 {
-    private const string AnalyticsEventsQueueUrl =
+    protected const string TraceHeaderName = "x-cdp-request-id";
+    protected const string TraceId = "trace-id-1";
+    protected const string AnalyticsEventsQueueUrl =
         "http://localhost:4566/000000000000/waste_obligations_analytics_events_queue";
+
     private const string ContentEncodingHeader = "Content-Encoding";
     private const string ContentTypeHeader = "Content-Type";
     private const string JsonContentType = "application/json";
@@ -46,7 +49,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         await WireMockContext.InitializeAsync();
 
         ComplianceDeclarations = GetMongoCollection<ComplianceDeclaration>();
-        AuditEventCounters = GetMongoCollection<AuditEventCounter>();
+        AuditEventCounters = GetMongoCollection<AuditEventCounter>(AuditEventDbContext.AuditEventCounterCollectionName);
         AuditEvents = GetMongoCollection<AuditEvent>();
         AuditEventDispatchLeases = GetMongoCollection<AuditEventDispatchLease>(
             AuditEventDbContext.AuditEventDispatchLeaseCollectionName
@@ -164,7 +167,9 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     protected static async Task AssertAnalyticsEventQueued(
         IAmazonSQS sqsClient,
         string complianceDeclarationId,
-        string operation
+        string operation,
+        string eventType,
+        string? deletedReason = null
     )
     {
         using var deserializedMessage = await ReceiveAnalyticsEventsQueueJsonMessage(sqsClient);
@@ -172,6 +177,17 @@ public abstract class IntegrationTestBase : IAsyncLifetime
 
         root.GetProperty("entityId").GetString().Should().Be($"compliance_declaration_{complianceDeclarationId}");
         root.GetProperty("operation").GetString().Should().Be(operation);
+        root.GetProperty("eventType").GetString().Should().Be(eventType);
+        var deletedReasonProperty = root.GetProperty("deletedReason");
+
+        if (deletedReason is null)
+        {
+            deletedReasonProperty.ValueKind.Should().Be(JsonValueKind.Null);
+        }
+        else
+        {
+            deletedReasonProperty.GetString().Should().Be(deletedReason);
+        }
     }
 
     private static string GenerateJwt(string clientId)

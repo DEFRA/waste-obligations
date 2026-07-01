@@ -33,6 +33,8 @@ public class AuditEventService(
                 Entity = auditEvent.Entity,
                 EntityId = auditEvent.EntityId,
                 Operation = ToValue(auditEvent.Operation),
+                EventType = auditEvent.EventType,
+                DeletedReason = auditEvent.DeletedReason,
                 OccurredAt = auditEvent.OccurredAt,
                 RecordedAt = utcNow,
                 Actor = auditEvent.Actor,
@@ -40,6 +42,7 @@ public class AuditEventService(
                 Before = auditEvent.Before,
                 After = auditEvent.After,
                 SchemaVersion = auditEvent.SchemaVersion,
+                TraceId = auditEvent.TraceId,
             },
             cancellationToken: cancellationToken
         );

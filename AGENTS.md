@@ -8,6 +8,7 @@
 - Name expressions with x => x. syntax where possible
 - Specify variables as const in tests where possible
 - Use collection expressions where possible
+- Use object initializers where possible
 - When enums are used as variables, inline them instead of creating a property
 - Do not use Arrange Act Assert comments in tests
 - Use _camelCase for private instance fields
@@ -42,6 +43,7 @@
 
 ## Integration tests
 - Keep integration tests focused on integration boundaries. Use them to prove real components are wired together and observable side effects happen; put detailed formatting, serialisation, and field-by-field assertions in fast unit tests where possible.
+- Do not change shared infrastructure settings, such as queue attributes or database-level configuration, from integration tests unless the test owns an isolated resource created specifically for that test.
 - Run the local environment with `docker compose up --build -d`
 - Run Api.IntegrationTests with `DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE=1 dotnet test tests/Api.IntegrationTests/Api.IntegrationTests.csproj --no-restore -p:OpenApiGenerateDocuments=false -m:1 -nodeReuse:false --disable-build-servers -v:minimal`
 - Stop the local environment with `docker compose down -v --remove-orphans`

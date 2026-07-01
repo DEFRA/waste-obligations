@@ -4,11 +4,14 @@ using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.Api.Services;
+using Defra.WasteObligations.Api.Utils.Logging;
 using Defra.WasteObligations.AuditEvents;
 using Defra.WasteObligations.AuditEvents.Data;
 using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Fakes;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
+using Microsoft.AspNetCore.HeaderPropagation;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 
 namespace Defra.WasteObligations.Api.IntegrationTests.Scenarios;
@@ -32,7 +35,9 @@ public class SearchComplianceDeclarationTests : IntegrationTestBase
             dbContext,
             Substitute.For<Microsoft.Extensions.Logging.ILogger<ComplianceDeclarationService>>(),
             TimeProvider.System,
-            auditEventService
+            auditEventService,
+            new HeaderPropagationValues(),
+            Options.Create(new TraceHeader { Name = TraceHeaderName })
         );
     }
 

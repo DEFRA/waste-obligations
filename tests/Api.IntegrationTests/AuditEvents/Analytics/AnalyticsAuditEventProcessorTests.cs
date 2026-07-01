@@ -4,6 +4,7 @@ using Defra.WasteObligations.AuditEvents;
 using Defra.WasteObligations.AuditEvents.Analytics;
 using Defra.WasteObligations.AuditEvents.Data;
 using Defra.WasteObligations.AuditEvents.Entities;
+using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -17,7 +18,6 @@ namespace Defra.WasteObligations.Api.IntegrationTests.AuditEvents.Analytics;
 public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
 {
     private const string Analytics = "analytics-test";
-    private const string ProcessingEnabledConfigKey = "AnalyticsAuditEventProcessor:ProcessingEnabled";
 
     [Fact]
     public async Task Start_WhenAuditEventIsUnsent_ShouldSendAndMarkDispatched()
@@ -25,9 +25,10 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
         var sentAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
         var timeProvider = new FakeTimeProvider(sentAt);
         var sender = new RecordingAnalyticsEventSender();
-        var auditEvent = CreateAuditEvent("event-1", 1);
+        var logger = new RecordingLogger<AnalyticsAuditEventProcessor>();
+        var auditEvent = CreateAuditEvent("event-1", 1) with { TraceId = TraceId };
         await AuditEvents.InsertOneAsync(auditEvent, cancellationToken: TestContext.Current.CancellationToken);
-        var subject = CreateSubject(GetMongoDatabase(), timeProvider, sender);
+        var subject = CreateSubject(GetMongoDatabase(), timeProvider, sender, logger: logger);
 
         await subject.StartAsync(TestContext.Current.CancellationToken);
         await sender.WaitForSend(TestContext.Current.CancellationToken);
@@ -39,11 +40,21 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
                 var result = await AuditEvents
                     .Find(x => x.EventId == auditEvent.EventId)
                     .SingleAsync(TestContext.Current.CancellationToken);
-                result.Dispatches[Analytics].Should().Be(sentAt.UtcDateTime);
+                result
+                    .Dispatches[Analytics]
+                    .Should()
+                    .BeEquivalentTo(
+                        new AuditEventDispatch
+                        {
+                            Status = AuditEventDispatchStatus.Dispatched,
+                            Date = sentAt.UtcDateTime,
+                        }
+                    );
             },
             timeout: 5,
             delay: TimeSpan.FromMilliseconds(50)
         );
+        logger.Messages.Should().Contain(x => x.Contains(auditEvent.EventId) && x.Contains(TraceId));
         await subject.StopAsync(TestContext.Current.CancellationToken);
     }
 
@@ -53,7 +64,14 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
         var auditEvent = CreateAuditEvent(
             "event-1",
             1,
-            new Dictionary<string, DateTime> { [Analytics] = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
+            new Dictionary<string, AuditEventDispatch>
+            {
+                [Analytics] = new()
+                {
+                    Status = AuditEventDispatchStatus.Dispatched,
+                    Date = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                },
+            }
         );
         await AuditEvents.InsertOneAsync(auditEvent, cancellationToken: TestContext.Current.CancellationToken);
         var sender = new RecordingAnalyticsEventSender();
@@ -71,13 +89,15 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
     {
         var auditEvent = CreateAuditEvent("event-1", 1);
         await AuditEvents.InsertOneAsync(auditEvent, cancellationToken: TestContext.Current.CancellationToken);
-        var sender = new RecordingAnalyticsEventSender();
-        sender.OnSend = (_, cancellationToken) =>
+        var sender = new RecordingAnalyticsEventSender
         {
-            if (sender.SentEvents.Count == 1)
-                throw new InvalidOperationException("Sender failed");
+            OnSend = (x, cancellationToken) =>
+            {
+                if (x.EventId == auditEvent.EventId)
+                    throw new InvalidOperationException("Sender failed");
 
-            return Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                return Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            },
         };
         var subject = CreateSubject(GetMongoDatabase(), new FakeTimeProvider(), sender);
 
@@ -87,6 +107,70 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
 
         await act.Should().NotThrowAsync();
         sender.SentEvents.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public async Task Start_WhenSenderThrows_ShouldMarkFailedAndContinueProcessingRemainingEvents()
+    {
+        const string message = "Sender failed";
+
+        var failedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var firstAuditEvent = CreateAuditEvent("event-1", 1);
+        var secondAuditEvent = CreateAuditEvent("event-2", 2);
+        await AuditEvents.InsertManyAsync(
+            [firstAuditEvent, secondAuditEvent],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        var sender = new RecordingAnalyticsEventSender
+        {
+            OnSend = (x, _) =>
+            {
+                if (x.EventId == firstAuditEvent.EventId)
+                    throw new InvalidOperationException(message);
+
+                return Task.CompletedTask;
+            },
+        };
+        var logger = new RecordingLogger<AnalyticsAuditEventProcessor>();
+        var subject = CreateSubject(GetMongoDatabase(), new FakeTimeProvider(failedAt), sender, logger: logger);
+
+        await subject.StartAsync(TestContext.Current.CancellationToken);
+
+        await AsyncWaiter.WaitForAsync(
+            () =>
+            {
+                sender
+                    .SentEvents.Select(x => x.EventId)
+                    .Should()
+                    .Contain(firstAuditEvent.EventId)
+                    .And.Contain(secondAuditEvent.EventId);
+
+                return Task.CompletedTask;
+            },
+            timeout: 5,
+            delay: TimeSpan.FromMilliseconds(50)
+        );
+        await subject.StopAsync(TestContext.Current.CancellationToken);
+
+        var results = await AuditEvents.Find(_ => true).ToListAsync(TestContext.Current.CancellationToken);
+        results
+            .Single(x => x.EventId == firstAuditEvent.EventId)
+            .Dispatches[Analytics]
+            .Should()
+            .BeEquivalentTo(
+                new AuditEventDispatch
+                {
+                    Status = AuditEventDispatchStatus.Failed,
+                    Date = failedAt.UtcDateTime,
+                    Message = message,
+                }
+            );
+        results
+            .Single(x => x.EventId == secondAuditEvent.EventId)
+            .Dispatches[Analytics]
+            .Status.Should()
+            .Be(AuditEventDispatchStatus.Dispatched);
+        logger.Messages.Should().ContainSingle(x => x == "Processed 1 audit events for analytics-test");
     }
 
     [Fact]
@@ -109,7 +193,7 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
         await subject.StopAsync(TestContext.Current.CancellationToken);
 
         sender.SentEvents.Should().BeEmpty();
-        logger.Messages.Should().ContainSingle(x => x.Contains(ProcessingEnabledConfigKey));
+        logger.Messages.Should().ContainSingle("Analytics audit event processing is off");
     }
 
     [Fact]
@@ -126,15 +210,17 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
             cancellationToken: TestContext.Current.CancellationToken
         );
 
-        var sender = new RecordingAnalyticsEventSender();
-        sender.OnSend = async (_, cancellationToken) =>
+        var sender = new RecordingAnalyticsEventSender
         {
-            await AuditEventDispatchLeases.UpdateOneAsync(
-                x => x.Id == Analytics,
-                Builders<AuditEventDispatchLease>.Update.Set(x => x.Owner, anotherInstance),
-                cancellationToken: cancellationToken
-            );
-            leaseOwnerChanged.TrySetResult();
+            OnSend = async (_, cancellationToken) =>
+            {
+                await AuditEventDispatchLeases.UpdateOneAsync(
+                    x => x.Id == Analytics,
+                    Builders<AuditEventDispatchLease>.Update.Set(x => x.Owner, anotherInstance),
+                    cancellationToken: cancellationToken
+                );
+                leaseOwnerChanged.TrySetResult();
+            },
         };
         var subject = CreateSubject(GetMongoDatabase(), new FakeTimeProvider(), sender);
 
@@ -203,7 +289,7 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
     private static AuditEvent CreateAuditEvent(
         string eventId,
         long sequence,
-        Dictionary<string, DateTime>? dispatches = null
+        Dictionary<string, AuditEventDispatch>? dispatches = null
     ) => AuditEventFixture.ComplianceDeclaration(eventId, sequence).With(x => x.Dispatches, dispatches ?? []).Create();
 
     private sealed class RecordingAnalyticsEventSender : IAnalyticsEventSender
@@ -226,27 +312,6 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
             {
                 await OnSend(analyticsEvent, cancellationToken);
             }
-        }
-    }
-
-    private sealed class RecordingLogger<T> : ILogger<T>
-    {
-        public List<string> Messages { get; } = [];
-
-        public IDisposable? BeginScope<TState>(TState state)
-            where TState : notnull => null;
-
-        public bool IsEnabled(LogLevel logLevel) => true;
-
-        public void Log<TState>(
-            LogLevel logLevel,
-            EventId eventId,
-            TState state,
-            Exception? exception,
-            Func<TState, Exception?, string> formatter
-        )
-        {
-            Messages.Add(formatter(state, exception));
         }
     }
 }
