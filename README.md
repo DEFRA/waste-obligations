@@ -38,6 +38,20 @@ The same port (8080) is used for launch profile and Docker compose configuration
 
 API documentation can be viewed at http://localhost:8080/documentation/index.html once the service is running.
 
+Additional project documentation:
+
+- [Analytics compliance declaration events](docs/analytics-compliance-declaration-events.md)
+
+## Concepts
+
+### Compliance declaration analytics events
+
+Compliance declaration writes are captured in the same transaction as the declaration change. A background analytics processor claims undispatched changes, serialises them as analytics events using the versioned entity schema, and publishes them to the analytics SNS topic.
+
+The default analytics dispatch process name is `analytics`. Create events are published as `submission.created` with an `insert` operation, update events are published as `submission.amended` with an `update` operation, and delete events are published as `submission.removed` with a `delete` operation.
+
+Analytics messages are JSON by default. If a serialised message would exceed the SNS message size budget, the message body is gzip-compressed and base64-encoded, and the SNS message includes `Content-Encoding: gzip+base64`.
+
 ### Stopping and clearing local resources
 
 ```bash
