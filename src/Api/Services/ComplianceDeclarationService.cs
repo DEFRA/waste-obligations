@@ -21,7 +21,6 @@ public class ComplianceDeclarationService(
 {
     private const string Actor = "service:waste-obligations";
     private const string ComplianceDeclarationEntity = "compliance_declaration";
-    private const string DeletedReason = "System allowed endpoint access to delete";
 
     public async Task<ComplianceDeclaration> Create(
         ComplianceDeclaration complianceDeclaration,
@@ -136,7 +135,7 @@ public class ComplianceDeclarationService(
                     ComplianceDeclarationEntity,
                     AuditEventOperation.Delete,
                     "submission.removed",
-                    DeletedReason,
+                    "elevated system allowed removal",
                     current.Id.ToString(),
                     current.Version + 1,
                     current.ToBsonDocument(),

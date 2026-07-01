@@ -67,7 +67,7 @@ public class DeleteComplianceDeclarationTests : IntegrationTestBase
             created.Id,
             "delete",
             "submission.removed",
-            "System allowed endpoint access to delete"
+            "elevated system allowed removal"
         );
     }
 }

@@ -5,7 +5,7 @@
   "entityId": "compliance_declaration_65f1f6570bb08052a8a27b01",
   "operation": "delete",
   "eventType": "submission.removed",
-  "deletedReason": "System allowed endpoint access to delete",
+  "deletedReason": "elevated system allowed removal",
   "occurredAt": "2026-01-02T03:05:05+00:00",
   "recordedAt": "2026-01-02T03:05:06+00:00",
   "actor": "service:waste-obligations",

@@ -193,7 +193,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         auditEvents[1].EntityId.Should().Be(initial.Id.ToString());
         auditEvents[1].Operation.Should().Be("delete");
         auditEvents[1].EventType.Should().Be("submission.removed");
-        auditEvents[1].DeletedReason.Should().Be("System allowed endpoint access to delete");
+        auditEvents[1].DeletedReason.Should().Be("elevated system allowed removal");
         auditEvents[1].Version.Should().Be(2);
         auditEvents[1].TraceId.Should().Be(TraceId);
         auditEvents[1].Before.Should().NotBeNull();
