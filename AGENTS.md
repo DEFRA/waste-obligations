@@ -4,6 +4,7 @@
 - Do not use the `Async` suffix for asynchronous methods
 - Add blank line before return statement
 - Use constants for values that are used more than once; inline values that are only used once
+- Use camelCase for constants declared within methods
 - Lint files changed/created using "dotnet csharpier format ."
 - Name expressions with x => x. syntax where possible
 - Specify variables as const in tests where possible

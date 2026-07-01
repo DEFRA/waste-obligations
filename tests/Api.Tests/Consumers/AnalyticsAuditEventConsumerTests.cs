@@ -85,6 +85,59 @@ public class AnalyticsAuditEventConsumerTests
         await sqsClient.Received(1).DeleteMessageAsync(QueueUrl, ReceiptHandle, Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task Start_WhenMessageContentEncodingIsUnsupported_ShouldLogErrorAndNotDeleteMessage()
+    {
+        const string contentEncoding = "br";
+        var sqsClient = Substitute.For<IAmazonSQS>();
+        sqsClient
+            .ReceiveMessageAsync(Arg.Any<ReceiveMessageRequest>(), Arg.Any<CancellationToken>())
+            .Returns(MessageThenWait(CreateMessage(Body(), contentEncoding: contentEncoding)));
+        var logger = new RecordingLogger<AnalyticsAuditEventConsumer>();
+        var subject = CreateSubject(sqsClient, logger);
+
+        await subject.StartAsync(TestContext.Current.CancellationToken);
+        await WaitForLog(logger, "Analytics audit event consumption failed");
+        await subject.StopAsync(TestContext.Current.CancellationToken);
+
+        logger
+            .Entries.Should()
+            .ContainSingle(x =>
+                x.Level == LogLevel.Error
+                && x.Message == "Analytics audit event consumption failed"
+                && x.Exception is InvalidOperationException
+                && x.Exception.Message.Contains(contentEncoding)
+            );
+        await sqsClient
+            .DidNotReceive()
+            .DeleteMessageAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Start_WhenReceiveFails_ShouldLogError()
+    {
+        const string failureMessage = "SQS receive failed";
+        var sqsClient = Substitute.For<IAmazonSQS>();
+        sqsClient
+            .ReceiveMessageAsync(Arg.Any<ReceiveMessageRequest>(), Arg.Any<CancellationToken>())
+            .Returns(FailureThenWait(new InvalidOperationException(failureMessage)));
+        var logger = new RecordingLogger<AnalyticsAuditEventConsumer>();
+        var subject = CreateSubject(sqsClient, logger);
+
+        await subject.StartAsync(TestContext.Current.CancellationToken);
+        await WaitForLog(logger, "Analytics audit event consumption failed");
+        await subject.StopAsync(TestContext.Current.CancellationToken);
+
+        logger
+            .Entries.Should()
+            .ContainSingle(x =>
+                x.Level == LogLevel.Error
+                && x.Message == "Analytics audit event consumption failed"
+                && x.Exception is InvalidOperationException
+                && x.Exception.Message == failureMessage
+            );
+    }
+
     private static AnalyticsAuditEventConsumer CreateSubject(
         IAmazonSQS sqsClient,
         ILogger<AnalyticsAuditEventConsumer> logger,
@@ -105,6 +158,16 @@ public class AnalyticsAuditEventConsumerTests
             logger
         );
 
+    private static async Task WaitForLog(RecordingLogger<AnalyticsAuditEventConsumer> logger, string message)
+    {
+        using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        while (!logger.Messages.Contains(message))
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(25), cancellationTokenSource.Token);
+        }
+    }
+
     private static Func<CallInfo, Task<ReceiveMessageResponse>> MessageThenWait(Message message)
     {
         var receivedCount = 0;
@@ -114,6 +177,24 @@ public class AnalyticsAuditEventConsumerTests
             if (Interlocked.Increment(ref receivedCount) == 1)
             {
                 return Task.FromResult(new ReceiveMessageResponse { Messages = [message] });
+            }
+
+            var cancellationToken = call.ArgAt<CancellationToken>(1);
+
+            return Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken)
+                .ContinueWith(_ => new ReceiveMessageResponse(), CancellationToken.None);
+        };
+    }
+
+    private static Func<CallInfo, Task<ReceiveMessageResponse>> FailureThenWait(Exception exception)
+    {
+        var receivedCount = 0;
+
+        return call =>
+        {
+            if (Interlocked.Increment(ref receivedCount) == 1)
+            {
+                return Task.FromException<ReceiveMessageResponse>(exception);
             }
 
             var cancellationToken = call.ArgAt<CancellationToken>(1);
