@@ -1,0 +1,274 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://defra.gov.uk/schemas/waste-obligations/compliance-declaration.v1.0.schema.json",
+  "title": "ComplianceDeclaration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "version",
+    "created",
+    "updated",
+    "status",
+    "organisation",
+    "obligationYear",
+    "obligations",
+    "obligationStatus",
+    "submitterName",
+    "audit",
+    "isRegulation43Compliant"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "x-bson-name": "_id",
+      "pattern": "^[a-fA-F0-9]{24}$"
+    },
+    "version": {
+      "type": "integer"
+    },
+    "created": {
+      "type": "string",
+      "format": "date-time",
+      "x-date-serialization": "date-time-offset",
+      "examples": ["2026-01-02T03:04:05+00:00"]
+    },
+    "updated": {
+      "type": "string",
+      "format": "date-time",
+      "x-date-serialization": "date-time-offset",
+      "examples": ["2026-01-02T03:04:05+00:00"]
+    },
+    "status": {
+      "type": "string",
+      "enum": ["Submitted", "Accepted", "Cancelled"]
+    },
+    "organisation": {
+      "$ref": "#/$defs/organisation"
+    },
+    "obligationYear": {
+      "type": "integer"
+    },
+    "obligations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/obligation"
+      }
+    },
+    "obligationStatus": {
+      "type": "string"
+    },
+    "submitterName": {
+      "type": "string"
+    },
+    "audit": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/auditEntry"
+          },
+          {
+            "$ref": "#/$defs/reasonAuditEntry"
+          }
+        ]
+      }
+    },
+    "isRegulation43Compliant": {
+      "type": "boolean"
+    }
+  },
+  "$defs": {
+    "organisation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "registrationType",
+        "name",
+        "complianceSchemeName",
+        "schemeOperatorName",
+        "referenceNumber",
+        "address",
+        "regulator",
+        "regulatorEmail"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-bson-name": "_id",
+          "format": "uuid"
+        },
+        "registrationType": {
+          "type": "string",
+          "enum": ["DirectProducer", "ComplianceScheme"]
+        },
+        "name": {
+          "type": ["string", "null"]
+        },
+        "complianceSchemeName": {
+          "type": ["string", "null"]
+        },
+        "schemeOperatorName": {
+          "type": ["string", "null"]
+        },
+        "referenceNumber": {
+          "type": ["string", "null"]
+        },
+        "address": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/address"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "regulator": {
+          "type": "string"
+        },
+        "regulatorEmail": {
+          "type": "string"
+        }
+      }
+    },
+    "address": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "addressLine1",
+        "addressLine2",
+        "town",
+        "county",
+        "postcode",
+        "country"
+      ],
+      "properties": {
+        "addressLine1": {
+          "type": ["string", "null"]
+        },
+        "addressLine2": {
+          "type": ["string", "null"]
+        },
+        "town": {
+          "type": ["string", "null"]
+        },
+        "county": {
+          "type": ["string", "null"]
+        },
+        "postcode": {
+          "type": ["string", "null"]
+        },
+        "country": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "obligation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["material", "recyclingTarget", "tonnages", "status"],
+      "properties": {
+        "material": {
+          "type": "string"
+        },
+        "recyclingTarget": {
+          "type": "number"
+        },
+        "tonnages": {
+          "$ref": "#/$defs/obligationTonnages"
+        },
+        "status": {
+          "type": "string"
+        }
+      }
+    },
+    "obligationTonnages": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "material",
+        "awaitingAcceptance",
+        "accepted",
+        "outstanding",
+        "obligated"
+      ],
+      "properties": {
+        "material": {
+          "type": "integer"
+        },
+        "awaitingAcceptance": {
+          "type": "integer"
+        },
+        "accepted": {
+          "type": "integer"
+        },
+        "outstanding": {
+          "type": "integer"
+        },
+        "obligated": {
+          "type": "integer"
+        }
+      }
+    },
+    "user": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "email", "name"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "x-bson-name": "_id"
+        },
+        "email": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "auditEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "user", "timestamp"],
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "user": {
+          "$ref": "#/$defs/user"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "x-date-serialization": "date-time-offset",
+          "examples": ["2026-01-02T03:04:05+00:00"]
+        }
+      }
+    },
+    "reasonAuditEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "user", "timestamp", "reason"],
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "user": {
+          "$ref": "#/$defs/user"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "x-date-serialization": "date-time-offset",
+          "examples": ["2026-01-02T03:04:05+00:00"]
+        },
+        "reason": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

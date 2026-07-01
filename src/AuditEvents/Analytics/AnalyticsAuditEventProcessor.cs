@@ -3,7 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Defra.WasteObligations.AuditEvents;
+namespace Defra.WasteObligations.AuditEvents.Analytics;
 
 public class AnalyticsAuditEventProcessor(
     IServiceScopeFactory serviceScopeFactory,
@@ -13,6 +13,18 @@ public class AnalyticsAuditEventProcessor(
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (!options.Value.ProcessingEnabled)
+        {
+            logger.LogInformation(
+                "Analytics audit event processing is currently turned off. Set {ConfigKey} to true to turn it on",
+                $"{AnalyticsAuditEventProcessorOptions.SectionName}:ProcessingEnabled"
+            );
+
+            await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken);
+
+            return;
+        }
+
         await Delay(stoppingToken);
 
         while (!stoppingToken.IsCancellationRequested)

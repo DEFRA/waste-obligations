@@ -13,6 +13,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="AdaskoTheBeAsT.MongoDbMigrations" Version="3.0.0" />
     <PackageReference Include="GovukNotify" Version="8.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.8" />
     <PackageReference Include="Microsoft.AspNetCore.HeaderPropagation" Version="10.0.8" />
@@ -41,5 +42,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\AuditEvents\AuditEvents.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Remove="Schemas\**\*.schema.json" />
+    <EmbeddedResource Include="Schemas\**\*.schema.json" />
   </ItemGroup>
 </Project>

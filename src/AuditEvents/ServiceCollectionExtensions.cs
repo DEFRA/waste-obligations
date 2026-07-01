@@ -1,3 +1,5 @@
+using Amazon.SimpleNotificationService;
+using Defra.WasteObligations.AuditEvents.Analytics;
 using Defra.WasteObligations.AuditEvents.Data;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,7 +25,11 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IEventIdGenerator, UlidEventIdGenerator>();
         services.AddScoped<AuditEventLeaseService>();
         services.AddScoped<AuditEventDispatchService>();
-        services.AddTransient<IAnalyticsEventSender, LoggingAnalyticsEventSender>();
+        services.AddTransient<IAnalyticsEventSerializer, JsonAnalyticsEventSerializer>();
+        services.AddTransient<IAnalyticsEventSender, SnsAnalyticsEventSender>();
+
+        services.AddDefaultAWSOptions(configuration.GetAWSOptions());
+        services.AddAWSService<IAmazonSimpleNotificationService>();
 
         if (addAnalyticsProcessor)
         {

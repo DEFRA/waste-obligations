@@ -3,7 +3,6 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using AutoFixture;
 using AwesomeAssertions;
-using Defra.WasteObligations.AuditEvents.Entities;
 using Defra.WasteObligations.Testing.Authentication;
 using Defra.WasteObligations.Testing.Extensions.WireMock;
 using Defra.WasteObligations.Testing.Fixtures.Dtos;
@@ -20,6 +19,7 @@ public class CreateComplianceDeclarationTests : IntegrationTestBase
     public async Task WhenOrganisationFound_ShouldBeCreated()
     {
         var organisationId = Guid.NewGuid();
+        using var sqsClient = CreateSqsClient();
         await WireMockContext.WireMockAdminApi.StubWasteOrganisationsOrganisationRequest(
             organisationId,
             BasicAuthCredential.ForClient(ClientIds.WasteOrganisations)
@@ -59,7 +59,10 @@ public class CreateComplianceDeclarationTests : IntegrationTestBase
             entries.Should().ContainSingle();
 
             var entry = entries[0];
-            var jsonDocument = JsonDocument.Parse(entry.Request!.Body!);
+            if (entry.Request?.Body is not { } body)
+                throw new InvalidOperationException("Expected GOV.UK Notify request body.");
+
+            var jsonDocument = JsonDocument.Parse(body);
 
             jsonDocument.RootElement.GetProperty("email_address").GetString().Should().Be("submitter@email.com");
         });
@@ -76,5 +79,7 @@ public class CreateComplianceDeclarationTests : IntegrationTestBase
             },
             delay: TimeSpan.FromMilliseconds(100)
         );
+
+        await AssertAnalyticsEventQueued(sqsClient, result.Id, "insert");
     }
 }

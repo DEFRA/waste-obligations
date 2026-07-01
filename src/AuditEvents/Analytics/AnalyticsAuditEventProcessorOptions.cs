@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Defra.WasteObligations.AuditEvents;
+namespace Defra.WasteObligations.AuditEvents.Analytics;
 
 public record AnalyticsAuditEventProcessorOptions
 {
@@ -8,6 +8,11 @@ public record AnalyticsAuditEventProcessorOptions
 
     [Required]
     public required string ProcessName { get; init; }
+
+    [Required]
+    public required string TopicArn { get; init; }
+
+    public bool ProcessingEnabled { get; init; }
 
     [Range(1, 500)]
     public int BatchSize { get; init; } = 25;

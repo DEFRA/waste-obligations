@@ -1,6 +1,6 @@
 using Defra.WasteObligations.AuditEvents.Entities;
 
-namespace Defra.WasteObligations.AuditEvents;
+namespace Defra.WasteObligations.AuditEvents.Analytics;
 
 public static class AnalyticsEventMappers
 {
@@ -18,6 +18,6 @@ public static class AnalyticsEventMappers
             Version = auditEvent.Version,
             Before = auditEvent.Before,
             After = auditEvent.After,
-            SchemaVersion = auditEvent.SchemaVersion,
+            SchemaVersion = $"{auditEvent.Entity}.{auditEvent.SchemaVersion}",
         };
 }

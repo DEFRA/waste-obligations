@@ -1,0 +1,67 @@
+{
+  "eventId": "01JZ8RXBMTY2K15SJB3PCFN3D7",
+  "sequence": 125,
+  "entity": "compliance_declaration",
+  "entityId": "compliance_declaration_65f1f6570bb08052a8a27b01",
+  "operation": "delete",
+  "occurredAt": "2026-01-02T03:05:05+00:00",
+  "recordedAt": "2026-01-02T03:05:06+00:00",
+  "actor": "service:waste-obligations",
+  "version": 2,
+  "before": {
+    "id": "65f1f6570bb08052a8a27b01",
+    "version": 1,
+    "created": "2026-01-02T03:04:05+00:00",
+    "updated": "2026-01-02T03:04:05+00:00",
+    "status": "Submitted",
+    "organisation": {
+      "id": "5dbef606-3611-42f4-b39f-cad828badc12",
+      "registrationType": "DirectProducer",
+      "name": "Org Name",
+      "complianceSchemeName": null,
+      "schemeOperatorName": null,
+      "referenceNumber": "123456",
+      "address": {
+        "addressLine1": "Test Name Ltd",
+        "addressLine2": "123 Street",
+        "town": "Town",
+        "county": "County",
+        "postcode": "UK1",
+        "country": "UK"
+      },
+      "regulator": "Regulator",
+      "regulatorEmail": "regulator@email.com"
+    },
+    "obligationYear": 2026,
+    "obligations": [
+      {
+        "material": "Plastic",
+        "recyclingTarget": 0.75,
+        "tonnages": {
+          "material": 100,
+          "awaitingAcceptance": 10,
+          "accepted": 2,
+          "outstanding": 20,
+          "obligated": 5
+        },
+        "status": "NoDataYet"
+      }
+    ],
+    "obligationStatus": "NotMet",
+    "submitterName": "Submitter Name",
+    "audit": [
+      {
+        "action": "Submitted",
+        "user": {
+          "id": "e72be574-8b5b-4836-af47-dd7e0c0d1d87",
+          "email": "submitter@email.com",
+          "name": "Submitter Name"
+        },
+        "timestamp": "2026-01-02T03:04:05+00:00"
+      }
+    ],
+    "isRegulation43Compliant": true
+  },
+  "after": null,
+  "schemaVersion": "compliance_declaration.v1.0"
+}
