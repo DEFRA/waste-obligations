@@ -15,7 +15,7 @@ public class MongoMigrationService(
     private const int DuplicateKeyErrorCode = 11000;
     private const string LeaseCollectionName = "_migrations_lease";
     private const string LeaseId = "mongo-migrations";
-    private static readonly TimeSpan LeaseDuration = TimeSpan.FromMinutes(30);
+    private static readonly TimeSpan LeaseDuration = TimeSpan.FromHours(2);
     private static readonly TimeSpan LeaseRetryDelay = TimeSpan.FromSeconds(5);
 
     private readonly string _instanceId = $"{Environment.MachineName}-{Guid.NewGuid():N}";
