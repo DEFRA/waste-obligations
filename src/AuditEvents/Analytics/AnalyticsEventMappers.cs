@@ -14,6 +14,7 @@ public static class AnalyticsEventMappers
             Operation = auditEvent.Operation,
             EventType = auditEvent.EventType,
             DeletedReason = auditEvent.DeletedReason,
+            PiiKeyRef = null,
             OccurredAt = auditEvent.OccurredAt,
             RecordedAt = auditEvent.RecordedAt,
             Actor = auditEvent.Actor,

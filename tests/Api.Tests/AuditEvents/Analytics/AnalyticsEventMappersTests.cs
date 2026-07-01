@@ -30,6 +30,7 @@ public class AnalyticsEventMappersTests
         result.Operation.Should().Be(auditEvent.Operation);
         result.EventType.Should().Be(auditEvent.EventType);
         result.DeletedReason.Should().Be(auditEvent.DeletedReason);
+        result.PiiKeyRef.Should().BeNull();
         result.SchemaVersion.Should().Be($"{entity}.{ComplianceDeclaration.SchemaVersionValue}");
     }
 }

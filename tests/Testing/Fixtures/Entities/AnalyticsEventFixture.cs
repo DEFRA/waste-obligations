@@ -16,6 +16,7 @@ public static class AnalyticsEventFixture
             .With(x => x.Operation, "insert")
             .With(x => x.EventType, "submission.created")
             .Without(x => x.DeletedReason)
+            .Without(x => x.PiiKeyRef)
             .With(x => x.OccurredAt, new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero))
             .With(x => x.RecordedAt, new DateTimeOffset(2026, 1, 1, 0, 0, 1, TimeSpan.Zero))
             .With(x => x.Actor, "user@example.com")

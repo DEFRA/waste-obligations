@@ -6,6 +6,7 @@
   "operation": "insert",
   "eventType": "submission.created",
   "deletedReason": null,
+  "piiKeyRef": null,
   "occurredAt": "2026-01-02T03:04:05+00:00",
   "recordedAt": "2026-01-02T03:04:06+00:00",
   "actor": "service:waste-obligations",
