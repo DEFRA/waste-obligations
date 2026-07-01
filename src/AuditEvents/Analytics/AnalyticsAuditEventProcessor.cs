@@ -85,6 +85,7 @@ public class AnalyticsAuditEventProcessor(
                 {
                     await analyticsEventSender.Send(auditEvent.ToAnalyticsEvent(), cancellationToken);
                     await auditEventDispatchService.MarkDispatched(processName, auditEvent, cancellationToken);
+                    dispatchedCount++;
                     logger.LogInformation(
                         "Processed audit event {EventId} for {ProcessName} with trace id {TraceId}",
                         auditEvent.EventId,
@@ -103,8 +104,6 @@ public class AnalyticsAuditEventProcessor(
                         auditEvent.TraceId
                     );
                 }
-
-                dispatchedCount++;
             }
 
             return dispatchedCount;

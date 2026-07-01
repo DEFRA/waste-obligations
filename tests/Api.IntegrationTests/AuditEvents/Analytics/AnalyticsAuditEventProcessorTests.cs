@@ -4,6 +4,7 @@ using Defra.WasteObligations.AuditEvents;
 using Defra.WasteObligations.AuditEvents.Analytics;
 using Defra.WasteObligations.AuditEvents.Data;
 using Defra.WasteObligations.AuditEvents.Entities;
+using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -130,7 +131,8 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
                 return Task.CompletedTask;
             },
         };
-        var subject = CreateSubject(GetMongoDatabase(), new FakeTimeProvider(failedAt), sender);
+        var logger = new RecordingLogger<AnalyticsAuditEventProcessor>();
+        var subject = CreateSubject(GetMongoDatabase(), new FakeTimeProvider(failedAt), sender, logger: logger);
 
         await subject.StartAsync(TestContext.Current.CancellationToken);
 
@@ -168,6 +170,7 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
             .Dispatches[Analytics]
             .Status.Should()
             .Be(AuditEventDispatchStatus.Dispatched);
+        logger.Messages.Should().ContainSingle(x => x == "Processed 1 audit events for analytics-test");
     }
 
     [Fact]
@@ -309,27 +312,6 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
             {
                 await OnSend(analyticsEvent, cancellationToken);
             }
-        }
-    }
-
-    private sealed class RecordingLogger<T> : ILogger<T>
-    {
-        public List<string> Messages { get; } = [];
-
-        public IDisposable? BeginScope<TState>(TState state)
-            where TState : notnull => null;
-
-        public bool IsEnabled(LogLevel logLevel) => true;
-
-        public void Log<TState>(
-            LogLevel logLevel,
-            EventId eventId,
-            TState state,
-            Exception? exception,
-            Func<TState, Exception?, string> formatter
-        )
-        {
-            Messages.Add(formatter(state, exception));
         }
     }
 }

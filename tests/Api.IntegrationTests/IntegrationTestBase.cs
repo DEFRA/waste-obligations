@@ -178,7 +178,16 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         root.GetProperty("entityId").GetString().Should().Be($"compliance_declaration_{complianceDeclarationId}");
         root.GetProperty("operation").GetString().Should().Be(operation);
         root.GetProperty("eventType").GetString().Should().Be(eventType);
-        root.GetProperty("deletedReason").GetString().Should().Be(deletedReason);
+        var deletedReasonProperty = root.GetProperty("deletedReason");
+
+        if (deletedReason is null)
+        {
+            deletedReasonProperty.ValueKind.Should().Be(JsonValueKind.Null);
+        }
+        else
+        {
+            deletedReasonProperty.GetString().Should().Be(deletedReason);
+        }
     }
 
     private static string GenerateJwt(string clientId)
