@@ -11,13 +11,24 @@ public class AuditEventDispatchService(
     ILogger<AuditEventDispatchService> logger
 )
 {
+    private const string FailedStatus = nameof(AuditEventDispatchStatus.Failed);
+
     public async Task<IReadOnlyCollection<AuditEvent>> ReadUnsent(
         string processName,
         int batchSize,
         CancellationToken cancellationToken
     )
     {
-        var filter = Builders<AuditEvent>.Filter.Exists(AuditEventDispatchFieldNames.DispatchPath(processName), false);
+        var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
+        var noDispatch = Builders<AuditEvent>.Filter.Exists(
+            AuditEventDispatchFieldNames.DispatchPath(processName),
+            false
+        );
+        var failedAndDue = Builders<AuditEvent>.Filter.And(
+            Builders<AuditEvent>.Filter.Eq(AuditEventDispatchFieldNames.DispatchStatusPath(processName), FailedStatus),
+            Builders<AuditEvent>.Filter.Lte(AuditEventDispatchFieldNames.DispatchNextAttemptAtPath(processName), utcNow)
+        );
+        var filter = Builders<AuditEvent>.Filter.Or(noDispatch, failedAndDue);
 
         // With secondaryPreferred reads this can see stale dispatch state, so an event may be sent more than once.
         // The topic/queue pipeline is at-least-once delivery, and consumers are expected to handle duplicates.
@@ -37,6 +48,7 @@ public class AuditEventDispatchService(
             {
                 Status = AuditEventDispatchStatus.Dispatched,
                 Date = timeProvider.GetUtcNowWithoutMicroseconds(),
+                AttemptCount = ReadAttemptCount(processName, auditEvent) + 1,
             },
             "processed",
             cancellationToken
@@ -47,17 +59,28 @@ public class AuditEventDispatchService(
         string processName,
         AuditEvent auditEvent,
         Exception exception,
+        int maxDispatchAttempts,
+        TimeSpan failedDispatchRetryDelay,
         CancellationToken cancellationToken
     )
     {
+        var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
+        var attemptCount = ReadAttemptCount(processName, auditEvent) + 1;
+        var status =
+            attemptCount >= maxDispatchAttempts
+                ? AuditEventDispatchStatus.DeadLettered
+                : AuditEventDispatchStatus.Failed;
+
         await Mark(
             processName,
             auditEvent,
             new AuditEventDispatch
             {
-                Status = AuditEventDispatchStatus.Failed,
-                Date = timeProvider.GetUtcNowWithoutMicroseconds(),
+                Status = status,
+                Date = utcNow,
                 Message = exception.Message,
+                AttemptCount = attemptCount,
+                NextAttemptAt = status is AuditEventDispatchStatus.Failed ? utcNow.Add(failedDispatchRetryDelay) : null,
             },
             "failed",
             cancellationToken
@@ -74,7 +97,13 @@ public class AuditEventDispatchService(
     {
         var filter = Builders<AuditEvent>.Filter.And(
             Builders<AuditEvent>.Filter.Eq(x => x.EventId, auditEvent.EventId),
-            Builders<AuditEvent>.Filter.Exists(AuditEventDispatchFieldNames.DispatchPath(processName), false)
+            Builders<AuditEvent>.Filter.Or(
+                Builders<AuditEvent>.Filter.Exists(AuditEventDispatchFieldNames.DispatchPath(processName), false),
+                Builders<AuditEvent>.Filter.Eq(
+                    AuditEventDispatchFieldNames.DispatchStatusPath(processName),
+                    FailedStatus
+                )
+            )
         );
 
         var update = Builders<AuditEvent>.Update.Set(AuditEventDispatchFieldNames.DispatchPath(processName), dispatch);
@@ -83,7 +112,7 @@ public class AuditEventDispatchService(
 
         if (result.ModifiedCount == 0)
         {
-            logger.LogWarning(
+            logger.LogError(
                 "Audit event {EventId} was {Outcome} but could not be marked with the dispatch outcome by {ProcessName}",
                 auditEvent.EventId,
                 outcome,
@@ -91,4 +120,7 @@ public class AuditEventDispatchService(
             );
         }
     }
+
+    private static int ReadAttemptCount(string processName, AuditEvent auditEvent) =>
+        auditEvent.Dispatches.TryGetValue(processName, out var dispatch) ? dispatch.AttemptCount : 0;
 }

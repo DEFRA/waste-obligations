@@ -10,4 +10,10 @@ public record AuditEventDispatch
     public DateTime Date { get; init; }
 
     public string? Message { get; init; }
+
+    public int AttemptCount { get; init; }
+
+    [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
+    [BsonIgnoreIfNull]
+    public DateTime? NextAttemptAt { get; init; }
 }

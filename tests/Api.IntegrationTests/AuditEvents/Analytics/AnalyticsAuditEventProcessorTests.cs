@@ -48,6 +48,7 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
                         {
                             Status = AuditEventDispatchStatus.Dispatched,
                             Date = sentAt.UtcDateTime,
+                            AttemptCount = 1,
                         }
                     );
             },
@@ -85,6 +86,58 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Start_WhenAuditEventPreviouslyFailed_ShouldLogRetryAndMarkDispatched()
+    {
+        var sentAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var timeProvider = new FakeTimeProvider(sentAt);
+        var sender = new RecordingAnalyticsEventSender();
+        var logger = new RecordingLogger<AnalyticsAuditEventProcessor>();
+        var auditEvent = CreateAuditEvent(
+            "event-1",
+            1,
+            new Dictionary<string, AuditEventDispatch>
+            {
+                [Analytics] = new()
+                {
+                    Status = AuditEventDispatchStatus.Failed,
+                    Date = sentAt.UtcDateTime.AddMinutes(-2),
+                    Message = "Sender failed",
+                    AttemptCount = 1,
+                    NextAttemptAt = sentAt.UtcDateTime.AddMinutes(-1),
+                },
+            }
+        ) with
+        {
+            TraceId = TraceId,
+        };
+        await AuditEvents.InsertOneAsync(auditEvent, cancellationToken: TestContext.Current.CancellationToken);
+        var subject = CreateSubject(GetMongoDatabase(), timeProvider, sender, logger: logger);
+
+        await subject.StartAsync(TestContext.Current.CancellationToken);
+        await sender.WaitForSend(TestContext.Current.CancellationToken);
+        await subject.StopAsync(TestContext.Current.CancellationToken);
+
+        logger
+            .Entries.Should()
+            .Contain(x =>
+                x.Level == LogLevel.Information
+                && x.Message.Contains("Retrying failed audit event event-1 for analytics-test")
+                && x.Message.Contains(TraceId)
+            );
+        await AsyncWaiter.WaitForAsync(
+            async () =>
+            {
+                var result = await AuditEvents
+                    .Find(x => x.EventId == auditEvent.EventId)
+                    .SingleAsync(TestContext.Current.CancellationToken);
+                result.Dispatches[Analytics].Status.Should().Be(AuditEventDispatchStatus.Dispatched);
+            },
+            timeout: 5,
+            delay: TimeSpan.FromMilliseconds(50)
+        );
+    }
+
+    [Fact]
     public async Task Start_WhenSenderThrows_ShouldContinueUntilStopped()
     {
         var auditEvent = CreateAuditEvent("event-1", 1);
@@ -99,7 +152,8 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
                 return Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
             },
         };
-        var subject = CreateSubject(GetMongoDatabase(), new FakeTimeProvider(), sender);
+        var logger = new RecordingLogger<AnalyticsAuditEventProcessor>();
+        var subject = CreateSubject(GetMongoDatabase(), new FakeTimeProvider(), sender, logger: logger);
 
         await subject.StartAsync(TestContext.Current.CancellationToken);
         await sender.WaitForSend(TestContext.Current.CancellationToken);
@@ -163,6 +217,8 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
                     Status = AuditEventDispatchStatus.Failed,
                     Date = failedAt.UtcDateTime,
                     Message = message,
+                    AttemptCount = 1,
+                    NextAttemptAt = failedAt.UtcDateTime.AddMinutes(1),
                 }
             );
         results
@@ -222,7 +278,8 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
                 leaseOwnerChanged.TrySetResult();
             },
         };
-        var subject = CreateSubject(GetMongoDatabase(), new FakeTimeProvider(), sender);
+        var logger = new RecordingLogger<AnalyticsAuditEventProcessor>();
+        var subject = CreateSubject(GetMongoDatabase(), new FakeTimeProvider(), sender, logger: logger);
 
         await subject.StartAsync(TestContext.Current.CancellationToken);
         await sender.WaitForSend(TestContext.Current.CancellationToken);
@@ -244,6 +301,12 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
 
         sender.SentEvents.Should().ContainSingle();
         sender.SentEvents.Single().EventId.Should().Be(firstAuditEvent.EventId);
+        logger
+            .Entries.Should()
+            .Contain(x =>
+                x.Level == LogLevel.Error
+                && x.Message.Contains("Stopped analytics audit event processing because lease renewal failed")
+            );
         var secondResult = await AuditEvents
             .Find(x => x.EventId == secondAuditEvent.EventId)
             .SingleAsync(TestContext.Current.CancellationToken);

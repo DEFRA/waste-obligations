@@ -24,10 +24,11 @@ public static class AuditEventIndexes
         );
 
         yield return new AuditEventIndex(
-            $"Dispatch_{AnalyticsProcessName}_Status_Date",
+            $"Dispatch_{AnalyticsProcessName}_Status_NextAttemptAt_Sequence",
             Builders<AuditEvent>
                 .IndexKeys.Ascending(AuditEventDispatchFieldNames.DispatchStatusPath(AnalyticsProcessName))
-                .Ascending(AuditEventDispatchFieldNames.DispatchDatePath(AnalyticsProcessName))
+                .Ascending(AuditEventDispatchFieldNames.DispatchNextAttemptAtPath(AnalyticsProcessName))
+                .Ascending(x => x.Sequence)
         );
     }
 }

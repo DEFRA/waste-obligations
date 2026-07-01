@@ -25,4 +25,10 @@ public record AnalyticsAuditEventProcessorOptions
 
     [Range(5, 3600)]
     public int LeaseDurationSeconds { get; init; } = 60;
+
+    [Range(1, 100)]
+    public int MaxDispatchAttempts { get; init; } = 5;
+
+    [Range(1, 86400)]
+    public int FailedDispatchRetryDelaySeconds { get; init; } = 60;
 }

@@ -21,7 +21,8 @@ public class MongoMigrationServiceTests : IntegrationTestBase
     private const string SequenceIndexName = "Sequence";
     private const string EntityEntityIdVersionIndexName = "Entity_EntityId_Version";
     private const string DispatchAnalyticsIndexName = "Dispatch_analytics";
-    private const string DispatchAnalyticsStatusDateIndexName = "Dispatch_analytics_Status_Date";
+    private const string DispatchAnalyticsStatusNextAttemptAtSequenceIndexName =
+        "Dispatch_analytics_Status_NextAttemptAt_Sequence";
 
     [Fact]
     public async Task Start_ShouldCreateIndex()
@@ -49,10 +50,11 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             ["version"] = 1,
         };
         var dispatchKeys = new BsonDocument { ["dispatches.analytics"] = 1, ["sequence"] = 1 };
-        var dispatchStatusDateKeys = new BsonDocument
+        var dispatchStatusNextAttemptAtSequenceKeys = new BsonDocument
         {
             ["dispatches.analytics.status"] = 1,
-            ["dispatches.analytics.date"] = 1,
+            ["dispatches.analytics.nextAttemptAt"] = 1,
+            ["sequence"] = 1,
         };
 
         complianceDeclarationIndexes.Should().Contain(x => x.GetValue("name") == "OrganisationId_ObligationYear");
@@ -61,7 +63,13 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         auditEventIndexes.Should().Contain(x => IsIndex(x, DispatchAnalyticsIndexName, dispatchKeys));
         auditEventIndexes
             .Should()
-            .Contain(x => IsIndex(x, DispatchAnalyticsStatusDateIndexName, dispatchStatusDateKeys));
+            .Contain(x =>
+                IsIndex(
+                    x,
+                    DispatchAnalyticsStatusNextAttemptAtSequenceIndexName,
+                    dispatchStatusNextAttemptAtSequenceKeys
+                )
+            );
     }
 
     [Fact]
@@ -137,15 +145,24 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             ["version"] = 1,
         };
         var dispatchKeys = new BsonDocument { ["dispatches.analytics"] = 1, ["sequence"] = 1 };
-        var dispatchStatusDateKeys = new BsonDocument
+        var dispatchStatusNextAttemptAtSequenceKeys = new BsonDocument
         {
             ["dispatches.analytics.status"] = 1,
-            ["dispatches.analytics.date"] = 1,
+            ["dispatches.analytics.nextAttemptAt"] = 1,
+            ["sequence"] = 1,
         };
         indexes.Should().Contain(x => IsIndex(x, SequenceIndexName, sequenceKeys, unique: true));
         indexes.Should().Contain(x => IsIndex(x, EntityEntityIdVersionIndexName, entityKeys));
         indexes.Should().Contain(x => IsIndex(x, DispatchAnalyticsIndexName, dispatchKeys));
-        indexes.Should().Contain(x => IsIndex(x, DispatchAnalyticsStatusDateIndexName, dispatchStatusDateKeys));
+        indexes
+            .Should()
+            .Contain(x =>
+                IsIndex(
+                    x,
+                    DispatchAnalyticsStatusNextAttemptAtSequenceIndexName,
+                    dispatchStatusNextAttemptAtSequenceKeys
+                )
+            );
 
         await subject.DownAsync(context);
         await subject.DownAsync(context);
@@ -154,7 +171,7 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         indexes.Should().NotContain(x => x.GetValue("name") == SequenceIndexName);
         indexes.Should().NotContain(x => x.GetValue("name") == EntityEntityIdVersionIndexName);
         indexes.Should().NotContain(x => x.GetValue("name") == DispatchAnalyticsIndexName);
-        indexes.Should().NotContain(x => x.GetValue("name") == DispatchAnalyticsStatusDateIndexName);
+        indexes.Should().NotContain(x => x.GetValue("name") == DispatchAnalyticsStatusNextAttemptAtSequenceIndexName);
 
         await subject.UpAsync(context);
     }

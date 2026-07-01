@@ -4,6 +4,8 @@ namespace Defra.WasteObligations.Testing;
 
 public sealed class RecordingLogger<T> : ILogger<T>
 {
+    public List<LogRecord> Entries { get; } = [];
+
     public List<string> Messages { get; } = [];
 
     public IDisposable? BeginScope<TState>(TState state)
@@ -19,6 +21,10 @@ public sealed class RecordingLogger<T> : ILogger<T>
         Func<TState, Exception?, string> formatter
     )
     {
-        Messages.Add(formatter(state, exception));
+        var message = formatter(state, exception);
+        Entries.Add(new LogRecord(logLevel, message, exception));
+        Messages.Add(message);
     }
+
+    public sealed record LogRecord(LogLevel Level, string Message, Exception? Exception);
 }

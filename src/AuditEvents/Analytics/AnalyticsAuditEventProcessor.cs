@@ -55,6 +55,7 @@ public class AnalyticsAuditEventProcessor(
         var auditEventDispatchService = scope.ServiceProvider.GetRequiredService<AuditEventDispatchService>();
         var analyticsEventSender = scope.ServiceProvider.GetRequiredService<IAnalyticsEventSender>();
         var leaseDuration = TimeSpan.FromSeconds(options.Value.LeaseDurationSeconds);
+        var failedDispatchRetryDelay = TimeSpan.FromSeconds(options.Value.FailedDispatchRetryDelaySeconds);
         var processName = options.Value.ProcessName;
 
         if (!await auditEventLeaseService.TryAcquire(processName, leaseDuration, cancellationToken))
@@ -73,7 +74,7 @@ public class AnalyticsAuditEventProcessor(
             {
                 if (!await auditEventLeaseService.TryRenew(processName, leaseDuration, cancellationToken))
                 {
-                    logger.LogWarning(
+                    logger.LogError(
                         "Stopped analytics audit event processing because lease renewal failed for {ProcessName}",
                         processName
                     );
@@ -83,6 +84,7 @@ public class AnalyticsAuditEventProcessor(
 
                 try
                 {
+                    LogRetry(auditEvent, processName);
                     await analyticsEventSender.Send(auditEvent.ToAnalyticsEvent(), cancellationToken);
                     await auditEventDispatchService.MarkDispatched(processName, auditEvent, cancellationToken);
                     dispatchedCount++;
@@ -95,7 +97,14 @@ public class AnalyticsAuditEventProcessor(
                 }
                 catch (Exception exception) when (exception is not OperationCanceledException)
                 {
-                    await auditEventDispatchService.MarkFailed(processName, auditEvent, exception, cancellationToken);
+                    await auditEventDispatchService.MarkFailed(
+                        processName,
+                        auditEvent,
+                        exception,
+                        options.Value.MaxDispatchAttempts,
+                        failedDispatchRetryDelay,
+                        cancellationToken
+                    );
                     logger.LogError(
                         exception,
                         "Failed to process audit event {EventId} for {ProcessName} with trace id {TraceId}",
@@ -112,6 +121,23 @@ public class AnalyticsAuditEventProcessor(
         {
             await auditEventLeaseService.Release(processName, cancellationToken);
         }
+    }
+
+    private void LogRetry(Entities.AuditEvent auditEvent, string processName)
+    {
+        if (
+            !auditEvent.Dispatches.TryGetValue(processName, out var dispatch)
+            || dispatch.Status is not Entities.AuditEventDispatchStatus.Failed
+        )
+            return;
+
+        logger.LogInformation(
+            "Retrying failed audit event {EventId} for {ProcessName} after {AttemptCount} failed dispatch attempt(s) with trace id {TraceId}",
+            auditEvent.EventId,
+            processName,
+            dispatch.AttemptCount,
+            auditEvent.TraceId
+        );
     }
 
     private Task Delay(CancellationToken cancellationToken)

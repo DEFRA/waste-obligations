@@ -4,4 +4,5 @@ public enum AuditEventDispatchStatus
 {
     Dispatched,
     Failed,
+    DeadLettered,
 }
