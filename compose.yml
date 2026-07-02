@@ -82,6 +82,7 @@ services:
       AnalyticsAuditEventProcessor__TopicArn: arn:aws:sns:eu-west-2:000000000000:waste_obligations_analytics_events
       AnalyticsAuditEventProcessor__PollIntervalSeconds: 1
       AnalyticsAuditEventProcessor__PollJitterSeconds: 0
+      AnalyticsAuditEventConsumer__QueueUrl: http://floci:4566/000000000000/waste_obligations_analytics_events_queue
       # See appsettings.json for additional settings related to auth
       PrnCommonBackend__TokenEndpoint: http://wiremock/oauth2/v2.0/token
       PrnCommonBackend__BaseAddress: http://wiremock/
