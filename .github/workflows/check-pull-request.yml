@@ -27,6 +27,9 @@ jobs:
       - name: Run unit tests
         run: |
           dotnet test --filter "Category!=IntegrationTests"
+      - name: Run translation tooling tests
+        run: |
+          dotnet test tools/translations/translations.slnx
       - name: Run integration tests
         env:
           GOVUKNOTIFY_APIKEY: ${{ secrets.GOVUKNOTIFY_APIKEY }}
