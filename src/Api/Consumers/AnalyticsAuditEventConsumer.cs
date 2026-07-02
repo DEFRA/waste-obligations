@@ -42,12 +42,23 @@ public class AnalyticsAuditEventConsumer(
                     stoppingToken
                 );
 
-                foreach (var message in response.Messages)
+                if (response.Messages is not null)
                 {
-                    var (eventId, entityId) = ReadMessage(message);
-                    logger.LogInformation("Consumed analytics audit event {EventId} for {EntityId}", eventId, entityId);
+                    foreach (var message in response.Messages)
+                    {
+                        var (eventId, entityId) = ReadMessage(message);
+                        logger.LogInformation(
+                            "Consumed analytics audit event {EventId} for {EntityId}",
+                            eventId,
+                            entityId
+                        );
 
-                    await sqsClient.DeleteMessageAsync(options.Value.QueueUrl, message.ReceiptHandle, stoppingToken);
+                        await sqsClient.DeleteMessageAsync(
+                            options.Value.QueueUrl,
+                            message.ReceiptHandle,
+                            stoppingToken
+                        );
+                    }
                 }
             }
             catch (Exception exception) when (exception is not OperationCanceledException)

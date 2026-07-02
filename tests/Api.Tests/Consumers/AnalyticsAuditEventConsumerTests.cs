@@ -57,9 +57,35 @@ public class AnalyticsAuditEventConsumerTests
         await subject.StopAsync(TestContext.Current.CancellationToken);
 
         request.Should().NotBeNull();
-        request!.MessageAttributeNames.Should().Equal("All");
+        request.MessageAttributeNames.Should().Equal("All");
         logger.Messages.Should().Contain(x => x.Contains(EventId) && x.Contains(EntityId));
         await sqsClient.Received(1).DeleteMessageAsync(QueueUrl, ReceiptHandle, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Start_WhenNoMessagesReceived_ShouldNotLogErrorOrDeleteMessage()
+    {
+        var received = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var sqsClient = Substitute.For<IAmazonSQS>();
+        sqsClient
+            .ReceiveMessageAsync(Arg.Any<ReceiveMessageRequest>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                received.TrySetResult();
+
+                return Task.FromResult(new ReceiveMessageResponse());
+            });
+        var logger = new RecordingLogger<AnalyticsAuditEventConsumer>();
+        var subject = CreateSubject(sqsClient, logger, pollIntervalSeconds: 30);
+
+        await subject.StartAsync(TestContext.Current.CancellationToken);
+        await received.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await subject.StopAsync(TestContext.Current.CancellationToken);
+
+        logger.Entries.Should().NotContain(x => x.Level == LogLevel.Error);
+        await sqsClient
+            .DidNotReceive()
+            .DeleteMessageAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -141,7 +167,8 @@ public class AnalyticsAuditEventConsumerTests
     private static AnalyticsAuditEventConsumer CreateSubject(
         IAmazonSQS sqsClient,
         ILogger<AnalyticsAuditEventConsumer> logger,
-        bool processingEnabled = true
+        bool processingEnabled = true,
+        int pollIntervalSeconds = 1
     ) =>
         new(
             sqsClient,
@@ -152,7 +179,7 @@ public class AnalyticsAuditEventConsumerTests
                     ProcessingEnabled = processingEnabled,
                     BatchSize = 10,
                     WaitTimeSeconds = 0,
-                    PollIntervalSeconds = 1,
+                    PollIntervalSeconds = pollIntervalSeconds,
                 }
             ),
             logger
