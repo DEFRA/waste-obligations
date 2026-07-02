@@ -201,6 +201,20 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Delete_WhenDatabaseReadPreferenceIsSecondaryPreferred_ShouldRemove()
+    {
+        var subject = CreateSubject(GetMongoDatabase().WithReadPreference(ReadPreference.SecondaryPreferred));
+        var initial = await subject.Create(
+            ComplianceDeclarationFixture.DirectProducer().Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        var deleted = await subject.Delete(initial.Id.ToString(), TestContext.Current.CancellationToken);
+
+        deleted.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task Delete_WhenConcurrent_ShouldFail()
     {
         var current = ComplianceDeclarationFixture.DirectProducer().Create();
@@ -679,6 +693,16 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
 
     private static HeaderPropagationValues HeaderPropagationValues() =>
         new() { Headers = new Dictionary<string, StringValues> { [TraceHeaderName] = TraceId } };
+
+    private static ComplianceDeclarationService CreateSubject(IMongoDatabase database) =>
+        new(
+            new MongoDbContext(database),
+            Substitute.For<ILogger<ComplianceDeclarationService>>(),
+            TimeProvider.System,
+            new AuditEventService(new AuditEventDbContext(database), TimeProvider.System, new FakeEventIdGenerator()),
+            HeaderPropagationValues(),
+            Options.Create(new TraceHeader { Name = TraceHeaderName })
+        );
 
     private static object? ToPlainDocument(BsonDocument? document)
     {

@@ -200,7 +200,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     protected static IMongoDatabase GetMongoDatabase()
     {
         var settings = MongoClientSettings.FromConnectionString(
-            "mongodb://127.0.0.1:27017/?replicaSet=rs0&directConnection=true"
+            "mongodb://127.0.0.1:27017/?replicaSet=rs0&directConnection=true&readPreference=secondaryPreferred"
         );
         settings.ServerSelectionTimeout = TimeSpan.FromSeconds(5);
         settings.ConnectTimeout = TimeSpan.FromSeconds(5);
