@@ -23,6 +23,14 @@
         ],
         "failed": []
       }
+    },
+    "AnalyticsAuditEventTopic": {
+      "status": "Healthy",
+      "description": "Connected to AWS topic: arn:aws:sns:eu-west-2:000000000000:waste_obligations_analytics_events"
+    },
+    "AnalyticsAuditEventQueue": {
+      "status": "Healthy",
+      "description": "Connected to AWS queue: http://floci:4566/000000000000/waste_obligations_analytics_events_queue"
     }
   }
 }

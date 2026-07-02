@@ -6,4 +6,6 @@ namespace Defra.WasteObligations.Api.Data;
 public interface IDbContext
 {
     IMongoCollection<ComplianceDeclaration> ComplianceDeclarations { get; }
+
+    Task<IClientSessionHandle> StartSession(CancellationToken cancellationToken);
 }

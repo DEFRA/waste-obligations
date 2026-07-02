@@ -28,7 +28,8 @@ public interface IComplianceDeclarationService
     );
 
     Task<ComplianceDeclaration> Update(
-        ComplianceDeclaration complianceDeclaration,
+        ComplianceDeclaration current,
+        ComplianceDeclaration updated,
         CancellationToken cancellationToken
     );
 }

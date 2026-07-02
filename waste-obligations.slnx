@@ -6,6 +6,7 @@
   </Configurations>
   <Folder Name="/src/">
     <Project Path="src/Api/Api.csproj" />
+    <Project Path="src/AuditEvents/AuditEvents.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Api.IntegrationTests/Api.IntegrationTests.csproj" />

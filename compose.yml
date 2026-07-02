@@ -1,10 +1,24 @@
 services:
   mongodb:
     image: mongo:7.0.24
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
     ports:
       - 27017:27017
     volumes:
       - mongodb-data:/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mongosh",
+          "--quiet",
+          "--eval",
+          "try { rs.status().ok } catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongodb:27017'}]}).ok }",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
     restart: unless-stopped
 
   wiremock:
@@ -15,20 +29,60 @@ services:
     ports:
       - "9090:80"
 
+  floci:
+    image: floci/floci:latest
+    ports:
+      - 4566:4566
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+
+  floci-init:
+    image: amazon/aws-cli:latest
+    entrypoint: ["/bin/sh", "/compose/init-floci.sh"]
+    depends_on:
+      floci:
+        condition: service_healthy
+    env_file:
+      - compose/aws.env
+    environment:
+      AWS_ENDPOINT_URL: http://floci:4566
+    volumes:
+      - ./compose/init-floci.sh:/compose/init-floci.sh:ro
+
   api:
     build:
       dockerfile: Dockerfile
     depends_on:
+      floci:
+        condition: service_healthy
+      floci-init:
+        condition: service_completed_successfully
       mongodb:
-        condition: service_started
+        condition: service_healthy
       wiremock:
         condition: service_started
+    env_file:
+      - compose/aws.env
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      Mongo__DatabaseUri: mongodb://mongodb:27017/
+      Mongo__DatabaseUri: mongodb://mongodb:27017/?replicaSet=rs0&directConnection=true
       PORT: 8080
+      AWS_ENDPOINT_URL: http://floci:4566
+      AWS__AuthenticationRegion: eu-west-2
+      AWS__ServiceURL: http://floci:4566
       AWS_EMF_ENABLED: false
       AWS_EMF_ENVIRONMENT: Local
+      AnalyticsAuditEventProcessor__ProcessingEnabled: true
+      AnalyticsAuditEventProcessor__ProcessName: analytics
+      AnalyticsAuditEventProcessor__TopicArn: arn:aws:sns:eu-west-2:000000000000:waste_obligations_analytics_events
+      AnalyticsAuditEventProcessor__PollIntervalSeconds: 1
+      AnalyticsAuditEventProcessor__PollJitterSeconds: 0
+      AnalyticsAuditEventConsumer__QueueUrl: http://floci:4566/000000000000/waste_obligations_analytics_events_queue
       # See appsettings.json for additional settings related to auth
       PrnCommonBackend__TokenEndpoint: http://wiremock/oauth2/v2.0/token
       PrnCommonBackend__BaseAddress: http://wiremock/

@@ -103,21 +103,22 @@ public class FakeComplianceDeclarationService : IComplianceDeclarationService
     }
 
     public Task<ComplianceDeclaration> Update(
-        ComplianceDeclaration complianceDeclaration,
+        ComplianceDeclaration current,
+        ComplianceDeclaration updated,
         CancellationToken cancellationToken
     )
     {
         if (ConcurrencyError)
             throw new ConcurrencyException(
-                $"Concurrency issue on write, compliance declaration with id '{complianceDeclaration.Id}' was not updated"
+                $"Concurrency issue on write, compliance declaration with id '{current.Id}' was not updated"
             );
 
-        if (s_complianceDeclarations.TryGetValue(complianceDeclaration.Organisation.Id, out var complianceDeclarations))
+        if (s_complianceDeclarations.TryGetValue(updated.Organisation.Id, out var complianceDeclarations))
         {
-            var index = complianceDeclarations.FindIndex(x => x.Id == complianceDeclaration.Id);
+            var index = complianceDeclarations.FindIndex(x => x.Id == updated.Id);
             if (index != -1)
             {
-                return Task.FromResult(complianceDeclaration with { Updated = UtcNow().UtcDateTime });
+                return Task.FromResult(updated with { Updated = UtcNow().UtcDateTime });
             }
         }
 

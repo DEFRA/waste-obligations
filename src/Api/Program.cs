@@ -1,10 +1,12 @@
 using System.Reflection;
 using Defra.WasteObligations.Api.Authentication;
+using Defra.WasteObligations.Api.Consumers;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Endpoints;
 using Defra.WasteObligations.Api.Endpoints.ComplianceDeclarations;
 using Defra.WasteObligations.Api.Endpoints.OpenApi;
 using Defra.WasteObligations.Api.Extensions;
+using Defra.WasteObligations.Api.Schemas;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.AccountBackend;
 using Defra.WasteObligations.Api.Services.GovukNotify;
@@ -17,6 +19,8 @@ using Defra.WasteObligations.Api.Utils.Http;
 using Defra.WasteObligations.Api.Utils.Logging;
 using Defra.WasteObligations.Api.Utils.Metrics;
 using Defra.WasteObligations.Api.Utils.Security;
+using Defra.WasteObligations.AuditEvents;
+using Defra.WasteObligations.AuditEvents.Analytics;
 using Elastic.CommonSchema.Serilog;
 using Serilog;
 
@@ -53,6 +57,9 @@ try
     builder.Services.AddAccountBackendService();
     builder.Services.AddWasteOrganisationsService();
     builder.Services.AddGovukNotify();
+    builder.Services.AddAuditEvents(builder.Configuration, !integrationTest && !openApiBuild);
+    builder.Services.AddConsumers(builder.Configuration, !integrationTest && !openApiBuild);
+    builder.Services.AddSingleton<IEntityJsonSchemaProvider, EmbeddedEntityJsonSchemaProvider>();
     builder.Services.AddTransient<IComplianceDeclarationService, ComplianceDeclarationService>();
     builder.Services.AddTransient<IEmailService, EmailService>();
 

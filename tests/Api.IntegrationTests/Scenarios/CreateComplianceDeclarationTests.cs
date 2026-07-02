@@ -3,19 +3,24 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using AutoFixture;
 using AwesomeAssertions;
+using Defra.WasteObligations.AuditEvents.Entities;
 using Defra.WasteObligations.Testing.Authentication;
 using Defra.WasteObligations.Testing.Extensions.WireMock;
 using Defra.WasteObligations.Testing.Fixtures.Dtos;
+using MongoDB.Driver;
 using ComplianceDeclaration = Defra.WasteObligations.Api.Dtos.ComplianceDeclaration;
 
 namespace Defra.WasteObligations.Api.IntegrationTests.Scenarios;
 
 public class CreateComplianceDeclarationTests : IntegrationTestBase
 {
+    private const string Analytics = "analytics";
+
     [Fact]
     public async Task WhenOrganisationFound_ShouldBeCreated()
     {
         var organisationId = Guid.NewGuid();
+        using var sqsClient = CreateSqsClient();
         await WireMockContext.WireMockAdminApi.StubWasteOrganisationsOrganisationRequest(
             organisationId,
             BasicAuthCredential.ForClient(ClientIds.WasteOrganisations)
@@ -26,6 +31,7 @@ public class CreateComplianceDeclarationTests : IntegrationTestBase
         );
 
         var client = CreateClient();
+        client.DefaultRequestHeaders.Add(TraceHeaderName, TraceId);
 
         var response = await client.PostAsJsonAsync(
             Testing.Endpoints.Organisations.ComplianceDeclarations.Create(organisationId),
@@ -55,9 +61,29 @@ public class CreateComplianceDeclarationTests : IntegrationTestBase
             entries.Should().ContainSingle();
 
             var entry = entries[0];
-            var jsonDocument = JsonDocument.Parse(entry.Request!.Body!);
+            if (entry.Request?.Body is not { } body)
+                throw new InvalidOperationException("Expected GOV.UK Notify request body.");
+
+            var jsonDocument = JsonDocument.Parse(body);
 
             jsonDocument.RootElement.GetProperty("email_address").GetString().Should().Be("submitter@email.com");
         });
+
+        await AsyncWaiter.WaitForAsync(
+            async () =>
+            {
+                var auditEvent = await AuditEvents
+                    .Find(x => x.EntityId == result.Id)
+                    .SingleAsync(TestContext.Current.CancellationToken);
+
+                auditEvent.TraceId.Should().Be(TraceId);
+                auditEvent.Dispatches.Should().ContainKey(Analytics);
+                auditEvent.Dispatches[Analytics].Status.Should().Be(AuditEventDispatchStatus.Dispatched);
+                auditEvent.Dispatches[Analytics].Date.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
+            },
+            delay: TimeSpan.FromMilliseconds(100)
+        );
+
+        await AssertAnalyticsEventQueued(sqsClient, result.Id, "insert", "submission.created");
     }
 }

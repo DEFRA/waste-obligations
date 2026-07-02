@@ -20,6 +20,7 @@ COPY .editorconfig .editorconfig
 RUN dotnet tool restore
 
 COPY src/Api/Api.csproj src/Api/Api.csproj
+COPY src/AuditEvents/AuditEvents.csproj src/AuditEvents/AuditEvents.csproj
 COPY tests/Testing/Testing.csproj tests/Testing/Testing.csproj
 COPY tests/Api.Tests/Api.Tests.csproj tests/Api.Tests/Api.Tests.csproj
 COPY tests/Api.IntegrationTests/Api.IntegrationTests.csproj tests/Api.IntegrationTests/Api.IntegrationTests.csproj
@@ -29,6 +30,7 @@ COPY Directory.Build.props Directory.Build.props
 RUN dotnet restore
 
 COPY src/Api src/Api
+COPY src/AuditEvents src/AuditEvents
 COPY tests/Testing tests/Testing
 COPY tests/Api.Tests tests/Api.Tests
 COPY tests/Api.IntegrationTests tests/Api.IntegrationTests

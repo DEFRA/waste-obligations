@@ -24,7 +24,7 @@ public static class ServiceCollectionExtensions
         if (validateConfigOnly)
             return services;
 
-        services.AddHostedService<MongoIndexService>();
+        services.AddHostedService<MongoMigrationService>();
         services.AddScoped<IDbContext, MongoDbContext>();
         services.AddSingleton(sp =>
         {

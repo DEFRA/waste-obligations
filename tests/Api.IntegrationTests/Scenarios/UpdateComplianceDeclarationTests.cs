@@ -12,10 +12,16 @@ namespace Defra.WasteObligations.Api.IntegrationTests.Scenarios;
 
 public class UpdateComplianceDeclarationTests : IntegrationTestBase
 {
+    private const string Amended = "submission.amended";
+    private const string Created = "submission.created";
+    private const string Insert = "insert";
+    private const string Update = "update";
+
     [Fact]
     public async Task WhenCreatedAndAccepted_ShouldUpdate()
     {
         var organisationId = Guid.NewGuid();
+        using var sqsClient = CreateSqsClient();
         await WireMockContext.WireMockAdminApi.StubWasteOrganisationsOrganisationRequest(
             organisationId,
             BasicAuthCredential.ForClient(ClientIds.WasteOrganisations)
@@ -40,6 +46,7 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
         );
 
         result.Should().NotBeNull();
+        await AssertAnalyticsEventQueued(sqsClient, result.Id, Insert, Created);
 
         response = await client.PatchAsJsonAsync(
             Testing.Endpoints.Organisations.ComplianceDeclarations.Update(organisationId, result.Id),
@@ -55,12 +62,14 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
         );
 
         await VerifyJson(complianceDeclaration).ScrubTopLevelIdMember().DisableDateCounting();
+        await AssertAnalyticsEventQueued(sqsClient, result.Id, Update, Amended);
     }
 
     [Fact]
     public async Task WhenCreatedAndCancelled_ShouldUpdate()
     {
         var organisationId = Guid.NewGuid();
+        using var sqsClient = CreateSqsClient();
         await WireMockContext.WireMockAdminApi.StubWasteOrganisationsOrganisationRequest(
             organisationId,
             BasicAuthCredential.ForClient(ClientIds.WasteOrganisations)
@@ -85,6 +94,7 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
         );
 
         result.Should().NotBeNull();
+        await AssertAnalyticsEventQueued(sqsClient, result.Id, Insert, Created);
 
         response = await client.PatchAsJsonAsync(
             Testing.Endpoints.Organisations.ComplianceDeclarations.Update(organisationId, result.Id),
@@ -100,5 +110,6 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
         );
 
         await VerifyJson(complianceDeclaration).ScrubTopLevelIdMember().DisableDateCounting();
+        await AssertAnalyticsEventQueued(sqsClient, result.Id, Update, Amended);
     }
 }

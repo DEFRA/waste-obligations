@@ -1,5 +1,9 @@
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
+using Defra.WasteObligations.Api.Utils.Logging;
+using Defra.WasteObligations.AuditEvents;
+using Microsoft.AspNetCore.HeaderPropagation;
+using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Driver;
 using MongoDB.Driver.Linq;
@@ -9,9 +13,15 @@ namespace Defra.WasteObligations.Api.Services;
 public class ComplianceDeclarationService(
     IDbContext dbContext,
     ILogger<ComplianceDeclarationService> logger,
-    TimeProvider timeProvider
+    TimeProvider timeProvider,
+    IAuditEventService auditEventService,
+    HeaderPropagationValues headerPropagationValues,
+    IOptions<TraceHeader> traceHeaderOptions
 ) : IComplianceDeclarationService
 {
+    private const string Actor = "service:waste-obligations";
+    private const string ComplianceDeclarationEntity = "compliance_declaration";
+
     public async Task<ComplianceDeclaration> Create(
         ComplianceDeclaration complianceDeclaration,
         CancellationToken cancellationToken
@@ -20,10 +30,43 @@ public class ComplianceDeclarationService(
         var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
         complianceDeclaration = complianceDeclaration with { Version = 1, Created = utcNow, Updated = utcNow };
 
-        await dbContext.ComplianceDeclarations.InsertOneAsync(
-            complianceDeclaration,
-            cancellationToken: cancellationToken
-        );
+        using var session = await dbContext.StartSession(cancellationToken);
+        session.StartTransaction();
+
+        try
+        {
+            await dbContext.ComplianceDeclarations.InsertOneAsync(
+                session,
+                complianceDeclaration,
+                cancellationToken: cancellationToken
+            );
+
+            await auditEventService.RecordEvent(
+                session,
+                new AuditEventRequest(
+                    Actor,
+                    ComplianceDeclarationEntity,
+                    AuditEventOperation.Insert,
+                    "submission.created",
+                    null,
+                    complianceDeclaration.Id.ToString(),
+                    complianceDeclaration.Version,
+                    null,
+                    complianceDeclaration.ToBsonDocument(),
+                    complianceDeclaration.SchemaVersion,
+                    utcNow,
+                    ReadTraceId()
+                ),
+                cancellationToken
+            );
+
+            await session.CommitTransactionAsync(cancellationToken);
+        }
+        catch
+        {
+            await session.AbortTransactionAsync(CancellationToken.None);
+            throw;
+        }
 
         logger.LogInformation(
             "Created compliance declaration with id '{ComplianceDeclarationId}'",
@@ -50,13 +93,67 @@ public class ComplianceDeclarationService(
 
     public async Task<bool> Delete(string id, CancellationToken cancellationToken)
     {
-        var deleteResult = await dbContext.ComplianceDeclarations.DeleteOneAsync(
-            Builders<ComplianceDeclaration>.Filter.Eq(x => x.Id, ObjectId.Parse(id)),
-            cancellationToken
-        );
+        using var session = await dbContext.StartSession(cancellationToken);
+        session.StartTransaction();
 
-        if (deleteResult.DeletedCount == 0)
-            return false;
+        try
+        {
+            var objectId = ObjectId.Parse(id);
+            var current = await dbContext
+                .ComplianceDeclarations.Find(session, Builders<ComplianceDeclaration>.Filter.Eq(x => x.Id, objectId))
+                .FirstOrDefaultAsync(cancellationToken: cancellationToken);
+
+            if (current is null)
+            {
+                await session.AbortTransactionAsync(cancellationToken);
+
+                return false;
+            }
+
+            var deleteFilter = Builders<ComplianceDeclaration>.Filter.And(
+                Builders<ComplianceDeclaration>.Filter.Eq(x => x.Id, objectId),
+                Builders<ComplianceDeclaration>.Filter.Eq(x => x.Version, current.Version)
+            );
+
+            var deleteResult = await dbContext.ComplianceDeclarations.DeleteOneAsync(
+                session,
+                deleteFilter,
+                null,
+                cancellationToken
+            );
+
+            if (deleteResult.DeletedCount == 0)
+                throw new ConcurrencyException(
+                    $"Concurrency issue on delete, compliance declaration with id '{current.Id}' was not deleted"
+                );
+
+            var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
+            await auditEventService.RecordEvent(
+                session,
+                new AuditEventRequest(
+                    Actor,
+                    ComplianceDeclarationEntity,
+                    AuditEventOperation.Delete,
+                    "submission.removed",
+                    "elevated system allowed removal",
+                    current.Id.ToString(),
+                    current.Version + 1,
+                    current.ToBsonDocument(),
+                    null,
+                    current.SchemaVersion,
+                    utcNow,
+                    ReadTraceId()
+                ),
+                cancellationToken
+            );
+
+            await session.CommitTransactionAsync(cancellationToken);
+        }
+        catch
+        {
+            await session.AbortTransactionAsync(CancellationToken.None);
+            throw;
+        }
 
         logger.LogInformation("Deleted compliance declaration with id '{ComplianceDeclarationId}'", id);
 
@@ -125,38 +222,78 @@ public class ComplianceDeclarationService(
     }
 
     public async Task<ComplianceDeclaration> Update(
-        ComplianceDeclaration complianceDeclaration,
+        ComplianceDeclaration current,
+        ComplianceDeclaration updated,
         CancellationToken cancellationToken
     )
     {
+        using var session = await dbContext.StartSession(cancellationToken);
+        session.StartTransaction();
+
         var filter = Builders<ComplianceDeclaration>.Filter.And(
-            Builders<ComplianceDeclaration>.Filter.Eq(x => x.Id, complianceDeclaration.Id),
-            Builders<ComplianceDeclaration>.Filter.Eq(x => x.Version, complianceDeclaration.Version)
+            Builders<ComplianceDeclaration>.Filter.Eq(x => x.Id, current.Id),
+            Builders<ComplianceDeclaration>.Filter.Eq(x => x.Version, current.Version)
         );
 
-        complianceDeclaration = complianceDeclaration with
+        updated = updated with { Version = current.Version + 1, Updated = timeProvider.GetUtcNowWithoutMicroseconds() };
+
+        try
         {
-            Version = complianceDeclaration.Version + 1,
-            Updated = timeProvider.GetUtcNowWithoutMicroseconds(),
-        };
-
-        var replaceOneResult = await dbContext.ComplianceDeclarations.ReplaceOneAsync(
-            filter,
-            complianceDeclaration,
-            new ReplaceOptions { IsUpsert = false },
-            cancellationToken: cancellationToken
-        );
-
-        if (replaceOneResult.ModifiedCount == 0)
-            throw new ConcurrencyException(
-                $"Concurrency issue on write, compliance declaration with id '{complianceDeclaration.Id}' was not updated"
+            var replaceOneResult = await dbContext.ComplianceDeclarations.ReplaceOneAsync(
+                session,
+                filter,
+                updated,
+                new ReplaceOptions { IsUpsert = false },
+                cancellationToken: cancellationToken
             );
 
-        logger.LogInformation(
-            "Updated compliance declaration with id '{ComplianceDeclarationId}'",
-            complianceDeclaration.Id
-        );
+            if (replaceOneResult.ModifiedCount == 0)
+                throw new ConcurrencyException(
+                    $"Concurrency issue on write, compliance declaration with id '{current.Id}' was not updated"
+                );
 
-        return complianceDeclaration;
+            await auditEventService.RecordEvent(
+                session,
+                new AuditEventRequest(
+                    Actor,
+                    ComplianceDeclarationEntity,
+                    AuditEventOperation.Update,
+                    "submission.amended",
+                    null,
+                    updated.Id.ToString(),
+                    updated.Version,
+                    current.ToBsonDocument(),
+                    updated.ToBsonDocument(),
+                    updated.SchemaVersion,
+                    updated.Updated,
+                    ReadTraceId()
+                ),
+                cancellationToken
+            );
+
+            await session.CommitTransactionAsync(cancellationToken);
+        }
+        catch
+        {
+            await session.AbortTransactionAsync(CancellationToken.None);
+            throw;
+        }
+
+        logger.LogInformation("Updated compliance declaration with id '{ComplianceDeclarationId}'", updated.Id);
+
+        return updated;
+    }
+
+    private string? ReadTraceId()
+    {
+        if (headerPropagationValues.Headers is null)
+            return null;
+
+        if (!headerPropagationValues.Headers.TryGetValue(traceHeaderOptions.Value.Name, out var values))
+            return null;
+
+        var traceId = values.ToString();
+
+        return string.IsNullOrWhiteSpace(traceId) ? null : traceId;
     }
 }

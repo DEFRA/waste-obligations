@@ -4,20 +4,42 @@ using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.Api.Services;
+using Defra.WasteObligations.Api.Utils.Logging;
+using Defra.WasteObligations.AuditEvents;
+using Defra.WasteObligations.AuditEvents.Data;
 using Defra.WasteObligations.Testing;
+using Defra.WasteObligations.Testing.Fakes;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
+using Microsoft.AspNetCore.HeaderPropagation;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 
 namespace Defra.WasteObligations.Api.IntegrationTests.Scenarios;
 
 public class SearchComplianceDeclarationTests : IntegrationTestBase
 {
-    private ComplianceDeclarationService Subject { get; } =
-        new(
-            new MongoDbContext(GetMongoDatabase()),
-            Substitute.For<Microsoft.Extensions.Logging.ILogger<ComplianceDeclarationService>>(),
-            TimeProvider.System
+    private ComplianceDeclarationService Subject { get; }
+
+    public SearchComplianceDeclarationTests()
+    {
+        var database = GetMongoDatabase();
+        var auditEventDbContext = new AuditEventDbContext(database);
+        var dbContext = new MongoDbContext(database);
+        var auditEventService = new AuditEventService(
+            auditEventDbContext,
+            TimeProvider.System,
+            new FakeEventIdGenerator()
         );
+
+        Subject = new(
+            dbContext,
+            Substitute.For<Microsoft.Extensions.Logging.ILogger<ComplianceDeclarationService>>(),
+            TimeProvider.System,
+            auditEventService,
+            new HeaderPropagationValues(),
+            Options.Create(new TraceHeader { Name = TraceHeaderName })
+        );
+    }
 
     [Fact]
     public async Task Search_WhenPaginationIsUsed_ShouldReturnAllResults()
