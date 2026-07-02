@@ -70,7 +70,7 @@ services:
       - compose/aws.env
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      Mongo__DatabaseUri: mongodb://mongodb:27017/?replicaSet=rs0&directConnection=true
+      Mongo__DatabaseUri: mongodb://mongodb:27017/?replicaSet=rs0&directConnection=true&readPreference=secondaryPreferred
       PORT: 8080
       AWS_ENDPOINT_URL: http://floci:4566
       AWS__AuthenticationRegion: eu-west-2
