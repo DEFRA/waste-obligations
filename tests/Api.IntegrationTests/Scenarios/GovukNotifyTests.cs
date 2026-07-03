@@ -8,38 +8,35 @@ public class GovukNotifyTests(ITestOutputHelper testOutputHelper) : IntegrationT
     [Theory]
     [InlineData(GovukNotifyTemplateIds.ComplianceDeclarationSubmissionDirectProducerEnglish)]
     [InlineData(GovukNotifyTemplateIds.ComplianceDeclarationSubmissionDirectProducerWelsh)]
-    public async Task DirectProducerSubmissionEmail_ShouldRender(string templateId)
-    {
-        var preview = await GenerateTemplatePreview(templateId);
-        if (preview is null)
-            return;
-
-        preview.Value.Body.Should().Contain("The Regulator has received your 2026 certificate of compliance.");
-        preview
-            .Value.Body.Should()
-            .Contain(
-                "Contact the Regulator if you need to discuss your certificate of compliance: regulator@email.com."
-            );
-    }
-
-    [Theory]
     [InlineData(GovukNotifyTemplateIds.ComplianceDeclarationSubmissionComplianceSchemeEnglish)]
     [InlineData(GovukNotifyTemplateIds.ComplianceDeclarationSubmissionComplianceSchemeWelsh)]
-    public async Task ComplianceSchemeSubmissionEmail_ShouldRender(string templateId)
+    public async Task SubmissionEmail_ShouldRenderPersonalisation(string templateId)
     {
-        var preview = await GenerateTemplatePreview(templateId);
+        const int obligationYear = 2026;
+        const string obligationYearText = "2026";
+        const string regulator = "Regulator";
+        const string regulatorEmail = "regulator@email.com";
+        const string user = "Submitter Name";
+
+        var preview = await GenerateTemplatePreview(templateId, obligationYear, regulator, regulatorEmail, user);
         if (preview is null)
             return;
 
-        preview.Value.Subject.Should().Contain("2026");
-        preview.Value.Subject.Should().Contain("Regulator");
-        preview.Value.Body.Should().Contain("2026");
-        preview.Value.Body.Should().Contain("Regulator");
-        preview.Value.Body.Should().Contain("regulator@email.com");
-        preview.Value.Body.Should().Contain("Submitter Name");
+        preview.Value.Subject.Should().Contain(obligationYearText);
+        preview.Value.Subject.Should().Contain(regulator);
+        preview.Value.Body.Should().Contain(obligationYearText);
+        preview.Value.Body.Should().Contain(regulator);
+        preview.Value.Body.Should().Contain(regulatorEmail);
+        preview.Value.Body.Should().Contain(user);
     }
 
-    private async Task<(string Body, string Subject)?> GenerateTemplatePreview(string templateId)
+    private async Task<(string Body, string Subject)?> GenerateTemplatePreview(
+        string templateId,
+        int obligationYear,
+        string regulator,
+        string regulatorEmail,
+        string user
+    )
     {
         var apiKey = Environment.GetEnvironmentVariable("GOVUKNOTIFY_APIKEY");
         if (string.IsNullOrEmpty(apiKey))
@@ -54,13 +51,18 @@ public class GovukNotifyTests(ITestOutputHelper testOutputHelper) : IntegrationT
         var notificationClient = new NotificationClient(apiKey);
         var personalisation = new Dictionary<string, object>
         {
-            { "obligationYear", 2026 },
-            { "regulator", "Regulator" },
-            { "regulatorEmail", "regulator@email.com" },
-            { "user", "Submitter Name" },
+            { "obligationYear", obligationYear },
+            { "regulator", regulator },
+            { "regulatorEmail", regulatorEmail },
+            { "user", user },
         };
 
         var preview = await notificationClient.GenerateTemplatePreviewAsync(templateId, personalisation);
+
+        testOutputHelper.WriteLine($"GOV.UK Notify template '{templateId}' rendered subject:");
+        testOutputHelper.WriteLine(preview.subject);
+        testOutputHelper.WriteLine($"GOV.UK Notify template '{templateId}' rendered body:");
+        testOutputHelper.WriteLine(preview.body);
 
         return (preview.body, preview.subject);
     }

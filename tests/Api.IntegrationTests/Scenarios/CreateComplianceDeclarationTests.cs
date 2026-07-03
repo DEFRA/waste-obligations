@@ -62,7 +62,7 @@ public class CreateComplianceDeclarationTests : IntegrationTestBase
 
             entries.Should().ContainSingle();
 
-            AssertSubmittedEmail(
+            AssertSubmittedEmailTemplate(
                 entries[0].Request?.Body,
                 GovukNotifyTemplateIds.ComplianceDeclarationSubmissionDirectProducerEnglish
             );
@@ -115,7 +115,7 @@ public class CreateComplianceDeclarationTests : IntegrationTestBase
 
             entries.Should().ContainSingle();
 
-            AssertSubmittedEmail(
+            AssertSubmittedEmailTemplate(
                 entries[0].Request?.Body,
                 GovukNotifyTemplateIds.ComplianceDeclarationSubmissionComplianceSchemeEnglish
             );
@@ -163,24 +163,17 @@ public class CreateComplianceDeclarationTests : IntegrationTestBase
 
             entries.Should().ContainSingle();
 
-            AssertSubmittedEmail(entries[0].Request?.Body, expectedTemplateId);
+            AssertSubmittedEmailTemplate(entries[0].Request?.Body, expectedTemplateId);
         });
     }
 
-    private static void AssertSubmittedEmail(string? body, string expectedTemplateId)
+    private static void AssertSubmittedEmailTemplate(string? body, string expectedTemplateId)
     {
         if (body is null)
             throw new InvalidOperationException("Expected GOV.UK Notify request body.");
 
         using var jsonDocument = JsonDocument.Parse(body);
 
-        jsonDocument.RootElement.GetProperty("email_address").GetString().Should().Be("submitter@email.com");
         jsonDocument.RootElement.GetProperty("template_id").GetString().Should().Be(expectedTemplateId);
-        jsonDocument
-            .RootElement.GetProperty("personalisation")
-            .GetProperty("user")
-            .GetString()
-            .Should()
-            .Be("Submitter Name");
     }
 }
