@@ -14,6 +14,11 @@ Welsh translation workbook. If a matching Welsh template ID is configured, its
 current subject/body is used to pre-fill the Welsh column where it differs from
 the English source.
 
+The exporter also writes deterministic JSON sidecars for GitHub review. Existing
+workbooks and JSON sidecars are only rewritten when the exported translator
+notes or email rows have changed, so repeated exports do not create Git diffs
+just because workbook metadata would otherwise change.
+
 ## API key
 
 The CLI loads `.env` from the repository root before reading environment
@@ -49,6 +54,12 @@ By default, workbooks are written to:
 translations/welsh-email-translations
 ```
 
+Matching JSON sidecars are written to:
+
+```text
+translations/welsh-email-translations/json
+```
+
 To write somewhere else:
 
 ```bash
@@ -60,6 +71,9 @@ To read a different API settings file:
 ```bash
 dotnet run --project tools/translations/cli/cli.csproj -- export --appsettings src/Api/appsettings.Development.json
 ```
+
+The `.xlsx` files are the files to send for translation. The `.json` sidecars
+are review aids so email copy changes can be diffed without opening Excel.
 
 ## Applying returned translations
 
