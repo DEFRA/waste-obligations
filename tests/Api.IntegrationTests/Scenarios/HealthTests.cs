@@ -5,6 +5,11 @@ namespace Defra.WasteObligations.Api.IntegrationTests.Scenarios;
 
 public class HealthTests : IntegrationTestBase
 {
+    private const string DirectProducerEnglishTemplateId = "5f64e3bd-d454-4a45-a9c6-9409bf940d7a";
+    private const string DirectProducerWelshTemplateId = "b3223b0b-a467-40c1-9150-f78b76d11fd8";
+    private const string ComplianceSchemeEnglishTemplateId = "b103685d-de8a-4ea9-abc8-d244ca26841b";
+    private const string ComplianceSchemeWelshTemplateId = "95d8c2aa-a229-4ecb-9774-78ec06d0cbac";
+
     [Fact]
     public async Task WhenOrganisationFound_WithObligations_ResponseShouldBeOk()
     {
@@ -26,8 +31,10 @@ public class HealthTests : IntegrationTestBase
             BasicAuthCredential.ForClient(ClientIds.WasteOrganisations)
         );
         // see appsettings.json for template IDs
-        await WireMockContext.WireMockAdminApi.StubGovukNotifyTemplateRequest("5f64e3bd-d454-4a45-a9c6-9409bf940d7a");
-        await WireMockContext.WireMockAdminApi.StubGovukNotifyTemplateRequest("b3223b0b-a467-40c1-9150-f78b76d11fd8");
+        await WireMockContext.WireMockAdminApi.StubGovukNotifyTemplateRequest(DirectProducerEnglishTemplateId);
+        await WireMockContext.WireMockAdminApi.StubGovukNotifyTemplateRequest(DirectProducerWelshTemplateId);
+        await WireMockContext.WireMockAdminApi.StubGovukNotifyTemplateRequest(ComplianceSchemeEnglishTemplateId);
+        await WireMockContext.WireMockAdminApi.StubGovukNotifyTemplateRequest(ComplianceSchemeWelshTemplateId);
 
         var client = CreateClient();
 

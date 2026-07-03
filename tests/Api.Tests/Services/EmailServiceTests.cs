@@ -21,9 +21,12 @@ public class EmailServiceTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task SendSubmittedEmail_ShouldCallGovukNotify(bool directProducer)
+    [InlineData(true, GovukNotifyOptions.TemplateName.ComplianceDeclarationSubmissionDirectProducer)]
+    [InlineData(false, GovukNotifyOptions.TemplateName.ComplianceDeclarationSubmissionComplianceScheme)]
+    public async Task SendSubmittedEmail_ShouldCallGovukNotify(
+        bool directProducer,
+        GovukNotifyOptions.TemplateName expectedTemplate
+    )
     {
         var complianceDeclaration = directProducer
             ? ComplianceDeclarationFixture.DirectProducer(OrganisationFixture.OrganisationId).Create()
@@ -35,13 +38,14 @@ public class EmailServiceTests
         await GovukNotifyService
             .Received()
             .SendComplianceDeclarationSubmittedEmail(
-                GovukNotifyOptions.TemplateName.ComplianceDeclarationSubmissionDirectProducer,
-                Arg.Is<IEnumerable<string>>(x => x.SequenceEqual(new List<string> { "submitter@email.com" })),
+                expectedTemplate,
+                Arg.Is<IEnumerable<string>>(x => x.SequenceEqual(new[] { "submitter@email.com" })),
                 Arg.Is<Dictionary<string, object>>(x =>
-                    x.Count == 3
+                    x.Count == 4
                     && (int)x["obligationYear"] == complianceDeclaration.ObligationYear
                     && (string)x["regulator"] == complianceDeclaration.Organisation.Regulator
                     && (string)x["regulatorEmail"] == complianceDeclaration.Organisation.RegulatorEmail
+                    && (string)x["user"] == "Submitter Name"
                 ),
                 "en"
             );
