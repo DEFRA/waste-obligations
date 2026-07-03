@@ -14,6 +14,7 @@
 - Do not use Arrange Act Assert comments in tests
 - Use _camelCase for private instance fields
 - Prefer AwesomeAssertions for assertions; where `Should().NotBeNull()` provides nullable flow information, do not add redundant null suppression operators or extra null guards
+- Keep assertion style consistent within a test or helper; avoid introducing local variables solely for one assertion when surrounding assertions access the same object inline
 - Place new appsettings.json (and related environment variant files) config sections at the bottom of existing settings
 
 ## Change iterations

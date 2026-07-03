@@ -62,7 +62,10 @@ public class CreateComplianceDeclarationTests : IntegrationTestBase
 
             entries.Should().ContainSingle();
 
-            AssertSubmittedEmail(entries[0].Request?.Body, "5f64e3bd-d454-4a45-a9c6-9409bf940d7a");
+            AssertSubmittedEmail(
+                entries[0].Request?.Body,
+                GovukNotifyTemplateIds.ComplianceDeclarationSubmissionDirectProducerEnglish
+            );
         });
 
         await AsyncWaiter.WaitForAsync(
@@ -112,13 +115,16 @@ public class CreateComplianceDeclarationTests : IntegrationTestBase
 
             entries.Should().ContainSingle();
 
-            AssertSubmittedEmail(entries[0].Request?.Body, "b103685d-de8a-4ea9-abc8-d244ca26841b");
+            AssertSubmittedEmail(
+                entries[0].Request?.Body,
+                GovukNotifyTemplateIds.ComplianceDeclarationSubmissionComplianceSchemeEnglish
+            );
         });
     }
 
     [Theory]
-    [InlineData(true, "b3223b0b-a467-40c1-9150-f78b76d11fd8")]
-    [InlineData(false, "95d8c2aa-a229-4ecb-9774-78ec06d0cbac")]
+    [InlineData(true, GovukNotifyTemplateIds.ComplianceDeclarationSubmissionDirectProducerWelsh)]
+    [InlineData(false, GovukNotifyTemplateIds.ComplianceDeclarationSubmissionComplianceSchemeWelsh)]
     public async Task WhenWelshOrganisation_ShouldSendWelshSubmittedEmail(
         bool directProducer,
         string expectedTemplateId
@@ -167,10 +173,14 @@ public class CreateComplianceDeclarationTests : IntegrationTestBase
             throw new InvalidOperationException("Expected GOV.UK Notify request body.");
 
         using var jsonDocument = JsonDocument.Parse(body);
-        var personalisation = jsonDocument.RootElement.GetProperty("personalisation");
 
         jsonDocument.RootElement.GetProperty("email_address").GetString().Should().Be("submitter@email.com");
         jsonDocument.RootElement.GetProperty("template_id").GetString().Should().Be(expectedTemplateId);
-        personalisation.GetProperty("user").GetString().Should().Be("Submitter Name");
+        jsonDocument
+            .RootElement.GetProperty("personalisation")
+            .GetProperty("user")
+            .GetString()
+            .Should()
+            .Be("Submitter Name");
     }
 }
