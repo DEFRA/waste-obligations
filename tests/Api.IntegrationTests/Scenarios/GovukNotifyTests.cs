@@ -59,6 +59,11 @@ public class GovukNotifyTests(ITestOutputHelper testOutputHelper) : IntegrationT
 
         var preview = await notificationClient.GenerateTemplatePreviewAsync(templateId, personalisation);
 
+        testOutputHelper.WriteLine($"GOV.UK Notify template '{templateId}' rendered subject:");
+        testOutputHelper.WriteLine(preview.subject);
+        testOutputHelper.WriteLine($"GOV.UK Notify template '{templateId}' rendered body:");
+        testOutputHelper.WriteLine(preview.body);
+
         return (preview.body, preview.subject);
     }
 }
