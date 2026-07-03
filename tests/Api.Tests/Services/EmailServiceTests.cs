@@ -52,7 +52,7 @@ public class EmailServiceTests
             .Received()
             .SendComplianceDeclarationSubmittedEmail(
                 expectedTemplate,
-                Arg.Is<IEnumerable<string>>(x => x.SequenceEqual(new[] { "submitter@email.com" })),
+                Arg.Is<IEnumerable<string>>(x => x.Single() == "submitter@email.com"),
                 Arg.Is<Dictionary<string, object>>(x =>
                     x.Count == 4
                     && (int)x["obligationYear"] == complianceDeclaration.ObligationYear
