@@ -10,48 +10,36 @@ public class GovukNotifyTests(ITestOutputHelper testOutputHelper) : IntegrationT
     [InlineData(GovukNotifyTemplateIds.ComplianceDeclarationSubmissionDirectProducerWelsh)]
     public async Task DirectProducerSubmissionEmail_ShouldRender(string templateId)
     {
-        var body = await GenerateTemplatePreviewBody(templateId);
-        if (body is null)
+        var preview = await GenerateTemplatePreview(templateId);
+        if (preview is null)
             return;
 
-        body.Should().Contain("The Regulator has received your 2026 certificate of compliance.");
-        body.Should()
+        preview.Value.Body.Should().Contain("The Regulator has received your 2026 certificate of compliance.");
+        preview
+            .Value.Body.Should()
             .Contain(
                 "Contact the Regulator if you need to discuss your certificate of compliance: regulator@email.com."
             );
     }
 
-    [Fact]
-    public async Task ComplianceSchemeEnglishSubmissionEmail_ShouldRender()
+    [Theory]
+    [InlineData(GovukNotifyTemplateIds.ComplianceDeclarationSubmissionComplianceSchemeEnglish)]
+    [InlineData(GovukNotifyTemplateIds.ComplianceDeclarationSubmissionComplianceSchemeWelsh)]
+    public async Task ComplianceSchemeSubmissionEmail_ShouldRender(string templateId)
     {
-        var body = await GenerateTemplatePreviewBody(
-            GovukNotifyTemplateIds.ComplianceDeclarationSubmissionComplianceSchemeEnglish
-        );
-        if (body is null)
+        var preview = await GenerateTemplatePreview(templateId);
+        if (preview is null)
             return;
 
-        body.Should().Contain("2026");
-        body.Should().Contain("Regulator");
-        body.Should().Contain("regulator@email.com");
-        body.Should().Contain("Submitter Name");
+        preview.Value.Subject.Should().Contain("2026");
+        preview.Value.Subject.Should().Contain("Regulator");
+        preview.Value.Body.Should().Contain("2026");
+        preview.Value.Body.Should().Contain("Regulator");
+        preview.Value.Body.Should().Contain("regulator@email.com");
+        preview.Value.Body.Should().Contain("Submitter Name");
     }
 
-    [Fact]
-    public async Task ComplianceSchemeWelshSubmissionEmail_ShouldRender()
-    {
-        var body = await GenerateTemplatePreviewBody(
-            GovukNotifyTemplateIds.ComplianceDeclarationSubmissionComplianceSchemeWelsh
-        );
-        if (body is null)
-            return;
-
-        body.Should().Contain("2026");
-        body.Should().Contain("Regulator");
-        body.Should().Contain("regulator@email.com");
-        body.Should().Contain("Submitter Name");
-    }
-
-    private async Task<string?> GenerateTemplatePreviewBody(string templateId)
+    private async Task<(string Body, string Subject)?> GenerateTemplatePreview(string templateId)
     {
         var apiKey = Environment.GetEnvironmentVariable("GOVUKNOTIFY_APIKEY");
         if (string.IsNullOrEmpty(apiKey))
@@ -74,6 +62,6 @@ public class GovukNotifyTests(ITestOutputHelper testOutputHelper) : IntegrationT
 
         var preview = await notificationClient.GenerateTemplatePreviewAsync(templateId, personalisation);
 
-        return preview.body;
+        return (preview.body, preview.subject);
     }
 }
