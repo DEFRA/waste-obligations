@@ -33,5 +33,6 @@ public class GovukNotifyOptions
     public enum TemplateName
     {
         ComplianceDeclarationSubmissionDirectProducer,
+        ComplianceDeclarationSubmissionComplianceScheme,
     }
 }

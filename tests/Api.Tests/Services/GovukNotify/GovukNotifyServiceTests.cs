@@ -14,6 +14,11 @@ namespace Defra.WasteObligations.Api.Tests.Services.GovukNotify;
 
 public class GovukNotifyServiceTests : WireMockTestBase
 {
+    private const string DirectProducerEnglishTemplateId = "direct_producer_en_template_id";
+    private const string DirectProducerWelshTemplateId = "direct_producer_cy_template_id";
+    private const string ComplianceSchemeEnglishTemplateId = "compliance_scheme_en_template_id";
+    private const string ComplianceSchemeWelshTemplateId = "compliance_scheme_cy_template_id";
+
     private ServiceCollection Services { get; }
     private IAsyncNotificationClient NotificationClient { get; } = Substitute.For<IAsyncNotificationClient>();
 
@@ -25,11 +30,19 @@ public class GovukNotifyServiceTests : WireMockTestBase
             { $"{GovukNotifyOptions.SectionName}:ApiKey", "dummyapikey" },
             {
                 $"{GovukNotifyOptions.SectionName}:Templates:{nameof(GovukNotifyOptions.TemplateName.ComplianceDeclarationSubmissionDirectProducer)}:TemplateId:En",
-                "en_template_id"
+                DirectProducerEnglishTemplateId
             },
             {
                 $"{GovukNotifyOptions.SectionName}:Templates:{nameof(GovukNotifyOptions.TemplateName.ComplianceDeclarationSubmissionDirectProducer)}:TemplateId:Cy",
-                "cy_template_id"
+                DirectProducerWelshTemplateId
+            },
+            {
+                $"{GovukNotifyOptions.SectionName}:Templates:{nameof(GovukNotifyOptions.TemplateName.ComplianceDeclarationSubmissionComplianceScheme)}:TemplateId:En",
+                ComplianceSchemeEnglishTemplateId
+            },
+            {
+                $"{GovukNotifyOptions.SectionName}:Templates:{nameof(GovukNotifyOptions.TemplateName.ComplianceDeclarationSubmissionComplianceScheme)}:TemplateId:Cy",
+                ComplianceSchemeWelshTemplateId
             },
             { $"{GovukNotifyOptions.SectionName}:TotalRequestTimeout:Timeout", "00:00:40" },
             { $"{GovukNotifyOptions.SectionName}:AttemptTimeout:Timeout", "00:00:05" },
@@ -60,16 +73,38 @@ public class GovukNotifyServiceTests : WireMockTestBase
     }
 
     [Theory]
-    [InlineData("en", "en_template_id")]
-    [InlineData("cy", "cy_template_id")]
-    public async Task SendComplianceDeclarationSubmittedEmail_ShouldSend(string language, string expectedTemplateId)
+    [InlineData(
+        GovukNotifyOptions.TemplateName.ComplianceDeclarationSubmissionDirectProducer,
+        "en",
+        DirectProducerEnglishTemplateId
+    )]
+    [InlineData(
+        GovukNotifyOptions.TemplateName.ComplianceDeclarationSubmissionDirectProducer,
+        "cy",
+        DirectProducerWelshTemplateId
+    )]
+    [InlineData(
+        GovukNotifyOptions.TemplateName.ComplianceDeclarationSubmissionComplianceScheme,
+        "en",
+        ComplianceSchemeEnglishTemplateId
+    )]
+    [InlineData(
+        GovukNotifyOptions.TemplateName.ComplianceDeclarationSubmissionComplianceScheme,
+        "cy",
+        ComplianceSchemeWelshTemplateId
+    )]
+    public async Task SendComplianceDeclarationSubmittedEmail_ShouldSend(
+        GovukNotifyOptions.TemplateName template,
+        string language,
+        string expectedTemplateId
+    )
     {
         await using var sp = Services.BuildServiceProvider();
 
         var service = sp.GetRequiredService<IGovukNotifyService>();
 
         await service.SendComplianceDeclarationSubmittedEmail(
-            GovukNotifyOptions.TemplateName.ComplianceDeclarationSubmissionDirectProducer,
+            template,
             ["email1@email.com", "email2@email.com"],
             new Dictionary<string, object> { { "key1", "value1" } },
             language

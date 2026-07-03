@@ -1,5 +1,6 @@
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.GovukNotify;
+using BusinessCountry = Defra.WasteObligations.Api.Services.WasteOrganisations.BusinessCountry;
 using Organisation = Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation;
 
 namespace Defra.WasteObligations.Api.Services;
@@ -17,22 +18,29 @@ public class EmailService(IGovukNotifyService govukNotifyService, ILogger<EmailS
 
         try
         {
-            var recipient = complianceDeclaration
-                .Audit.First(x => x.Action == nameof(ComplianceDeclarationStatus.Submitted))
-                .User.Email;
+            var submittedAuditEntry = complianceDeclaration.Audit.First(x =>
+                x.Action == nameof(ComplianceDeclarationStatus.Submitted)
+            );
+            var template =
+                complianceDeclaration.Organisation.RegistrationType is RegistrationType.ComplianceScheme
+                    ? GovukNotifyOptions.TemplateName.ComplianceDeclarationSubmissionComplianceScheme
+                    : GovukNotifyOptions.TemplateName.ComplianceDeclarationSubmissionDirectProducer;
+            var personalisation = new Dictionary<string, object>
+            {
+                { "obligationYear", complianceDeclaration.ObligationYear },
+                { "regulator", complianceDeclaration.Organisation.Regulator },
+                { "regulatorEmail", complianceDeclaration.Organisation.RegulatorEmail },
+                { "user", submittedAuditEntry.User.Name },
+            };
+            var language = organisation.BusinessCountry == BusinessCountry.Wales ? "cy" : "en";
 
             logger.LogInformation("Sending submitted email to submitter email address");
 
             await govukNotifyService.SendComplianceDeclarationSubmittedEmail(
-                GovukNotifyOptions.TemplateName.ComplianceDeclarationSubmissionDirectProducer,
-                [recipient],
-                new Dictionary<string, object>
-                {
-                    { "obligationYear", complianceDeclaration.ObligationYear },
-                    { "regulator", complianceDeclaration.Organisation.Regulator },
-                    { "regulatorEmail", complianceDeclaration.Organisation.RegulatorEmail },
-                },
-                "en"
+                template,
+                [submittedAuditEntry.User.Email],
+                personalisation,
+                language
             );
 
             logger.LogInformation("Sent submitted email");
