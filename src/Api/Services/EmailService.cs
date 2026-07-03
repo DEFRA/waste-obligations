@@ -1,5 +1,6 @@
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.GovukNotify;
+using BusinessCountry = Defra.WasteObligations.Api.Services.WasteOrganisations.BusinessCountry;
 using Organisation = Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation;
 
 namespace Defra.WasteObligations.Api.Services;
@@ -31,6 +32,7 @@ public class EmailService(IGovukNotifyService govukNotifyService, ILogger<EmailS
                 { "regulatorEmail", complianceDeclaration.Organisation.RegulatorEmail },
                 { "user", submittedAuditEntry.User.Name },
             };
+            var language = organisation.BusinessCountry == BusinessCountry.Wales ? "cy" : "en";
 
             logger.LogInformation("Sending submitted email to submitter email address");
 
@@ -38,7 +40,7 @@ public class EmailService(IGovukNotifyService govukNotifyService, ILogger<EmailS
                 template,
                 [submittedAuditEntry.User.Email],
                 personalisation,
-                "en"
+                language
             );
 
             logger.LogInformation("Sent submitted email");

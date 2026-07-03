@@ -7,6 +7,7 @@ using WireMock.Client.Extensions;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
 using WireMock.Server;
+using Organisation = Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation;
 
 namespace Defra.WasteObligations.Testing.Extensions.WireMock;
 
@@ -36,7 +37,8 @@ public static class WasteOrganisationsExtensions
     public static async Task StubWasteOrganisationsOrganisationRequest(
         this IWireMockAdminApi wireMock,
         Guid organisationId,
-        string? basicAuthToken = null
+        string? basicAuthToken = null,
+        Organisation? organisation = null
     )
     {
         var builder = wireMock.GetMappingBuilder();
@@ -51,7 +53,7 @@ public static class WasteOrganisationsExtensions
                 })
                 .WithResponse(r =>
                     r.WithStatusCode(HttpStatusCode.OK)
-                        .WithBodyAsJson(OrganisationFixture.Default(organisationId).Create())
+                        .WithBodyAsJson(organisation ?? OrganisationFixture.Default(organisationId).Create())
                 )
         );
 
