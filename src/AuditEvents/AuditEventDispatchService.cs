@@ -134,7 +134,7 @@ public class AuditEventDispatchService(
         return true;
     }
 
-    private static double? OldestUnsentMilliseconds(DateTime utcNow, IReadOnlyCollection<AuditEvent> auditEvents)
+    private static double? OldestUnsentMilliseconds(DateTime utcNow, List<AuditEvent> auditEvents)
     {
         if (auditEvents.Count == 0)
             return null;
