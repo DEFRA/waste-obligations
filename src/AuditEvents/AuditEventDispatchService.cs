@@ -1,5 +1,6 @@
 using Defra.WasteObligations.AuditEvents.Data;
 using Defra.WasteObligations.AuditEvents.Entities;
+using Defra.WasteObligations.AuditEvents.Metrics;
 using Microsoft.Extensions.Logging;
 using MongoDB.Driver;
 
@@ -8,6 +9,7 @@ namespace Defra.WasteObligations.AuditEvents;
 public class AuditEventDispatchService(
     IAuditEventDbContext dbContext,
     TimeProvider timeProvider,
+    IAuditEventMetrics auditEventMetrics,
     ILogger<AuditEventDispatchService> logger
 )
 {
@@ -32,27 +34,34 @@ public class AuditEventDispatchService(
 
         // With secondaryPreferred reads this can see stale dispatch state, so an event may be sent more than once.
         // The topic/queue pipeline is at-least-once delivery, and consumers are expected to handle duplicates.
-        return await dbContext
+        var auditEvents = await dbContext
             .AuditEvents.Find(filter)
             .SortBy(x => x.Sequence)
             .Limit(batchSize)
             .ToListAsync(cancellationToken);
+
+        auditEventMetrics.DispatchBatchRead(
+            processName,
+            auditEvents.Count,
+            OldestUnsentMilliseconds(utcNow, auditEvents)
+        );
+
+        return auditEvents;
     }
 
     public async Task MarkDispatched(string processName, AuditEvent auditEvent, CancellationToken cancellationToken)
     {
-        await Mark(
-            processName,
-            auditEvent,
-            new AuditEventDispatch
-            {
-                Status = AuditEventDispatchStatus.Dispatched,
-                Date = timeProvider.GetUtcNowWithoutMicroseconds(),
-                AttemptCount = ReadAttemptCount(processName, auditEvent) + 1,
-            },
-            "processed",
-            cancellationToken
-        );
+        var dispatch = new AuditEventDispatch
+        {
+            Status = AuditEventDispatchStatus.Dispatched,
+            Date = timeProvider.GetUtcNowWithoutMicroseconds(),
+            AttemptCount = ReadAttemptCount(processName, auditEvent) + 1,
+        };
+
+        var marked = await Mark(processName, auditEvent, dispatch, "processed", cancellationToken);
+
+        if (marked)
+            auditEventMetrics.DispatchDispatched(processName, auditEvent);
     }
 
     public async Task MarkFailed(
@@ -71,23 +80,22 @@ public class AuditEventDispatchService(
                 ? AuditEventDispatchStatus.DeadLettered
                 : AuditEventDispatchStatus.Failed;
 
-        await Mark(
-            processName,
-            auditEvent,
-            new AuditEventDispatch
-            {
-                Status = status,
-                Date = utcNow,
-                Message = exception.Message,
-                AttemptCount = attemptCount,
-                NextAttemptAt = status is AuditEventDispatchStatus.Failed ? utcNow.Add(failedDispatchRetryDelay) : null,
-            },
-            "failed",
-            cancellationToken
-        );
+        var dispatch = new AuditEventDispatch
+        {
+            Status = status,
+            Date = utcNow,
+            Message = exception.Message,
+            AttemptCount = attemptCount,
+            NextAttemptAt = status is AuditEventDispatchStatus.Failed ? utcNow.Add(failedDispatchRetryDelay) : null,
+        };
+
+        var marked = await Mark(processName, auditEvent, dispatch, "failed", cancellationToken);
+
+        if (marked)
+            auditEventMetrics.DispatchFailed(processName, auditEvent, status, exception);
     }
 
-    private async Task Mark(
+    private async Task<bool> Mark(
         string processName,
         AuditEvent auditEvent,
         AuditEventDispatch dispatch,
@@ -112,13 +120,28 @@ public class AuditEventDispatchService(
 
         if (result.ModifiedCount == 0)
         {
+            auditEventMetrics.DispatchMarkFailed(processName, auditEvent, outcome);
             logger.LogError(
                 "Audit event {EventId} was {Outcome} but could not be marked with the dispatch outcome by {ProcessName}",
                 auditEvent.EventId,
                 outcome,
                 processName
             );
+
+            return false;
         }
+
+        return true;
+    }
+
+    private static double? OldestUnsentMilliseconds(DateTime utcNow, IReadOnlyCollection<AuditEvent> auditEvents)
+    {
+        if (auditEvents.Count == 0)
+            return null;
+
+        var oldestRecordedAt = auditEvents.Min(x => x.RecordedAt);
+
+        return Math.Max(0, (utcNow - oldestRecordedAt).TotalMilliseconds);
     }
 
     private static int ReadAttemptCount(string processName, AuditEvent auditEvent) =>

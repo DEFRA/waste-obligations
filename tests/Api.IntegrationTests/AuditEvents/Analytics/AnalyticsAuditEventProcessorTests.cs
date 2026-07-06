@@ -4,6 +4,7 @@ using Defra.WasteObligations.AuditEvents;
 using Defra.WasteObligations.AuditEvents.Analytics;
 using Defra.WasteObligations.AuditEvents.Data;
 using Defra.WasteObligations.AuditEvents.Entities;
+using Defra.WasteObligations.AuditEvents.Metrics;
 using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,9 +27,16 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
         var timeProvider = new FakeTimeProvider(sentAt);
         var sender = new RecordingAnalyticsEventSender();
         var logger = new RecordingLogger<AnalyticsAuditEventProcessor>();
+        var auditEventMetrics = Substitute.For<IAuditEventMetrics>();
         var auditEvent = CreateAuditEvent("event-1", 1) with { TraceId = TraceId };
         await AuditEvents.InsertOneAsync(auditEvent, cancellationToken: TestContext.Current.CancellationToken);
-        var subject = CreateSubject(GetMongoDatabase(), timeProvider, sender, logger: logger);
+        var subject = CreateSubject(
+            GetMongoDatabase(),
+            timeProvider,
+            sender,
+            auditEventMetrics: auditEventMetrics,
+            logger: logger
+        );
 
         await subject.StartAsync(TestContext.Current.CancellationToken);
         await sender.WaitForSend(TestContext.Current.CancellationToken);
@@ -57,6 +65,10 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
         );
         logger.Messages.Should().Contain(x => x.Contains(auditEvent.EventId) && x.Contains(TraceId));
         await subject.StopAsync(TestContext.Current.CancellationToken);
+
+        auditEventMetrics.Received().DispatchPollStarted(Analytics);
+        auditEventMetrics.Received().DispatchLeaseAcquired(Analytics);
+        auditEventMetrics.Received().DispatchPollCompleted(Analytics, Arg.Any<double>());
     }
 
     [Fact]
@@ -236,10 +248,12 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
         await AuditEvents.InsertOneAsync(auditEvent, cancellationToken: TestContext.Current.CancellationToken);
         var sender = new RecordingAnalyticsEventSender();
         var logger = new RecordingLogger<AnalyticsAuditEventProcessor>();
+        var auditEventMetrics = Substitute.For<IAuditEventMetrics>();
         var subject = CreateSubject(
             GetMongoDatabase(),
             new FakeTimeProvider(),
             sender,
+            auditEventMetrics: auditEventMetrics,
             processingEnabled: false,
             logger: logger
         );
@@ -250,6 +264,7 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
 
         sender.SentEvents.Should().BeEmpty();
         logger.Messages.Should().ContainSingle("Analytics audit event processing is off");
+        auditEventMetrics.DidNotReceive().DispatchPollStarted(Arg.Any<string>());
     }
 
     [Fact]
@@ -279,7 +294,14 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
             },
         };
         var logger = new RecordingLogger<AnalyticsAuditEventProcessor>();
-        var subject = CreateSubject(GetMongoDatabase(), new FakeTimeProvider(), sender, logger: logger);
+        var auditEventMetrics = Substitute.For<IAuditEventMetrics>();
+        var subject = CreateSubject(
+            GetMongoDatabase(),
+            new FakeTimeProvider(),
+            sender,
+            auditEventMetrics: auditEventMetrics,
+            logger: logger
+        );
 
         await subject.StartAsync(TestContext.Current.CancellationToken);
         await sender.WaitForSend(TestContext.Current.CancellationToken);
@@ -307,6 +329,7 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
                 x.Level == LogLevel.Error
                 && x.Message.Contains("Stopped analytics audit event processing because lease renewal failed")
             );
+        auditEventMetrics.Received().DispatchLeaseRenewalFailed(Analytics);
         var secondResult = await AuditEvents
             .Find(x => x.EventId == secondAuditEvent.EventId)
             .SingleAsync(TestContext.Current.CancellationToken);
@@ -317,14 +340,18 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
         IMongoDatabase database,
         TimeProvider timeProvider,
         IAnalyticsEventSender sender,
+        IAuditEventMetrics? auditEventMetrics = null,
         bool processingEnabled = true,
         ILogger<AnalyticsAuditEventProcessor>? logger = null
     )
     {
+        auditEventMetrics ??= Substitute.For<IAuditEventMetrics>();
+
         var services = new ServiceCollection();
         services.AddSingleton(database);
         services.AddSingleton(timeProvider);
         services.AddSingleton(sender);
+        services.AddSingleton(auditEventMetrics);
         services.AddLogging();
         services.AddScoped<IAuditEventDbContext, AuditEventDbContext>();
         services.AddScoped<AuditEventLeaseService>();
@@ -345,6 +372,7 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
                     LeaseDurationSeconds = 60,
                 }
             ),
+            auditEventMetrics,
             logger ?? Substitute.For<ILogger<AnalyticsAuditEventProcessor>>()
         );
     }

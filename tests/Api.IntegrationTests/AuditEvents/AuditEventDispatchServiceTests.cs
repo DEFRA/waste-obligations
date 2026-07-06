@@ -3,6 +3,7 @@ using AwesomeAssertions;
 using Defra.WasteObligations.AuditEvents;
 using Defra.WasteObligations.AuditEvents.Data;
 using Defra.WasteObligations.AuditEvents.Entities;
+using Defra.WasteObligations.AuditEvents.Metrics;
 using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
 using Microsoft.Extensions.Logging;
@@ -92,11 +93,13 @@ public class AuditEventDispatchServiceTests : IntegrationTestBase
             cancellationToken: TestContext.Current.CancellationToken
         );
 
-        var subject = CreateSubject();
+        var auditEventMetrics = Substitute.For<IAuditEventMetrics>();
+        var subject = CreateSubject(auditEventMetrics: auditEventMetrics);
 
         var result = await subject.ReadUnsent(Analytics, 4, TestContext.Current.CancellationToken);
 
         result.Select(x => x.EventId).Should().Equal("event-1", "event-3", "event-4", "event-6");
+        auditEventMetrics.Received(1).DispatchBatchRead(Analytics, 4, Arg.Any<double?>());
     }
 
     [Fact]
@@ -106,7 +109,8 @@ public class AuditEventDispatchServiceTests : IntegrationTestBase
         var timeProvider = new FakeTimeProvider(sentAt);
         var auditEvent = CreateAuditEvent("event-1", 1);
         await AuditEvents.InsertOneAsync(auditEvent, cancellationToken: TestContext.Current.CancellationToken);
-        var subject = CreateSubject(timeProvider);
+        var auditEventMetrics = Substitute.For<IAuditEventMetrics>();
+        var subject = CreateSubject(timeProvider, auditEventMetrics: auditEventMetrics);
 
         await subject.MarkDispatched(Analytics, auditEvent, TestContext.Current.CancellationToken);
 
@@ -124,6 +128,7 @@ public class AuditEventDispatchServiceTests : IntegrationTestBase
                     AttemptCount = 1,
                 }
             );
+        auditEventMetrics.Received(1).DispatchDispatched(Analytics, auditEvent);
     }
 
     [Fact]
@@ -135,12 +140,14 @@ public class AuditEventDispatchServiceTests : IntegrationTestBase
         var timeProvider = new FakeTimeProvider(failedAt);
         var auditEvent = CreateAuditEvent("event-1", 1);
         await AuditEvents.InsertOneAsync(auditEvent, cancellationToken: TestContext.Current.CancellationToken);
-        var subject = CreateSubject(timeProvider);
+        var auditEventMetrics = Substitute.For<IAuditEventMetrics>();
+        var subject = CreateSubject(timeProvider, auditEventMetrics: auditEventMetrics);
+        var exception = new InvalidOperationException(message);
 
         await subject.MarkFailed(
             Analytics,
             auditEvent,
-            new InvalidOperationException(message),
+            exception,
             MaxDispatchAttempts,
             s_failedDispatchRetryDelay,
             TestContext.Current.CancellationToken
@@ -162,6 +169,7 @@ public class AuditEventDispatchServiceTests : IntegrationTestBase
                     NextAttemptAt = failedAt.UtcDateTime.Add(s_failedDispatchRetryDelay),
                 }
             );
+        auditEventMetrics.Received(1).DispatchFailed(Analytics, auditEvent, AuditEventDispatchStatus.Failed, exception);
     }
 
     [Fact]
@@ -183,12 +191,14 @@ public class AuditEventDispatchServiceTests : IntegrationTestBase
             new Dictionary<string, AuditEventDispatch> { [Analytics] = existingDispatch }
         );
         await AuditEvents.InsertOneAsync(auditEvent, cancellationToken: TestContext.Current.CancellationToken);
-        var subject = CreateSubject(timeProvider);
+        var auditEventMetrics = Substitute.For<IAuditEventMetrics>();
+        var subject = CreateSubject(timeProvider, auditEventMetrics: auditEventMetrics);
+        var exception = new InvalidOperationException(message);
 
         await subject.MarkFailed(
             Analytics,
             auditEvent,
-            new InvalidOperationException(message),
+            exception,
             MaxDispatchAttempts,
             s_failedDispatchRetryDelay,
             TestContext.Current.CancellationToken
@@ -209,6 +219,9 @@ public class AuditEventDispatchServiceTests : IntegrationTestBase
                     AttemptCount = MaxDispatchAttempts,
                 }
             );
+        auditEventMetrics
+            .Received(1)
+            .DispatchFailed(Analytics, auditEvent, AuditEventDispatchStatus.DeadLettered, exception);
     }
 
     [Fact]
@@ -260,7 +273,8 @@ public class AuditEventDispatchServiceTests : IntegrationTestBase
         await AuditEvents.InsertOneAsync(auditEvent, cancellationToken: TestContext.Current.CancellationToken);
         var timeProvider = new FakeTimeProvider(new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero));
         var logger = new RecordingLogger<AuditEventDispatchService>();
-        var subject = CreateSubject(timeProvider, logger);
+        var auditEventMetrics = Substitute.For<IAuditEventMetrics>();
+        var subject = CreateSubject(timeProvider, logger, auditEventMetrics);
 
         await subject.MarkDispatched(Analytics, auditEvent, TestContext.Current.CancellationToken);
 
@@ -273,15 +287,18 @@ public class AuditEventDispatchServiceTests : IntegrationTestBase
             .ContainSingle(x =>
                 x.Level == LogLevel.Error && x.Message.Contains("could not be marked with the dispatch outcome")
             );
+        auditEventMetrics.Received(1).DispatchMarkFailed(Analytics, auditEvent, "processed");
     }
 
     private static AuditEventDispatchService CreateSubject(
         TimeProvider? timeProvider = null,
-        ILogger<AuditEventDispatchService>? logger = null
+        ILogger<AuditEventDispatchService>? logger = null,
+        IAuditEventMetrics? auditEventMetrics = null
     ) =>
         new(
             new AuditEventDbContext(GetMongoDatabase()),
             timeProvider ?? new FakeTimeProvider(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)),
+            auditEventMetrics ?? Substitute.For<IAuditEventMetrics>(),
             logger ?? Substitute.For<ILogger<AuditEventDispatchService>>()
         );
 
