@@ -1,6 +1,7 @@
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Utils.Logging;
+using Defra.WasteObligations.Api.Utils.Metrics;
 using Defra.WasteObligations.AuditEvents;
 using Microsoft.AspNetCore.HeaderPropagation;
 using Microsoft.Extensions.Options;
@@ -15,6 +16,7 @@ public class ComplianceDeclarationService(
     ILogger<ComplianceDeclarationService> logger,
     TimeProvider timeProvider,
     IAuditEventService auditEventService,
+    IComplianceDeclarationMetrics complianceDeclarationMetrics,
     HeaderPropagationValues headerPropagationValues,
     IOptions<TraceHeader> traceHeaderOptions
 ) : IComplianceDeclarationService
@@ -68,6 +70,7 @@ public class ComplianceDeclarationService(
             throw;
         }
 
+        complianceDeclarationMetrics.Created();
         logger.LogInformation(
             "Created compliance declaration with id '{ComplianceDeclarationId}'",
             complianceDeclaration.Id
@@ -155,6 +158,7 @@ public class ComplianceDeclarationService(
             throw;
         }
 
+        complianceDeclarationMetrics.Deleted();
         logger.LogInformation("Deleted compliance declaration with id '{ComplianceDeclarationId}'", id);
 
         return true;
@@ -279,6 +283,7 @@ public class ComplianceDeclarationService(
             throw;
         }
 
+        complianceDeclarationMetrics.Updated(updated.Status);
         logger.LogInformation("Updated compliance declaration with id '{ComplianceDeclarationId}'", updated.Id);
 
         return updated;

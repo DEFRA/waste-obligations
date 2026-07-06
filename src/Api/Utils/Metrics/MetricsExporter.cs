@@ -24,7 +24,7 @@ public static class MetricsExporter
 
         s_meterListener.InstrumentPublished = (instrument, listener) =>
         {
-            if (instrument.Meter.Name is Metrics.Names.MeterName)
+            if (instrument.Meter.Name is Metrics.MeterName)
             {
                 listener.EnableMeasurementEvents(instrument);
             }

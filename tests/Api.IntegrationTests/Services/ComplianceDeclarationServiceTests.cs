@@ -4,6 +4,7 @@ using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Utils.Logging;
+using Defra.WasteObligations.Api.Utils.Metrics;
 using Defra.WasteObligations.AuditEvents;
 using Defra.WasteObligations.AuditEvents.Data;
 using Defra.WasteObligations.AuditEvents.Entities;
@@ -24,6 +25,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
     private const string Entity = "compliance_declaration";
 
     private ComplianceDeclarationService Subject { get; }
+    private IComplianceDeclarationMetrics ComplianceDeclarationMetrics { get; }
 
     public ComplianceDeclarationServiceTests()
     {
@@ -36,11 +38,13 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             new FakeEventIdGenerator()
         );
 
+        ComplianceDeclarationMetrics = Substitute.For<IComplianceDeclarationMetrics>();
         Subject = new(
             dbContext,
             Substitute.For<ILogger<ComplianceDeclarationService>>(),
             TimeProvider.System,
             auditEventService,
+            ComplianceDeclarationMetrics,
             HeaderPropagationValues(),
             Options.Create(new TraceHeader { Name = TraceHeaderName })
         );
@@ -86,6 +90,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         auditEvent.After.Should().NotBeNull();
         auditEvent.After!["_id"].Should().Be(initial.Id);
         auditEvent.After["version"].Should().Be(1);
+        ComplianceDeclarationMetrics.Received(1).Created();
     }
 
     [Fact]
@@ -109,11 +114,13 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
     public async Task Create_WhenAuditEventFails_ShouldAbortTransaction()
     {
         var database = GetMongoDatabase();
+        var complianceDeclarationMetrics = Substitute.For<IComplianceDeclarationMetrics>();
         var subject = new ComplianceDeclarationService(
             new MongoDbContext(database),
             Substitute.For<ILogger<ComplianceDeclarationService>>(),
             TimeProvider.System,
             new ThrowingAuditEventService(),
+            complianceDeclarationMetrics,
             HeaderPropagationValues(),
             Options.Create(new TraceHeader { Name = TraceHeaderName })
         );
@@ -124,6 +131,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
 
         var retrieved = await Subject.Read(complianceDeclaration.Id.ToString(), TestContext.Current.CancellationToken);
         retrieved.Should().BeNull();
+        complianceDeclarationMetrics.DidNotReceive().Created();
     }
 
     [Fact]
@@ -167,6 +175,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         var deleted = await Subject.Delete(ObjectId.GenerateNewId().ToString(), TestContext.Current.CancellationToken);
 
         deleted.Should().BeFalse();
+        ComplianceDeclarationMetrics.DidNotReceive().Deleted();
     }
 
     [Fact]
@@ -198,6 +207,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         auditEvents[1].TraceId.Should().Be(TraceId);
         auditEvents[1].Before.Should().NotBeNull();
         auditEvents[1].After.Should().BeNull();
+        ComplianceDeclarationMetrics.Received(1).Deleted();
     }
 
     [Fact]
@@ -250,6 +260,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             Substitute.For<ILogger<ComplianceDeclarationService>>(),
             TimeProvider.System,
             Substitute.For<IAuditEventService>(),
+            Substitute.For<IComplianceDeclarationMetrics>(),
             HeaderPropagationValues(),
             Options.Create(new TraceHeader { Name = TraceHeaderName })
         );
@@ -265,11 +276,13 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
     public async Task Delete_WhenAuditEventFails_ShouldAbortTransaction()
     {
         var database = GetMongoDatabase();
+        var complianceDeclarationMetrics = Substitute.For<IComplianceDeclarationMetrics>();
         var subject = new ComplianceDeclarationService(
             new MongoDbContext(database),
             Substitute.For<ILogger<ComplianceDeclarationService>>(),
             TimeProvider.System,
             new ThrowingAuditEventService(),
+            complianceDeclarationMetrics,
             HeaderPropagationValues(),
             Options.Create(new TraceHeader { Name = TraceHeaderName })
         );
@@ -283,6 +296,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
 
         var retrieved = await Subject.Read(initial.Id.ToString(), TestContext.Current.CancellationToken);
         retrieved.Should().BeEquivalentTo(initial);
+        complianceDeclarationMetrics.DidNotReceive().Deleted();
     }
 
     [Fact]
@@ -329,6 +343,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         auditEvents[1].After.Should().NotBeNull();
         auditEvents[1].After!["version"].Should().Be(2);
         auditEvents[1].After!["obligationYear"].Should().Be(2027);
+        ComplianceDeclarationMetrics.Received(1).Updated(retrieved.Status);
     }
 
     [Fact]
@@ -700,6 +715,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             Substitute.For<ILogger<ComplianceDeclarationService>>(),
             TimeProvider.System,
             new AuditEventService(new AuditEventDbContext(database), TimeProvider.System, new FakeEventIdGenerator()),
+            Substitute.For<IComplianceDeclarationMetrics>(),
             HeaderPropagationValues(),
             Options.Create(new TraceHeader { Name = TraceHeaderName })
         );

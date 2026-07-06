@@ -5,6 +5,7 @@ using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Utils.Logging;
+using Defra.WasteObligations.Api.Utils.Metrics;
 using Defra.WasteObligations.AuditEvents;
 using Defra.WasteObligations.AuditEvents.Data;
 using Defra.WasteObligations.Testing;
@@ -36,6 +37,7 @@ public class SearchComplianceDeclarationTests : IntegrationTestBase
             Substitute.For<Microsoft.Extensions.Logging.ILogger<ComplianceDeclarationService>>(),
             TimeProvider.System,
             auditEventService,
+            Substitute.For<IComplianceDeclarationMetrics>(),
             new HeaderPropagationValues(),
             Options.Create(new TraceHeader { Name = TraceHeaderName })
         );
