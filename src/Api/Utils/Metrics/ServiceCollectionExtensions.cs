@@ -12,6 +12,7 @@ public static class ServiceCollectionExtensions
         services.AddTransient<MetricsMiddleware>();
         services.AddSingleton<IRequestMetrics, RequestMetrics>();
         services.AddSingleton<IComplianceDeclarationMetrics, ComplianceDeclarationMetrics>();
+        services.AddSingleton<IEmailMetrics, EmailMetrics>();
         services.AddSingleton<IAuditEventMetrics, AuditEventMetrics>();
 
         return services;

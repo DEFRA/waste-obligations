@@ -20,4 +20,16 @@ public class ServiceCollectionExtensionsTests
                 x.ServiceType == typeof(IAuditEventMetrics) && x.ImplementationType == typeof(AuditEventMetrics)
             );
     }
+
+    [Fact]
+    public void AddRequestMetrics_ShouldRegisterEmailMetrics()
+    {
+        var services = new ServiceCollection();
+
+        services.AddRequestMetrics();
+
+        services
+            .Should()
+            .Contain(x => x.ServiceType == typeof(IEmailMetrics) && x.ImplementationType == typeof(EmailMetrics));
+    }
 }

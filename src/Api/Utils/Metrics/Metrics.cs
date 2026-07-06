@@ -12,6 +12,10 @@ public static class Metrics
         public const string ComplianceDeclarationCreated = nameof(ComplianceDeclarationCreated);
         public const string ComplianceDeclarationUpdated = nameof(ComplianceDeclarationUpdated);
         public const string ComplianceDeclarationDeleted = nameof(ComplianceDeclarationDeleted);
+        public const string EmailSend = nameof(EmailSend);
+        public const string EmailSendActive = nameof(EmailSendActive);
+        public const string EmailSendErrors = nameof(EmailSendErrors);
+        public const string EmailSendDuration = nameof(EmailSendDuration);
         public const string AuditEventDispatchPoll = nameof(AuditEventDispatchPoll);
         public const string AuditEventDispatchPollActive = nameof(AuditEventDispatchPollActive);
         public const string AuditEventDispatchPollErrors = nameof(AuditEventDispatchPollErrors);
@@ -37,6 +41,8 @@ public static class Metrics
         public const string StatusCode = nameof(StatusCode);
         public const string ExceptionType = nameof(ExceptionType);
         public const string ComplianceDeclarationStatus = nameof(ComplianceDeclarationStatus);
+        public const string TemplateName = nameof(TemplateName);
+        public const string Language = nameof(Language);
         public const string ProcessName = nameof(ProcessName);
         public const string TopicName = nameof(TopicName);
         public const string DispatchStatus = nameof(DispatchStatus);
