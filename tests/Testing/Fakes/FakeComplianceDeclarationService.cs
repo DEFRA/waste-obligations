@@ -76,18 +76,28 @@ public class FakeComplianceDeclarationService : IComplianceDeclarationService
             s_complianceDeclarations.SelectMany(x => x.Value).FirstOrDefault(x => x.Id == ObjectId.Parse(id))
         );
 
-    public Task<IEnumerable<ComplianceDeclaration>> Read(
+    public Task<ComplianceDeclarationSearchResult> Read(
         Guid organisationId,
         int obligationYear,
+        int page,
+        int pageSize,
         CancellationToken cancellationToken
     )
     {
-        if (s_complianceDeclarations.TryGetValue(organisationId, out var complianceDeclarations))
-            return Task.FromResult<IEnumerable<ComplianceDeclaration>>(
-                complianceDeclarations.Where(x => x.ObligationYear == obligationYear).ToList()
-            );
+        var complianceDeclarations = s_complianceDeclarations
+            .GetValueOrDefault(organisationId, [])
+            .Where(x => x.Organisation.Id == organisationId && x.ObligationYear == obligationYear)
+            .OrderByDescending(x => x.Updated)
+            .ThenBy(x => x.Id)
+            .ToArray();
 
-        return Task.FromResult(Enumerable.Empty<ComplianceDeclaration>());
+        return Task.FromResult(
+            new ComplianceDeclarationSearchResult
+            {
+                ComplianceDeclarations = complianceDeclarations.Skip((page - 1) * pageSize).Take(pageSize),
+                Total = complianceDeclarations.Length,
+            }
+        );
     }
 
     public Task<bool> Delete(string id, CancellationToken cancellationToken) => Task.FromResult(false);

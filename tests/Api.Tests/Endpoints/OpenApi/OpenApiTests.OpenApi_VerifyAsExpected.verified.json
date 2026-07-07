@@ -522,7 +522,7 @@
           "Compliance Declarations"
         ],
         "summary": "Compliance declarations for an organisation by year",
-        "description": "Returns the compliance declarations for an organisation by organisation ID for the specified year",
+        "description": "Returns a paged list of compliance declarations for an organisation by organisation ID for the specified year",
         "operationId": "ReadOrganisationComplianceDeclarations",
         "parameters": [
           {
@@ -547,6 +547,35 @@
               ],
               "format": "int32"
             }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (1-based), defaults to 1 if not specified",
+            "schema": {
+              "minimum": 1,
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "Number of items per page, defaults to 20 if not specified, max of 100",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
           }
         ],
         "responses": {
@@ -555,7 +584,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/OrganisationComplianceDeclarations"
+                  "$ref": "#/components/schemas/ComplianceDeclarationsPaged"
                 }
               }
             }
@@ -1345,17 +1374,6 @@
           },
           "regulatorEmail": {
             "type": "string"
-          }
-        }
-      },
-      "OrganisationComplianceDeclarations": {
-        "type": "object",
-        "properties": {
-          "complianceDeclarations": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ComplianceDeclaration"
-            }
           }
         }
       },

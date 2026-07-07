@@ -161,12 +161,82 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             TestContext.Current.CancellationToken
         );
 
-        var complianceDeclarations = (
-            await Subject.Read(organisationId, obligationYear, TestContext.Current.CancellationToken)
-        ).ToList();
+        var readResult = await Subject.Read(
+            organisationId,
+            obligationYear,
+            page: 1,
+            pageSize: 10,
+            cancellationToken: TestContext.Current.CancellationToken
+        );
 
-        complianceDeclarations.Should().ContainSingle();
-        complianceDeclarations.Should().Contain(x => x.Id == result.Id);
+        readResult.ComplianceDeclarations.Should().ContainSingle();
+        readResult.ComplianceDeclarations.Should().Contain(x => x.Id == result.Id);
+        readResult.Total.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Read_WhenPaging_ShouldReturnCorrectPageAndTotalInUpdatedOrder()
+    {
+        var organisationId = Guid.NewGuid();
+        const int obligationYear = 2025;
+        const int pageSize = 2;
+        var oldestId = ObjectId.GenerateNewId();
+        var middleId = ObjectId.GenerateNewId();
+        var newestId = ObjectId.GenerateNewId();
+        var otherDeclarationId = ObjectId.GenerateNewId();
+        var organisation = OrganisationFixture.Organisation().With(x => x.Id, organisationId).Create();
+
+        await ComplianceDeclarations.InsertManyAsync(
+            [
+                ComplianceDeclarationFixture
+                    .Default()
+                    .With(x => x.Id, oldestId)
+                    .With(x => x.Organisation, organisation)
+                    .With(x => x.ObligationYear, obligationYear)
+                    .With(x => x.Updated, new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc))
+                    .Create(),
+                ComplianceDeclarationFixture
+                    .Default()
+                    .With(x => x.Id, middleId)
+                    .With(x => x.Organisation, organisation)
+                    .With(x => x.ObligationYear, obligationYear)
+                    .With(x => x.Updated, new DateTime(2025, 1, 2, 12, 0, 0, DateTimeKind.Utc))
+                    .Create(),
+                ComplianceDeclarationFixture
+                    .Default()
+                    .With(x => x.Id, newestId)
+                    .With(x => x.Organisation, organisation)
+                    .With(x => x.ObligationYear, obligationYear)
+                    .With(x => x.Updated, new DateTime(2025, 1, 3, 12, 0, 0, DateTimeKind.Utc))
+                    .Create(),
+                ComplianceDeclarationFixture
+                    .Default()
+                    .With(x => x.Id, otherDeclarationId)
+                    .With(x => x.ObligationYear, obligationYear)
+                    .Create(),
+            ],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+
+        var firstPage = await Subject.Read(
+            organisationId,
+            obligationYear,
+            page: 1,
+            pageSize: pageSize,
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        var secondPage = await Subject.Read(
+            organisationId,
+            obligationYear,
+            page: 2,
+            pageSize: pageSize,
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+
+        firstPage.ComplianceDeclarations.Select(x => x.Id).Should().Equal(newestId, middleId);
+        firstPage.Total.Should().Be(3);
+        secondPage.ComplianceDeclarations.Select(x => x.Id).Should().Equal(oldestId);
+        secondPage.Total.Should().Be(3);
     }
 
     [Fact]

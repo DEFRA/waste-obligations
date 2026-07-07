@@ -12,9 +12,11 @@ public interface IComplianceDeclarationService
 
     Task<ComplianceDeclaration?> Read(string id, CancellationToken cancellationToken);
 
-    Task<IEnumerable<ComplianceDeclaration>> Read(
+    Task<ComplianceDeclarationSearchResult> Read(
         Guid organisationId,
         int obligationYear,
+        int page,
+        int pageSize,
         CancellationToken cancellationToken
     );
 

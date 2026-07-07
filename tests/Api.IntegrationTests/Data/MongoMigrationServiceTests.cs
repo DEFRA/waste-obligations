@@ -34,11 +34,16 @@ public class MongoMigrationServiceTests : IntegrationTestBase
     public async Task Start_ShouldCreateIndex()
     {
         var database = GetMongoDatabase();
+        var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
         var subject = new MongoMigrationService(
             database,
             TimeProvider.System,
             Substitute.For<ILogger<MongoMigrationService>>()
         );
+        await database.DropCollectionAsync("_migrations", TestContext.Current.CancellationToken);
+        await database.DropCollectionAsync("_migrations_lease", TestContext.Current.CancellationToken);
+        await new ComplianceDeclarationIndexes().DownAsync(context);
+        await new AuditEventIndexesMigration().DownAsync(context);
 
         await subject.StartAsync(TestContext.Current.CancellationToken);
 
@@ -63,7 +68,9 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             ["sequence"] = 1,
         };
 
-        complianceDeclarationIndexes.Should().Contain(x => x.GetValue("name") == "OrganisationId_ObligationYear");
+        complianceDeclarationIndexes
+            .Should()
+            .Contain(x => IsIndex(x, OrganisationIdObligationYearIndexName, OrganisationReadIndexKeys()));
         auditEventIndexes.Should().Contain(x => IsIndex(x, SequenceIndexName, sequenceKeys, unique: true));
         auditEventIndexes.Should().Contain(x => IsIndex(x, EntityEntityIdVersionIndexName, entityKeys));
         auditEventIndexes.Should().Contain(x => IsIndex(x, DispatchAnalyticsIndexName, dispatchKeys));
@@ -104,15 +111,9 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         await subject.UpAsync(context);
 
         var indexes = await ListComplianceDeclarationIndexes();
-        indexes.Should().Contain(x => x.GetValue("name") == OrganisationIdObligationYearIndexName);
+        indexes.Should().Contain(x => IsIndex(x, OrganisationIdObligationYearIndexName, OrganisationYearIndexKeys()));
         indexes.Should().Contain(x => x.GetValue("name") == SearchIndexName);
         indexes.Should().Contain(x => x.GetValue("name") == OrganisationNameIndexName);
-        indexes
-            .Single(x => x.GetValue("name") == OrganisationIdObligationYearIndexName)
-            .GetValue("key")
-            .AsBsonDocument.Equals(new BsonDocument("created", 1))
-            .Should()
-            .BeFalse();
 
         await subject.DownAsync(context);
         await subject.DownAsync(context);
@@ -121,6 +122,30 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         indexes.Should().NotContain(x => x.GetValue("name") == OrganisationIdObligationYearIndexName);
         indexes.Should().NotContain(x => x.GetValue("name") == SearchIndexName);
         indexes.Should().NotContain(x => x.GetValue("name") == OrganisationNameIndexName);
+
+        await subject.UpAsync(context);
+    }
+
+    [Fact]
+    public async Task ComplianceDeclarationOrganisationReadIndex_ShouldCreateReplaceAndRestoreIndex()
+    {
+        var database = GetMongoDatabase();
+        var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
+        var subject = new ComplianceDeclarationOrganisationReadIndex();
+        await subject.DownAsync(context);
+
+        var indexes = await ListComplianceDeclarationIndexes();
+        indexes.Should().Contain(x => IsIndex(x, OrganisationIdObligationYearIndexName, OrganisationYearIndexKeys()));
+
+        await subject.UpAsync(context);
+
+        indexes = await ListComplianceDeclarationIndexes();
+        indexes.Should().Contain(x => IsIndex(x, OrganisationIdObligationYearIndexName, OrganisationReadIndexKeys()));
+
+        await subject.DownAsync(context);
+
+        indexes = await ListComplianceDeclarationIndexes();
+        indexes.Should().Contain(x => IsIndex(x, OrganisationIdObligationYearIndexName, OrganisationYearIndexKeys()));
 
         await subject.UpAsync(context);
     }
@@ -634,6 +659,28 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         index.GetValue("name") == name
         && index.GetValue("key").AsBsonDocument == keys
         && (!unique || index.GetValue("unique", false).AsBoolean);
+
+    private BsonDocument OrganisationReadIndexKeys() =>
+        RenderIndexKeys(
+            Builders<ComplianceDeclaration>
+                .IndexKeys.Ascending(x => x.Organisation.Id)
+                .Ascending(x => x.ObligationYear)
+                .Descending(x => x.Updated)
+                .Ascending(x => x.Id)
+        );
+
+    private BsonDocument OrganisationYearIndexKeys() =>
+        RenderIndexKeys(
+            Builders<ComplianceDeclaration>.IndexKeys.Ascending(x => x.Organisation.Id).Ascending(x => x.ObligationYear)
+        );
+
+    private BsonDocument RenderIndexKeys(IndexKeysDefinition<ComplianceDeclaration> keys) =>
+        keys.Render(
+            new RenderArgs<ComplianceDeclaration>(
+                ComplianceDeclarations.DocumentSerializer,
+                ComplianceDeclarations.Settings.SerializerRegistry
+            )
+        );
 
     private async Task<List<BsonDocument>> ListComplianceDeclarationIndexes() =>
         await (await ComplianceDeclarations.Indexes.ListAsync(TestContext.Current.CancellationToken)).ToListAsync(
