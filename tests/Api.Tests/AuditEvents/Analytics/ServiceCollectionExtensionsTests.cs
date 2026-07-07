@@ -47,12 +47,10 @@ public class ServiceCollectionExtensionsTests
         services.Should().Contain(x => x.ServiceType == typeof(IAuditEventService));
         services.Should().Contain(x => x.ServiceType == typeof(AuditEventLeaseService));
         services.Should().Contain(x => x.ServiceType == typeof(AuditEventDispatchService));
+        services.Should().Contain(x => x.ServiceType == typeof(SnsAnalyticsEventSender));
         services
             .Should()
-            .Contain(x =>
-                x.ServiceType == typeof(IAnalyticsEventSender)
-                && x.ImplementationType == typeof(SnsAnalyticsEventSender)
-            );
+            .Contain(x => x.ServiceType == typeof(IAnalyticsEventSender) && x.ImplementationFactory != null);
     }
 
     private static IConfiguration CreateConfiguration()

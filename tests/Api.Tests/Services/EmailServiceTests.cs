@@ -3,6 +3,7 @@ using AwesomeAssertions;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.GovukNotify;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
+using Defra.WasteObligations.Api.Utils.Metrics;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -14,11 +15,12 @@ namespace Defra.WasteObligations.Api.Tests.Services;
 public class EmailServiceTests
 {
     private IGovukNotifyService GovukNotifyService { get; } = Substitute.For<IGovukNotifyService>();
+    private IEmailMetrics EmailMetrics { get; } = Substitute.For<IEmailMetrics>();
     private EmailService Subject { get; }
 
     public EmailServiceTests()
     {
-        Subject = new EmailService(GovukNotifyService, NullLogger<EmailService>.Instance);
+        Subject = new EmailService(GovukNotifyService, EmailMetrics, NullLogger<EmailService>.Instance);
     }
 
     [Theory]
@@ -26,18 +28,21 @@ public class EmailServiceTests
         true,
         BusinessCountry.England,
         GovukNotifyOptions.TemplateName.ComplianceDeclarationSubmissionDirectProducer,
+        nameof(GovukNotifyOptions.TemplateName.ComplianceDeclarationSubmissionDirectProducer),
         "en"
     )]
     [InlineData(
         false,
         BusinessCountry.England,
         GovukNotifyOptions.TemplateName.ComplianceDeclarationSubmissionComplianceScheme,
+        nameof(GovukNotifyOptions.TemplateName.ComplianceDeclarationSubmissionComplianceScheme),
         "en"
     )]
     public async Task SendSubmittedEmail_ShouldCallGovukNotify(
         bool directProducer,
         string businessCountry,
         GovukNotifyOptions.TemplateName expectedTemplate,
+        string expectedMetricTemplateName,
         string expectedLanguage
     )
     {
@@ -62,6 +67,8 @@ public class EmailServiceTests
                 ),
                 expectedLanguage
             );
+        EmailMetrics.Received(1).SendStarted(expectedMetricTemplateName, expectedLanguage);
+        EmailMetrics.Received(1).SendCompleted(expectedMetricTemplateName, expectedLanguage, Arg.Any<double>());
     }
 
     [Theory]
@@ -111,6 +118,20 @@ public class EmailServiceTests
             );
 
         await act.Should().NotThrowAsync();
+        EmailMetrics
+            .Received(1)
+            .SendFaulted(
+                nameof(GovukNotifyOptions.TemplateName.ComplianceDeclarationSubmissionDirectProducer),
+                "en",
+                Arg.Any<Exception>()
+            );
+        EmailMetrics
+            .Received(1)
+            .SendCompleted(
+                nameof(GovukNotifyOptions.TemplateName.ComplianceDeclarationSubmissionDirectProducer),
+                "en",
+                Arg.Any<double>()
+            );
     }
 
     [Fact]
@@ -124,5 +145,6 @@ public class EmailServiceTests
             );
 
         await act.Should().ThrowAsync<InvalidOperationException>();
+        EmailMetrics.DidNotReceive().SendStarted(Arg.Any<string>(), Arg.Any<string>());
     }
 }

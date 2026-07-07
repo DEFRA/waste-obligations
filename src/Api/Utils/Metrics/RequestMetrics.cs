@@ -14,7 +14,7 @@ public class RequestMetrics : IRequestMetrics
 
     public RequestMetrics(IMeterFactory meterFactory)
     {
-        var meter = meterFactory.Create(Metrics.Names.MeterName);
+        var meter = meterFactory.Create(Metrics.MeterName);
 
         _requestsReceived = meter.CreateCounter<long>(
             "RequestReceived",

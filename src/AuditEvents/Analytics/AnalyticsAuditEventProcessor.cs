@@ -1,3 +1,4 @@
+using Defra.WasteObligations.AuditEvents.Metrics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -8,6 +9,7 @@ namespace Defra.WasteObligations.AuditEvents.Analytics;
 public class AnalyticsAuditEventProcessor(
     IServiceScopeFactory serviceScopeFactory,
     IOptions<AnalyticsAuditEventProcessorOptions> options,
+    IAuditEventMetrics auditEventMetrics,
     ILogger<AnalyticsAuditEventProcessor> logger
 ) : BackgroundService
 {
@@ -26,6 +28,10 @@ public class AnalyticsAuditEventProcessor(
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            var startingTimestamp = TimeProvider.System.GetTimestamp();
+            var processName = options.Value.ProcessName;
+            auditEventMetrics.DispatchPollStarted(processName);
+
             try
             {
                 var dispatchedCount = await Process(stoppingToken);
@@ -41,7 +47,15 @@ public class AnalyticsAuditEventProcessor(
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
+                auditEventMetrics.DispatchPollFaulted(processName, exception);
                 logger.LogError(exception, "Analytics audit event processing failed");
+            }
+            finally
+            {
+                auditEventMetrics.DispatchPollCompleted(
+                    processName,
+                    TimeProvider.System.GetElapsedTime(startingTimestamp).TotalMilliseconds
+                );
             }
 
             await Delay(stoppingToken);
@@ -59,7 +73,13 @@ public class AnalyticsAuditEventProcessor(
         var processName = options.Value.ProcessName;
 
         if (!await auditEventLeaseService.TryAcquire(processName, leaseDuration, cancellationToken))
+        {
+            auditEventMetrics.DispatchLeaseNotAcquired(processName);
+
             return 0;
+        }
+
+        auditEventMetrics.DispatchLeaseAcquired(processName);
 
         try
         {
@@ -74,6 +94,7 @@ public class AnalyticsAuditEventProcessor(
             {
                 if (!await auditEventLeaseService.TryRenew(processName, leaseDuration, cancellationToken))
                 {
+                    auditEventMetrics.DispatchLeaseRenewalFailed(processName);
                     logger.LogError(
                         "Stopped analytics audit event processing because lease renewal failed for {ProcessName}",
                         processName
