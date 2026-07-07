@@ -12,7 +12,7 @@ public interface IComplianceDeclarationService
 
     Task<ComplianceDeclaration?> Read(string id, CancellationToken cancellationToken);
 
-    Task<ComplianceDeclarationSearchResult> Read(
+    Task<ComplianceDeclarationPageResult> Read(
         Guid organisationId,
         int obligationYear,
         int page,
@@ -22,7 +22,7 @@ public interface IComplianceDeclarationService
 
     Task<bool> Delete(string id, CancellationToken cancellationToken);
 
-    Task<ComplianceDeclarationSearchResult> Search(
+    Task<ComplianceDeclarationPageResult> Search(
         ComplianceDeclarationSearchQuery query,
         int page,
         int pageSize,

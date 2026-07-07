@@ -76,7 +76,7 @@ public class FakeComplianceDeclarationService : IComplianceDeclarationService
             s_complianceDeclarations.SelectMany(x => x.Value).FirstOrDefault(x => x.Id == ObjectId.Parse(id))
         );
 
-    public Task<ComplianceDeclarationSearchResult> Read(
+    public Task<ComplianceDeclarationPageResult> Read(
         Guid organisationId,
         int obligationYear,
         int page,
@@ -92,7 +92,7 @@ public class FakeComplianceDeclarationService : IComplianceDeclarationService
             .ToArray();
 
         return Task.FromResult(
-            new ComplianceDeclarationSearchResult
+            new ComplianceDeclarationPageResult
             {
                 ComplianceDeclarations = complianceDeclarations.Skip((page - 1) * pageSize).Take(pageSize),
                 Total = complianceDeclarations.Length,
@@ -102,7 +102,7 @@ public class FakeComplianceDeclarationService : IComplianceDeclarationService
 
     public Task<bool> Delete(string id, CancellationToken cancellationToken) => Task.FromResult(false);
 
-    public Task<ComplianceDeclarationSearchResult> Search(
+    public Task<ComplianceDeclarationPageResult> Search(
         ComplianceDeclarationSearchQuery query,
         int page,
         int pageSize,

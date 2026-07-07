@@ -83,7 +83,7 @@ public class ComplianceDeclarationService(
             .ComplianceDeclarations.Find(Builders<ComplianceDeclaration>.Filter.Eq(x => x.Id, ObjectId.Parse(id)))
             .FirstOrDefaultAsync(cancellationToken: cancellationToken);
 
-    public async Task<ComplianceDeclarationSearchResult> Read(
+    public async Task<ComplianceDeclarationPageResult> Read(
         Guid organisationId,
         int obligationYear,
         int page,
@@ -175,7 +175,7 @@ public class ComplianceDeclarationService(
         return true;
     }
 
-    public async Task<ComplianceDeclarationSearchResult> Search(
+    public async Task<ComplianceDeclarationPageResult> Search(
         ComplianceDeclarationSearchQuery query,
         int page,
         int pageSize,
@@ -302,7 +302,7 @@ public class ComplianceDeclarationService(
         return string.IsNullOrWhiteSpace(traceId) ? null : traceId;
     }
 
-    private async Task<ComplianceDeclarationSearchResult> ReadPaged(
+    private async Task<ComplianceDeclarationPageResult> ReadPaged(
         FilterDefinition<ComplianceDeclaration> filter,
         SortDefinition<ComplianceDeclaration> sort,
         int page,
@@ -323,7 +323,7 @@ public class ComplianceDeclarationService(
 
         await Task.WhenAll(countTask, resultsTask);
 
-        return new ComplianceDeclarationSearchResult
+        return new ComplianceDeclarationPageResult
         {
             ComplianceDeclarations = resultsTask.Result,
             Total = (int)countTask.Result,
