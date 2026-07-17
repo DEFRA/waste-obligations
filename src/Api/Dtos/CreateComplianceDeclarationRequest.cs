@@ -34,4 +34,8 @@ public record CreateComplianceDeclarationRequest
 
     [JsonPropertyName("isRegulation43Compliant")]
     public bool IsRegulation43Compliant { get; init; }
+
+    [Required]
+    [JsonPropertyName("isWelshLanguageToggle")]
+    public required bool? IsWelshLanguageToggle { get; init; }
 }

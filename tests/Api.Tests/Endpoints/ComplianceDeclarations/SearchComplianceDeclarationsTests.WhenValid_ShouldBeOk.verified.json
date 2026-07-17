@@ -43,6 +43,7 @@
       "isRegulation43Compliant": true,
       "audit": [
         {
+          "isWelshLanguageToggle": false,
           "user": {
             "id": "Guid_2",
             "email": "submitter@email.com",

@@ -70,6 +70,9 @@
           },
           {
             "$ref": "#/$defs/reasonAuditEntry"
+          },
+          {
+            "$ref": "#/$defs/submittedAuditEntry"
           }
         ]
       }
@@ -267,6 +270,28 @@
         },
         "reason": {
           "type": "string"
+        }
+      }
+    },
+    "submittedAuditEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "user", "timestamp", "isWelshLanguageToggle"],
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "user": {
+          "$ref": "#/$defs/user"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "x-date-serialization": "date-time-offset",
+          "examples": ["2026-01-02T03:04:05+00:00"]
+        },
+        "isWelshLanguageToggle": {
+          "type": "boolean"
         }
       }
     }

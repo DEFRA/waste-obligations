@@ -17,6 +17,9 @@
     ],
     "User": [
       "The User field is required."
+    ],
+    "IsWelshLanguageToggle": [
+      "The IsWelshLanguageToggle field is required."
     ]
   },
   "traceId": "{Scrubbed}"

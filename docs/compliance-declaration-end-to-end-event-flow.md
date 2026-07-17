@@ -49,7 +49,7 @@ sequenceDiagram
     Client->>Endpoint: POST, PATCH, or DELETE
 
     alt Create
-        Endpoint->>Entity: ToEntity().Submit(user, timestamp)
+        Endpoint->>Entity: ToEntity().Submit(user, timestamp, isWelshLanguageToggle)
         Entity-->>Endpoint: Submitted declaration with embedded audit entry
         Endpoint->>Service: Create(declaration)
         Service->>Mongo: Start transaction

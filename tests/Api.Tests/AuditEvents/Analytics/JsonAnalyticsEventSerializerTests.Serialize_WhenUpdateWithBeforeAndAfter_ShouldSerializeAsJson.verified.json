@@ -60,7 +60,8 @@
           "email": "submitter@email.com",
           "name": "Submitter Name"
         },
-        "timestamp": "2026-01-02T03:04:05+00:00"
+        "timestamp": "2026-01-02T03:04:05+00:00",
+        "isWelshLanguageToggle": false
       }
     ],
     "isRegulation43Compliant": true
@@ -114,7 +115,8 @@
           "email": "submitter@email.com",
           "name": "Submitter Name"
         },
-        "timestamp": "2026-01-02T03:04:05+00:00"
+        "timestamp": "2026-01-02T03:04:05+00:00",
+        "isWelshLanguageToggle": false
       },
       {
         "action": "Accepted",

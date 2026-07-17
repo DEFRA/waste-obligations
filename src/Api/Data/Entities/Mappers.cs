@@ -84,6 +84,13 @@ public static class Mappers
     private static Dtos.AuditEntry ToDto(this AuditEntry entity) =>
         entity switch
         {
+            SubmittedAuditEntry s => new Dtos.SubmittedAuditEntry
+            {
+                User = s.User.ToDto(),
+                Timestamp = s.Timestamp,
+                Action = s.Action,
+                IsWelshLanguageToggle = s.IsWelshLanguageToggle,
+            },
             ReasonAuditEntry s => new Dtos.ReasonAuditEntry
             {
                 User = s.User.ToDto(),

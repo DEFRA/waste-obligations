@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Dtos;
@@ -139,6 +140,48 @@ public class CreateComplianceDeclarationTests : EndpointTestBase
     }
 
     [Fact]
+    public async Task Validation_WhenIsWelshLanguageToggleMissing_ShouldBeBadRequest()
+    {
+        var content = await RequestShouldBeBadRequest(
+            CreateComplianceDeclarationRequestFixture.Default().With(x => x.IsWelshLanguageToggle, (bool?)null).Create()
+        );
+
+        await VerifyJson(content);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task WhenIsWelshLanguageToggleProvided_ShouldPersistOnSubmittedAudit(bool isWelshLanguageToggle)
+    {
+        var client = CreateClient(testUser: TestUser.WriteOnly);
+        ComplianceDeclarationService.CreateNewId = () => ObjectId.Parse("6830b9d4c7e21f5a8d3e64b2");
+        ComplianceDeclarationService.UtcNow = () => new DateTime(2026, 4, 20, 12, 28, 0, DateTimeKind.Utc);
+
+        var response = await client.PostAsJsonAsync(
+            Testing.Endpoints.Organisations.ComplianceDeclarations.Create(FakeWasteOrganisationsService.OrganisationId),
+            CreateComplianceDeclarationRequestFixture
+                .DirectProducer(FakeWasteOrganisationsService.OrganisationId)
+                .With(x => x.IsWelshLanguageToggle, isWelshLanguageToggle)
+                .Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        using var document = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)
+        );
+        var submittedAudit = document
+            .RootElement.GetProperty("audit")
+            .EnumerateArray()
+            .Should()
+            .ContainSingle()
+            .Subject;
+        submittedAudit.GetProperty("action").GetString().Should().Be("Submitted");
+        submittedAudit.GetProperty("isWelshLanguageToggle").GetBoolean().Should().Be(isWelshLanguageToggle);
+    }
+
+    [Fact]
     public async Task Validation_WhenRequestInvalid_ShouldBeBadRequest()
     {
         var content = await RequestShouldBeBadRequest(
@@ -149,6 +192,7 @@ public class CreateComplianceDeclarationTests : EndpointTestBase
                 ObligationStatus = null!,
                 SubmitterName = null!,
                 User = null!,
+                IsWelshLanguageToggle = null,
             }
         );
 

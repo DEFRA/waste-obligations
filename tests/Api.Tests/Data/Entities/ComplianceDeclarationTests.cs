@@ -16,7 +16,7 @@ public class ComplianceDeclarationTests
         var draft = CreateDraft();
         var user = UserFixture.Default().Create();
 
-        var act = () => draft.Submit(user, DateTime.Now);
+        var act = () => draft.Submit(user, DateTime.Now, isWelshLanguageToggle: false);
 
         act.Should().Throw<ArgumentException>().And.Message.Should().Be("Timestamp should be UTC");
     }
@@ -29,7 +29,7 @@ public class ComplianceDeclarationTests
         var draft = CreateDraft();
         var user = UserFixture.Default().Create();
 
-        var submitted = draft.Submit(user, UtcNow);
+        var submitted = draft.Submit(user, UtcNow, isWelshLanguageToggle: true);
 
         var accepted = submitted.UpdateStatus(
             ComplianceDeclarationStatus.Accepted,
@@ -44,6 +44,9 @@ public class ComplianceDeclarationTests
         var audit = accepted.Audit.ToArray();
         audit[0].Action.Should().Be(nameof(ComplianceDeclarationStatus.Submitted));
         audit[0].User.Should().Be(user);
+        var submittedAudit = audit[0] as SubmittedAuditEntry;
+        submittedAudit.Should().NotBeNull();
+        submittedAudit.IsWelshLanguageToggle.Should().BeTrue();
         audit[1].Action.Should().Be(nameof(ComplianceDeclarationStatus.Accepted));
         audit[1].User.Should().Be(user);
         audit[1].Timestamp.Should().BeAfter(audit[0].Timestamp);

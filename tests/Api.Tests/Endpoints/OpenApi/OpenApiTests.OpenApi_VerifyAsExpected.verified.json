@@ -653,6 +653,9 @@
             "$ref": "#/components/schemas/AuditEntryReasonAuditEntry"
           },
           {
+            "$ref": "#/components/schemas/AuditEntrySubmittedAuditEntry"
+          },
+          {
             "$ref": "#/components/schemas/AuditEntryBase"
           }
         ]
@@ -686,6 +689,29 @@
         "properties": {
           "reason": {
             "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "action": {
+            "type": "string"
+          }
+        }
+      },
+      "AuditEntrySubmittedAuditEntry": {
+        "required": [
+          "isWelshLanguageToggle",
+          "user",
+          "timestamp",
+          "action"
+        ],
+        "properties": {
+          "isWelshLanguageToggle": {
+            "type": "boolean"
           },
           "user": {
             "$ref": "#/components/schemas/User"
@@ -812,7 +838,8 @@
           "obligationYear",
           "obligationStatus",
           "submitterName",
-          "user"
+          "user",
+          "isWelshLanguageToggle"
         ],
         "type": "object",
         "properties": {
@@ -850,6 +877,12 @@
           },
           "isRegulation43Compliant": {
             "type": "boolean"
+          },
+          "isWelshLanguageToggle": {
+            "type": [
+              "null",
+              "boolean"
+            ]
           }
         }
       },
