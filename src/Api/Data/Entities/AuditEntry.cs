@@ -18,5 +18,5 @@ public record ReasonAuditEntry(string Action) : AuditEntry(Action)
 
 public record SubmittedAuditEntry(string Action) : AuditEntry(Action)
 {
-    public required bool IsWelshLanguageToggle { get; init; }
+    public required string SubmitterLocale { get; init; }
 }

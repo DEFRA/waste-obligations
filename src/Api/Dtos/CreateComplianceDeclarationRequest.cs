@@ -36,6 +36,8 @@ public record CreateComplianceDeclarationRequest
     public bool IsRegulation43Compliant { get; init; }
 
     [Required]
-    [JsonPropertyName("isWelshLanguageToggle")]
-    public required bool? IsWelshLanguageToggle { get; init; }
+    [PossibleValue(Dtos.SubmitterLocale.En)]
+    [PossibleValue(Dtos.SubmitterLocale.Cy)]
+    [JsonPropertyName("submitterLocale")]
+    public required string? SubmitterLocale { get; init; }
 }

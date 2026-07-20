@@ -36,7 +36,7 @@ public static class CreateComplianceDeclarationRequestFixture
             .With(x => x.SubmitterName, "Submitter Name")
             .With(x => x.User, UserFixture.Default().Create())
             .With(x => x.IsRegulation43Compliant, true)
-            .With(x => x.IsWelshLanguageToggle, false);
+            .With(x => x.SubmitterLocale, SubmitterLocale.En);
     }
 
     public static IPostprocessComposer<CreateComplianceDeclarationRequest> DirectProducer(Guid? organisationId = null)

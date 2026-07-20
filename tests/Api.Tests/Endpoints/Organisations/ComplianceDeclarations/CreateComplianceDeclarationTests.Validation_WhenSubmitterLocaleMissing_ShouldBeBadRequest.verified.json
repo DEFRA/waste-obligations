@@ -3,8 +3,8 @@
   "title": "One or more validation errors occurred.",
   "status": 400,
   "errors": {
-    "IsWelshLanguageToggle": [
-      "The IsWelshLanguageToggle field is required."
+    "SubmitterLocale": [
+      "The SubmitterLocale field is required."
     ]
   },
   "traceId": "{Scrubbed}"

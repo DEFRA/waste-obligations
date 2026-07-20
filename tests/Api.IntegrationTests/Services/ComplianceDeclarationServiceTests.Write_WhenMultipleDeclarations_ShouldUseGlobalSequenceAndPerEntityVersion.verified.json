@@ -16,7 +16,7 @@
         {
           "_t": "SubmittedAuditEntry",
           "action": "Submitted",
-          "isWelshLanguageToggle": false,
+          "submitterLocale": "EN",
           "timestamp": "{Scrubbed}",
           "user": {
             "_id": "{Scrubbed}",
@@ -86,7 +86,7 @@
         {
           "_t": "SubmittedAuditEntry",
           "action": "Submitted",
-          "isWelshLanguageToggle": false,
+          "submitterLocale": "EN",
           "timestamp": "{Scrubbed}",
           "user": {
             "_id": "{Scrubbed}",
@@ -156,7 +156,7 @@
         {
           "_t": "SubmittedAuditEntry",
           "action": "Submitted",
-          "isWelshLanguageToggle": false,
+          "submitterLocale": "EN",
           "timestamp": "{Scrubbed}",
           "user": {
             "_id": "{Scrubbed}",
@@ -213,7 +213,7 @@
         {
           "_t": "SubmittedAuditEntry",
           "action": "Submitted",
-          "isWelshLanguageToggle": false,
+          "submitterLocale": "EN",
           "timestamp": "{Scrubbed}",
           "user": {
             "_id": "{Scrubbed}",
@@ -283,7 +283,7 @@
         {
           "_t": "SubmittedAuditEntry",
           "action": "Submitted",
-          "isWelshLanguageToggle": false,
+          "submitterLocale": "EN",
           "timestamp": "{Scrubbed}",
           "user": {
             "_id": "{Scrubbed}",
@@ -340,7 +340,7 @@
         {
           "_t": "SubmittedAuditEntry",
           "action": "Submitted",
-          "isWelshLanguageToggle": false,
+          "submitterLocale": "EN",
           "timestamp": "{Scrubbed}",
           "user": {
             "_id": "{Scrubbed}",

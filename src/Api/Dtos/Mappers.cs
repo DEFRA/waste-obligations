@@ -21,11 +21,7 @@ public static class Mappers
             IsRegulation43Compliant = dto.IsRegulation43Compliant,
         };
 
-        return draft.Submit(
-            dto.User.ToEntity(),
-            timeProvider.GetUtcNowWithoutMicroseconds(),
-            dto.IsWelshLanguageToggle!.Value
-        );
+        return draft.Submit(dto.User.ToEntity(), timeProvider.GetUtcNowWithoutMicroseconds(), dto.SubmitterLocale!);
     }
 
     private static Data.Entities.Obligation ToEntity(this Obligation dto) =>

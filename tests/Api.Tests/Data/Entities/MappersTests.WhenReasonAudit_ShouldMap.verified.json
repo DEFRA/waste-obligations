@@ -1,6 +1,6 @@
 ﻿[
   {
-    "IsWelshLanguageToggle": false,
+    "SubmitterLocale": "EN",
     "User": {
       "Id": "Guid_1",
       "Email": "submitter@email.com",

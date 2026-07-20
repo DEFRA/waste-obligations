@@ -41,7 +41,7 @@
   "isRegulation43Compliant": true,
   "audit": [
     {
-      "isWelshLanguageToggle": false,
+      "submitterLocale": "EN",
       "user": {
         "id": "Guid_2",
         "email": "submitter@email.com",

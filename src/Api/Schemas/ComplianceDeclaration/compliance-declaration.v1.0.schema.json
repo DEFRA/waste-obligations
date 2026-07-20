@@ -276,7 +276,7 @@
     "submittedAuditEntry": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["action", "user", "timestamp", "isWelshLanguageToggle"],
+      "required": ["action", "user", "timestamp", "submitterLocale"],
       "properties": {
         "action": {
           "type": "string"
@@ -290,8 +290,9 @@
           "x-date-serialization": "date-time-offset",
           "examples": ["2026-01-02T03:04:05+00:00"]
         },
-        "isWelshLanguageToggle": {
-          "type": "boolean"
+        "submitterLocale": {
+          "type": "string",
+          "enum": ["EN", "CY"]
         }
       }
     }

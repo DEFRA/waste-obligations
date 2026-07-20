@@ -145,7 +145,7 @@ The `before` value is `null`. The `after` value is the created compliance declar
           "name": "Submitter Name"
         },
         "timestamp": "2026-01-02T03:04:05+00:00",
-        "isWelshLanguageToggle": false
+        "submitterLocale": "EN"
       }
     ],
     "isRegulation43Compliant": true
@@ -224,7 +224,7 @@ The `before` value is the declaration state before the update. The `after` value
           "name": "Submitter Name"
         },
         "timestamp": "2026-01-02T03:04:05+00:00",
-        "isWelshLanguageToggle": false
+        "submitterLocale": "EN"
       }
     ],
     "isRegulation43Compliant": true
@@ -279,7 +279,7 @@ The `before` value is the declaration state before the update. The `after` value
           "name": "Submitter Name"
         },
         "timestamp": "2026-01-02T03:04:05+00:00",
-        "isWelshLanguageToggle": false
+        "submitterLocale": "EN"
       },
       {
         "action": "Accepted",

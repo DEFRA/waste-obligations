@@ -140,19 +140,19 @@ public class CreateComplianceDeclarationTests : EndpointTestBase
     }
 
     [Fact]
-    public async Task Validation_WhenIsWelshLanguageToggleMissing_ShouldBeBadRequest()
+    public async Task Validation_WhenSubmitterLocaleMissing_ShouldBeBadRequest()
     {
         var content = await RequestShouldBeBadRequest(
-            CreateComplianceDeclarationRequestFixture.Default().With(x => x.IsWelshLanguageToggle, (bool?)null).Create()
+            CreateComplianceDeclarationRequestFixture.Default().With(x => x.SubmitterLocale, (string?)null).Create()
         );
 
         await VerifyJson(content);
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task WhenIsWelshLanguageToggleProvided_ShouldPersistOnSubmittedAudit(bool isWelshLanguageToggle)
+    [InlineData(SubmitterLocale.En)]
+    [InlineData(SubmitterLocale.Cy)]
+    public async Task WhenSubmitterLocaleProvided_ShouldPersistOnSubmittedAudit(string submitterLocale)
     {
         var client = CreateClient(testUser: TestUser.WriteOnly);
         ComplianceDeclarationService.CreateNewId = () => ObjectId.Parse("6830b9d4c7e21f5a8d3e64b2");
@@ -162,7 +162,7 @@ public class CreateComplianceDeclarationTests : EndpointTestBase
             Testing.Endpoints.Organisations.ComplianceDeclarations.Create(FakeWasteOrganisationsService.OrganisationId),
             CreateComplianceDeclarationRequestFixture
                 .DirectProducer(FakeWasteOrganisationsService.OrganisationId)
-                .With(x => x.IsWelshLanguageToggle, isWelshLanguageToggle)
+                .With(x => x.SubmitterLocale, submitterLocale)
                 .Create(),
             TestContext.Current.CancellationToken
         );
@@ -178,7 +178,7 @@ public class CreateComplianceDeclarationTests : EndpointTestBase
             .ContainSingle()
             .Subject;
         submittedAudit.GetProperty("action").GetString().Should().Be("Submitted");
-        submittedAudit.GetProperty("isWelshLanguageToggle").GetBoolean().Should().Be(isWelshLanguageToggle);
+        submittedAudit.GetProperty("submitterLocale").GetString().Should().Be(submitterLocale);
     }
 
     [Fact]
@@ -192,7 +192,7 @@ public class CreateComplianceDeclarationTests : EndpointTestBase
                 ObligationStatus = null!,
                 SubmitterName = null!,
                 User = null!,
-                IsWelshLanguageToggle = null,
+                SubmitterLocale = null,
             }
         );
 

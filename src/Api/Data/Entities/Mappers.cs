@@ -89,7 +89,7 @@ public static class Mappers
                 User = s.User.ToDto(),
                 Timestamp = s.Timestamp,
                 Action = s.Action,
-                IsWelshLanguageToggle = s.IsWelshLanguageToggle,
+                SubmitterLocale = s.SubmitterLocale,
             },
             ReasonAuditEntry s => new Dtos.ReasonAuditEntry
             {

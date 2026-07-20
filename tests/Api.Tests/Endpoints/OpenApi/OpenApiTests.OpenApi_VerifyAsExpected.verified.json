@@ -704,14 +704,14 @@
       },
       "AuditEntrySubmittedAuditEntry": {
         "required": [
-          "isWelshLanguageToggle",
+          "submitterLocale",
           "user",
           "timestamp",
           "action"
         ],
         "properties": {
-          "isWelshLanguageToggle": {
-            "type": "boolean"
+          "submitterLocale": {
+            "type": "string"
           },
           "user": {
             "$ref": "#/components/schemas/User"
@@ -839,7 +839,7 @@
           "obligationStatus",
           "submitterName",
           "user",
-          "isWelshLanguageToggle"
+          "submitterLocale"
         ],
         "type": "object",
         "properties": {
@@ -878,10 +878,14 @@
           "isRegulation43Compliant": {
             "type": "boolean"
           },
-          "isWelshLanguageToggle": {
+          "submitterLocale": {
+            "enum": [
+              "EN",
+              "CY"
+            ],
             "type": [
               "null",
-              "boolean"
+              "string"
             ]
           }
         }

@@ -5,13 +5,16 @@ namespace Defra.WasteObligations.Testing.Fixtures.Entities;
 
 public static class AuditEntryFixture
 {
-    public static IEnumerable<AuditEntry> Submitted(DateTime? timestamp = null, bool isWelshLanguageToggle = false) =>
+    public static IEnumerable<AuditEntry> Submitted(
+        DateTime? timestamp = null,
+        string submitterLocale = Api.Dtos.SubmitterLocale.En
+    ) =>
         [
             new SubmittedAuditEntry(nameof(ComplianceDeclarationStatus.Submitted))
             {
                 User = UserFixture.Default().Create(),
                 Timestamp = timestamp ?? new DateTime(2026, 4, 26, 14, 0, 0, DateTimeKind.Utc),
-                IsWelshLanguageToggle = isWelshLanguageToggle,
+                SubmitterLocale = submitterLocale,
             },
         ];
 
@@ -27,6 +30,6 @@ public static class AuditEntryFixture
 
     public static IEnumerable<AuditEntry> SubmittedThenCancelled(
         DateTime? timestamp = null,
-        bool isWelshLanguageToggle = false
-    ) => Submitted(timestamp, isWelshLanguageToggle).Concat(Cancelled(timestamp));
+        string submitterLocale = Api.Dtos.SubmitterLocale.En
+    ) => Submitted(timestamp, submitterLocale).Concat(Cancelled(timestamp));
 }

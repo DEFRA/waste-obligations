@@ -24,6 +24,6 @@ public record ReasonAuditEntry : AuditEntry
 
 public record SubmittedAuditEntry : AuditEntry
 {
-    [JsonPropertyName("isWelshLanguageToggle")]
-    public required bool IsWelshLanguageToggle { get; init; }
+    [JsonPropertyName("submitterLocale")]
+    public required string SubmitterLocale { get; init; }
 }

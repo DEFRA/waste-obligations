@@ -28,7 +28,7 @@ public record ComplianceDeclaration
     public IEnumerable<AuditEntry> Audit { get; init; } = [];
     public bool IsRegulation43Compliant { get; init; }
 
-    public ComplianceDeclaration Submit(User user, DateTime timestamp, bool isWelshLanguageToggle)
+    public ComplianceDeclaration Submit(User user, DateTime timestamp, string submitterLocale)
     {
         GuardTimestamp(timestamp);
 
@@ -42,7 +42,7 @@ public record ComplianceDeclaration
                 {
                     User = user,
                     Timestamp = timestamp,
-                    IsWelshLanguageToggle = isWelshLanguageToggle,
+                    SubmitterLocale = submitterLocale,
                 },
             },
         };

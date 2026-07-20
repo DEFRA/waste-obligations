@@ -18,8 +18,8 @@
     "User": [
       "The User field is required."
     ],
-    "IsWelshLanguageToggle": [
-      "The IsWelshLanguageToggle field is required."
+    "SubmitterLocale": [
+      "The SubmitterLocale field is required."
     ]
   },
   "traceId": "{Scrubbed}"
