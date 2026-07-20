@@ -49,6 +49,7 @@ public static class Mappers
             Id = entity.Id,
             Email = entity.Email,
             Name = entity.Name,
+            Locale = entity.Locale,
         };
 
     public static Dtos.Organisation ToDto(this Organisation entity) =>
@@ -84,13 +85,6 @@ public static class Mappers
     private static Dtos.AuditEntry ToDto(this AuditEntry entity) =>
         entity switch
         {
-            SubmittedAuditEntry s => new Dtos.SubmittedAuditEntry
-            {
-                User = s.User.ToDto(),
-                Timestamp = s.Timestamp,
-                Action = s.Action,
-                SubmitterLocale = s.SubmitterLocale,
-            },
             ReasonAuditEntry s => new Dtos.ReasonAuditEntry
             {
                 User = s.User.ToDto(),

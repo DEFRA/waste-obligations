@@ -3,6 +3,10 @@ using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
+using ComplianceDeclaration = Defra.WasteObligations.Api.Data.Entities.ComplianceDeclaration;
+using ComplianceDeclarationStatus = Defra.WasteObligations.Api.Data.Entities.ComplianceDeclarationStatus;
+using ReasonAuditEntry = Defra.WasteObligations.Api.Data.Entities.ReasonAuditEntry;
+using UserLocale = Defra.WasteObligations.Api.Dtos.UserLocale;
 
 namespace Defra.WasteObligations.Api.Tests.Data.Entities;
 
@@ -16,7 +20,7 @@ public class ComplianceDeclarationTests
         var draft = CreateDraft();
         var user = UserFixture.Default().Create();
 
-        var act = () => draft.Submit(user, DateTime.Now, Api.Dtos.SubmitterLocale.En);
+        var act = () => draft.Submit(user, DateTime.Now);
 
         act.Should().Throw<ArgumentException>().And.Message.Should().Be("Timestamp should be UTC");
     }
@@ -27,9 +31,9 @@ public class ComplianceDeclarationTests
     public void FromSubmittedToAccepted_ShouldBeAllowed(string? reason)
     {
         var draft = CreateDraft();
-        var user = UserFixture.Default().Create();
+        var user = UserFixture.Default().With(x => x.Locale, UserLocale.Cy).Create();
 
-        var submitted = draft.Submit(user, UtcNow, Api.Dtos.SubmitterLocale.Cy);
+        var submitted = draft.Submit(user, UtcNow);
 
         var accepted = submitted.UpdateStatus(
             ComplianceDeclarationStatus.Accepted,
@@ -44,9 +48,7 @@ public class ComplianceDeclarationTests
         var audit = accepted.Audit.ToArray();
         audit[0].Action.Should().Be(nameof(ComplianceDeclarationStatus.Submitted));
         audit[0].User.Should().Be(user);
-        var submittedAudit = audit[0] as SubmittedAuditEntry;
-        submittedAudit.Should().NotBeNull();
-        submittedAudit.SubmitterLocale.Should().Be(Api.Dtos.SubmitterLocale.Cy);
+        audit[0].User.Locale.Should().Be(UserLocale.Cy);
         audit[1].Action.Should().Be(nameof(ComplianceDeclarationStatus.Accepted));
         audit[1].User.Should().Be(user);
         audit[1].Timestamp.Should().BeAfter(audit[0].Timestamp);

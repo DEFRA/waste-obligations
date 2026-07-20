@@ -49,7 +49,7 @@ sequenceDiagram
     Client->>Endpoint: POST, PATCH, or DELETE
 
     alt Create
-        Endpoint->>Entity: ToEntity().Submit(user, timestamp, submitterLocale)
+        Endpoint->>Entity: ToEntity().Submit(user, timestamp)
         Entity-->>Endpoint: Submitted declaration with embedded audit entry
         Endpoint->>Service: Create(declaration)
         Service->>Mongo: Start transaction
@@ -113,7 +113,7 @@ flowchart TD
 | `version` | The entity version after the operation. Delete records `current.Version + 1`. |
 | `before` | The previous declaration BSON document, or `null` for create. |
 | `after` | The new declaration BSON document, or `null` for delete. |
-| `schemaVersion` | The declaration schema version, currently `v1.0`. |
+| `schemaVersion` | The declaration schema version, currently `v1.1`. |
 | `traceId` | The propagated trace header value, used for service logging and not included in the analytics envelope. |
 | `dispatches` | A per-process outcome map, initially empty. |
 
@@ -164,7 +164,7 @@ The processor reads audit events where `dispatches.analytics` does not exist, or
 
 - `eventId`, `sequence`, `entity`, `operation`, `eventType`, timestamps, actor, version, `before`, and `after` are copied from the audit event.
 - `entityId` is changed from the raw ObjectId string to `compliance_declaration_{objectId}`.
-- `schemaVersion` is changed from `v1.0` to `compliance_declaration.v1.0`.
+- `schemaVersion` is changed from `v1.1` to `compliance_declaration.v1.1`.
 - `piiKeyRef` is currently set to `null`.
 
 The serializer loads the embedded compliance declaration JSON schema and uses it to write the `before` and `after` BSON documents with the expected field names and JSON value formats.

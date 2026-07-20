@@ -140,19 +140,37 @@ public class CreateComplianceDeclarationTests : EndpointTestBase
     }
 
     [Fact]
-    public async Task Validation_WhenSubmitterLocaleMissing_ShouldBeBadRequest()
+    public async Task Validation_WhenUserLocaleMissing_ShouldBeBadRequest()
     {
-        var content = await RequestShouldBeBadRequest(
-            CreateComplianceDeclarationRequestFixture.Default().With(x => x.SubmitterLocale, (string?)null).Create()
-        );
+        var request = JsonSerializer
+            .SerializeToNode(CreateComplianceDeclarationRequestFixture.Default().Create())!
+            .AsObject();
+        request["user"]!.AsObject().Remove("locale");
+
+        var content = await RequestShouldBeBadRequest(request);
 
         await VerifyJson(content);
     }
 
     [Theory]
-    [InlineData(SubmitterLocale.En)]
-    [InlineData(SubmitterLocale.Cy)]
-    public async Task WhenSubmitterLocaleProvided_ShouldPersistOnSubmittedAudit(string submitterLocale)
+    [InlineData("EN")]
+    [InlineData("fr")]
+    public async Task Validation_WhenUserLocaleInvalid_ShouldBeBadRequest(string locale)
+    {
+        var content = await RequestShouldBeBadRequest(
+            CreateComplianceDeclarationRequestFixture
+                .Default()
+                .With(x => x.User, UserFixture.Default().With(u => u.Locale, locale).Create())
+                .Create()
+        );
+
+        await VerifyJson(content).UseParameters(locale);
+    }
+
+    [Theory]
+    [InlineData(UserLocale.En)]
+    [InlineData(UserLocale.Cy)]
+    public async Task WhenUserLocaleProvided_ShouldPersistOnSubmittedAuditUser(string locale)
     {
         var client = CreateClient(testUser: TestUser.WriteOnly);
         ComplianceDeclarationService.CreateNewId = () => ObjectId.Parse("6830b9d4c7e21f5a8d3e64b2");
@@ -162,7 +180,7 @@ public class CreateComplianceDeclarationTests : EndpointTestBase
             Testing.Endpoints.Organisations.ComplianceDeclarations.Create(FakeWasteOrganisationsService.OrganisationId),
             CreateComplianceDeclarationRequestFixture
                 .DirectProducer(FakeWasteOrganisationsService.OrganisationId)
-                .With(x => x.SubmitterLocale, submitterLocale)
+                .With(x => x.User, UserFixture.Default().With(u => u.Locale, locale).Create())
                 .Create(),
             TestContext.Current.CancellationToken
         );
@@ -178,7 +196,7 @@ public class CreateComplianceDeclarationTests : EndpointTestBase
             .ContainSingle()
             .Subject;
         submittedAudit.GetProperty("action").GetString().Should().Be("Submitted");
-        submittedAudit.GetProperty("submitterLocale").GetString().Should().Be(submitterLocale);
+        submittedAudit.GetProperty("user").GetProperty("locale").GetString().Should().Be(locale);
     }
 
     [Fact]
@@ -192,7 +210,6 @@ public class CreateComplianceDeclarationTests : EndpointTestBase
                 ObligationStatus = null!,
                 SubmitterName = null!,
                 User = null!,
-                SubmitterLocale = null,
             }
         );
 
@@ -215,7 +232,7 @@ public class CreateComplianceDeclarationTests : EndpointTestBase
         await VerifyJson(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
     }
 
-    private async Task<string> RequestShouldBeBadRequest(CreateComplianceDeclarationRequest request)
+    private async Task<string> RequestShouldBeBadRequest(object request)
     {
         var client = CreateClient(testUser: TestUser.WriteOnly);
 

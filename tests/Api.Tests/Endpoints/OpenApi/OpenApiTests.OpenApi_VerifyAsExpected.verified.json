@@ -653,9 +653,6 @@
             "$ref": "#/components/schemas/AuditEntryReasonAuditEntry"
           },
           {
-            "$ref": "#/components/schemas/AuditEntrySubmittedAuditEntry"
-          },
-          {
             "$ref": "#/components/schemas/AuditEntryBase"
           }
         ]
@@ -688,29 +685,6 @@
         ],
         "properties": {
           "reason": {
-            "type": "string"
-          },
-          "user": {
-            "$ref": "#/components/schemas/User"
-          },
-          "timestamp": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "action": {
-            "type": "string"
-          }
-        }
-      },
-      "AuditEntrySubmittedAuditEntry": {
-        "required": [
-          "submitterLocale",
-          "user",
-          "timestamp",
-          "action"
-        ],
-        "properties": {
-          "submitterLocale": {
             "type": "string"
           },
           "user": {
@@ -838,8 +812,7 @@
           "obligationYear",
           "obligationStatus",
           "submitterName",
-          "user",
-          "submitterLocale"
+          "user"
         ],
         "type": "object",
         "properties": {
@@ -877,16 +850,6 @@
           },
           "isRegulation43Compliant": {
             "type": "boolean"
-          },
-          "submitterLocale": {
-            "enum": [
-              "EN",
-              "CY"
-            ],
-            "type": [
-              "null",
-              "string"
-            ]
           }
         }
       },
@@ -1146,7 +1109,8 @@
         "required": [
           "id",
           "email",
-          "name"
+          "name",
+          "locale"
         ],
         "type": "object",
         "properties": {
@@ -1158,6 +1122,16 @@
           },
           "name": {
             "type": "string"
+          },
+          "locale": {
+            "enum": [
+              "en",
+              "cy"
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       }

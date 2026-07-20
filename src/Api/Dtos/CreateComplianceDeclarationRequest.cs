@@ -34,10 +34,4 @@ public record CreateComplianceDeclarationRequest
 
     [JsonPropertyName("isRegulation43Compliant")]
     public bool IsRegulation43Compliant { get; init; }
-
-    [Required]
-    [PossibleValue(Dtos.SubmitterLocale.En)]
-    [PossibleValue(Dtos.SubmitterLocale.Cy)]
-    [JsonPropertyName("submitterLocale")]
-    public required string? SubmitterLocale { get; init; }
 }

@@ -3,8 +3,8 @@
   "title": "One or more validation errors occurred.",
   "status": 400,
   "errors": {
-    "SubmitterLocale": [
-      "The SubmitterLocale field is required."
+    "User.Locale": [
+      "The field Locale must be one of: en, cy."
     ]
   },
   "traceId": "{Scrubbed}"

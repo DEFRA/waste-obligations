@@ -17,9 +17,6 @@
     ],
     "User": [
       "The User field is required."
-    ],
-    "SubmitterLocale": [
-      "The SubmitterLocale field is required."
     ]
   },
   "traceId": "{Scrubbed}"

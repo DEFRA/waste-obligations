@@ -8,7 +8,7 @@ namespace Defra.WasteObligations.Api.Data.Entities;
 [BsonIgnoreExtraElements]
 public record ComplianceDeclaration
 {
-    public const string SchemaVersionValue = "v1.0";
+    public const string SchemaVersionValue = "v1.1";
 
     public ObjectId Id { get; init; }
     public string SchemaVersion { get; private init; } = SchemaVersionValue;
@@ -28,7 +28,7 @@ public record ComplianceDeclaration
     public IEnumerable<AuditEntry> Audit { get; init; } = [];
     public bool IsRegulation43Compliant { get; init; }
 
-    public ComplianceDeclaration Submit(User user, DateTime timestamp, string submitterLocale)
+    public ComplianceDeclaration Submit(User user, DateTime timestamp)
     {
         GuardTimestamp(timestamp);
 
@@ -38,12 +38,7 @@ public record ComplianceDeclaration
             Status = ComplianceDeclarationStatus.Submitted,
             Audit = new List<AuditEntry>
             {
-                new SubmittedAuditEntry(nameof(ComplianceDeclarationStatus.Submitted))
-                {
-                    User = user,
-                    Timestamp = timestamp,
-                    SubmitterLocale = submitterLocale,
-                },
+                new(nameof(ComplianceDeclarationStatus.Submitted)) { User = user, Timestamp = timestamp },
             },
         };
     }

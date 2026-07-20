@@ -58,10 +58,10 @@
         "user": {
           "id": "e72be574-8b5b-4836-af47-dd7e0c0d1d87",
           "email": "submitter@email.com",
-          "name": "Submitter Name"
+          "name": "Submitter Name",
+          "locale": "en"
         },
-        "timestamp": "2026-01-02T03:04:05+00:00",
-        "submitterLocale": "EN"
+        "timestamp": "2026-01-02T03:04:05+00:00"
       }
     ],
     "isRegulation43Compliant": true
@@ -113,17 +113,18 @@
         "user": {
           "id": "e72be574-8b5b-4836-af47-dd7e0c0d1d87",
           "email": "submitter@email.com",
-          "name": "Submitter Name"
+          "name": "Submitter Name",
+          "locale": "en"
         },
-        "timestamp": "2026-01-02T03:04:05+00:00",
-        "submitterLocale": "EN"
+        "timestamp": "2026-01-02T03:04:05+00:00"
       },
       {
         "action": "Accepted",
         "user": {
           "id": "e72be574-8b5b-4836-af47-dd7e0c0d1d87",
           "email": "submitter@email.com",
-          "name": "Submitter Name"
+          "name": "Submitter Name",
+          "locale": "en"
         },
         "timestamp": "2026-01-02T03:05:05+00:00",
         "reason": "Accepted reason"
@@ -131,5 +132,5 @@
     ],
     "isRegulation43Compliant": true
   },
-  "schemaVersion": "compliance_declaration.v1.0"
+  "schemaVersion": "compliance_declaration.v1.1"
 }

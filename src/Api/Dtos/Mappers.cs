@@ -21,7 +21,7 @@ public static class Mappers
             IsRegulation43Compliant = dto.IsRegulation43Compliant,
         };
 
-        return draft.Submit(dto.User.ToEntity(), timeProvider.GetUtcNowWithoutMicroseconds(), dto.SubmitterLocale!);
+        return draft.Submit(dto.User.ToEntity(), timeProvider.GetUtcNowWithoutMicroseconds());
     }
 
     private static Data.Entities.Obligation ToEntity(this Obligation dto) =>
@@ -49,6 +49,7 @@ public static class Mappers
             Id = dto.Id,
             Email = dto.Email,
             Name = dto.Name,
+            Locale = dto.Locale,
         };
 
     private static Data.Entities.Organisation ToEntity(this Organisation dto) =>

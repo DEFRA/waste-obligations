@@ -1,10 +1,10 @@
 ﻿[
   {
-    "SubmitterLocale": "EN",
     "User": {
       "Id": "Guid_1",
       "Email": "submitter@email.com",
-      "Name": "Submitter Name"
+      "Name": "Submitter Name",
+      "Locale": "en"
     },
     "Timestamp": "DateTimeOffset_1",
     "Action": "Submitted"
@@ -14,7 +14,8 @@
     "User": {
       "Id": "Guid_1",
       "Email": "submitter@email.com",
-      "Name": "Submitter Name"
+      "Name": "Submitter Name",
+      "Locale": "en"
     },
     "Timestamp": "DateTimeOffset_2",
     "Action": "Cancelled"

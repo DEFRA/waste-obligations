@@ -3,7 +3,6 @@ using System.Text.Json.Serialization;
 namespace Defra.WasteObligations.Api.Dtos;
 
 [JsonDerivedType(typeof(ReasonAuditEntry))]
-[JsonDerivedType(typeof(SubmittedAuditEntry))]
 public record AuditEntry
 {
     [JsonPropertyName("user")]
@@ -20,10 +19,4 @@ public record ReasonAuditEntry : AuditEntry
 {
     [JsonPropertyName("reason")]
     public required string Reason { get; init; }
-}
-
-public record SubmittedAuditEntry : AuditEntry
-{
-    [JsonPropertyName("submitterLocale")]
-    public required string SubmitterLocale { get; init; }
 }
