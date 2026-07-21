@@ -19,6 +19,7 @@ namespace Defra.WasteObligations.Api.IntegrationTests.Data;
 
 public class MongoMigrationServiceTests : IntegrationTestBase
 {
+    private const string SchemaVersionV1_1 = "v1.1";
     private const string OrganisationIdObligationYearIndexName = "OrganisationId_ObligationYear";
     private const string SearchIndexName = "ObligationYear_Status_OrganisationRegistrationType";
     private const string OrganisationNameIndexName = "OrganisationName";
@@ -181,7 +182,7 @@ public class MongoMigrationServiceTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task ComplianceDeclarationUserLocale_ShouldBackfillLocaleAndBumpSchemaVersion()
+    public async Task ComplianceDeclarationUserLocale_ShouldBumpSchemaVersionAndLeaveLegacyLocaleNull()
     {
         var database = GetMongoDatabase();
         var collection = database.GetCollection<BsonDocument>(nameof(ComplianceDeclaration));
@@ -194,19 +195,23 @@ public class MongoMigrationServiceTests : IntegrationTestBase
 
         await collection.InsertManyAsync(
             [
-                CreateLegacyComplianceDeclaration(legacyId, timestamp, includeSubmittedUserLocale: false),
+                CreateLegacyComplianceDeclaration(
+                    legacyId,
+                    timestamp,
+                    submittedUserLocale: null,
+                    schemaVersion: "v1.0"
+                ),
                 CreateLegacyComplianceDeclaration(
                     existingLocaleId,
                     timestamp,
-                    includeSubmittedUserLocale: true,
-                    submittedUserLocale: UserLocale.Cy
+                    submittedUserLocale: UserLocale.Cy,
+                    schemaVersion: "v1.0"
                 ),
                 CreateLegacyComplianceDeclaration(
                     alreadyMigratedId,
                     timestamp,
-                    includeSubmittedUserLocale: true,
                     submittedUserLocale: UserLocale.En,
-                    schemaVersion: ComplianceDeclaration.SchemaVersionValue
+                    schemaVersion: SchemaVersionV1_1
                 ),
             ],
             cancellationToken: TestContext.Current.CancellationToken
@@ -217,19 +222,19 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         var legacy = await collection
             .Find(Builders<BsonDocument>.Filter.Eq("_id", legacyId))
             .SingleAsync(TestContext.Current.CancellationToken);
-        legacy["schemaVersion"].AsString.Should().Be(ComplianceDeclaration.SchemaVersionValue);
-        GetSubmittedAuditUser(legacy)["locale"].AsString.Should().Be(UserLocale.En);
+        legacy["schemaVersion"].AsString.Should().Be(SchemaVersionV1_1);
+        GetSubmittedAuditUser(legacy)["locale"].Should().Be(BsonNull.Value);
 
         var existingLocale = await collection
             .Find(Builders<BsonDocument>.Filter.Eq("_id", existingLocaleId))
             .SingleAsync(TestContext.Current.CancellationToken);
-        existingLocale["schemaVersion"].AsString.Should().Be(ComplianceDeclaration.SchemaVersionValue);
+        existingLocale["schemaVersion"].AsString.Should().Be(SchemaVersionV1_1);
         GetSubmittedAuditUser(existingLocale)["locale"].AsString.Should().Be(UserLocale.Cy);
 
         var alreadyMigrated = await collection
             .Find(Builders<BsonDocument>.Filter.Eq("_id", alreadyMigratedId))
             .SingleAsync(TestContext.Current.CancellationToken);
-        alreadyMigrated["schemaVersion"].AsString.Should().Be(ComplianceDeclaration.SchemaVersionValue);
+        alreadyMigrated["schemaVersion"].AsString.Should().Be(SchemaVersionV1_1);
         GetSubmittedAuditUser(alreadyMigrated)["locale"].AsString.Should().Be(UserLocale.En);
 
         await subject.DownAsync(context);
@@ -250,9 +255,8 @@ public class MongoMigrationServiceTests : IntegrationTestBase
     private static BsonDocument CreateLegacyComplianceDeclaration(
         ObjectId id,
         DateTime timestamp,
-        bool includeSubmittedUserLocale,
-        string? submittedUserLocale = null,
-        string schemaVersion = "v1.0"
+        string? submittedUserLocale,
+        string schemaVersion
     )
     {
         var submittedUser = new BsonDocument
@@ -262,7 +266,7 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             ["name"] = "Submitter Name",
         };
 
-        if (includeSubmittedUserLocale && submittedUserLocale is not null)
+        if (submittedUserLocale is not null)
         {
             submittedUser["locale"] = submittedUserLocale;
         }

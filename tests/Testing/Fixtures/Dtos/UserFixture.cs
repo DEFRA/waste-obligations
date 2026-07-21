@@ -27,6 +27,15 @@ public static class UserFixture
             .With(x => x.Locale, UserLocale.En);
     }
 
+    public static IPostprocessComposer<User> WithoutLocale()
+    {
+        return User()
+            .With(x => x.Id, "e72be574-8b5b-4836-af47-dd7e0c0d1d87")
+            .With(x => x.Email, "submitter@email.com")
+            .With(x => x.Name, "Submitter Name")
+            .With(x => x.Locale, (string?)null);
+    }
+
     public static IPostprocessComposer<User> ApprovedPerson()
     {
         return User()

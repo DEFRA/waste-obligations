@@ -11,9 +11,6 @@
     ],
     "User.Name": [
       "The Name field is required."
-    ],
-    "User.Locale": [
-      "The Locale field is required."
     ]
   },
   "traceId": "{Scrubbed}"

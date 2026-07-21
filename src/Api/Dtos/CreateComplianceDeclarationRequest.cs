@@ -4,7 +4,7 @@ using Defra.WasteObligations.Api.Dtos.Attributes;
 
 namespace Defra.WasteObligations.Api.Dtos;
 
-public record CreateComplianceDeclarationRequest
+public record CreateComplianceDeclarationRequest : IValidatableObject
 {
     [Required]
     [JsonPropertyName("organisation")]
@@ -34,4 +34,15 @@ public record CreateComplianceDeclarationRequest
 
     [JsonPropertyName("isRegulation43Compliant")]
     public bool IsRegulation43Compliant { get; init; }
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (string.IsNullOrWhiteSpace(User.Locale))
+        {
+            yield return new ValidationResult(
+                "The Locale field is required.",
+                [$"{nameof(User)}.{nameof(User.Locale)}"]
+            );
+        }
+    }
 }

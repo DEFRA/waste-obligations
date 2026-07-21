@@ -1,5 +1,8 @@
+using MongoDB.Bson.Serialization.Attributes;
+
 namespace Defra.WasteObligations.Api.Data.Entities;
 
+[BsonIgnoreExtraElements]
 public record ObligationTonnages
 {
     public int Material { get; init; }

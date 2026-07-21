@@ -1,5 +1,8 @@
+using MongoDB.Bson.Serialization.Attributes;
+
 namespace Defra.WasteObligations.Api.Data.Entities;
 
+[BsonIgnoreExtraElements]
 public record User
 {
     public required string Id { get; init; }

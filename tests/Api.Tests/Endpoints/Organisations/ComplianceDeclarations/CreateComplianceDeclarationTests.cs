@@ -142,12 +142,12 @@ public class CreateComplianceDeclarationTests : EndpointTestBase
     [Fact]
     public async Task Validation_WhenUserLocaleMissing_ShouldBeBadRequest()
     {
-        var request = JsonSerializer
-            .SerializeToNode(CreateComplianceDeclarationRequestFixture.Default().Create())!
-            .AsObject();
-        request["user"]!.AsObject().Remove("locale");
-
-        var content = await RequestShouldBeBadRequest(request);
+        var content = await RequestShouldBeBadRequest(
+            CreateComplianceDeclarationRequestFixture
+                .Default()
+                .With(x => x.User, UserFixture.WithoutLocale().Create())
+                .Create()
+        );
 
         await VerifyJson(content);
     }

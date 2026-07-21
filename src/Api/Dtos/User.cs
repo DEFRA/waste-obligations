@@ -18,7 +18,6 @@ public record User : IValidatableObject
     [JsonPropertyName("name")]
     public required string Name { get; init; }
 
-    [Required]
     [PossibleValue(UserLocale.En)]
     [PossibleValue(UserLocale.Cy)]
     [JsonPropertyName("locale")]
