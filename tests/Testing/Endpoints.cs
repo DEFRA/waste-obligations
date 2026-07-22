@@ -36,6 +36,14 @@ public static class Endpoints
                 $"{Organisations.Read(organisationId)}/{Root}{query}";
         }
 
+        public static class Prns
+        {
+            private static string Root = "prns";
+
+            public static string Read(Guid organisationId, Guid prnId) =>
+                $"{Organisations.Read(organisationId)}/{Root}/{prnId}";
+        }
+
         public static class ComplianceDeclarations
         {
             private static string Root = "compliance-declarations";
