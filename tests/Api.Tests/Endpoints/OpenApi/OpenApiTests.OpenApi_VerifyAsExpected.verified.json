@@ -1121,6 +1121,16 @@
           },
           "name": {
             "type": "string"
+          },
+          "locale": {
+            "enum": [
+              "en",
+              "cy"
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       }

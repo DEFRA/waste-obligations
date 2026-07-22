@@ -46,7 +46,8 @@
           "user": {
             "id": "{Scrubbed}",
             "email": "submitter@email.com",
-            "name": "Submitter Name"
+            "name": "Submitter Name",
+            "locale": "en"
           },
           "timestamp": "2026-04-26T14:00:00+00:00",
           "action": "Submitted"
@@ -99,7 +100,8 @@
           "user": {
             "id": "{Scrubbed}",
             "email": "submitter@email.com",
-            "name": "Submitter Name"
+            "name": "Submitter Name",
+            "locale": "en"
           },
           "timestamp": "2026-04-26T14:00:00+00:00",
           "action": "Submitted"
@@ -152,7 +154,8 @@
           "user": {
             "id": "{Scrubbed}",
             "email": "submitter@email.com",
-            "name": "Submitter Name"
+            "name": "Submitter Name",
+            "locale": "en"
           },
           "timestamp": "2026-04-26T14:00:00+00:00",
           "action": "Submitted"

@@ -44,7 +44,8 @@
       "user": {
         "id": "Guid_2",
         "email": "submitter@email.com",
-        "name": "Submitter Name"
+        "name": "Submitter Name",
+        "locale": "en"
       },
       "timestamp": "DateTimeOffset_1",
       "action": "Submitted"
@@ -53,7 +54,8 @@
       "user": {
         "id": "Guid_3",
         "email": "regulator@email.com",
-        "name": "Regulator Name"
+        "name": "Regulator Name",
+        "locale": "en"
       },
       "timestamp": "DateTimeOffset_1",
       "action": "Accepted"

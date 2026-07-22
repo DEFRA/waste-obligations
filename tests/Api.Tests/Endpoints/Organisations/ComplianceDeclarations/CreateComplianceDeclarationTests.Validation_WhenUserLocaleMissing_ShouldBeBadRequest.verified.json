@@ -3,14 +3,8 @@
   "title": "One or more validation errors occurred.",
   "status": 400,
   "errors": {
-    "User.Id": [
-      "The Id field is required."
-    ],
-    "User.Email": [
-      "The Email field is required."
-    ],
-    "User.Name": [
-      "The Name field is required."
+    "User.Locale": [
+      "The Locale field is required."
     ]
   },
   "traceId": "{Scrubbed}"

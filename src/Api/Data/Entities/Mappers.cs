@@ -49,6 +49,7 @@ public static class Mappers
             Id = entity.Id,
             Email = entity.Email,
             Name = entity.Name,
+            Locale = entity.Locale,
         };
 
     public static Dtos.Organisation ToDto(this Organisation entity) =>

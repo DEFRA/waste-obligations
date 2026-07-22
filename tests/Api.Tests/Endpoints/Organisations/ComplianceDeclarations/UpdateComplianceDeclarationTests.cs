@@ -176,6 +176,26 @@ public class UpdateComplianceDeclarationTests : EndpointTestBase
     }
 
     [Fact]
+    public async Task WhenUpdatedWithoutUserLocale_ShouldBeOk()
+    {
+        var client = CreateClient(testUser: TestUser.WriteOnly);
+
+        var response = await client.PatchAsJsonAsync(
+            Testing.Endpoints.Organisations.ComplianceDeclarations.Update(
+                FakeWasteOrganisationsService.OrganisationId,
+                FakeComplianceDeclarationService.ComplianceDeclarationId.ToString()
+            ),
+            UpdateComplianceDeclarationRequestFixture
+                .Accepted()
+                .With(x => x.User, UserFixture.Regulator().With(u => u.Locale, (string?)null).Create())
+                .Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
     public async Task WhenUpdated_ShouldBeOk()
     {
         var client = CreateClient(testUser: TestUser.WriteOnly);

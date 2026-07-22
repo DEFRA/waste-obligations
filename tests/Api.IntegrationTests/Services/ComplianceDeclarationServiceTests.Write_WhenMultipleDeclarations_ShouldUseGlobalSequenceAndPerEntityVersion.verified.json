@@ -19,6 +19,7 @@
           "user": {
             "_id": "{Scrubbed}",
             "email": "submitter@email.com",
+            "locale": "en",
             "name": "Submitter Name"
           }
         }
@@ -59,13 +60,13 @@
         "regulatorEmail": "regulator@email.com",
         "schemeOperatorName": null
       },
-      "schemaVersion": "v1.0",
+      "schemaVersion": "v1.1",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "{Scrubbed}",
       "version": 1
     },
-    "SchemaVersion": "v1.0"
+    "SchemaVersion": "v1.1"
   },
   {
     "EventId": "01HXYZ00000000000000000002",
@@ -87,6 +88,7 @@
           "user": {
             "_id": "{Scrubbed}",
             "email": "submitter@email.com",
+            "locale": "en",
             "name": "Submitter Name"
           }
         }
@@ -127,13 +129,13 @@
         "regulatorEmail": "regulator@email.com",
         "schemeOperatorName": null
       },
-      "schemaVersion": "v1.0",
+      "schemaVersion": "v1.1",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "{Scrubbed}",
       "version": 1
     },
-    "SchemaVersion": "v1.0"
+    "SchemaVersion": "v1.1"
   },
   {
     "EventId": "01HXYZ00000000000000000003",
@@ -155,6 +157,7 @@
           "user": {
             "_id": "{Scrubbed}",
             "email": "submitter@email.com",
+            "locale": "en",
             "name": "Submitter Name"
           }
         }
@@ -195,7 +198,7 @@
         "regulatorEmail": "regulator@email.com",
         "schemeOperatorName": null
       },
-      "schemaVersion": "v1.0",
+      "schemaVersion": "v1.1",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "{Scrubbed}",
@@ -210,6 +213,7 @@
           "user": {
             "_id": "{Scrubbed}",
             "email": "submitter@email.com",
+            "locale": "en",
             "name": "Submitter Name"
           }
         }
@@ -250,13 +254,13 @@
         "regulatorEmail": "regulator@email.com",
         "schemeOperatorName": null
       },
-      "schemaVersion": "v1.0",
+      "schemaVersion": "v1.1",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "{Scrubbed}",
       "version": 2
     },
-    "SchemaVersion": "v1.0"
+    "SchemaVersion": "v1.1"
   },
   {
     "EventId": "01HXYZ00000000000000000004",
@@ -278,6 +282,7 @@
           "user": {
             "_id": "{Scrubbed}",
             "email": "submitter@email.com",
+            "locale": "en",
             "name": "Submitter Name"
           }
         }
@@ -318,7 +323,7 @@
         "regulatorEmail": "regulator@email.com",
         "schemeOperatorName": null
       },
-      "schemaVersion": "v1.0",
+      "schemaVersion": "v1.1",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "{Scrubbed}",
@@ -333,6 +338,7 @@
           "user": {
             "_id": "{Scrubbed}",
             "email": "submitter@email.com",
+            "locale": "en",
             "name": "Submitter Name"
           }
         }
@@ -373,12 +379,12 @@
         "regulatorEmail": "regulator@email.com",
         "schemeOperatorName": null
       },
-      "schemaVersion": "v1.0",
+      "schemaVersion": "v1.1",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "{Scrubbed}",
       "version": 2
     },
-    "SchemaVersion": "v1.0"
+    "SchemaVersion": "v1.1"
   }
 ]

@@ -3,6 +3,7 @@ using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Data.Migrations;
+using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.AuditEvents.Data;
 using Defra.WasteObligations.AuditEvents.Entities;
 using Microsoft.Extensions.Logging;
@@ -10,11 +11,15 @@ using MongoDB.Bson;
 using MongoDB.Driver;
 using NSubstitute;
 using AuditEventIndexesMigration = Defra.WasteObligations.Api.Data.Migrations.AuditEventIndexes;
+using ComplianceDeclaration = Defra.WasteObligations.Api.Data.Entities.ComplianceDeclaration;
+using ComplianceDeclarationStatus = Defra.WasteObligations.Api.Data.Entities.ComplianceDeclarationStatus;
+using RegistrationType = Defra.WasteObligations.Api.Data.Entities.RegistrationType;
 
 namespace Defra.WasteObligations.Api.IntegrationTests.Data;
 
 public class MongoMigrationServiceTests : IntegrationTestBase
 {
+    private const string SchemaVersionV1_1 = "v1.1";
     private const string OrganisationIdObligationYearIndexName = "OrganisationId_ObligationYear";
     private const string SearchIndexName = "ObligationYear_Status_OrganisationRegistrationType";
     private const string OrganisationNameIndexName = "OrganisationName";
@@ -175,6 +180,139 @@ public class MongoMigrationServiceTests : IntegrationTestBase
 
         await subject.UpAsync(context);
     }
+
+    [Fact]
+    public async Task ComplianceDeclarationUserLocale_ShouldBumpSchemaVersionAndLeaveLegacyLocaleNull()
+    {
+        var database = GetMongoDatabase();
+        var collection = database.GetCollection<BsonDocument>(nameof(ComplianceDeclaration));
+        var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
+        var subject = new ComplianceDeclarationUserLocale();
+        var legacyId = ObjectId.GenerateNewId();
+        var existingLocaleId = ObjectId.GenerateNewId();
+        var alreadyMigratedId = ObjectId.GenerateNewId();
+        var timestamp = new DateTime(2026, 4, 26, 14, 0, 0, DateTimeKind.Utc);
+
+        await collection.InsertManyAsync(
+            [
+                CreateLegacyComplianceDeclaration(
+                    legacyId,
+                    timestamp,
+                    submittedUserLocale: null,
+                    schemaVersion: "v1.0"
+                ),
+                CreateLegacyComplianceDeclaration(
+                    existingLocaleId,
+                    timestamp,
+                    submittedUserLocale: UserLocale.Cy,
+                    schemaVersion: "v1.0"
+                ),
+                CreateLegacyComplianceDeclaration(
+                    alreadyMigratedId,
+                    timestamp,
+                    submittedUserLocale: UserLocale.En,
+                    schemaVersion: SchemaVersionV1_1
+                ),
+            ],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+
+        await subject.UpAsync(context);
+
+        var legacy = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", legacyId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        legacy["schemaVersion"].AsString.Should().Be(SchemaVersionV1_1);
+        GetSubmittedAuditUser(legacy)["locale"].Should().Be(BsonNull.Value);
+
+        var existingLocale = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", existingLocaleId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        existingLocale["schemaVersion"].AsString.Should().Be(SchemaVersionV1_1);
+        GetSubmittedAuditUser(existingLocale)["locale"].AsString.Should().Be(UserLocale.Cy);
+
+        var alreadyMigrated = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", alreadyMigratedId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        alreadyMigrated["schemaVersion"].AsString.Should().Be(SchemaVersionV1_1);
+        GetSubmittedAuditUser(alreadyMigrated)["locale"].AsString.Should().Be(UserLocale.En);
+
+        await subject.DownAsync(context);
+
+        legacy = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", legacyId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        legacy["schemaVersion"].AsString.Should().Be("v1.0");
+        GetSubmittedAuditUser(legacy).Contains("locale").Should().BeFalse();
+
+        existingLocale = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", existingLocaleId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        existingLocale["schemaVersion"].AsString.Should().Be("v1.0");
+        GetSubmittedAuditUser(existingLocale).Contains("locale").Should().BeFalse();
+    }
+
+    private static BsonDocument CreateLegacyComplianceDeclaration(
+        ObjectId id,
+        DateTime timestamp,
+        string? submittedUserLocale,
+        string schemaVersion
+    )
+    {
+        var submittedUser = new BsonDocument
+        {
+            ["_id"] = "e72be574-8b5b-4836-af47-dd7e0c0d1d87",
+            ["email"] = "submitter@email.com",
+            ["name"] = "Submitter Name",
+        };
+
+        if (submittedUserLocale is not null)
+        {
+            submittedUser["locale"] = submittedUserLocale;
+        }
+
+        return new BsonDocument
+        {
+            ["_id"] = id,
+            ["schemaVersion"] = schemaVersion,
+            ["version"] = 1,
+            ["created"] = timestamp,
+            ["updated"] = timestamp,
+            ["status"] = nameof(ComplianceDeclarationStatus.Submitted),
+            ["obligationYear"] = 2026,
+            ["obligationStatus"] = "NotMet",
+            ["submitterName"] = "Submitter Name",
+            ["isRegulation43Compliant"] = true,
+            ["organisation"] = new BsonDocument
+            {
+                ["_id"] = Guid.NewGuid().ToString(),
+                ["registrationType"] = nameof(RegistrationType.DirectProducer),
+                ["name"] = "Org Name",
+                ["complianceSchemeName"] = BsonNull.Value,
+                ["schemeOperatorName"] = BsonNull.Value,
+                ["referenceNumber"] = "123456",
+                ["regulator"] = "Regulator",
+                ["regulatorEmail"] = "regulator@email.com",
+            },
+            ["obligations"] = new BsonArray(),
+            ["audit"] = new BsonArray
+            {
+                new BsonDocument
+                {
+                    ["action"] = nameof(ComplianceDeclarationStatus.Submitted),
+                    ["timestamp"] = timestamp,
+                    ["user"] = submittedUser,
+                },
+            },
+        };
+    }
+
+    private static BsonDocument GetSubmittedAuditUser(BsonDocument document) =>
+        document["audit"]
+            .AsBsonArray.Single(x =>
+                x.AsBsonDocument["action"].AsString == nameof(ComplianceDeclarationStatus.Submitted)
+            )["user"]
+            .AsBsonDocument;
 
     private static bool IsIndex(BsonDocument index, string name, BsonDocument keys, bool unique = false) =>
         index.GetValue("name") == name

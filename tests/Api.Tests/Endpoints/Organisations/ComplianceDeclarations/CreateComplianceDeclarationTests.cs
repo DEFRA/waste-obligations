@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Dtos;
@@ -139,6 +140,66 @@ public class CreateComplianceDeclarationTests : EndpointTestBase
     }
 
     [Fact]
+    public async Task Validation_WhenUserLocaleMissing_ShouldBeBadRequest()
+    {
+        var content = await RequestShouldBeBadRequest(
+            CreateComplianceDeclarationRequestFixture
+                .Default()
+                .With(x => x.User, UserFixture.WithoutLocale().Create())
+                .Create()
+        );
+
+        await VerifyJson(content);
+    }
+
+    [Theory]
+    [InlineData("EN")]
+    [InlineData("fr")]
+    public async Task Validation_WhenUserLocaleInvalid_ShouldBeBadRequest(string locale)
+    {
+        var content = await RequestShouldBeBadRequest(
+            CreateComplianceDeclarationRequestFixture
+                .Default()
+                .With(x => x.User, UserFixture.Default().With(u => u.Locale, locale).Create())
+                .Create()
+        );
+
+        await VerifyJson(content).UseParameters(locale);
+    }
+
+    [Theory]
+    [InlineData(UserLocale.En)]
+    [InlineData(UserLocale.Cy)]
+    public async Task WhenUserLocaleProvided_ShouldPersistOnSubmittedAuditUser(string locale)
+    {
+        var client = CreateClient(testUser: TestUser.WriteOnly);
+        ComplianceDeclarationService.CreateNewId = () => ObjectId.Parse("6830b9d4c7e21f5a8d3e64b2");
+        ComplianceDeclarationService.UtcNow = () => new DateTime(2026, 4, 20, 12, 28, 0, DateTimeKind.Utc);
+
+        var response = await client.PostAsJsonAsync(
+            Testing.Endpoints.Organisations.ComplianceDeclarations.Create(FakeWasteOrganisationsService.OrganisationId),
+            CreateComplianceDeclarationRequestFixture
+                .DirectProducer(FakeWasteOrganisationsService.OrganisationId)
+                .With(x => x.User, UserFixture.Default().With(u => u.Locale, locale).Create())
+                .Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        using var document = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)
+        );
+        var submittedAudit = document
+            .RootElement.GetProperty("audit")
+            .EnumerateArray()
+            .Should()
+            .ContainSingle()
+            .Subject;
+        submittedAudit.GetProperty("action").GetString().Should().Be("Submitted");
+        submittedAudit.GetProperty("user").GetProperty("locale").GetString().Should().Be(locale);
+    }
+
+    [Fact]
     public async Task Validation_WhenRequestInvalid_ShouldBeBadRequest()
     {
         var content = await RequestShouldBeBadRequest(
@@ -171,7 +232,7 @@ public class CreateComplianceDeclarationTests : EndpointTestBase
         await VerifyJson(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
     }
 
-    private async Task<string> RequestShouldBeBadRequest(CreateComplianceDeclarationRequest request)
+    private async Task<string> RequestShouldBeBadRequest(object request)
     {
         var client = CreateClient(testUser: TestUser.WriteOnly);
 

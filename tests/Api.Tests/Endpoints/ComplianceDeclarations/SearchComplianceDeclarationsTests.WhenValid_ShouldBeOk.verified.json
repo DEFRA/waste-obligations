@@ -46,7 +46,8 @@
           "user": {
             "id": "Guid_2",
             "email": "submitter@email.com",
-            "name": "Submitter Name"
+            "name": "Submitter Name",
+            "locale": "en"
           },
           "timestamp": "DateTimeOffset_3",
           "action": "Submitted"
