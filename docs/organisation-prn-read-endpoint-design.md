@@ -65,30 +65,30 @@ The upstream `PrnDto` includes these detail fields:
 | `organisationId` | Required as `recipient.organisationId`. It identifies the producer or compliance scheme the PRN/PERN was issued to and allows the endpoint to verify that the returned PRN belongs to the route organisation. |
 | `organisationName` | Required as `recipient.displayName`. Common backend has already reduced the recipient organisation to the name selected for display; it cannot supply the separate legal name, trading name, or registration type. |
 | `producerAgency` | Exclude for now. It is a first-class root field in `legacy-prns`, but it is not rendered today and is not available from the inspected RREPW payload/model. |
-| `reprocessorExporterAgency` | Include. Not rendered today, but promoted to a first-class root field by `legacy-prns`. |
+| `reprocessorExporterAgency` | Required. Both common-backend ingestion paths require it, `legacy-prns` retains it, and epr-backend requires the corresponding accreditation regulator. |
 | `prnStatus` | Required. Drives status display, status meaning, action buttons, and accept/reject result guards. |
 | `prnStatusId` | Not required. Numeric status ID. Avoid exposing as the primary status contract. |
 | `tonnageValue` | Required. Rendered in details, PDF tonnage-in-words, and accept result copy. |
 | `materialName` | Required. Rendered as material and used for material group copy. |
-| `issuerNotes` | Required. Rendered as note with a "not provided" fallback. |
+| `issuerNotes` | Optional. Rendered as note with a "not provided" fallback. |
 | `issuerReference` | Exclude. Not rendered and stored under `Legacy` by `legacy-prns`. |
-| `prnSignatory` | Required. Rendered as authorised by. |
-| `prnSignatoryPosition` | Required. Rendered as position, with null currently mapped to an empty string. |
+| `prnSignatory` | Optional. Rendered as authorised by; NPWD ingestion permits it to be absent. |
+| `prnSignatoryPosition` | Optional. Rendered as position, with null currently mapped to an empty string. |
 | `signature` | Exclude for now. It is a first-class root field in `legacy-prns`, but it is not rendered today and is not available from the inspected RREPW payload/model. |
 | `issueDate` | Required. Rendered as date issued, issue year, and affects material localisation. |
-| `processToBeUsed` | Required. Rendered as recycling process, with null currently mapped to an empty string. |
+| `processToBeUsed` | Required for a valid stored PRN. Both common-backend ingestion paths require it, and epr-backend can derive it for every supported material. Treat a missing value as a data-quality failure. |
 | `decemberWaste` | Required. Rendered as yes/no, drives the December warning, and participates in actionability year logic. |
 | `statusUpdatedOn` | Exclude. The common schema exposes event-specific accepted, rejected, and cancelled timestamps instead of a generic current-status timestamp. |
 | `issuedByOrg` | Required. Rendered as issued by. |
 | `accreditationNumber` | Required. Rendered as accreditation number. |
-| `reprocessingSite` | Required for PRNs. Rendered only when the note is a PRN, not a PERN. |
-| `accreditationYear` | Include as nullable integer. Not rendered today, but promoted to a first-class root field by `legacy-prns`. |
+| `reprocessingSite` | Optional. Rendered only when the note is a PRN, not a PERN; the NPWD mapper currently stores an empty string even for PRNs. |
+| `accreditationYear` | Required. Both common-backend ingestion paths require a valid year, `legacy-prns` retains it, and epr-backend requires it in the accreditation snapshot. Parse it to an integer and treat a missing or invalid value as a data-quality failure. |
 | `obligationYear` | Required. Rendered in the December warning and used to derive the effective acceptance year. |
 | `packagingProducer` | Exclude for now. It is a first-class root field in `legacy-prns`, but it is not rendered today and is not available from the inspected RREPW payload/model as a distinct PRN field. |
 | `createdBy` | Not rendered on specific PRN pages. |
-| `createdOn` | Include as nullable `audit.createdAt` for administrative use. Available from common backend and preserved by `legacy-prns`; RREPW direct reads return `null` until RREPW/epr-backend can supply equivalent source-store audit semantics. |
+| `createdOn` | Required as `audit.createdAt` for administrative use. Available from common backend, preserved by `legacy-prns`, and required in epr-backend storage. |
 | `lastUpdatedBy` | Not rendered on specific PRN pages. |
-| `lastUpdatedDate` | Include as nullable `audit.updatedAt` for administrative use. Available from common backend and preserved by `legacy-prns`; RREPW direct reads return `null` until RREPW/epr-backend can supply equivalent source-store audit semantics. |
+| `lastUpdatedDate` | Required as `audit.updatedAt` for administrative use. Available from common backend, preserved by `legacy-prns`, and required in epr-backend storage. |
 | `isExport` | Required. Distinguishes PRN from PERN and controls headings, labels, copy, and PRN-only reprocessing site display. |
 | `sourceSystemId` | Not rendered. Current common-backend cache segmentation/provenance only. Exclude from the Waste Obligations schema and any frontend contract. |
 
@@ -208,9 +208,9 @@ Nesting is useful where it groups multiple fields with the same role or avoids a
 | `issuer.organisationName` | Useful. It disambiguates the organisation that issued the PRN/PERN from the authorised person and from the producer/compliance scheme it was issued to. RREPW already models `issuedByOrganisation` as an object, and future `id` or `tradingName` could fit here without renaming the role. | Keep nested. The role noun avoids making `issuedBy` and `authorisedBy` look like two equivalent actors when one is an organisation and the other is a person. |
 | `recipient.organisationId` / `recipient.displayName` | Useful. They make the producer/compliance scheme role explicit, allow the returned PRN to be checked against the organisation-scoped route, and map from the same issued-to organisation object in every intended source. `displayName` states that the value is presentation-ready and avoids implying that it is always the legal organisation name. | Keep nested and require both fields. Use the role noun `recipient` rather than the event phrase `issuedTo`. |
 | `recipient.name` / `recipient.tradingName` / `recipient.registrationType` | Useful optional source detail. epr-backend snapshots these values on the PRN, while common backend and `legacy-prns` retain only the already-selected display value. | Keep nested and nullable. Normalise `registrationType` to the existing Waste Obligations vocabulary rather than exposing epr-backend strings directly. |
-| `authorisedBy.name` / `authorisedBy.position` | Useful. These fields belong together as the authorised-by actor/person details and map cleanly from RREPW `status.authorisedBy`. This is more explicit than `authorisation.name`; `issuer` separately identifies the issuing organisation. | Keep nested. |
+| `authorisedBy.name` / `authorisedBy.position` | Useful. These fields belong together as the authorised-by actor/person details and map cleanly from RREPW `status.authorisedBy`. NPWD PRNs can omit either value. This is more explicit than `authorisation.name`; `issuer` separately identifies the issuing organisation. | Keep a required `authorisedBy` object with nullable `name` and `position` properties. |
 | `reprocessing.site` | Not necessary. The wrapper currently contains only one string, RREPW does not have a `reprocessing` object, and current common-backend/frontend language is `reprocessingSite`. | Flatten to `reprocessingSite`. |
-| `audit.createdAt` / `audit.updatedAt` / lifecycle event dates | Useful for administrative inspection even though the current PRN frontend does not render them. The common `audit` object groups the available record-audit and PRN-event timestamps while DTO descriptions retain their different semantics. | Keep all audit properties nested and nullable. |
+| `audit.createdAt` / `audit.updatedAt` / lifecycle event dates | Useful for administrative inspection even though the current PRN frontend does not render them. The common `audit` object groups the record-audit and PRN-event timestamps while DTO descriptions retain their different semantics. | Keep a required `audit` object. Require `createdAt` and `updatedAt`; keep `acceptedAt`, `rejectedAt`, and `cancelledAt` nullable because each event may not have happened and common-backend detail cannot supply them separately. |
 
 In the RREPW payload currently consumed by `epr-prn-integration-function` through `GET v1/packaging-recycling-notes`, most of those fields are already available:
 
@@ -245,7 +245,7 @@ If RREPW later exposes these values and a consumer needs them, they can be added
 
 ### Audit Date Availability And Format
 
-Decision: include source-store and PRN status-event dates together in the common `audit` object as nullable values. They are useful to administrative consumers regardless of whether the current PRN UI renders them. Lack of availability from one source should result in `null`, not removal of the field from the common contract.
+Decision: include source-store and PRN status-event dates together in a required common `audit` object. `createdAt` and `updatedAt` are required because common backend, `legacy-prns`, and epr-backend all store them. `acceptedAt`, `rejectedAt`, and `cancelledAt` remain nullable because each lifecycle event may not have happened and the common-backend detail response cannot supply those events separately.
 
 `audit.createdAt` and `audit.updatedAt` have source-store semantics: they describe when the PRN record was created or updated in the system serving that PRN and must not be assumed to be directly comparable across PRN pools. `audit.acceptedAt`, `audit.rejectedAt`, and `audit.cancelledAt` have PRN lifecycle-event semantics. DTO and OpenAPI descriptions must make that distinction explicit.
 
@@ -269,7 +269,7 @@ Common schema audit shape:
 }
 ```
 
-All five properties are nullable `DateTimeOffset` values. For a source that cannot supply a field with the documented semantic, return `null` rather than deriving it from a different timestamp. Add property-level DTO descriptions explaining the semantics and source-specific availability of every field, and emit those descriptions into OpenAPI.
+`createdAt` and `updatedAt` are required `DateTimeOffset` values. `acceptedAt`, `rejectedAt`, and `cancelledAt` are nullable `DateTimeOffset` values. For a nullable lifecycle event that has not happened or cannot be supplied by common-backend detail, return `null` rather than deriving it from a different timestamp. Treat a missing source-store timestamp as a data-quality failure. Add property-level DTO descriptions explaining the semantics and source-specific availability of every field, and emit those descriptions into OpenAPI.
 
 The source-store fields can be populated as:
 
@@ -277,8 +277,8 @@ The source-store fields can be populated as:
 | --- | --- | --- | --- |
 | `epr-prn-common-backend` | `createdOn` | `lastUpdatedDate` | Available now. Convert `DateTime` to UTC `DateTimeOffset` before returning. |
 | `legacy-prns` | `CreatedAt` | `UpdatedAt` | Available if `legacy-prns` becomes the NPWD legacy source; values are imported from common-backend raw data. Convert to UTC `DateTimeOffset`. |
-| RREPW direct payload inspected in `epr-prn-integration-function` | Not available | Not available | Return `null` for both fields until RREPW provides source created/updated fields through the selected detail endpoint. |
-| `epr-backend` | `createdAt` | Domain has `updatedAt`; current detail response does not return it. | Return `createdAt` when available and `updatedAt` once the future epr-backend PRN detail contract exposes it. Convert from JavaScript/Mongo UTC dates to `DateTimeOffset`. |
+| RREPW direct payload inspected in `epr-prn-integration-function` | Not available | Not available | The inspected sync/list payload is not a viable detail source for this required contract. A different RREPW detail endpoint would have to supply both values. |
+| `epr-backend` | `createdAt` | `updatedAt` | Both are required in the stored PRN document. The future recipient-scoped detail contract must expose both and Waste Obligations must convert them from JavaScript/Mongo UTC dates to `DateTimeOffset`. |
 
 The lifecycle-event fields can be populated as:
 
@@ -309,7 +309,8 @@ If the future RREPW detail/read endpoint selected for Waste Obligations differs 
 - accreditation number;
 - accreditation year;
 - reprocessing site address;
-- issuer/additional notes.
+- issuer/additional notes;
+- source-store created and updated timestamps.
 
 ## Future `legacy-prns` Integration
 
@@ -351,7 +352,7 @@ This is the compatibility analysis against the proposed Waste Obligations schema
 | `obligationYear` | `ObligationYear` as nullable integer in the current Mongo document. | Potential data-quality gap for migrated records where invalid common-backend strings were mapped to `null`. Waste Obligations should treat missing/null `obligationYear` as unable to satisfy the required integer contract. |
 | `decemberWaste` | `IsDecemberWaste`. | No gap, rename to `decemberWaste`. |
 | `material` | `MaterialName`. | No gap for common-backend-migrated data; map the source PRN detail material name into the Waste Obligations PRN material vocabulary. |
-| `recyclingProcess` | `Legacy.ProcessToBeUsed`. | No gap, but the field sits under the provenance subdocument rather than root detail data. |
+| `recyclingProcess` | `Legacy.ProcessToBeUsed` as a nullable string in the current Mongo document. | The field sits under the provenance subdocument. Both common-backend ingestion paths require it, so a missing/null migrated value is a data-quality failure against the required public contract. |
 | `tonnage` | `TonnageValue`. | No gap. |
 | `issuer.organisationName` | `IssuedByOrg`. | No gap. |
 | `recipient.organisationId` | `Organisation.Id`. | No gap. The migration maps common-backend `OrganisationId` into this field. |
@@ -359,15 +360,15 @@ This is the compatibility analysis against the proposed Waste Obligations schema
 | `recipient.name` | Not stored separately from the selected organisation display value. | Return `null`; do not claim that `Organisation.Name` is always the legal name. |
 | `recipient.tradingName` | Not stored separately. | Return `null`. |
 | `recipient.registrationType` | Not stored on the migrated PRN organisation. | Return `null`. |
-| `authorisedBy.name` | `PrnSignatory`. | No gap. |
-| `authorisedBy.position` | `PrnSignatoryPosition`. | No gap. |
-| `reprocessingSite` | `ReprocessingSite`. | No gap. |
+| `authorisedBy.name` | `PrnSignatory`. | Return `null` when absent; NPWD ingestion permits it to be omitted. |
+| `authorisedBy.position` | `PrnSignatoryPosition`. | Return `null` when absent. |
+| `reprocessingSite` | `ReprocessingSite`. | Return `null` when absent or blank. It is not applicable to PERNs, and the NPWD mapper currently stores an empty string even for PRNs. |
 | `accreditationNumber` | `AccreditationNumber`. | No gap. |
-| `additionalNotes` | `Notes`, mapped from common-backend `IssuerNotes`. | No gap, rename to `additionalNotes`. |
-| `reprocessorExporterAgency` | `ReprocessorExporterAgency`. | No gap. Include because it is root in `legacy-prns` and available from RREPW regulator mapping. |
-| `accreditationYear` | `AccreditationYear` as nullable integer. | No gap. Include because it is root in `legacy-prns` and available from RREPW accreditation data. |
+| `additionalNotes` | `Notes`, mapped from common-backend `IssuerNotes`. | Rename to `additionalNotes`; return `null` when absent or blank. |
+| `reprocessorExporterAgency` | `ReprocessorExporterAgency`. | Required in the source ingestion contracts and retained as a required legacy root field. Treat a missing or blank value as a data-quality failure. |
+| `accreditationYear` | `AccreditationYear` as nullable integer in the current Mongo document. | Potential data-quality gap where a malformed common-backend string was mapped to `null`. Waste Obligations should treat missing/null `accreditationYear` as unable to satisfy the required integer contract. |
 
-The following `legacy-prns` root fields remain intentionally outside the Waste Obligations common schema for now: `ProducerAgency`, `Signature`, and `PackagingProducer`. They are not rendered by the current specific PRN/PERN UI and are not available as source PRN values from the inspected RREPW payload/model. `CreatedAt` and `UpdatedAt` are exposed through the nullable `audit` object described above, using source-store audit semantics. `IssuerReference`, `PrnId`, `ExternalId`, `SourceSystemId`, and numeric `PrnStatusId` remain excluded because they are under the `Legacy` provenance subdocument.
+The following `legacy-prns` root fields remain intentionally outside the Waste Obligations common schema for now: `ProducerAgency`, `Signature`, and `PackagingProducer`. They are not rendered by the current specific PRN/PERN UI and are not available as source PRN values from the inspected RREPW payload/model. `CreatedAt` and `UpdatedAt` are exposed as required properties in the `audit` object described above, using source-store audit semantics. `IssuerReference`, `PrnId`, `ExternalId`, `SourceSystemId`, and numeric `PrnStatusId` remain excluded because they are under the `Legacy` provenance subdocument.
 
 ## Future `epr-backend` Integration
 
@@ -440,12 +441,13 @@ The new epr-backend endpoint should:
 - accept the recipient `organisationId` and a string `prnId`;
 - look up an RREPW/future PRN by its canonical epr-backend identity; mixed or legacy ID handling is only required if NPWD PRNs are later imported into epr-backend;
 - return `404` when the PRN does not exist, is not visible to a recipient, or `prn.issuedToOrganisation.id` does not equal the route `organisationId`;
+- return `404` for pre-issue and non-evidence states: `draft`, `awaiting_authorisation`, `deleted`, and `discarded`; recipient-visible records must have a PRN/PERN number and issued timestamp;
 - avoid requiring issuer `organisationId`, `registrationId`, or `accreditationId` route values;
 - use the registration and accreditation context stored on the PRN rather than deriving historical context from the issuer's current organisation record;
 - return the fields needed by the common Waste Obligations schema, including the fields missing from the current `packagingRecyclingNoteById` response;
-- return nullable accepted, rejected, and cancelled timestamps from the stored status projection within the common `audit` object, alongside the source-store audit timestamps;
+- return required source-store `createdAt` and `updatedAt` timestamps plus nullable accepted, rejected, and cancelled timestamps from the stored status projection within the common `audit` object;
 - return `recipient.organisationId`, `displayName`, and the nullable recipient `name`, `tradingName`, and normalised `registrationType` fields so Waste Obligations can retain its own defensive route-scope check and expose the richer organisation snapshot epr-backend already stores;
-- define recipient-visible status rules explicitly, including how pre-issue and soft-deleted states are handled;
+- expose only recipient-visible issued-evidence statuses: `awaiting_acceptance`, `accepted`, `rejected` when supported by the source, `awaiting_cancellation`, and `cancelled`;
 - use service-to-service authentication and authorisation appropriate for Waste Obligations.
 
 This endpoint is future work and does not block the initial common-backend-backed Waste Obligations implementation. It does block replacing or supplementing common backend with `epr-backend` as the PRN detail source.
@@ -459,16 +461,16 @@ This is the gap analysis against the proposed Waste Obligations schema, using th
 | `id` | Current PRN domain has `id` and current get returns `id`. | Map epr-backend `id` to Waste Obligations `Prn.id` for RREPW/future PRNs. Type-compatible because Waste Obligations models PRN IDs as strings. |
 | `number` | Current get returns `prnNumber`. | No gap, rename to `number`. |
 | `type` | Domain has `isExport`; external mapper exposes `isExport`; current get returns `wasteProcessingType` but not `isExport`. RREPW payload has `isExport`. | Add `isExport` or a direct PRN/PERN `type` to the current get response, or define a reliable mapping from `wasteProcessingType`. |
-| `status` | Current get returns `status` from the domain `status.currentStatus`, using `epr-backend` snake_case values. `epr-backend` does not have `rejected` as a current status; producer rejection moves the PRN to `awaiting_cancellation` while storing a rejected operation timestamp. | Normalise to the Waste Obligations PRN status vocabulary. Add `AwaitingCancellation` to the public vocabulary for source-faithful epr-backend/RREPW mapping. Keep `Rejected` for common-backend/RREPW rejected PRNs. Do not expose epr-backend `draft`, `deleted`, or `discarded` through this PRN detail contract. |
+| `status` | Current get returns `status` from the domain `status.currentStatus`, using `epr-backend` snake_case values. `epr-backend` does not have `rejected` as a current status; producer rejection moves the PRN to `awaiting_cancellation` while storing a rejected operation timestamp. | Normalise to the Waste Obligations PRN status vocabulary. Add `AwaitingCancellation` to the public vocabulary for source-faithful epr-backend/RREPW mapping. Keep `Rejected` for common-backend/RREPW rejected PRNs. Do not expose epr-backend `draft`, `awaiting_authorisation`, `deleted`, or `discarded` through this recipient detail contract. |
 | `audit.acceptedAt` | Domain status projection and external mapper expose the accepted timestamp; current get does not return it. | Add it as nullable. |
 | `audit.rejectedAt` | Domain status projection and external mapper expose the rejected operation timestamp; current get does not return it. | Add it as nullable, including when the current status is `AwaitingCancellation` or has advanced to `Cancelled`. |
 | `audit.cancelledAt` | Domain status projection and external mapper expose the cancelled timestamp; current get does not return it. | Add it as nullable. |
-| `issuedAt` | Current get returns `issuedAt`. | No data gap for issued PRNs; map directly. |
+| `issuedAt` | Current get returns nullable `issuedAt` because its issuer-facing route also serves pre-issue records. | Require it in the recipient contract. The recipient endpoint must return `404` for pre-issue states and treat a missing issued timestamp on a recipient-visible status as a data-quality failure. |
 | `obligationYear` | Not present in the current PRN domain projection or current get response. It is also not present in the inspected RREPW payload, but is due to be added. | Missing from the current implementation. `epr-backend` will explicitly store `obligationYear` and provide it when Waste Obligations requests a PRN by ID. Do not rely on the current RREPR hard-coded `"2026"`. |
-| `accreditationYear` | Current get returns `accreditationYear`. | No gap. |
+| `accreditationYear` | Current get returns `accreditationYear`; the stored accreditation snapshot requires it. | No gap. Require it in the Waste Obligations contract. |
 | `decemberWaste` | Current get returns `isDecemberWaste`. | No gap, rename to `decemberWaste`. |
 | `material` | Current get returns `material`; domain has accreditation material. | No data gap, but Waste Obligations must either receive PRN material values from `epr-backend` in the Waste Obligations vocabulary, or map `epr-backend` material codes/names to it. |
-| `recyclingProcess` | Current get returns `processToBeUsed`. | No gap, rename to `recyclingProcess`. |
+| `recyclingProcess` | Current get returns `processToBeUsed`, derived for every supported material. | No gap, rename to required `recyclingProcess`. |
 | `tonnage` | Current get returns `tonnage`. | No gap. |
 | `issuer.organisationName` | Domain has `organisation.name`; external mapper exposes `issuedByOrganisation`; current get does not return it. RREPW payload has `issuedByOrganisation.name`. | Missing from current get response, but not missing from the inspected RREPW payload. Add issuer organisation details or expose them through a future detail contract. |
 | `recipient.organisationId` | Domain and current get response have `issuedToOrganisation.id`. | No gap. Return it as the required recipient organisation identity, parse it as a GUID in the Waste Obligations adapter, and verify it matches the Waste Obligations route. |
@@ -480,10 +482,10 @@ This is the gap analysis against the proposed Waste Obligations schema, using th
 | `authorisedBy.position` | Current get returns the signatory actor as `issuedBy.position`; the external RREPW mapper exposes the same actor as `status.authorisedBy.jobTitle`. | No gap when source carries it, map from `issuedBy.position` in the current get response or `status.authorisedBy.jobTitle` in an RREPW-shaped response. |
 | `reprocessingSite` | Domain accreditation has `siteAddress`; external mapper exposes `accreditation.siteAddress`; current get does not return it. RREPW payload has `accreditation.siteAddress`. | Missing from current get response, but not missing from the inspected RREPW payload. Add accreditation site address and format it for the Waste Obligations schema. |
 | `accreditationNumber` | Domain accreditation has `accreditationNumber`; admin mapper exposes it; current get does not return it. RREPW payload has `accreditation.accreditationNumber`. | Missing from current get response, but not missing from the inspected RREPW payload. Add accreditation number to the current get response or future detail contract. |
-| `reprocessorExporterAgency` | Domain accreditation has `submittedToRegulator`; current get does not return it. RREPW payload has `accreditation.submittedToRegulator`. | Missing from current get response, but not missing from the inspected RREPW payload. Add regulator details and map them to the Waste Obligations agency name. |
+| `reprocessorExporterAgency` | Domain accreditation requires `submittedToRegulator`; current get does not return it. RREPW payload has `accreditation.submittedToRegulator`. | Missing from current get response, but present in the stored data and inspected RREPW payload. Add it to the recipient detail response and map it to the required Waste Obligations agency name. |
 | `additionalNotes` | Current get returns `notes`. | No gap, rename to `additionalNotes`. |
-| `audit.createdAt` | Current get returns `createdAt`; domain has `createdAt`. | No data gap. Convert to Waste Obligations `DateTimeOffset` format. |
-| `audit.updatedAt` | Domain has `updatedAt`; current get does not return it. | Missing from current get response. Add `updatedAt` to the future detail contract. |
+| `audit.createdAt` | Current get returns `createdAt`; storage requires it. | No data gap. Require it and convert to Waste Obligations `DateTimeOffset` format. |
+| `audit.updatedAt` | Storage requires `updatedAt`; current get does not return it. | Missing from current get response. Add it as a required field in the future recipient detail contract. |
 
 ### Critique: Initial vs Future Integration
 
@@ -493,7 +495,7 @@ The future RREPW/epr-backend integration is not adequately implementable until t
 
 The current epr-backend single-PRN endpoint is therefore not fit as a drop-in source for this Waste Obligations endpoint. The new endpoint must preserve the Waste Obligations recipient-organisation scope and verify `prn.issuedToOrganisation.id`, resolve any required issuer context internally, and expose the missing common-schema fields listed above.
 
-On field availability, the inspected RREPW payload is close enough for the proposed common schema except for `obligationYear`, which is due to be added and must be returned as an integer. If the eventual RREPW/epr-backend detail endpoint cannot provide the same fields as the inspected list/sync payload, that endpoint should be treated as not fit for purpose and replaced or expanded before integration.
+On field availability, the inspected RREPW list/sync payload is not sufficient for the proposed common schema because it lacks `obligationYear` and the required source-store `createdAt` and `updatedAt` timestamps. `obligationYear` is due to be added, while epr-backend already stores the audit timestamps. The new recipient-scoped epr-backend detail endpoint must combine those values with the other fields available from the RREPW projection. If it cannot provide the full required contract, it should be treated as not fit for purpose and expanded before integration.
 
 ### Questions For The New `epr-backend` Recipient Endpoint
 
@@ -508,12 +510,11 @@ The only RREPW read route inspected so far is the Azure Function list/sync route
 That shape is not directly callable from the proposed Waste Obligations route, because Waste Obligations has only the recipient `organisationId` and `prnId`.
 
 1. Which team owns delivery of the new recipient-scoped epr-backend endpoint, and what will its final path, versioning, and service-to-service authentication contract be?
-2. Which PRN statuses are visible to the recipient organisation? In particular, should `AwaitingAuthorisation` be hidden until the PRN/PERN is issued, alongside `draft`, `deleted`, and `discarded`?
-3. Confirm that the RREPW-backed listing/navigation flow and the new recipient-scoped detail endpoint will expose the same epr-backend PRN `id`, so that identity remains stable throughout the new journey.
-4. Can its response expose the common-schema fields that are present in the RREPW payload or epr-backend domain but missing from the current `packagingRecyclingNoteById` response: `isExport`/`type`, issuer organisation name, accreditation number, accreditation site address, reprocessor/exporter agency, accepted/rejected/cancelled timestamps, and `updatedAt`?
-5. Confirm the delivery shape for `obligationYear` in `epr-backend`: it will be explicitly stored and returned by the PRN-by-ID response once RREPW supplies it.
-6. If NPWD legacy PRNs are imported into `epr-backend`, will epr-backend support existing common-backend/legacy GUID IDs for those imported records, despite RREPW/future PRNs using ObjectId strings?
-7. Will `issuedToOrganisation.registrationType` be constrained to `LARGE_PRODUCER` and `COMPLIANCE_SCHEME`, or can additional values appear? Waste Obligations will initially map only those two values and return `null` for an unrecognised value while still deriving `displayName` with the documented fallback.
+2. Confirm that the RREPW-backed listing/navigation flow and the new recipient-scoped detail endpoint will expose the same epr-backend PRN `id`, so that identity remains stable throughout the new journey.
+3. Can its response expose the common-schema fields that are present in the RREPW payload or epr-backend domain but missing from the current `packagingRecyclingNoteById` response: `isExport`/`type`, issuer organisation name, accreditation number, accreditation site address, reprocessor/exporter agency, accepted/rejected/cancelled timestamps, and required `updatedAt`?
+4. Confirm the delivery shape for `obligationYear` in `epr-backend`: it will be explicitly stored and returned by the PRN-by-ID response once RREPW supplies it.
+5. If NPWD legacy PRNs are imported into `epr-backend`, will epr-backend support existing common-backend/legacy GUID IDs for those imported records, despite RREPW/future PRNs using ObjectId strings?
+6. Will `issuedToOrganisation.registrationType` be constrained to `LARGE_PRODUCER` and `COMPLIANCE_SCHEME`, or can additional values appear? Waste Obligations will initially map only those two values and return `null` for an unrecognised value while still deriving `displayName` with the documented fallback.
 
 ## Specific PRN Frontend Pages
 
@@ -674,7 +675,6 @@ Status should follow the existing Waste Obligations style: return normalised API
 The common PRN status vocabulary should be:
 
 ```text
-AwaitingAuthorisation
 AwaitingAcceptance
 Accepted
 Rejected
@@ -682,9 +682,9 @@ AwaitingCancellation
 Cancelled
 ```
 
-The first common-backend-backed implementation will only return `AwaitingAcceptance`, `Accepted`, `Rejected`, and `Cancelled`, because those are the only PRN common backend evidence statuses. The wider six-value vocabulary is needed for future RREPW/epr-backend compatibility.
+The first common-backend-backed implementation will only return `AwaitingAcceptance`, `Accepted`, `Rejected`, and `Cancelled`, because those are the only PRN common backend evidence statuses. `AwaitingCancellation` is additionally needed for future RREPW/epr-backend compatibility.
 
-Do not include epr-backend `draft`, `deleted`, or `discarded` in the Waste Obligations PRN detail vocabulary. Those are epr-backend creation/soft-delete lifecycle states, not RREPW/common-backend issued-evidence states. If the future epr-backend integration encounters those states for this endpoint, Waste Obligations should treat the PRN as not visible through the PRN detail contract, most likely by returning `404`.
+Do not include epr-backend `draft`, `awaiting_authorisation`, `deleted`, or `discarded` in the Waste Obligations recipient PRN detail vocabulary. Those are pre-issue or non-evidence lifecycle states, and `awaiting_authorisation` does not yet guarantee the required PRN/PERN number and issued timestamp. If the future epr-backend integration encounters those states for this endpoint, return `404`.
 
 Status mapping:
 
@@ -694,13 +694,13 @@ Status mapping:
 | PRN common backend | `ACCEPTED` | `Accepted` |
 | PRN common backend | `REJECTED` | `Rejected` |
 | PRN common backend | `CANCELLED` / `CANCELED` | `Cancelled` |
-| RREPW | `awaiting_authorisation` | `AwaitingAuthorisation` |
+| RREPW | `awaiting_authorisation` | Do not expose through this recipient endpoint. |
 | RREPW | `awaiting_acceptance` | `AwaitingAcceptance` |
 | RREPW | `accepted` | `Accepted` |
 | RREPW | `rejected` | `Rejected` |
 | RREPW | `awaiting_cancellation` | `AwaitingCancellation` |
 | RREPW | `cancelled` | `Cancelled` |
-| epr-backend / epr-frontend | `awaiting_authorisation` | `AwaitingAuthorisation` |
+| epr-backend / epr-frontend | `awaiting_authorisation` | Do not expose through this recipient endpoint. |
 | epr-backend / epr-frontend | `awaiting_acceptance` | `AwaitingAcceptance` |
 | epr-backend / epr-frontend | `accepted` | `Accepted` |
 | epr-backend / epr-frontend | `awaiting_cancellation` | `AwaitingCancellation` |
@@ -774,28 +774,69 @@ The first response shape should contain the specific PRN page baseline plus non-
 }
 ```
 
+### Property Requiredness
+
+The public contract is based on valid persisted PRNs from viable detail sources, not on the permissive nullability of integration client models. A required source value that is missing, blank, default, or cannot be mapped is a data-quality failure and should result in `500`; it should not be returned as `null` or a default value. Normalize blank optional strings to `null`.
+
+Use the C# `required` member modifier for every property marked required below, including value types and nested objects, so the generated OpenAPI required-property lists match the contract. Nullable properties should still be emitted in JSON as explicit `null` values to preserve a stable response shape.
+
+| Public property | C# type | Required in JSON | Source and mapping rule |
+| --- | --- | --- | --- |
+| `id` | `required string` | Yes | Common backend `externalId`; `legacy-prns` `legacy.externalId`; epr-backend `id`. Reject empty/default IDs. |
+| `number` | `required string` | Yes | Required by both common-backend ingestion paths and present once an epr-backend PRN is issued. Reject missing or blank values. |
+| `type` | `required string` | Yes | Always derived from required `isExport`. Values are `PRN` and `PERN`. |
+| `status` | `required string` | Yes | Every store has a current status. Reject unknown or unmapped values. |
+| `issuedAt` | `required DateTimeOffset` | Yes | Common/legacy `issueDate`; epr-backend issued-operation timestamp. Pre-issue epr-backend states are not visible to the recipient endpoint. |
+| `obligationYear` | `required int` | Yes | Validated by common backend and required from the future epr-backend detail endpoint. A null legacy migration value is bad data, not valid absence. |
+| `accreditationYear` | `required int` | Yes | Required by both common-backend ingestion paths and the epr-backend accreditation snapshot. A null legacy migration value is bad data. |
+| `decemberWaste` | `required bool` | Yes | Required in every source. |
+| `material` | `required string` | Yes | Required and constrained in every source. Reject unmapped values. |
+| `recyclingProcess` | `required string` | Yes | Required by common-backend ingestion and derivable for every supported epr-backend material. A null legacy value is bad data. |
+| `tonnage` | `required int` | Yes | Required in every source. |
+| `issuer` | `required PrnIssuer` | Yes | Always construct the issuing-organisation role object. |
+| `issuer.organisationName` | `required string` | Yes | Required in common ingestion, legacy storage, and the epr-backend issuer snapshot. |
+| `recipient` | `required PrnRecipient` | Yes | Always construct the recipient-organisation role object. |
+| `recipient.organisationId` | `required Guid` | Yes | Required in every source and must match the route organisation. Reject `Guid.Empty`. |
+| `recipient.displayName` | `required string` | Yes | Common/legacy selected name; derive from the epr-backend recipient snapshot. Reject a missing or blank result. |
+| `recipient.name` | `string?` | Yes, nullable | Common backend and `legacy-prns` cannot prove that their selected display value is the legal name. Populate only from richer sources. |
+| `recipient.tradingName` | `string?` | Yes, nullable | Unavailable separately from common backend and `legacy-prns`. |
+| `recipient.registrationType` | `RegistrationType?` | Yes, nullable | Unavailable from common backend and `legacy-prns`; map known epr-backend values only. |
+| `authorisedBy` | `required PrnAuthorisedBy` | Yes | Always construct the authorised-person role object, even when legacy actor details are unavailable. |
+| `authorisedBy.name` | `string?` | Yes, nullable | Optional for NPWD PRNs; required for current RREPW/common-v2 records. |
+| `authorisedBy.position` | `string?` | Yes, nullable | Optional in the relevant actor models. |
+| `accreditationNumber` | `required string` | Yes | Required in every source. |
+| `reprocessingSite` | `string?` | Yes, nullable | Not applicable to PERNs. The NPWD mapper currently stores an empty string even for PRNs; normalize blank to `null`. |
+| `reprocessorExporterAgency` | `required string` | Yes | Required by both common-backend ingestion paths, retained by legacy, and required as `submittedToRegulator` by epr-backend. |
+| `additionalNotes` | `string?` | Yes, nullable | Optional in every source. Normalize blank to `null`. |
+| `audit` | `required PrnAudit` | Yes | Always construct the audit object. |
+| `audit.createdAt` | `required DateTimeOffset` | Yes | Present in common backend, `legacy-prns`, and epr-backend storage. |
+| `audit.updatedAt` | `required DateTimeOffset` | Yes | Present in common backend, `legacy-prns`, and epr-backend storage; the future recipient detail endpoint must expose it. |
+| `audit.acceptedAt` | `DateTimeOffset?` | Yes, nullable | Present only when an acceptance event exists; unavailable from common-backend detail. |
+| `audit.rejectedAt` | `DateTimeOffset?` | Yes, nullable | Present only when a rejection event exists; unavailable from common-backend detail. |
+| `audit.cancelledAt` | `DateTimeOffset?` | Yes, nullable | Present only when a cancellation event exists; unavailable from common-backend detail. |
+
 ### Schema Notes
 
 - `id` is an opaque string containing the stable identity for the pool that served the PRN. The initial common-backend adapter maps its `externalId`; `legacy-prns` preserves that GUID for NPWD PRNs; the new RREPW/epr-backend journey maps the epr-backend PRN `id`. This is not an ID migration: each new listing/navigation flow must pass the canonical ID for its own pool into the detail route. The field is not the common-backend SQL integer `id`.
 - `sourceSystemId` is excluded from the Waste Obligations schema. It is a current common-backend cache segmentation/provenance detail and should not be required by frontend consumers or future epr-backend APIs.
 - `number` is the existing PRN/PERN evidence number.
 - `type` is derived from `isExport`: `PRN` when `false`, `PERN` when `true`.
-- `status` should be normalised to a Waste Obligations enum/string set and exposed with `PossibleValue` attributes: `AwaitingAuthorisation`, `AwaitingAcceptance`, `Accepted`, `Rejected`, `AwaitingCancellation`, and `Cancelled`. Do not return display labels from the API.
+- `status` should be normalised to a Waste Obligations enum/string set and exposed with `PossibleValue` attributes: `AwaitingAcceptance`, `Accepted`, `Rejected`, `AwaitingCancellation`, and `Cancelled`. Do not return display labels from the API. Pre-issue and non-evidence epr-backend states are not visible through this recipient endpoint.
 - `issuedAt` should be a required `DateTimeOffset`. The `*At` suffix makes clear that this is a timestamp and aligns it with the other temporal properties. It should have a property-level DTO description comment stating that it is the time the PRN/PERN was issued and, for RREPW/epr-backend records, is also the time it was authorised. The comment should identify the source mapping from RREPW `status.authorisedAt` and epr-backend `status.issued.at`, and must be emitted as the OpenAPI property description.
 - `material` should use the Waste Obligations PRN material vocabulary and be exposed with `PossibleValue` attributes: `Plastic`, `Glass`, `Aluminium`, `Steel`, `Wood`, `GlassRemelt`, `Paper`, and `Fibre`. Do not pass upstream-specific strings such as `Paper/board`, `Glass Other`, or `Glass Re-melt` through as `material`.
 - `tonnage` should be a required `int`. This is a settled cross-system contract rather than an assumption based only on the current frontend: RREPW is consumed by `epr-prn-integration-function` as nullable `int`, PRN common backend and the packaging frontend use `int`, and epr-backend validates PRN/PERN creation with `wholeTonnage().integer()`. The epr-backend create-route tests explicitly reject `10.5` with `422`. Its use of the generic JavaScript `number` type in domain annotations does not indicate that fractional PRN tonnage is supported. No decimal conversion or rounding should be introduced by the Waste Obligations adapter.
 - `obligationYear` should be a required integer in the Waste Obligations schema. The first common-backend-backed mapper must parse the upstream string to an integer. If the upstream value is missing, blank, or not an integer, throw a data-quality exception so the endpoint fails rather than returning a partial PRN contract.
-- `accreditationYear` should be a nullable integer. It is not rendered by the current specific PRN/PERN UI, but it is a root field in `legacy-prns` and is available from RREPW accreditation data.
-- `reprocessorExporterAgency` should be a nullable string. It is not rendered by the current specific PRN/PERN UI, but it is a root field in `legacy-prns` and can be mapped from the RREPW accreditation regulator.
-- `audit.createdAt`, `audit.updatedAt`, `audit.acceptedAt`, `audit.rejectedAt`, and `audit.cancelledAt` are included as nullable `DateTimeOffset` values for administrative use, even though the current frontend does not render them. The created/updated fields have source-store semantics; the accepted/rejected/cancelled fields represent PRN lifecycle events. `issuedAt` already carries the RREPW/epr-backend authorised/issued timestamp, so do not duplicate it as `audit.authorisedAt`. Public JSON should use Waste Obligations' existing ISO 8601 extended format with offset, for example `2026-01-15T10:00:00+00:00`. Do not pass through upstream `DateTime`/JavaScript `Date` strings directly. DTO/OpenAPI descriptions must explain each field's semantics, source-specific availability, and when `null` is returned.
-- `recyclingProcess`, `authorisedBy.name`, `authorisedBy.position`, `reprocessingSite`, and `additionalNotes` should be nullable strings. The frontend can continue applying empty-string or "not provided" fallbacks.
+- `accreditationYear` should be a required integer. Both common-backend ingestion paths and the epr-backend accreditation snapshot require it. If `legacy-prns` contains `null` because migration could not parse a historical source string, that record cannot satisfy the public contract.
+- `reprocessorExporterAgency` should be a required string. Both common-backend ingestion paths require it, `legacy-prns` retains it as a required root field, and epr-backend requires the corresponding accreditation regulator.
+- `audit.createdAt` and `audit.updatedAt` are required `DateTimeOffset` values with source-store semantics. `audit.acceptedAt`, `audit.rejectedAt`, and `audit.cancelledAt` are nullable `DateTimeOffset` values representing conditional PRN lifecycle events. `issuedAt` already carries the RREPW/epr-backend authorised/issued timestamp, so do not duplicate it as `audit.authorisedAt`. Public JSON should use Waste Obligations' existing ISO 8601 extended format with offset, for example `2026-01-15T10:00:00+00:00`. Do not pass through upstream `DateTime`/JavaScript `Date` strings directly. DTO/OpenAPI descriptions must explain each field's semantics and the source-specific availability of nullable lifecycle events.
+- `recyclingProcess` should be a required string. Both common-backend ingestion paths require it, and epr-backend derives it for every supported material. `authorisedBy.name`, `authorisedBy.position`, `reprocessingSite`, and `additionalNotes` should be nullable strings. The frontend can continue applying empty-string or "not provided" fallbacks to those optional display values.
 - `reprocessingSite` is only rendered by the current frontend for PRNs, but it can remain present and nullable in the schema for both note types.
-- `issuer` identifies the organisation that issued the PRN/PERN. The role noun distinguishes it from `authorisedBy`, which identifies a person, while avoiding the similar-looking `issuedBy` and `authorisedBy` property names.
+- `issuer` is a required object identifying the organisation that issued the PRN/PERN, with required `organisationName`. The role noun distinguishes it from `authorisedBy`, which identifies a person, while avoiding the similar-looking `issuedBy` and `authorisedBy` property names.
 - `recipient.organisationId` should be a required `Guid`. It repeats the organisation-scoped route value deliberately so Waste Obligations can verify the source response before returning it. Common backend supplies `organisationId`, `legacy-prns` preserves it as `Organisation.Id`, and RREPW/epr-backend supplies `issuedToOrganisation.id`. A future epr-backend adapter must parse its string value as a GUID and treat a missing or invalid value as a data-quality failure.
 - `recipient.displayName` should be a required string and is the only recipient name a consumer should need for rendering. Common backend and `legacy-prns` map their already-selected `organisationName`/`Organisation.Name` into it. For epr-backend, derive it from the stored recipient snapshot: for `ComplianceScheme`, prefer a non-blank `tradingName`; for `DirectProducer`, use `name`; when registration type is missing or unrecognised, prefer a non-blank `tradingName` and otherwise use `name`. Treat a missing or blank result as a data-quality failure.
 - `recipient.name`, `recipient.tradingName`, and `recipient.registrationType` should be nullable source-enrichment fields. epr-backend stores these recipient details, but common backend and `legacy-prns` only retain the selected display name and must return `null` for all three. Normalise epr-backend `LARGE_PRODUCER` to the existing Waste Obligations `DirectProducer` value and `COMPLIANCE_SCHEME` to `ComplianceScheme`; return `null` for a missing or unrecognised source value.
 - Any nullable public DTO property that can only be populated by one source integration must have a property-level DTO description comment. The description should identify which source supplies the value, explain why other sources return `null`, and describe the value's semantics rather than its implementation or storage details. Ensure the comment is emitted as the property's OpenAPI description so generated API documentation makes the source-dependent nullability explicit.
-- Non-rendered upstream fields should not be added to the first public schema unless they are first-class `legacy-prns` root fields and RREPW can also supply them. `obligationYear` is the exception: it is not in the inspected RREPW payload yet, but it is rendered/used by the frontend and is due to be added as a required integer. Nullable audit dates are a second exception because they are documented as source-store audit dates and nullable for sources that cannot supply them. The nullable recipient organisation details are a third, deliberate exception: epr-backend already snapshots stable name, trading-name, and registration-type values on the PRN, while older sources can honestly represent their absence.
+- Non-rendered upstream fields should not be added to the first public schema unless they are first-class `legacy-prns` root fields and the intended epr-backend detail source can also supply them. `obligationYear` is the exception: it is not in the inspected RREPW payload yet, but it is rendered/used by the frontend and is due to be added as a required integer. Required source-store audit dates are a second deliberate inclusion because all viable detail stores retain them. Nullable lifecycle event dates are included because their absence has a defined event-not-yet-occurred meaning. The nullable recipient organisation details are a further deliberate inclusion: epr-backend already snapshots stable name, trading-name, and registration-type values on the PRN, while older sources can honestly represent their absence.
 - Exclude `producerAgency`, `signature`, and `packagingProducer` for now. They are root fields in `legacy-prns`, but they are not rendered today and are not available as source PRN values from the inspected RREPW payload/model.
 - The schema must remain source-compatible with the possible future NPWD legacy source, `legacy-prns`, and the future RREPW/epr-backend source. Before any new public field is added, confirm that it exists in the current `legacy-prns` Mongo document, can be supplied by RREPW/epr-backend, or record the source change required to supply it.
 - `legacy-prns` can supply the included fields for NPWD PRNs from its current Mongo document shape, but a read API/direct integration still needs to be designed before it can serve NPWD legacy PRNs for this endpoint. Its public PRN identity should be `legacy.externalId`.
@@ -822,10 +863,10 @@ The new PRN DTO must declare `recipient.registrationType` as nullable `Defra.Was
 | `audit.cancelledAt` | Not available separately from the detail endpoint. | Return `null`. |
 | `issuedAt` | `issueDate` | Convert to `DateTimeOffset` or preserve as a UTC-compatible instant. |
 | `obligationYear` | `obligationYear` | Parse string to required int. Throw a data-quality exception when the value is missing, blank, or not an integer. |
-| `accreditationYear` | `accreditationYear` | Parse string to nullable int. |
+| `accreditationYear` | `accreditationYear` | Parse string to required int. Throw a data-quality exception when the value is missing, blank, or not an integer. |
 | `decemberWaste` | `decemberWaste` | Direct. |
 | `material` | `materialName` | Map upstream source/evidence material string into the Waste Obligations PRN material vocabulary. |
-| `recyclingProcess` | `processToBeUsed` | Direct nullable string. |
+| `recyclingProcess` | `processToBeUsed` | Required string. Throw a data-quality exception when missing or blank. |
 | `tonnage` | `tonnageValue` | Direct. |
 | `issuer.organisationName` | `issuedByOrg` | Direct. |
 | `recipient.organisationId` | `organisationId` | Direct. Require it to match the route `organisationId`. |
@@ -833,14 +874,14 @@ The new PRN DTO must declare `recipient.registrationType` as nullable `Defra.Was
 | `recipient.name` | Not available separately. | Return `null`. Do not duplicate `organisationName`, because its legal-name semantics are not guaranteed. |
 | `recipient.tradingName` | Not available separately. | Return `null`. |
 | `recipient.registrationType` | Not available. | Return `null`. |
-| `authorisedBy.name` | `prnSignatory` | Direct nullable string. |
-| `authorisedBy.position` | `prnSignatoryPosition` | Direct nullable string. |
-| `reprocessingSite` | `reprocessingSite` | Direct nullable string. |
+| `authorisedBy.name` | `prnSignatory` | Nullable string; normalize blank to `null`. |
+| `authorisedBy.position` | `prnSignatoryPosition` | Nullable string; normalize blank to `null`. |
+| `reprocessingSite` | `reprocessingSite` | Nullable string; normalize blank to `null`. |
 | `accreditationNumber` | `accreditationNumber` | Direct. |
-| `reprocessorExporterAgency` | `reprocessorExporterAgency` | Direct nullable string. |
-| `additionalNotes` | `issuerNotes` | Direct nullable string. |
-| `audit.createdAt` | `createdOn` | Convert common-backend `DateTime` to UTC `DateTimeOffset`. |
-| `audit.updatedAt` | `lastUpdatedDate` | Convert common-backend `DateTime` to UTC `DateTimeOffset`. |
+| `reprocessorExporterAgency` | `reprocessorExporterAgency` | Required string. Throw a data-quality exception when missing or blank. |
+| `additionalNotes` | `issuerNotes` | Nullable string; normalize blank to `null`. |
+| `audit.createdAt` | `createdOn` | Convert common-backend `DateTime` to required UTC `DateTimeOffset`. |
+| `audit.updatedAt` | `lastUpdatedDate` | Convert common-backend `DateTime` to required UTC `DateTimeOffset`. |
 
 ## Endpoint Behaviour
 
@@ -890,7 +931,7 @@ The endpoint should publish:
 - `404` problem;
 - `500` problem.
 
-The OpenAPI schema should model `Prn.id` and the route `prnId` parameter as plain strings with no `uuid` format. The initial common-backend adapter can still require a parseable GUID internally, but that must not leak into the public schema. `Prn.issuedAt` should be a required date-time with offset. `Prn.recipient.organisationId` should be modelled as a required string with the `uuid` format, matching the organisation route parameter. `Prn.recipient.displayName` should be required; `name`, `tradingName`, and `registrationType` should be nullable, with `registrationType` exposing only `DirectProducer` and `ComplianceScheme` when present. Every `audit` property should be nullable and documented as an ISO 8601 date-time with offset. OpenAPI property descriptions generated from DTO comments must explain each timestamp's semantics, when it is populated only by a particular source integration, and why it is `null` for other sources. The `issuedAt` description must state that it is also the RREPW/epr-backend authorisation time.
+The OpenAPI schema should model `Prn.id` and the route `prnId` parameter as plain strings with no `uuid` format. The initial common-backend adapter can still require a parseable GUID internally, but that must not leak into the public schema. The generated required-property lists must match the [Property Requiredness](#property-requiredness) table, including required nested `issuer`, `recipient`, `authorisedBy`, and `audit` objects. `Prn.issuedAt`, `audit.createdAt`, and `audit.updatedAt` should be required date-times with offset. `Prn.recipient.organisationId` should be modelled as a required string with the `uuid` format, matching the organisation route parameter. `Prn.recipient.displayName` should be required; `name`, `tradingName`, and `registrationType` should be nullable, with `registrationType` exposing only `DirectProducer` and `ComplianceScheme` when present. The lifecycle-event audit properties should be nullable date-times with offset. OpenAPI property descriptions generated from DTO comments must explain each timestamp's semantics and why lifecycle-event values can be `null`. The `issuedAt` description must state that it is also the RREPW/epr-backend authorisation time.
 
 The operation can keep the existing placeholder metadata:
 
@@ -905,33 +946,33 @@ Add or update tests in these layers:
 
 | Layer | Tests |
 | --- | --- |
-| `PrnCommonBackendServiceTests` | Returns mapped PRN on `200`; returns `null` on upstream `404`; returns `null` for a non-GUID `prnId` while common backend is the only source; sends `X-EPR-ORGANISATION`; sends bearer token through existing OAuth2 handler; maps upstream `issueDate` to required `issuedAt`; maps upstream `issuedByOrg` to `issuer.organisationName`; maps upstream `organisationId` to required `recipient.organisationId`; maps upstream `organisationName` only to `recipient.displayName` and returns nullable `name`, `tradingName`, and `registrationType` as `null`; throws a data-quality exception when `obligationYear` is missing, blank, or not an integer; handles unparseable `accreditationYear` as `null`; maps `reprocessorExporterAgency`; returns unavailable accepted/rejected/cancelled audit timestamps as `null`; maps `createdOn` and `lastUpdatedDate` into nullable `DateTimeOffset` audit fields using Waste Obligations' ISO 8601 offset format; maps all known common-backend PRN statuses into the Waste Obligations PRN status vocabulary; maps all known common-backend PRN `materialName` values into the Waste Obligations PRN material vocabulary, including `Fibre`. |
+| `PrnCommonBackendServiceTests` | Returns mapped PRN on `200`; returns `null` on upstream `404`; returns `null` for a non-GUID `prnId` while common backend is the only source; sends `X-EPR-ORGANISATION`; sends bearer token through existing OAuth2 handler; maps upstream `issueDate` to required `issuedAt`; maps upstream `issuedByOrg` to `issuer.organisationName`; maps upstream `organisationId` to required `recipient.organisationId`; maps upstream `organisationName` only to `recipient.displayName` and returns nullable `name`, `tradingName`, and `registrationType` as `null`; throws a data-quality exception when required `obligationYear` or `accreditationYear` is missing, blank, or not an integer; throws when required `processToBeUsed` or `reprocessorExporterAgency` is missing or blank; normalizes blank optional strings to `null`; returns unavailable accepted/rejected/cancelled audit timestamps as `null`; maps `createdOn` and `lastUpdatedDate` into required `DateTimeOffset` audit fields using Waste Obligations' ISO 8601 offset format; maps all known common-backend PRN statuses into the Waste Obligations PRN status vocabulary and rejects unknown values; maps all known common-backend PRN `materialName` values into the Waste Obligations PRN material vocabulary, including `Fibre`, and rejects unknown values. |
 | `ReadPrnTests` | Returns `200` when organisation and PRN exist; returns `404` when organisation missing; returns `404` when PRN missing; accepts a non-GUID `prnId` route value and returns `404` while common backend is the only source; returns `403` for write-only user; returns `404` on organisation mismatch as a defensive guard. |
-| OpenAPI snapshot | Refresh to include the `200` schema for `Prn`, including required `issuedAt`, `recipient.organisationId` with `uuid` format, required `recipient.displayName`, nullable recipient source-detail fields, and all nullable audit date fields. Verify that nullable fields populated by only one source integration include DTO-derived OpenAPI descriptions explaining their source and null semantics, that accepted/rejected/cancelled fields describe lifecycle events, that created/updated fields describe source-store semantics, and that `issuedAt` is documented as also being the RREPW/epr-backend authorisation time. |
-| Integration scenario | Stub waste organisations and PRN common backend, then verify the endpoint returns the specific PRN page baseline fields plus `issuedAt`, `issuer.organisationName`, `recipient.organisationId`, required `recipient.displayName`, nullable recipient source-detail fields, `reprocessorExporterAgency`, `accreditationYear`, and all audit dates. |
+| OpenAPI snapshot | Refresh to include the `200` schema for `Prn` and verify its required-property lists exactly match the [Property Requiredness](#property-requiredness) table. Verify required `issuedAt`, `audit.createdAt`, and `audit.updatedAt`; required nested objects; `recipient.organisationId` with `uuid` format; required `recipient.displayName`; and only the documented nullable leaf fields. Verify that accepted/rejected/cancelled fields describe lifecycle events, created/updated fields describe source-store semantics, and `issuedAt` is documented as also being the RREPW/epr-backend authorisation time. |
+| Integration scenario | Stub waste organisations and PRN common backend, then verify the endpoint returns every required field from the [Property Requiredness](#property-requiredness) table plus explicit `null` values for unavailable recipient enrichment and lifecycle-event dates. |
 | Source compatibility | Add contract-level assertions, initially in documentation or tests, that each public Waste Obligations PRN field maps from common backend `PrnDto`, NPWD-only `legacy-prns` `LegacyPrn`, and future RREPW/epr-backend PRN data. |
-| Status compatibility | Add contract-level assertions that the public PRN status possible values are `AwaitingAuthorisation`, `AwaitingAcceptance`, `Accepted`, `Rejected`, `AwaitingCancellation`, and `Cancelled`; epr-backend `draft`, `deleted`, and `discarded` should not be exposed through this endpoint. |
+| Status compatibility | Add contract-level assertions that the public PRN status possible values are `AwaitingAcceptance`, `Accepted`, `Rejected`, `AwaitingCancellation`, and `Cancelled`; epr-backend `draft`, `awaiting_authorisation`, `deleted`, and `discarded` should not be exposed through this recipient endpoint. |
 
 The `epr-packaging-frontend` `PrnMappingContractTests` are useful reference cases for status normalisation, PRN/PERN note type derivation, and null handling for `prnSignatoryPosition` and `processToBeUsed`.
 
 ## Implementation Steps
 
 1. Add service models for upstream PRN common backend detail response.
-2. Add `Dtos.Prn` with `Id` as `string`, required `IssuedAt` as `DateTimeOffset`, plus `ReprocessorExporterAgency`, `AccreditationYear`, nullable audit dates, and nested DTO records for `issuer`, `recipient`, `authorisedBy`, and `audit`. Require `recipient.organisationId` as a `Guid` and `recipient.displayName` as a string; add nullable `recipient.name` and `recipient.tradingName`. Declare `recipient.registrationType` as the existing nullable `Defra.WasteObligations.Api.Dtos.RegistrationType`; do not create a separate PRN registration-type enum. Add property-level DTO description comments to every nullable property populated by only one source integration, covering its source, semantics, and reason for being `null` elsewhere, and confirm those descriptions flow into OpenAPI. Add an `issuedAt` DTO description stating that it is also the authorisation time for RREPW/epr-backend PRNs.
+2. Add `Dtos.Prn` and its nested DTO records for `issuer`, `recipient`, `authorisedBy`, and `audit`, following the [Property Requiredness](#property-requiredness) table exactly. Use the C# `required` modifier for all required reference and value properties so OpenAPI required-property lists are correct. Declare `recipient.registrationType` as the existing nullable `Defra.WasteObligations.Api.Dtos.RegistrationType`; do not create a separate PRN registration-type enum. Add property-level DTO descriptions to nullable source-enrichment and lifecycle-event properties, covering their semantics and reason for being `null`, and confirm those descriptions flow into OpenAPI. Add descriptions distinguishing required source-store audit timestamps from nullable lifecycle events, and state that `issuedAt` is also the authorisation time for RREPW/epr-backend PRNs.
 3. Extend the material constants used for public API possible values with `Fibre`, then apply the PRN material possible values to `Dtos.Prn.Material`.
-4. Add PRN status constants for `AwaitingAuthorisation`, `AwaitingAcceptance`, `Accepted`, `Rejected`, `AwaitingCancellation`, and `Cancelled`, then expose them as `PossibleValue` attributes on `Dtos.Prn.Status`.
-5. Add mapper from upstream PRN common backend model to `Dtos.Prn`, including the common material, status, and audit-date mapping tables above. Map upstream `issueDate` to `issuedAt`, `issuedByOrg` to `issuer.organisationName`, and `organisationName` only to `recipient.displayName`; leave the richer recipient fields and unavailable event-specific audit dates null for this source.
+4. Add PRN status constants for `AwaitingAcceptance`, `Accepted`, `Rejected`, `AwaitingCancellation`, and `Cancelled`, then expose them as `PossibleValue` attributes on `Dtos.Prn.Status`.
+5. Add mapper from upstream PRN common backend model to `Dtos.Prn`, including the common material, status, and audit-date mapping tables above. Validate every required source value and throw a data-quality exception when one is missing, blank, default, invalid, or unmapped; normalise blank optional strings to `null`. Map upstream `issueDate` to `issuedAt`, `issuedByOrg` to `issuer.organisationName`, and `organisationName` only to `recipient.displayName`; leave the richer recipient fields and unavailable event-specific audit dates null for this source.
 6. Extend `IPrnCommonBackendService` and `PrnCommonBackendService` with `ReadPrn`.
 7. Replace the placeholder endpoint handler with the organisation and PRN reads.
 8. Add WireMock stubs and fixtures for PRN common backend detail response.
 9. Add endpoint, service, OpenAPI, and integration tests.
 10. Record the `legacy-prns` follow-up work for NPWD-only read API/direct integration before treating it as an NPWD legacy source for this endpoint.
-11. Record the `epr-backend` follow-up work to deliver the required recipient-scoped PRN detail endpoint, including recipient-visible status rules, mixed identity support if NPWD PRNs are imported, recipient organisation snapshot fields, complete audit datetime support, and fields missing from `packagingRecyclingNoteById`, before treating this as a common schema across all sources.
+11. Record the `epr-backend` follow-up work to deliver the required recipient-scoped PRN detail endpoint, including enforcement of the issued-evidence status visibility defined above, mixed identity support if NPWD PRNs are imported, recipient organisation snapshot fields, complete audit datetime support, and fields missing from `packagingRecyclingNoteById`, before treating this as a common schema across all sources.
 12. Run CSharpier, build, `Api.Tests`, and `Api.IntegrationTests`.
 
 ## Open Questions
 
 - Will NPWD legacy PRNs ultimately be served from `legacy-prns`, from `epr-backend`, or from both during a transition?
-- Who owns delivery of the required recipient-scoped epr-backend PRN detail endpoint, and what will its final route, versioning, authentication, and recipient-visible status rules be?
+- Who owns delivery of the required recipient-scoped epr-backend PRN detail endpoint, and what will its final route, versioning, and authentication be?
 - If NPWD legacy PRNs are imported into `epr-backend`, how will epr-backend support existing GUID-style legacy PRN IDs alongside ObjectId-style RREPW/future PRN IDs?
 - Will epr-backend constrain `issuedToOrganisation.registrationType` to `LARGE_PRODUCER` and `COMPLIANCE_SCHEME`, or can other source values appear? Waste Obligations will map only those two known values initially and return `null` for an unrecognised value.
