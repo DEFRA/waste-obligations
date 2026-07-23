@@ -938,7 +938,7 @@ The endpoint should follow the existing organisation endpoint pattern:
 2. Bind `organisationId` from the route as `Guid` and `prnId` from the route as `string`.
 3. Read the organisation using `IWasteOrganisationsService.Read(organisationId, cancellationToken)`.
 4. Read the PRN using `IPrnCommonBackendService.ReadPrn(organisationId, prnId, cancellationToken)`.
-5. Run both reads concurrently where practical.
+5. Run both reads concurrently where practical. This is an optional optimisation, not a requirement: sequential awaits are acceptable if the reads cannot safely or cleanly be executed concurrently. Do not add complexity solely to force `Task.WhenAll`.
 6. Return `404` when the organisation is not found.
 7. Return `404` when PRN common backend returns `404` or `null`.
 8. Return `404` if `prn.recipient.organisationId` does not match the route `organisationId`.
