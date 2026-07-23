@@ -26,7 +26,6 @@
       ],
       "created": "DateTime_1",
       "isRegulation43Compliant": true,
-      "overallAccepted": 40,
       "obligations": [
         {
           "material": "Plastic",
@@ -61,6 +60,7 @@
         "regulatorEmail": "regulator@email.com",
         "schemeOperatorName": null
       },
+      "overallAccepted": 40.0,
       "schemaVersion": "v1.1",
       "status": "Submitted",
       "submitterName": "Submitter Name",
@@ -96,7 +96,6 @@
       ],
       "created": "DateTime_1",
       "isRegulation43Compliant": true,
-      "overallAccepted": 40,
       "obligations": [
         {
           "material": "Plastic",
@@ -131,6 +130,7 @@
         "regulatorEmail": "regulator@email.com",
         "schemeOperatorName": null
       },
+      "overallAccepted": 40.0,
       "schemaVersion": "v1.1",
       "status": "Submitted",
       "submitterName": "Submitter Name",
@@ -153,7 +153,6 @@
       ],
       "created": "DateTime_1",
       "isRegulation43Compliant": true,
-      "overallAccepted": 40,
       "obligations": [
         {
           "material": "Plastic",
@@ -188,6 +187,7 @@
         "regulatorEmail": "regulator@email.com",
         "schemeOperatorName": null
       },
+      "overallAccepted": 40.0,
       "schemaVersion": "v1.1",
       "status": "Submitted",
       "submitterName": "Submitter Name",
