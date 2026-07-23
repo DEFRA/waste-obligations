@@ -756,6 +756,15 @@
           "isRegulation43Compliant": {
             "type": "boolean"
           },
+          "overallAccepted": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
           "audit": {
             "type": "array",
             "items": {

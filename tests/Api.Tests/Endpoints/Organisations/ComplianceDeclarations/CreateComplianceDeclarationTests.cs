@@ -56,6 +56,79 @@ public class CreateComplianceDeclarationTests : EndpointTestBase
     }
 
     [Fact]
+    public async Task WhenOrganisationFound_ShouldCalculateOverallAcceptedFromObligations()
+    {
+        var client = CreateClient(testUser: TestUser.WriteOnly);
+        ComplianceDeclarationService.CreateNewId = () => ObjectId.Parse("6830b9d4c7e21f5a8d3e64b2");
+        ComplianceDeclarationService.UtcNow = () => new DateTime(2026, 4, 20, 12, 28, 0, DateTimeKind.Utc);
+
+        var response = await client.PostAsJsonAsync(
+            Testing.Endpoints.Organisations.ComplianceDeclarations.Create(FakeWasteOrganisationsService.OrganisationId),
+            CreateComplianceDeclarationRequestFixture
+                .DirectProducer(FakeWasteOrganisationsService.OrganisationId)
+                .With(
+                    x => x.Obligations,
+                    [
+                        ObligationFixture
+                            .Default()
+                            .With(
+                                x => x.Tonnages,
+                                ObligationTonnagesFixture
+                                    .Default()
+                                    .With(t => t.Accepted, 10)
+                                    .With(t => t.Obligated, 5)
+                                    .Create()
+                            )
+                            .Create(),
+                    ]
+                )
+                .Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        using var document = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)
+        );
+
+        document.RootElement.GetProperty("overallAccepted").GetDecimal().Should().Be(100m);
+    }
+
+    [Fact]
+    public async Task WhenTotalObligatedIsZero_ShouldSetOverallAcceptedToZero()
+    {
+        var client = CreateClient(testUser: TestUser.WriteOnly);
+        ComplianceDeclarationService.CreateNewId = () => ObjectId.Parse("6830b9d4c7e21f5a8d3e64b2");
+
+        var response = await client.PostAsJsonAsync(
+            Testing.Endpoints.Organisations.ComplianceDeclarations.Create(FakeWasteOrganisationsService.OrganisationId),
+            CreateComplianceDeclarationRequestFixture
+                .DirectProducer(FakeWasteOrganisationsService.OrganisationId)
+                .With(
+                    x => x.Obligations,
+                    [
+                        ObligationFixture
+                            .Default()
+                            .With(
+                                x => x.Tonnages,
+                                ObligationTonnagesFixture.Default().With(t => t.Obligated, 0).Create()
+                            )
+                            .Create(),
+                    ]
+                )
+                .Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        using var document = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)
+        );
+
+        document.RootElement.GetProperty("overallAccepted").GetDecimal().Should().Be(0m);
+    }
+
+    [Fact]
     public async Task WhenNotFound_ShouldBeNotFound()
     {
         var client = CreateClient(testUser: TestUser.WriteOnly);

@@ -47,6 +47,7 @@ public static class ComplianceDeclarationFixture
             .With(x => x.SubmitterName, "Submitter Name")
             .With(x => x.Status, ComplianceDeclarationStatus.Submitted)
             .With(x => x.IsRegulation43Compliant, true)
+            .With(x => x.OverallAccepted, 40m)
             .With(x => x.Audit, AuditEntryFixture.Submitted());
     }
 

@@ -26,6 +26,7 @@
       ],
       "created": "DateTime_1",
       "isRegulation43Compliant": true,
+      "overallAccepted": 40,
       "obligations": [
         {
           "material": "Plastic",
@@ -95,6 +96,7 @@
       ],
       "created": "DateTime_1",
       "isRegulation43Compliant": true,
+      "overallAccepted": 40,
       "obligations": [
         {
           "material": "Plastic",
@@ -151,6 +153,7 @@
       ],
       "created": "DateTime_1",
       "isRegulation43Compliant": true,
+      "overallAccepted": 40,
       "obligations": [
         {
           "material": "Plastic",

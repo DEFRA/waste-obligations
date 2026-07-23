@@ -39,6 +39,7 @@
   "obligationStatus": "NotMet",
   "submitterName": "Submitter Name",
   "isRegulation43Compliant": true,
+  "overallAccepted": 40,
   "audit": [
     {
       "user": {
