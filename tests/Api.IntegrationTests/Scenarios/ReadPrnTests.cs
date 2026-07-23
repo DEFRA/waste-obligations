@@ -42,10 +42,7 @@ public class ReadPrnTests : IntegrationTestBase
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var responseBody = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-        var result = JsonSerializer.Deserialize<Prn>(
-            responseBody,
-            new JsonSerializerOptions(JsonSerializerDefaults.Web)
-        );
+        var result = JsonSerializer.Deserialize<Prn>(responseBody, JsonSerializerOptions.Web);
         result.Should().BeEquivalentTo(prn.ToDto());
 
         using var responseJson = JsonDocument.Parse(responseBody);
