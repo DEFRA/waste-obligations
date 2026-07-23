@@ -958,6 +958,8 @@ public interface IPrnCommonBackendService
 }
 ```
 
+The nullable `Prn?` return is deliberate. `ReadPrn` is a lookup and must return `null` when the PRN cannot be found, including an upstream `404` and, while common backend is the only source, a `prnId` that cannot be parsed as a GUID. The service must not return a placeholder PRN or turn the not-found case into an exception. The endpoint owns the HTTP concern and translates a `null` result into its documented `404` response.
+
 The implementation should:
 
 - parse `prnId` as a GUID inside the common-backend adapter while common backend is the only source, returning `null` when it is not parseable;
@@ -1011,7 +1013,7 @@ The `epr-packaging-frontend` `PrnMappingContractTests` are useful reference case
 3. Extend the material constants used for public API possible values with `Fibre`, then apply the PRN material possible values to `Dtos.Prn.Material`.
 4. Add PRN status constants for `AwaitingAcceptance`, `Accepted`, `Rejected`, `AwaitingCancellation`, and `Cancelled`, then expose them as `PossibleValue` attributes on `Dtos.Prn.Status`.
 5. Add mapper from upstream PRN common backend model to `Dtos.Prn`, including the common material, status, and audit-date mapping tables above. Add `ToUtcDateTimeOffset` and use it for `issueDate`, `createdOn`, and `lastUpdatedDate`, preserving `Unspecified` SQL clock values while attaching UTC kind. Validate every required source value and throw a data-quality exception when one is missing, blank, default, invalid, or unmapped; normalise blank optional strings to `null`. Map upstream `issueDate` to `issuedAt`, `issuedByOrg` to `issuer.organisationName`, and `organisationName` only to `recipient.displayName`; leave the richer recipient fields and unavailable event-specific audit dates null for this source.
-6. Extend `IPrnCommonBackendService` and `PrnCommonBackendService` with `ReadPrn`.
+6. Extend `IPrnCommonBackendService` and `PrnCommonBackendService` with `Task<Prn?> ReadPrn(...)`, returning `null` for an invalid common-backend ID or an upstream `404`.
 7. Replace the placeholder endpoint handler with the organisation and PRN reads.
 8. Add WireMock stubs and fixtures for PRN common backend detail response.
 9. Add endpoint, service, OpenAPI, and integration tests.
