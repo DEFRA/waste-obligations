@@ -40,7 +40,7 @@ public static class Endpoints
         {
             private static string Root = "prns";
 
-            public static string Read(Guid organisationId, Guid prnId) =>
+            public static string Read(Guid organisationId, string prnId) =>
                 $"{Organisations.Read(organisationId)}/{Root}/{prnId}";
         }
 
