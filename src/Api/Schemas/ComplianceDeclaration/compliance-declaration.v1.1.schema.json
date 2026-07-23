@@ -76,6 +76,9 @@
     },
     "isRegulation43Compliant": {
       "type": "boolean"
+    },
+    "overallAccepted": {
+      "type": "number"
     }
   },
   "$defs": {

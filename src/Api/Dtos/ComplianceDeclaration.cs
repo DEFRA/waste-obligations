@@ -43,6 +43,9 @@ public record ComplianceDeclaration
     [JsonPropertyName("isRegulation43Compliant")]
     public bool IsRegulation43Compliant { get; init; }
 
+    [JsonPropertyName("overallAccepted")]
+    public decimal? OverallAccepted { get; init; }
+
     [JsonPropertyName("audit")]
     public IEnumerable<AuditEntry> Audit { get; init; } = [];
 }
