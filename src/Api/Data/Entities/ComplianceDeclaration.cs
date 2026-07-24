@@ -8,7 +8,7 @@ namespace Defra.WasteObligations.Api.Data.Entities;
 [BsonIgnoreExtraElements]
 public record ComplianceDeclaration
 {
-    public const string SchemaVersionValue = "v1.1";
+    public const string SchemaVersionValue = "v1.2";
 
     public ObjectId Id { get; init; }
     public string SchemaVersion { get; private init; } = SchemaVersionValue;
@@ -27,7 +27,7 @@ public record ComplianceDeclaration
     public required string SubmitterName { get; init; }
     public IEnumerable<AuditEntry> Audit { get; init; } = [];
     public bool IsRegulation43Compliant { get; init; }
-    public decimal? OverallAccepted { get; init; }
+    public decimal? ObligationCoveragePercentage { get; init; }
 
     public ComplianceDeclaration Submit(User user, DateTime timestamp)
     {
@@ -37,21 +37,12 @@ public record ComplianceDeclaration
         {
             Id = ObjectId.GenerateNewId(),
             Status = ComplianceDeclarationStatus.Submitted,
-            OverallAccepted = CalculateOverallAccepted(Obligations),
+            ObligationCoveragePercentage = ObligationCoveragePercentageCalculator.CalculateFromObligations(Obligations),
             Audit = new List<AuditEntry>
             {
                 new(nameof(ComplianceDeclarationStatus.Submitted)) { User = user, Timestamp = timestamp },
             },
         };
-    }
-
-    private static decimal CalculateOverallAccepted(IEnumerable<Obligation> obligations)
-    {
-        var obligationsArray = obligations as Obligation[] ?? obligations.ToArray();
-        var totalAccepted = obligationsArray.Sum(o => Math.Min(o.Tonnages.Accepted, o.Tonnages.Obligated));
-        var totalObligated = obligationsArray.Sum(o => o.Tonnages.Obligated);
-
-        return totalObligated == 0 ? 0m : (decimal)totalAccepted / totalObligated * 100m;
     }
 
     public ComplianceDeclaration UpdateStatus(

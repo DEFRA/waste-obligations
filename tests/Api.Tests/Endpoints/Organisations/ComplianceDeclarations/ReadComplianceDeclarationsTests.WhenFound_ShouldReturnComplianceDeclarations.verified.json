@@ -1,4 +1,4 @@
-﻿{
+{
   "complianceDeclarations": [
     {
       "id": "{Scrubbed}",
@@ -41,7 +41,7 @@
       "obligationStatus": "NotMet",
       "submitterName": "Submitter Name",
       "isRegulation43Compliant": true,
-      "overallAccepted": 40,
+      "obligationCoveragePercentage": 40,
       "audit": [
         {
           "user": {
@@ -96,7 +96,7 @@
       "obligationStatus": "NotMet",
       "submitterName": "Submitter Name",
       "isRegulation43Compliant": true,
-      "overallAccepted": 40,
+      "obligationCoveragePercentage": 40,
       "audit": [
         {
           "user": {
@@ -151,7 +151,7 @@
       "obligationStatus": "NotMet",
       "submitterName": "Submitter Name",
       "isRegulation43Compliant": true,
-      "overallAccepted": 40,
+      "obligationCoveragePercentage": 40,
       "audit": [
         {
           "user": {

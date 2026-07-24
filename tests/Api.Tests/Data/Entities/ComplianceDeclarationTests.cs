@@ -5,6 +5,7 @@ using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
 using ComplianceDeclaration = Defra.WasteObligations.Api.Data.Entities.ComplianceDeclaration;
 using ComplianceDeclarationStatus = Defra.WasteObligations.Api.Data.Entities.ComplianceDeclarationStatus;
+using Obligation = Defra.WasteObligations.Api.Data.Entities.Obligation;
 using ReasonAuditEntry = Defra.WasteObligations.Api.Data.Entities.ReasonAuditEntry;
 using UserLocale = Defra.WasteObligations.Api.Dtos.UserLocale;
 
@@ -80,11 +81,90 @@ public class ComplianceDeclarationTests
         act.Should().Throw<EntityException>();
     }
 
+    [Fact]
+    public void Submit_WhenObligationsProvided_ShouldCalculateObligationCoveragePercentage()
+    {
+        var draft = CreateDraft(
+            ObligationFixture
+                .Default()
+                .With(
+                    x => x.Tonnages,
+                    ObligationTonnagesFixture.Default().With(t => t.Accepted, 2).With(t => t.Obligated, 5).Create()
+                )
+                .Create()
+        );
+        var user = UserFixture.Default().Create();
+
+        var submitted = draft.Submit(user, UtcNow);
+
+        submitted.ObligationCoveragePercentage.Should().Be(40m);
+    }
+
+    [Fact]
+    public void Submit_WhenRepeatingDecimal_ShouldRoundToTwoDecimalPlaces()
+    {
+        var draft = CreateDraft(
+            ObligationFixture
+                .Default()
+                .With(
+                    x => x.Tonnages,
+                    ObligationTonnagesFixture.Default().With(t => t.Accepted, 1).With(t => t.Obligated, 3).Create()
+                )
+                .Create()
+        );
+        var user = UserFixture.Default().Create();
+
+        var submitted = draft.Submit(user, UtcNow);
+
+        submitted.ObligationCoveragePercentage.Should().Be(33.33m);
+    }
+
+    [Fact]
+    public void Submit_WhenTotalObligatedIsZero_ShouldSetObligationCoveragePercentageToZero()
+    {
+        var draft = CreateDraft(
+            ObligationFixture
+                .Default()
+                .With(x => x.Tonnages, ObligationTonnagesFixture.Default().With(t => t.Obligated, 0).Create())
+                .Create()
+        );
+        var user = UserFixture.Default().Create();
+
+        var submitted = draft.Submit(user, UtcNow);
+
+        submitted.ObligationCoveragePercentage.Should().Be(0m);
+    }
+
+    [Fact]
+    public void Submit_WhenMidpointPercentage_ShouldRoundAwayFromZero()
+    {
+        var draft = CreateDraft(
+            ObligationFixture
+                .Default()
+                .With(
+                    x => x.Tonnages,
+                    ObligationTonnagesFixture.Default().With(t => t.Accepted, 1).With(t => t.Obligated, 20_000).Create()
+                )
+                .Create()
+        );
+        var user = UserFixture.Default().Create();
+
+        var submitted = draft.Submit(user, UtcNow);
+
+        submitted.ObligationCoveragePercentage.Should().Be(0.01m);
+    }
+
     private static ComplianceDeclaration CreateDraft() =>
         new()
         {
             Organisation = OrganisationFixture.Organisation().Create(),
             ObligationStatus = "Met",
             SubmitterName = "Submitter",
+        };
+
+    private static ComplianceDeclaration CreateDraft(Obligation obligation) =>
+        CreateDraft() with
+        {
+            Obligations = [obligation],
         };
 }

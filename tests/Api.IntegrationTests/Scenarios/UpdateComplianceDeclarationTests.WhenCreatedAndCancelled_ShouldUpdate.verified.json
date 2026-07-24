@@ -1,4 +1,4 @@
-﻿{
+{
   "id": "{Scrubbed}",
   "created": "{Scrubbed}",
   "updated": "{Scrubbed}",
@@ -39,7 +39,7 @@
   "obligationStatus": "NotMet",
   "submitterName": "Submitter Name",
   "isRegulation43Compliant": true,
-  "overallAccepted": 40.0,
+  "obligationCoveragePercentage": 40.0,
   "audit": [
     {
       "user": {

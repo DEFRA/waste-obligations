@@ -26,6 +26,7 @@
       ],
       "created": "{Scrubbed}",
       "isRegulation43Compliant": true,
+      "obligationCoveragePercentage": 40.0,
       "obligations": [
         {
           "material": "Plastic",
@@ -60,14 +61,13 @@
         "regulatorEmail": "regulator@email.com",
         "schemeOperatorName": null
       },
-      "overallAccepted": 40.0,
-      "schemaVersion": "v1.1",
+      "schemaVersion": "v1.2",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "{Scrubbed}",
       "version": 1
     },
-    "SchemaVersion": "v1.1"
+    "SchemaVersion": "v1.2"
   },
   {
     "EventId": "01HXYZ00000000000000000002",
@@ -96,6 +96,7 @@
       ],
       "created": "{Scrubbed}",
       "isRegulation43Compliant": true,
+      "obligationCoveragePercentage": 40.0,
       "obligations": [
         {
           "material": "Plastic",
@@ -130,14 +131,13 @@
         "regulatorEmail": "regulator@email.com",
         "schemeOperatorName": null
       },
-      "overallAccepted": 40.0,
-      "schemaVersion": "v1.1",
+      "schemaVersion": "v1.2",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "{Scrubbed}",
       "version": 1
     },
-    "SchemaVersion": "v1.1"
+    "SchemaVersion": "v1.2"
   },
   {
     "EventId": "01HXYZ00000000000000000003",
@@ -166,6 +166,7 @@
       ],
       "created": "{Scrubbed}",
       "isRegulation43Compliant": true,
+      "obligationCoveragePercentage": 40.0,
       "obligations": [
         {
           "material": "Plastic",
@@ -200,8 +201,7 @@
         "regulatorEmail": "regulator@email.com",
         "schemeOperatorName": null
       },
-      "overallAccepted": 40.0,
-      "schemaVersion": "v1.1",
+      "schemaVersion": "v1.2",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "{Scrubbed}",
@@ -223,6 +223,7 @@
       ],
       "created": "{Scrubbed}",
       "isRegulation43Compliant": true,
+      "obligationCoveragePercentage": 40.0,
       "obligations": [
         {
           "material": "Plastic",
@@ -257,14 +258,13 @@
         "regulatorEmail": "regulator@email.com",
         "schemeOperatorName": null
       },
-      "overallAccepted": 40.0,
-      "schemaVersion": "v1.1",
+      "schemaVersion": "v1.2",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "{Scrubbed}",
       "version": 2
     },
-    "SchemaVersion": "v1.1"
+    "SchemaVersion": "v1.2"
   },
   {
     "EventId": "01HXYZ00000000000000000004",
@@ -293,6 +293,7 @@
       ],
       "created": "{Scrubbed}",
       "isRegulation43Compliant": true,
+      "obligationCoveragePercentage": 40.0,
       "obligations": [
         {
           "material": "Plastic",
@@ -327,8 +328,7 @@
         "regulatorEmail": "regulator@email.com",
         "schemeOperatorName": null
       },
-      "overallAccepted": 40.0,
-      "schemaVersion": "v1.1",
+      "schemaVersion": "v1.2",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "{Scrubbed}",
@@ -350,6 +350,7 @@
       ],
       "created": "{Scrubbed}",
       "isRegulation43Compliant": true,
+      "obligationCoveragePercentage": 40.0,
       "obligations": [
         {
           "material": "Plastic",
@@ -384,13 +385,12 @@
         "regulatorEmail": "regulator@email.com",
         "schemeOperatorName": null
       },
-      "overallAccepted": 40.0,
-      "schemaVersion": "v1.1",
+      "schemaVersion": "v1.2",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "{Scrubbed}",
       "version": 2
     },
-    "SchemaVersion": "v1.1"
+    "SchemaVersion": "v1.2"
   }
 ]

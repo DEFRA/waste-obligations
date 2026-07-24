@@ -1,4 +1,4 @@
-﻿{
+{
   "eventId": "01JZ8RXBMTY2K15SJB3PCFN3D6",
   "sequence": 124,
   "entity": "compliance_declaration",
@@ -65,7 +65,7 @@
       }
     ],
     "isRegulation43Compliant": true,
-    "overallAccepted": 40
+    "obligationCoveragePercentage": 40
   },
   "after": {
     "id": "65f1f6570bb08052a8a27b01",
@@ -132,7 +132,7 @@
       }
     ],
     "isRegulation43Compliant": true,
-    "overallAccepted": 40
+    "obligationCoveragePercentage": 40
   },
-  "schemaVersion": "compliance_declaration.v1.1"
+  "schemaVersion": "compliance_declaration.v1.2"
 }

@@ -85,6 +85,6 @@ public class SearchComplianceDeclarationTests : IntegrationTestBase
 
         collectedDeclarations.Should().HaveCount(recordCount);
         collectedDeclarations.Select(x => x.Id).Should().BeEquivalentTo(seededIds);
-        collectedDeclarations.Should().OnlyContain(x => x.OverallAccepted == 40m);
+        collectedDeclarations.Should().OnlyContain(x => x.ObligationCoveragePercentage == 40m);
     }
 }

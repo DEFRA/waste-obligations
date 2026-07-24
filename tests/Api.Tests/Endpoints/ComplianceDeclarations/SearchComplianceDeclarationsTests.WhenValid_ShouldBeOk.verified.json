@@ -1,4 +1,4 @@
-﻿{
+{
   "complianceDeclarations": [
     {
       "id": "000000000000000000000000",
@@ -41,7 +41,7 @@
       "obligationStatus": "NotMet",
       "submitterName": "Submitter Name",
       "isRegulation43Compliant": true,
-      "overallAccepted": 40,
+      "obligationCoveragePercentage": 40,
       "audit": [
         {
           "user": {
