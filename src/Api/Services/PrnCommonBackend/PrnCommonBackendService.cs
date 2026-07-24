@@ -24,4 +24,21 @@ public class PrnCommonBackendService(HttpClient httpClient) : IPrnCommonBackendS
 
         return obligations is not null ? obligations.ObligationData : [];
     }
+
+    public async Task<PrnDetails?> ReadPrn(Guid organisationId, string prnId, CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(prnId, out var commonBackendPrnId))
+            return null;
+
+        var request = httpClient.CreateRequest(HttpMethod.Get, $"api/v1/prn/{commonBackendPrnId:D}");
+        request.Headers.Add("X-EPR-ORGANISATION", organisationId.ToString("D"));
+
+        var response = await httpClient.SendAsync(request, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return null;
+
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<PrnDetails>(cancellationToken);
+    }
 }

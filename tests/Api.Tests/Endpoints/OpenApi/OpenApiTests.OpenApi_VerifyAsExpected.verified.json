@@ -98,6 +98,87 @@
         }
       }
     },
+    "/organisations/{organisationId}/prns/{prnId}": {
+      "get": {
+        "tags": [
+          "PRNs"
+        ],
+        "summary": "PRN by ID",
+        "description": "Return a PRN by organisation ID and PRN ID",
+        "operationId": "ReadOrganisationPrn",
+        "parameters": [
+          {
+            "name": "organisationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "prnId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Prn"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/organisations/{organisationId}/compliance-declarations": {
       "post": {
         "tags": [
@@ -1034,6 +1115,243 @@
           }
         }
       },
+      "Prn": {
+        "required": [
+          "id",
+          "number",
+          "type",
+          "status",
+          "issuedAt",
+          "obligationYear",
+          "accreditationYear",
+          "decemberWaste",
+          "material",
+          "recyclingProcess",
+          "tonnage",
+          "issuer",
+          "recipient",
+          "authorisedBy",
+          "accreditationNumber",
+          "reprocessorExporterAgency",
+          "audit"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "number": {
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "PRN",
+              "PERN"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "AwaitingAcceptance",
+              "Accepted",
+              "Rejected",
+              "AwaitingCancellation",
+              "Cancelled"
+            ],
+            "type": "string"
+          },
+          "issuedAt": {
+            "type": "string",
+            "description": "Time the PRN or PERN was issued, returned at UTC offset zero. For RREPW and epr-backend records this is also the authorisation time.",
+            "format": "date-time"
+          },
+          "obligationYear": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "accreditationYear": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "decemberWaste": {
+            "type": "boolean"
+          },
+          "material": {
+            "enum": [
+              "Plastic",
+              "Glass",
+              "Aluminium",
+              "Steel",
+              "Wood",
+              "GlassRemelt",
+              "Paper",
+              "Fibre"
+            ],
+            "type": "string"
+          },
+          "recyclingProcess": {
+            "type": "string"
+          },
+          "tonnage": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "issuer": {
+            "$ref": "#/components/schemas/PrnIssuer"
+          },
+          "recipient": {
+            "$ref": "#/components/schemas/PrnRecipient"
+          },
+          "authorisedBy": {
+            "$ref": "#/components/schemas/PrnAuthorisedBy"
+          },
+          "accreditationNumber": {
+            "type": "string"
+          },
+          "reprocessingSite": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reprocessorExporterAgency": {
+            "type": "string"
+          },
+          "additionalNotes": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "audit": {
+            "$ref": "#/components/schemas/PrnAudit"
+          }
+        }
+      },
+      "PrnAudit": {
+        "required": [
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "description": "Time the PRN record was created in the source store, returned at UTC offset zero. Source-store timestamps are not directly comparable across PRN pools.",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "Time the PRN record was last updated in the source store, returned at UTC offset zero. Source-store timestamps are not directly comparable across PRN pools.",
+            "format": "date-time"
+          },
+          "acceptedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Time the PRN or PERN was accepted, returned at UTC offset zero. Null when no acceptance event exists or when the source cannot supply lifecycle-event timestamps.",
+            "format": "date-time"
+          },
+          "rejectedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Time the PRN or PERN was rejected, returned at UTC offset zero. Null when no rejection event exists or when the source cannot supply lifecycle-event timestamps.",
+            "format": "date-time"
+          },
+          "cancelledAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Time the PRN or PERN was cancelled, returned at UTC offset zero. Null when no cancellation event exists or when the source cannot supply lifecycle-event timestamps.",
+            "format": "date-time"
+          }
+        }
+      },
+      "PrnAuthorisedBy": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "position": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "PrnIssuer": {
+        "required": [
+          "organisationName"
+        ],
+        "type": "object",
+        "properties": {
+          "organisationName": {
+            "type": "string"
+          }
+        }
+      },
+      "PrnRecipient": {
+        "required": [
+          "organisationId",
+          "displayName"
+        ],
+        "type": "object",
+        "properties": {
+          "organisationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Recipient legal name when supplied by a richer source. PRN common backend and legacy PRN records return null because they retain only a selected display name."
+          },
+          "tradingName": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Recipient trading name when supplied by a richer source. PRN common backend and legacy PRN records return null because they retain only a selected display name."
+          },
+          "registrationType": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "Recipient registration type when supplied by epr-backend. PRN common backend and legacy PRN records return null because they do not retain this value.",
+                "$ref": "#/components/schemas/RegistrationType"
+              }
+            ]
+          }
+        }
+      },
       "ProblemDetails": {
         "type": "object",
         "properties": {
@@ -1075,7 +1393,8 @@
       "RegistrationType": {
         "enum": [
           "DirectProducer",
-          "ComplianceScheme"
+          "ComplianceScheme",
+          null
         ]
       },
       "UpdateComplianceDeclarationRequest": {
@@ -1139,6 +1458,9 @@
   "tags": [
     {
       "name": "Obligations"
+    },
+    {
+      "name": "PRNs"
     },
     {
       "name": "Compliance Declarations"

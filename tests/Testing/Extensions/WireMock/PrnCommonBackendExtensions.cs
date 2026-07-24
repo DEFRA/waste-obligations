@@ -1,6 +1,7 @@
 using System.Net;
 using AutoFixture;
 using AwesomeAssertions;
+using Defra.WasteObligations.Api.Services.PrnCommonBackend;
 using Defra.WasteObligations.Testing.Fixtures.PrnCommonBackend;
 using WireMock.Client;
 using WireMock.Client.Extensions;
@@ -12,6 +13,60 @@ namespace Defra.WasteObligations.Testing.Extensions.WireMock;
 
 public static class PrnCommonBackendExtensions
 {
+    public static void StubPrnCommonBackendPrnRequest(
+        this WireMockServer wireMock,
+        Guid prnId,
+        PrnDetails? prn = null,
+        string? organisationId = null,
+        string? accessToken = null
+    )
+    {
+        var request = Request.Create().UsingGet().WithPath($"/api/v1/prn/{prnId:D}");
+
+        if (organisationId is not null)
+            request = request.WithHeader("X-EPR-ORGANISATION", organisationId);
+
+        if (accessToken is not null)
+            request = request.WithHeader("Authorization", $"Bearer {accessToken}");
+
+        wireMock
+            .Given(request)
+            .RespondWith(
+                Response
+                    .Create()
+                    .WithStatusCode(HttpStatusCode.OK)
+                    .WithBodyAsJson(prn ?? PrnDetailsFixture.Default().With(x => x.ExternalId, prnId).Create())
+            );
+    }
+
+    public static async Task StubPrnCommonBackendPrnRequest(
+        this IWireMockAdminApi wireMock,
+        Guid prnId,
+        PrnDetails prn,
+        string? organisationId = null,
+        string? accessToken = null
+    )
+    {
+        var builder = wireMock.GetMappingBuilder();
+
+        builder.Given(x =>
+            x.WithRequest(r =>
+                {
+                    r.UsingGet().WithPath($"/api/v1/prn/{prnId:D}");
+
+                    if (organisationId is not null)
+                        r.WithHeader("X-EPR-ORGANISATION", organisationId);
+
+                    if (accessToken is not null)
+                        r.WithHeader("Authorization", $"Bearer {accessToken}");
+                })
+                .WithResponse(r => r.WithStatusCode(HttpStatusCode.OK).WithBodyAsJson(prn))
+        );
+
+        var status = await builder.BuildAndPostAsync(TestContext.Current.CancellationToken);
+        status.Guid.Should().NotBeNull();
+    }
+
     public static void StubPrnCommonBackendObligationsRequest(
         this WireMockServer wireMock,
         int year = 2026,

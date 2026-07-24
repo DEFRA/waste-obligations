@@ -1,3 +1,4 @@
+using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Services.PrnCommonBackend;
 using Defra.WasteObligations.Api.Utils.Http;
@@ -79,5 +80,52 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
         var result = await subject.ReadObligations(Guid.NewGuid(), 2026, TestContext.Current.CancellationToken);
 
         result.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ReadPrn_ShouldReturnPrnDetails()
+    {
+        await using var sp = Services.BuildServiceProvider();
+
+        var service = sp.GetRequiredService<IPrnCommonBackendService>();
+        sp.GetRequiredService<HeaderPropagationValues>().Headers = new Dictionary<string, StringValues>();
+        const string accessToken = "access_token";
+        var prn = PrnDetailsFixture.Default().Create();
+
+        WireMock.StubTokenRequest();
+        WireMock.StubPrnCommonBackendPrnRequest(prn.ExternalId, prn, prn.OrganisationId.ToString("D"), accessToken);
+
+        var result = await service.ReadPrn(
+            prn.OrganisationId,
+            prn.ExternalId.ToString("D"),
+            TestContext.Current.CancellationToken
+        );
+
+        result.Should().NotBeNull();
+        result.Should().BeEquivalentTo(prn);
+    }
+
+    [Fact]
+    public async Task ReadPrn_WhenNotFound_ShouldReturnNull()
+    {
+        var subject = new PrnCommonBackendService(Context.HttpClient);
+
+        var result = await subject.ReadPrn(
+            Guid.NewGuid(),
+            Guid.NewGuid().ToString("D"),
+            TestContext.Current.CancellationToken
+        );
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ReadPrn_WhenPrnIdNotGuid_ShouldReturnNull()
+    {
+        var subject = new PrnCommonBackendService(Context.HttpClient);
+
+        var result = await subject.ReadPrn(Guid.NewGuid(), "not-a-guid", TestContext.Current.CancellationToken);
+
+        result.Should().BeNull();
     }
 }

@@ -8,6 +8,9 @@ namespace Defra.WasteObligations.Testing.Fakes;
 
 public class FakePrnCommonBackendService : IPrnCommonBackendService
 {
+    public const string InvalidPrnId = "923615ff-1372-4ba6-a068-f050b67980cd";
+    public const string MismatchedPrnId = "3990be58-e16e-4fb8-9fc1-cfb1ce5a9295";
+
     private static readonly Dictionary<(Guid, int), List<Obligation>> s_obligations = new()
     {
         {
@@ -29,6 +32,33 @@ public class FakePrnCommonBackendService : IPrnCommonBackendService
         },
     };
 
+    private static readonly Dictionary<(Guid, string), PrnDetails> s_prns = new()
+    {
+        {
+            (FakeWasteOrganisationsService.OrganisationId, PrnDetailsFixture.PrnId.ToString("D")),
+            PrnDetailsFixture
+                .Default()
+                .With(x => x.OrganisationId, FakeWasteOrganisationsService.OrganisationId)
+                .Create()
+        },
+        {
+            (FakeWasteOrganisationsService.OrganisationId, MismatchedPrnId),
+            PrnDetailsFixture
+                .Default()
+                .With(x => x.ExternalId, Guid.Parse(MismatchedPrnId))
+                .With(x => x.OrganisationId, Guid.NewGuid())
+                .Create()
+        },
+        {
+            (FakeWasteOrganisationsService.OrganisationId, InvalidPrnId),
+            PrnDetailsFixture
+                .Default()
+                .With(x => x.ExternalId, Guid.Empty)
+                .With(x => x.OrganisationId, FakeWasteOrganisationsService.OrganisationId)
+                .Create()
+        },
+    };
+
     public Task<IEnumerable<Obligation>> ReadObligations(
         Guid organisationId,
         int year,
@@ -38,5 +68,10 @@ public class FakePrnCommonBackendService : IPrnCommonBackendService
         return Task.FromResult(
             s_obligations.TryGetValue((organisationId, year), out var value) ? value : Enumerable.Empty<Obligation>()
         );
+    }
+
+    public Task<PrnDetails?> ReadPrn(Guid organisationId, string prnId, CancellationToken cancellationToken)
+    {
+        return Task.FromResult(s_prns.GetValueOrDefault((organisationId, prnId)));
     }
 }
