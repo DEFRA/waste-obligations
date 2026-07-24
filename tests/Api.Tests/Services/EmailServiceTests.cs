@@ -59,9 +59,10 @@ public class EmailServiceTests
                 expectedTemplate,
                 Arg.Is<IEnumerable<string>>(x => x.Single() == "submitter@email.com"),
                 Arg.Is<Dictionary<string, object>>(x =>
-                    x.Count == 4
+                    x.Count == 5
                     && (int)x["obligationYear"] == complianceDeclaration.ObligationYear
-                    && (string)x["regulator"] == complianceDeclaration.Organisation.Regulator
+                    && (string)x["regulatorLeading"] == $"The {complianceDeclaration.Organisation.Regulator}"
+                    && (string)x["regulatorInline"] == $"the {complianceDeclaration.Organisation.Regulator}"
                     && (string)x["regulatorEmail"] == complianceDeclaration.Organisation.RegulatorEmail
                     && (string)x["user"] == "Submitter Name"
                 ),
@@ -69,6 +70,37 @@ public class EmailServiceTests
             );
         EmailMetrics.Received(1).SendStarted(expectedMetricTemplateName, expectedLanguage);
         EmailMetrics.Received(1).SendCompleted(expectedMetricTemplateName, expectedLanguage, Arg.Any<double>());
+    }
+
+    [Theory]
+    [InlineData(BusinessCountry.England, "The Regulator", "the Regulator")]
+    [InlineData(BusinessCountry.NorthernIreland, "The Regulator", "the Regulator")]
+    [InlineData(BusinessCountry.Scotland, "The Regulator", "the Regulator")]
+    [InlineData(BusinessCountry.Wales, "Regulator", "Regulator")]
+    public async Task SendSubmittedEmail_ShouldUseRegulatorPrefixForOrganisationBusinessCountry(
+        string businessCountry,
+        string expectedRegulatorLeading,
+        string expectedRegulatorInline
+    )
+    {
+        var complianceDeclaration = ComplianceDeclarationFixture
+            .DirectProducer(OrganisationFixture.OrganisationId)
+            .Create();
+        var organisation = OrganisationFixture.Default().With(x => x.BusinessCountry, businessCountry).Create();
+
+        await Subject.SendSubmittedEmail(complianceDeclaration, organisation, TestContext.Current.CancellationToken);
+
+        await GovukNotifyService
+            .Received()
+            .SendComplianceDeclarationSubmittedEmail(
+                Arg.Any<GovukNotifyOptions.TemplateName>(),
+                Arg.Any<IEnumerable<string>>(),
+                Arg.Is<Dictionary<string, object>>(x =>
+                    (string)x["regulatorLeading"] == expectedRegulatorLeading
+                    && (string)x["regulatorInline"] == expectedRegulatorInline
+                ),
+                Arg.Any<string>()
+            );
     }
 
     [Theory]
