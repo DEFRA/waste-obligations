@@ -26,7 +26,8 @@ public class EmailService(
                 ? GovukNotifyOptions.TemplateName.ComplianceDeclarationSubmissionComplianceScheme
                 : GovukNotifyOptions.TemplateName.ComplianceDeclarationSubmissionDirectProducer;
         var templateName = template.ToString();
-        var language = organisation.BusinessCountry == BusinessCountry.Wales ? "cy" : "en";
+        var isWales = organisation.BusinessCountry == BusinessCountry.Wales;
+        var language = isWales ? "cy" : "en";
         var startingTimestamp = TimeProvider.System.GetTimestamp();
         emailMetrics.SendStarted(templateName, language);
 
@@ -35,10 +36,12 @@ public class EmailService(
             var submittedAuditEntry = complianceDeclaration.Audit.First(x =>
                 x.Action == nameof(ComplianceDeclarationStatus.Submitted)
             );
+            var regulator = complianceDeclaration.Organisation.Regulator;
             var personalisation = new Dictionary<string, object>
             {
                 { "obligationYear", complianceDeclaration.ObligationYear },
-                { "regulator", complianceDeclaration.Organisation.Regulator },
+                { "regulatorLeading", isWales ? regulator : $"The {regulator}" },
+                { "regulatorInline", isWales ? regulator : $"the {regulator}" },
                 { "regulatorEmail", complianceDeclaration.Organisation.RegulatorEmail },
                 { "user", submittedAuditEntry.User.Name },
             };
