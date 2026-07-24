@@ -33,7 +33,7 @@ jobs:
             10.0
       - name: Docker compose up
         run: |
-          docker compose up -d
+          docker compose up -d --wait
       - name: Docker compose logs
         if: always()
         run: |

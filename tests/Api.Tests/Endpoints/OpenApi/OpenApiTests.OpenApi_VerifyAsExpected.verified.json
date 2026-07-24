@@ -1,4 +1,4 @@
-﻿{
+{
   "openapi": "3.1.1",
   "info": {
     "title": "Waste Obligations REST API",
@@ -836,6 +836,15 @@
           },
           "isRegulation43Compliant": {
             "type": "boolean"
+          },
+          "obligationCoveragePercentage": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
           },
           "audit": {
             "type": "array",

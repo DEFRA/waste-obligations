@@ -51,6 +51,7 @@ public class CreateComplianceDeclarationTests : IntegrationTestBase
         );
 
         result.Should().NotBeNull();
+        result!.ObligationCoveragePercentage.Should().Be(40m);
 
         var complianceDeclaration = await client.GetFromJsonAsync<ComplianceDeclaration>(
             Testing.Endpoints.Organisations.ComplianceDeclarations.Read(organisationId, result.Id),

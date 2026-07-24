@@ -20,6 +20,7 @@ namespace Defra.WasteObligations.Api.IntegrationTests.Data;
 public class MongoMigrationServiceTests : IntegrationTestBase
 {
     private const string SchemaVersionV1_1 = "v1.1";
+    private const string SchemaVersionV1_2 = "v1.2";
     private const string OrganisationIdObligationYearIndexName = "OrganisationId_ObligationYear";
     private const string SearchIndexName = "ObligationYear_Status_OrganisationRegistrationType";
     private const string OrganisationNameIndexName = "OrganisationName";
@@ -252,11 +253,111 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         GetSubmittedAuditUser(existingLocale).Contains("locale").Should().BeFalse();
     }
 
+    [Fact]
+    public async Task ComplianceDeclarationObligationCoveragePercentage_ShouldBackfillAndBumpSchemaVersion()
+    {
+        var database = GetMongoDatabase();
+        var collection = database.GetCollection<BsonDocument>(nameof(ComplianceDeclaration));
+        var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
+        var subject = new ComplianceDeclarationObligationCoveragePercentage();
+        var legacyId = ObjectId.GenerateNewId();
+        var roundingLegacyId = ObjectId.GenerateNewId();
+        var existingPercentageId = ObjectId.GenerateNewId();
+        var alreadyMigratedId = ObjectId.GenerateNewId();
+        var timestamp = new DateTime(2026, 4, 26, 14, 0, 0, DateTimeKind.Utc);
+        const decimal existingPercentage = 75m;
+
+        await collection.InsertManyAsync(
+            [
+                CreateLegacyComplianceDeclaration(
+                    legacyId,
+                    timestamp,
+                    submittedUserLocale: null,
+                    schemaVersion: SchemaVersionV1_1,
+                    obligationCoveragePercentage: null
+                ),
+                CreateLegacyComplianceDeclaration(
+                    roundingLegacyId,
+                    timestamp,
+                    submittedUserLocale: UserLocale.En,
+                    schemaVersion: SchemaVersionV1_1,
+                    obligationCoveragePercentage: null,
+                    accepted: 1,
+                    obligated: 3
+                ),
+                CreateLegacyComplianceDeclaration(
+                    existingPercentageId,
+                    timestamp,
+                    submittedUserLocale: UserLocale.En,
+                    schemaVersion: SchemaVersionV1_1,
+                    obligationCoveragePercentage: existingPercentage
+                ),
+                CreateLegacyComplianceDeclaration(
+                    alreadyMigratedId,
+                    timestamp,
+                    submittedUserLocale: UserLocale.En,
+                    schemaVersion: SchemaVersionV1_2,
+                    obligationCoveragePercentage: existingPercentage
+                ),
+            ],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+
+        await subject.UpAsync(context);
+
+        var legacy = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", legacyId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        legacy["schemaVersion"].AsString.Should().Be(SchemaVersionV1_2);
+        legacy[ObligationCoveragePercentageField].ToDecimal().Should().Be(40m);
+
+        var roundingLegacy = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", roundingLegacyId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        roundingLegacy["schemaVersion"].AsString.Should().Be(SchemaVersionV1_2);
+        roundingLegacy[ObligationCoveragePercentageField].ToDecimal().Should().Be(33.33m);
+
+        var existingPercentageDocument = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", existingPercentageId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        existingPercentageDocument["schemaVersion"].AsString.Should().Be(SchemaVersionV1_2);
+        existingPercentageDocument[ObligationCoveragePercentageField].ToDecimal().Should().Be(existingPercentage);
+
+        var alreadyMigrated = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", alreadyMigratedId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        alreadyMigrated["schemaVersion"].AsString.Should().Be(SchemaVersionV1_2);
+        alreadyMigrated[ObligationCoveragePercentageField].ToDecimal().Should().Be(existingPercentage);
+
+        await subject.UpAsync(context);
+
+        legacy[ObligationCoveragePercentageField].ToDecimal().Should().Be(40m);
+
+        await subject.DownAsync(context);
+
+        legacy = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", legacyId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        legacy["schemaVersion"].AsString.Should().Be(SchemaVersionV1_1);
+        legacy.Contains(ObligationCoveragePercentageField).Should().BeFalse();
+
+        existingPercentageDocument = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", existingPercentageId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        existingPercentageDocument["schemaVersion"].AsString.Should().Be(SchemaVersionV1_1);
+        existingPercentageDocument.Contains(ObligationCoveragePercentageField).Should().BeFalse();
+    }
+
+    private const string ObligationCoveragePercentageField = "obligationCoveragePercentage";
+
     private static BsonDocument CreateLegacyComplianceDeclaration(
         ObjectId id,
         DateTime timestamp,
         string? submittedUserLocale,
-        string schemaVersion
+        string schemaVersion,
+        decimal? obligationCoveragePercentage = null,
+        int accepted = 2,
+        int obligated = 5
     )
     {
         var submittedUser = new BsonDocument
@@ -271,7 +372,7 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             submittedUser["locale"] = submittedUserLocale;
         }
 
-        return new BsonDocument
+        var document = new BsonDocument
         {
             ["_id"] = id,
             ["schemaVersion"] = schemaVersion,
@@ -294,7 +395,23 @@ public class MongoMigrationServiceTests : IntegrationTestBase
                 ["regulator"] = "Regulator",
                 ["regulatorEmail"] = "regulator@email.com",
             },
-            ["obligations"] = new BsonArray(),
+            ["obligations"] = new BsonArray
+            {
+                new BsonDocument
+                {
+                    ["material"] = "Plastic",
+                    ["recyclingTarget"] = 0.75m,
+                    ["status"] = "NoDataYet",
+                    ["tonnages"] = new BsonDocument
+                    {
+                        ["material"] = 100,
+                        ["awaitingAcceptance"] = 10,
+                        ["accepted"] = accepted,
+                        ["outstanding"] = 20,
+                        ["obligated"] = obligated,
+                    },
+                },
+            },
             ["audit"] = new BsonArray
             {
                 new BsonDocument
@@ -305,6 +422,13 @@ public class MongoMigrationServiceTests : IntegrationTestBase
                 },
             },
         };
+
+        if (obligationCoveragePercentage is not null)
+        {
+            document[ObligationCoveragePercentageField] = new BsonDecimal128(obligationCoveragePercentage.Value);
+        }
+
+        return document;
     }
 
     private static BsonDocument GetSubmittedAuditUser(BsonDocument document) =>

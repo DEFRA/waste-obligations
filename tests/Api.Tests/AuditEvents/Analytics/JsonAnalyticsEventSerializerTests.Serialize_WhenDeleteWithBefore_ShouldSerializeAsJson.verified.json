@@ -1,4 +1,4 @@
-﻿{
+{
   "eventId": "01JZ8RXBMTY2K15SJB3PCFN3D7",
   "sequence": 125,
   "entity": "compliance_declaration",
@@ -64,8 +64,9 @@
         "timestamp": "2026-01-02T03:04:05+00:00"
       }
     ],
-    "isRegulation43Compliant": true
+    "isRegulation43Compliant": true,
+    "obligationCoveragePercentage": 40
   },
   "after": null,
-  "schemaVersion": "compliance_declaration.v1.1"
+  "schemaVersion": "compliance_declaration.v1.2"
 }

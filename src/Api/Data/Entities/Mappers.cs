@@ -21,6 +21,7 @@ public static class Mappers
             ObligationStatus = entity.ObligationStatus,
             SubmitterName = entity.SubmitterName,
             IsRegulation43Compliant = entity.IsRegulation43Compliant,
+            ObligationCoveragePercentage = entity.ObligationCoveragePercentage,
             Audit = entity.Audit.Select(x => x.ToDto()).ToList(),
         };
 

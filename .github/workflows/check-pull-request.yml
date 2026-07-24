@@ -33,7 +33,7 @@ jobs:
         run: |
           set -o pipefail
 
-          docker compose up -d
+          docker compose up -d --wait
           output=$(dotnet test \
             --filter "Category=IntegrationTests" \
             --logger "console;verbosity=detailed" 2>&1)

@@ -43,6 +43,9 @@ public record ComplianceDeclaration
     [JsonPropertyName("isRegulation43Compliant")]
     public bool IsRegulation43Compliant { get; init; }
 
+    [JsonPropertyName("obligationCoveragePercentage")]
+    public decimal? ObligationCoveragePercentage { get; init; }
+
     [JsonPropertyName("audit")]
     public IEnumerable<AuditEntry> Audit { get; init; } = [];
 }

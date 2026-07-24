@@ -1,4 +1,4 @@
-﻿{
+{
   "id": "6830b14f9d2a7c61f4e8b935",
   "created": "2026-04-26T14:00:00+00:00",
   "updated": "2026-04-26T14:00:00+00:00",
@@ -39,6 +39,7 @@
   "obligationStatus": "NotMet",
   "submitterName": "Submitter Name",
   "isRegulation43Compliant": true,
+  "obligationCoveragePercentage": 40,
   "audit": [
     {
       "user": {
