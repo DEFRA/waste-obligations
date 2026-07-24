@@ -119,6 +119,17 @@ flowchart TD
 
 The `AuditEvent` collection is indexed by sequence, entity/entity id/version, and the analytics dispatch fields so the dispatcher can read the oldest undispatched or retryable events efficiently.
 
+### Entity version and schema version
+
+The declaration has two independent versions:
+
+- `version` is incremented for each declaration mutation and is used for optimistic concurrency.
+- `schemaVersion` identifies the BSON and analytics payload shape. It changes only when that contract changes and currently uses major and minor components without a patch component.
+
+When a declaration shape changes, a new embedded schema file is added and the entity default moves to that version. Existing schema files remain unchanged because an `AuditEvent` records the schema version that applied when its immutable `before` and `after` snapshots were created. The analytics serializer uses that recorded version to load the matching embedded schema, so an older undispatched event can still be published after a newer application version is deployed.
+
+Mongo migrations update live declarations that need backfilling, but do not rewrite historical audit events. The `v1.0` to `v1.1` locale change is the current example: `locale` was added as an optional, nullable property of an audit entry's `user`; the migration set missing submitted-user locales to `null` and advanced affected declaration documents to `v1.1`, while preserving an already-written locale and leaving old audit events on `v1.0`.
+
 ## Analytics event dispatch
 
 ```mermaid
