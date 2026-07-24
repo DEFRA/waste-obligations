@@ -32,7 +32,7 @@ jobs:
           dotnet test --filter "Category!=IntegrationTests"
       - name: Run integration tests
         run: |
-          docker compose up -d
+          docker compose up -d --wait
           dotnet test --filter "Category=IntegrationTests"
       - name: Docker compose logs
         if: always()
