@@ -18,6 +18,11 @@ public static class ApplicationBuilderExtensions
                     var error = exceptionHandlerFeature?.Error;
                     var (statusCode, title, detail) = error switch
                     {
+                        BadHttpRequestException { InnerException: InvalidRequestBodyException innerException } ex => (
+                            ex.StatusCode,
+                            "Bad request",
+                            innerException.Message
+                        ),
                         BadHttpRequestException ex => (ex.StatusCode, "Bad request", ex.Message),
                         EntityException ex => (
                             StatusCodes.Status422UnprocessableEntity,

@@ -3,6 +3,7 @@
 ## Coding conventions
 - Do not use the `Async` suffix for asynchronous methods
 - Add blank line before return statement
+- Prefer typed `Results.[method]()` helpers over `Results.Problem()` for endpoint responses; reserve `Results.Problem()` for cases without an appropriate typed helper
 - Use constants for values that are used more than once; inline values that are only used once
 - Use camelCase for constants declared within methods
 - Lint files changed/created using "dotnet csharpier format ."

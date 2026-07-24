@@ -42,6 +42,8 @@ public static class Endpoints
 
             public static string Read(Guid organisationId, string prnId) =>
                 $"{Organisations.Read(organisationId)}/{Root}/{prnId}";
+
+            public static string Update(Guid organisationId, string prnId) => Read(organisationId, prnId);
         }
 
         public static class ComplianceDeclarations
