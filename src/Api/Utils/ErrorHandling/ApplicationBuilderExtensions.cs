@@ -1,5 +1,9 @@
+using System.Reflection;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Defra.WasteObligations.Api.Data;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Defra.WasteObligations.Api.Utils.ErrorHandling;
@@ -18,12 +22,11 @@ public static class ApplicationBuilderExtensions
                     var error = exceptionHandlerFeature?.Error;
                     var (statusCode, title, detail) = error switch
                     {
-                        BadHttpRequestException { InnerException: InvalidRequestBodyException innerException } ex => (
+                        BadHttpRequestException ex => (
                             ex.StatusCode,
                             "Bad request",
-                            innerException.Message
+                            GetEnumValidationDetail(ex, exceptionHandlerFeature?.Endpoint) ?? ex.Message
                         ),
-                        BadHttpRequestException ex => (ex.StatusCode, "Bad request", ex.Message),
                         EntityException ex => (
                             StatusCodes.Status422UnprocessableEntity,
                             "Entity state conflict",
@@ -59,5 +62,29 @@ public static class ApplicationBuilderExtensions
                 },
             }
         );
+    }
+
+    private static string? GetEnumValidationDetail(BadHttpRequestException exception, Endpoint? endpoint)
+    {
+        if (
+            exception.InnerException is not JsonException { Path: { } path }
+            || endpoint?.Metadata.GetMetadata<IAcceptsMetadata>()?.RequestType is not { } requestType
+        )
+            return null;
+
+        var propertyName = path.TrimStart('$', '.');
+        if (string.IsNullOrEmpty(propertyName) || propertyName.Contains('.'))
+            return null;
+
+        var property = requestType
+            .GetProperties()
+            .FirstOrDefault(x => x.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name == propertyName);
+        var enumType = property is null
+            ? null
+            : Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType;
+        if (enumType is null || !enumType.IsEnum)
+            return null;
+
+        return $"The value for '{propertyName}' must be one of: {string.Join(", ", Enum.GetNames(enumType))}.";
     }
 }

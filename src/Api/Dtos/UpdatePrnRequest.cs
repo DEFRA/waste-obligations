@@ -6,7 +6,6 @@ namespace Defra.WasteObligations.Api.Dtos;
 public record UpdatePrnRequest
 {
     [Required]
-    [EnumDataType(typeof(UpdatePrnStatus))]
     [JsonPropertyName("status")]
     public UpdatePrnStatus? Status { get; init; }
 

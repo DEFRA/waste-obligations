@@ -2,6 +2,6 @@
   "type": "https://tools.ietf.org/html/rfc9110#section-15.5.1",
   "title": "Bad request",
   "status": 400,
-  "detail": "Status must be either Accepted or Rejected.",
+  "detail": "The value for 'status' must be one of: Accepted, Rejected.",
   "traceId": "{Scrubbed}"
 }

@@ -1560,7 +1560,8 @@
       "UpdatePrnStatus": {
         "enum": [
           "Accepted",
-          "Rejected"
+          "Rejected",
+          null
         ]
       },
       "User": {

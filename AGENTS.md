@@ -21,6 +21,7 @@
 
 ## Change iterations
 - Integration clients should return their integration response models rather than public API DTOs; map to API DTOs in the consuming endpoint or application service
+- Before adding an endpoint, request DTO, validation rule, serialisation converter, or OpenAPI customisation, compare the nearest existing implementation. If the change needs a one-off pattern or would alter an established request, validation, error-response, or documentation convention, pause and ask the user before introducing it.
 - When changing entity or DTO types, follow the persisted entity and schema change workflow below, then inspect fixtures in tests and assess changes needed
 - Work backwards through tests to assess changes
 - In tests, prefer the fixtures in the Testing support project for repeated valid entity, DTO, and service response shapes; direct instantiation is fine for intentionally malformed/null payloads or small one-off values where a fixture would add noise
