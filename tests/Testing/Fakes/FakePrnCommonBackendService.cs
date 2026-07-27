@@ -33,18 +33,15 @@ public class FakePrnCommonBackendService : IPrnCommonBackendService
         },
     };
 
-    private static readonly Dictionary<(Guid, string), PrnDetails> s_prns = new()
+    private static readonly Dictionary<(Guid, string), PrnData> s_prns = new()
     {
         {
-            (FakeWasteOrganisationsService.OrganisationId, PrnDetailsFixture.PrnId.ToString("D")),
-            PrnDetailsFixture
-                .Default()
-                .With(x => x.OrganisationId, FakeWasteOrganisationsService.OrganisationId)
-                .Create()
+            (FakeWasteOrganisationsService.OrganisationId, PrnDataFixture.PrnId.ToString("D")),
+            PrnDataFixture.Default().With(x => x.OrganisationId, FakeWasteOrganisationsService.OrganisationId).Create()
         },
         {
             (FakeWasteOrganisationsService.OrganisationId, MismatchedPrnId),
-            PrnDetailsFixture
+            PrnDataFixture
                 .Default()
                 .With(x => x.ExternalId, Guid.Parse(MismatchedPrnId))
                 .With(x => x.OrganisationId, Guid.NewGuid())
@@ -52,7 +49,7 @@ public class FakePrnCommonBackendService : IPrnCommonBackendService
         },
         {
             (FakeWasteOrganisationsService.OrganisationId, InvalidPrnId),
-            PrnDetailsFixture
+            PrnDataFixture
                 .Default()
                 .With(x => x.ExternalId, Guid.Empty)
                 .With(x => x.OrganisationId, FakeWasteOrganisationsService.OrganisationId)
@@ -76,9 +73,18 @@ public class FakePrnCommonBackendService : IPrnCommonBackendService
         );
     }
 
-    public Task<PrnDetails?> ReadPrn(Guid organisationId, string prnId, CancellationToken cancellationToken)
+    public Task<PrnData?> ReadPrn(Guid organisationId, string prnId, CancellationToken cancellationToken)
     {
         return Task.FromResult(s_prns.GetValueOrDefault((organisationId, prnId)));
+    }
+
+    public Task<PrnSearchResponse> SearchPrns(
+        Guid organisationId,
+        PrnSearchRequest search,
+        CancellationToken cancellationToken
+    )
+    {
+        return Task.FromResult(new PrnSearchResponse());
     }
 
     public Task<PrnStatusUpdateResult> UpdatePrnStatus(

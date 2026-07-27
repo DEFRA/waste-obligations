@@ -81,7 +81,7 @@ public class ReadPrnTests(ApiWebApplicationFactory factory, ITestOutputHelper ou
     }
 
     [Fact]
-    public async Task WhenPrnDetailsInvalid_ShouldBeInternalServerError()
+    public async Task WhenPrnDataInvalid_ShouldBeInternalServerError()
     {
         var client = CreateClient(testUser: TestUser.ReadOnly);
 

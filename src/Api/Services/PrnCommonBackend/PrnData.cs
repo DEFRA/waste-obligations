@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace Defra.WasteObligations.Api.Services.PrnCommonBackend;
 
-public record PrnDetails
+public record PrnData
 {
     [JsonPropertyName("externalId")]
     public required Guid ExternalId { get; init; }

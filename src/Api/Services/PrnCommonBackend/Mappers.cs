@@ -20,7 +20,7 @@ public static class Mappers
             Status = obligation.Status,
         };
 
-    public static Dtos.Prn ToDto(this PrnDetails prn) =>
+    public static Dtos.Prn ToDto(this PrnData prn) =>
         new()
         {
             Id = Required(prn.ExternalId, nameof(prn.ExternalId)).ToString("D"),
@@ -76,7 +76,7 @@ public static class Mappers
     }
 
     private static string MapMaterial(string? material) =>
-        Required(material, nameof(PrnDetails.MaterialName)) switch
+        Required(material, nameof(PrnData.MaterialName)) switch
         {
             Material.Aluminium => Material.Aluminium,
             Material.Plastic => Material.Plastic,
@@ -88,17 +88,17 @@ public static class Mappers
             Material.Fibre => Material.Fibre,
             "Glass Other" => Material.Glass,
             "Glass Re-melt" => Material.GlassRemelt,
-            var value => throw Invalid(nameof(PrnDetails.MaterialName), value),
+            var value => throw Invalid(nameof(PrnData.MaterialName), value),
         };
 
     private static string MapStatus(string? status) =>
-        Required(status, nameof(PrnDetails.PrnStatus)) switch
+        Required(status, nameof(PrnData.PrnStatus)) switch
         {
             "AWAITINGACCEPTANCE" => PrnStatus.AwaitingAcceptance,
             "ACCEPTED" => PrnStatus.Accepted,
             "REJECTED" => PrnStatus.Rejected,
             "CANCELLED" or "CANCELED" => PrnStatus.Cancelled,
-            var value => throw Invalid(nameof(PrnDetails.PrnStatus), value),
+            var value => throw Invalid(nameof(PrnData.PrnStatus), value),
         };
 
     private static int ParseYear(string? value, string propertyName)

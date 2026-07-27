@@ -8,11 +8,11 @@ The first delivery is complete: Waste Obligations exposes the organisation-scope
 
 `GET /organisations/{organisationId}/prns/{prnId}`
 
-It calls `epr-prn-common-backend` `GET /api/v1/prn/{prnId}` and maps the upstream detail DTO to the Waste Obligations `Prn` response. This document extends the design guidance to the next proposed delivery:
+It calls `epr-prn-common-backend` `GET /api/v1/prn/{prnId}` and maps the upstream detail DTO to the Waste Obligations `Prn` response. Waste Obligations now also exposes the organisation-scoped list route:
 
 `GET /organisations/{organisationId}/prns`
 
-The list route must have caller-controlled paging. Its request pattern must follow `Defra.WasteObligations.Api.Endpoints.ComplianceDeclarations.SearchComplianceDeclarations`: a request record bound with `[AsParameters]`, a 1-based optional `page`, and an optional bounded `pageSize`. It is a fact-finding/design guide only; it does not authorise an endpoint, DTO, client, or test implementation.
+The list route has caller-controlled paging. Its request pattern follows `Defra.WasteObligations.Api.Endpoints.ComplianceDeclarations.SearchComplianceDeclarations`: a request record bound with `[AsParameters]`, a 1-based optional `page`, and an optional bounded `pageSize`. This guide records the implemented common-backend integration and the constraints for later PRN sources.
 
 ## Principles
 
@@ -44,7 +44,7 @@ The closest existing Waste Obligations page-number API is `GET /compliance-decla
 }
 ```
 
-For the PRN list, follow the `ComplianceDeclarationsPaged` pattern with a proposed `PrnsPaged` public envelope. Its collection is `IEnumerable<Prn>` and its JSON shape is:
+The PRN list follows the `ComplianceDeclarationsPaged` pattern with a `PrnsPaged` public envelope. Its collection is `IEnumerable<Prn>` and its JSON shape is:
 
 ```json
 {
@@ -55,13 +55,13 @@ For the PRN list, follow the `ComplianceDeclarationsPaged` pattern with a propos
 }
 ```
 
-`page` defaults to 1 and must be at least 1; `pageSize` defaults to 20 and must be from 1 to 100. The public total means the number of items after all server-side filters. This is intentionally the existing full `Prn` public model, not a new compact `PrnListItem` DTO. The common-backend search projection now supplies the fields needed to map this model directly. Page-number pagination with a total is required for the government GDS web controls; a cursor-only public contract is not appropriate for this route.
+`page` defaults to 1 and must be at least 1; `pageSize` defaults to 20 and must be from 1 to 100. The optional `search` input searches PRN number or issuer organisation name; it does not search the recipient, material, status, or note text. The public total means the number of items after all server-side filters. This is intentionally the existing full `Prn` public model, not a new compact `PrnListItem` DTO. The common-backend search projection now supplies the fields needed to map this model directly. Page-number pagination with a total is required for the government GDS web controls; a cursor-only public contract is not appropriate for this route.
 
 ## Source and identity map
 
 | Source | Current role | Recipient identity | PRN identity suitable for Waste Obligations | Suitability for the proposed list |
 | --- | --- | --- | --- | --- |
-| `epr-prn-common-backend` | Current detail source and transitional cache for NPWD and epr-backend RREPW-origin records. | `Eprn.OrganisationId` | `externalId` (GUID rendered as a string) | Candidate now: its search route supplies paging and all fields needed to map each returned `Prn`. |
+| `epr-prn-common-backend` | Current detail source and transitional cache for NPWD and epr-backend RREPW-origin records. | `Eprn.OrganisationId` | `externalId` (GUID rendered as a string) | Current list source: its search route supplies paging and all fields needed to map each returned `Prn`. |
 | `epr-backend` RREPW external API | External/sync projection consumed by `epr-prn-integration-function`; it is an epr-backend interface, not a separate source system. | `issuedToOrganisation.id` is present in each item, but cannot be selected server-side. | `id` string | Not suitable as-is for an organisation-scoped list. |
 | `epr-backend` organisation/accreditation API | Current issuer-side operational UI API. | The route organisation is `prn.organisation.id`, which is the issuer, not the recipient. | Mongo ObjectId hex string | Not suitable as-is: wrong scope, extra hierarchy IDs, and no paging. |
 | `epr-backend` admin list API | Global operational listing. | Each record contains recipient detail only in some mappings; there is no recipient filter. | Mongo ObjectId hex string | Not suitable as-is: global, privileged route and no recipient filter. |
@@ -141,29 +141,30 @@ The client deserialises the downstream JSON directly into `PaginatedResponse<Prn
 5. `typeAhead` is built from every PRN number and issuing organisation for the recipient before search, filter, or paging. It is omitted from the Waste Obligations list contract and ignored by its adapter for now. Common backend will continue to calculate and return it for its own existing consumers until that service changes it. It could grow without bound and performs asynchronous database work synchronously with `.Result` inside the repository.
 6. Search filtering maps common-backend status/material-specific UI tokens, not public Waste Obligations values. For example, a status value that is not recognised removes the filter rather than returning a client error.
 7. The current endpoint has no cancellation-token parameter on the controller/service/repository path. The Waste Obligations adapter should still honour its caller's cancellation token when issuing its HTTP request.
-8. Upstream dates are SQL `datetime2` values. In the existing detail adapter, an `Unspecified` `DateTime` is treated as a UTC clock value before making a `DateTimeOffset`. A list adapter must apply the same rule to `issueDate`, `createdOn`, and `lastUpdatedDate`.
+8. Common backend persists its `datetime2` timestamps as UTC and returns them as UTC values. Map `issueDate`, `createdOn`, and `lastUpdatedDate` directly to a UTC `DateTimeOffset`. The adapter retains an `Unspecified` fallback that attaches UTC without shifting the clock value, protecting against an unexpected legacy or serialisation change.
 
-## Organisation PRN list request pattern and common-backend mapping
+## Implemented organisation PRN list request and common-backend mapping
 
-The first public request should use PRN terminology while retaining the compliance-declaration pagination pattern:
+The public request uses PRN terminology while retaining the compliance-declaration pagination pattern:
 
-`GET /organisations/{organisationId}/prns?page={page}&pageSize={pageSize}&status={status}&sort={sort}`
+`GET /organisations/{organisationId}/prns?page={page}&pageSize={pageSize}&search={search}&status={status}&sort={sort}`
 
-Use a `SearchOrganisationPrnsRequest` record with the same page/page-size binding, defaults, and validation as `SearchComplianceDeclarationsRequest`:
+`SearchOrganisationPrnsRequest` uses the same page/page-size binding, defaults, and validation as `SearchComplianceDeclarationsRequest`:
 
 | Public input | Binding and validation | Effective value | Common-backend request | Decision |
 | --- | --- | --- | --- | --- |
 | `organisationId` | Required GUID route value. | The recipient organisation ID. | `X-EPR-ORGANISATION: {organisationId}`. | Direct mapping. Continue the existing organisation lookup and recipient-scope protection. |
 | `page` | `[FromQuery(Name = "page")] int?`, `[Minimum(1)]`. | `Page ?? 1`. | `page={EffectivePage}`. | Direct mapping. Do not use the upstream default of 1 implicitly; send the effective value. |
 | `pageSize` | `[FromQuery(Name = "pageSize")] int?`, `[Range(1, 100)]`. | `PageSize ?? 20`. | `pageSize={EffectivePageSize}`. | Direct mapping. Waste Obligations deliberately caps the request below the unbounded upstream value. |
+| `search` | Optional free-text value. | Omitted when no value is supplied. | `search={search}`. | Direct mapping. Searches PRN number or issuer organisation name only; it is not a general PRN or recipient search. The source uses SQL `LIKE`, so `%` and `_` retain wildcard meaning. |
 | `status` | Optional single list-status value: `AwaitingAcceptance`, `Accepted`, `Rejected`, or `Cancelled`. Validate against this allow-list; it is not a comma-separated parameter. | No value means every common-backend status. | `filterBy` from the status mapping below; omitted when no status is requested. | Direct status translation. `AwaitingCancellation` is deliberately excluded from the list request contract because common backend cannot return it. |
 | `sort` | Optional list-sort value from the allow-list below. | `IssuedAtDescending` when omitted. | `sortBy` from the sort mapping below. | Make the public default explicit instead of depending on common backend's fallback. |
 
-The endpoint should bind this record with `[AsParameters]`, as `SearchComplianceDeclarations` does. Invalid page, page-size, status, or sort values should be rejected as `400` by Waste Obligations request validation and must not be forwarded to common backend. The public response is `PrnsPaged`: map the complete `Prn` items, source `totalItems` to `total`, and the effective page values to public `page` and `pageSize`. Do not expose common backend's `typeAhead` value.
+The endpoint binds this record with `[AsParameters]`, as `SearchComplianceDeclarations` does. Invalid page, page-size, status, or sort values are rejected as `400` by Waste Obligations request validation and are not forwarded to common backend. The public response is `PrnsPaged`: complete `Prn` items are mapped, source `totalItems` becomes `total`, and the effective page values become public `page` and `pageSize`. Common backend's `typeAhead` value is not exposed.
 
 The resulting source call is:
 
-`GET /api/v1/prn/search?page={EffectivePage}&pageSize={EffectivePageSize}&filterBy={mappedStatus?}&sortBy={mappedSort}`
+`GET /api/v1/prn/search?page={EffectivePage}&pageSize={EffectivePageSize}&search={search?}&filterBy={mappedStatus?}&sortBy={mappedSort}`
 
 with `X-EPR-ORGANISATION: {organisationId}`. Do not use common backend's obsolete optional route segments.
 
@@ -182,19 +183,18 @@ This is the intended reuse of the compliance-declaration request pattern: consis
 
 ### Deferred PRN-specific inputs
 
-The initial common-backend list does not include `search`, material, or `obligationYear` controls. If product requirements add any of them later, introduce them as PRN-specific public inputs only after their source semantics are agreed:
+The common-backend list supports the narrow `search` input documented above. Material and `obligationYear` controls remain deferred until their source semantics are agreed:
 
 | Potential public input | Current common-backend capability | Gap or rule |
 | --- | --- | --- |
-| `search` | `search` performs SQL `LIKE` over `prnNumber` and `issuedByOrg`. | It can map directly only if that narrow behaviour is the public contract. It does not search recipient name, material, status, or note text. Wildcard characters are not escaped by the upstream query. |
 | Comma-separated `status` | Not supported. | Requires a common-backend API enhancement that accepts a set of statuses and applies it before `totalItems`/paging. The initial public contract intentionally supports one status only. |
 | `obligationYear` | Not supported. | Requires a common-backend API enhancement that filters `Eprn.ObligationYear` before `totalItems`/paging. |
 | `material` | Not independently supported. | Existing `filterBy` values combine awaiting-acceptance status with a material. A general material filter requires a source enhancement. |
 | Additional sort options | `sortBy` accepts the legacy sort tokens mapped below. | The supported public sort values are part of the initial request contract. New values require an explicit public-to-source mapping. |
 
-#### Proposed public status map
+#### Public status map
 
-The initial list request has one optional public `status` query parameter. Its supported values map to common-backend `filterBy` values as follows:
+The list request has one optional public `status` query parameter. Its supported values map to common-backend `filterBy` values as follows:
 
 | Public `status` | Common-backend `filterBy` | Position |
 | --- | --- | --- |
@@ -207,9 +207,9 @@ The initial list request has one optional public `status` query parameter. Its s
 
 The comma-separated status pattern used by `SearchComplianceDeclarationsRequest` must not be reused until common backend supports a multi-status predicate. For example, `status=Accepted,Rejected` cannot be reduced to one `filterBy` value, and making two source calls then merging them would corrupt the total, ordering, and page boundary.
 
-#### Proposed public sort map
+#### Public sort map
 
-The initial list request has an optional `sort` parameter. Use public names that describe Waste Obligations fields rather than exposing the legacy values. The default is `IssuedAtDescending`.
+The list request has an optional `sort` parameter. It uses public names that describe Waste Obligations fields rather than exposing the legacy values. The default is `IssuedAtDescending`.
 
 | Proposed public `sort` | Common-backend `sortBy` | Position |
 | --- | --- | --- |
@@ -240,7 +240,7 @@ Do not add a public `material` query parameter until common backend can filter b
 
 The adapter should:
 
-1. Model the common-backend search response and item shape under `Services/PrnCommonBackend`; do not reuse `PrnDetails`.
+1. Model the common-backend search response envelope under `Services/PrnCommonBackend`. Both the detail response and search items use the same neutral `PrnData` source DTO because the search projection now supplies every field required by the public mapper.
 2. Map every returned search item directly to `Prn` using the complete projection above. Do not infer fields that are not part of the public contract from source defaults.
 3. Validate the returned recipient ID against the route organisation before returning a mapped `Prn`.
 4. Map the upstream search envelope to a Waste Obligations-owned envelope. Preserve the upstream `totalItems` as the public total because the first delivery applies no additional client-side filter.
@@ -318,17 +318,17 @@ Before replacing or supplementing common backend, establish a source contract th
 | Created and updated timestamps | Yes. | Yes. | No. | Stored, but not exposed by the current detail response. |
 | Accepted/rejected/cancelled timestamps | Not separately available. | Not available. | Available when the events exist. | Stored as status operations/history. |
 
-For dates, public Waste Obligations output remains `DateTimeOffset` at UTC offset zero. A common-backend SQL `datetime2` value read as `DateTimeKind.Unspecified` represents a UTC clock value under the current source convention; attach UTC kind without shifting the clock value. JavaScript/Mongo dates from epr-backend, including its RREPW external projection, are instants and should be modelled as `DateTimeOffset` and normalised to UTC.
+For dates, public Waste Obligations output remains `DateTimeOffset` at UTC offset zero. Common backend persists and returns its SQL `datetime2` values as UTC, so its representative source fixture uses `DateTimeKind.Utc`. If an unexpected `DateTimeKind.Unspecified` value is received, attach UTC without shifting the clock value as a defensive fallback. JavaScript/Mongo dates from epr-backend, including its RREPW external projection, are instants and should be modelled as `DateTimeOffset` and normalised to UTC.
 
-## Design and test checklist for a later implementation
+## Implemented design and test coverage
 
-1. Add `SearchOrganisationPrnsRequest` using the `SearchComplianceDeclarationsRequest` page/page-size pattern exactly: `[AsParameters]`, default page 1, default page size 20, `[Minimum(1)]`, and `[Range(1, 100)]`. Add the single-status and sort allow-lists in this guide; do not add the compliance-declaration-only filters or a comma-separated status parameter.
-2. Confirm organisation semantics end to end: authentication claim, route value, source query, returned recipient ID, and the defensive mismatch check must all mean the recipient organisation.
-3. Map the supported status and sort values in this guide to one outbound `filterBy` and `sortBy` value. Reject unsupported client inputs with `400` rather than relying on source fallbacks. Define any later PRN controls explicitly.
-4. Add a `PrnsPaged` DTO following `ComplianceDeclarationsPaged`, with `IEnumerable<Prn> Prns`, `total`, `page`, and `pageSize`. Add a source-specific search response model and mapping tests that prove every projected field needed by `Prn` is present and correctly mapped. Include invalid/default required source values to prove they cannot be returned as a valid `Prn`.
-5. Test paging boundaries: absent/default values, zero, negatives, maximum, page beyond results, empty results, total semantics, and the outbound `page`/`pageSize` query values of 1/20 when omitted.
-6. Test source scope and authorisation: incorrect organisation, missing organisation, upstream `404`, unauthorised upstream result, and recipient mismatch.
-7. Test navigation identity: common-backend list `externalId` must retrieve the same note through the current detail route. Do not generate future epr-backend links from a cache-local common-backend GUID.
+1. `SearchOrganisationPrnsRequest` uses `[AsParameters]`, default page 1, default page size 20, `[Minimum(1)]`, and `[Range(1, 100)]`. Its single-status and sort allow-lists exclude compliance-declaration-only filters, comma-separated status values, and `AwaitingCancellation`.
+2. The endpoint passes the route organisation as the `X-EPR-ORGANISATION` recipient scope, checks the organisation exists, and rejects a returned recipient mismatch with `404`.
+3. Tests cover every public status and sort mapping to one outbound `filterBy` or `sortBy` value, together with invalid inputs that must result in `400` before calling common backend.
+4. `PrnsPaged` returns `IEnumerable<Prn> Prns`, `total`, `page`, and `pageSize`. The neutral source `PrnData` DTO is used by both common-backend routes, while adapter and endpoint tests prove the complete search model is deserialised and returned as the existing public `Prn` type. Invalid/default required values continue to be rejected by that mapper.
+5. Tests cover default values, zero/negative/over-maximum values, maximum `pageSize`, empty results, total semantics, and the outbound default `page=1`/`pageSize=20` values.
+6. Tests cover missing organisations, returned recipient mismatch, authorisation, and the common-backend HTTP request including its paging/filter/sort query and organisation header. Upstream `404`/unauthorised propagation remains the standard integration-client failure path and should be exercised when source error-handling semantics change.
+7. A navigation test remains useful: common-backend list `externalId` should retrieve the same note through the current detail route. Do not generate future epr-backend links from a cache-local common-backend GUID.
 8. When a future source is selected, add contract tests for its source route, date representation, status visibility, ordering, and pagination stability under record/status changes.
 
 ## Open questions
@@ -356,7 +356,7 @@ For dates, public Waste Obligations output remains `DateTimeOffset` at UTC offse
 
 | Repository | Relevant files |
 | --- | --- |
-| `waste-obligations` | `src/Api/Endpoints/Organisations/Prns/ReadPrn.cs`, `src/Api/Services/PrnCommonBackend/PrnCommonBackendService.cs`, `src/Api/Services/PrnCommonBackend/PrnDetails.cs`, `src/Api/Services/PrnCommonBackend/Mappers.cs`, `src/Api/Dtos/PackagingRecyclingNote.cs`, `src/Api/Dtos/ComplianceDeclarationsPaged.cs`, `src/Api/Dtos/SearchComplianceDeclarationsRequest.cs` |
+| `waste-obligations` | `src/Api/Endpoints/Organisations/Prns/ReadPrn.cs`, `src/Api/Endpoints/Organisations/Prns/SearchPrns.cs`, `src/Api/Services/PrnCommonBackend/PrnCommonBackendService.cs`, `src/Api/Services/PrnCommonBackend/PrnData.cs`, `src/Api/Services/PrnCommonBackend/PrnSearchResponse.cs`, `src/Api/Services/PrnCommonBackend/Mappers.cs`, `src/Api/Dtos/PackagingRecyclingNote.cs`, `src/Api/Dtos/PrnsPaged.cs`, `src/Api/Dtos/SearchOrganisationPrnsRequest.cs`, `src/Api/Dtos/ComplianceDeclarationsPaged.cs`, `src/Api/Dtos/SearchComplianceDeclarationsRequest.cs` |
 | `epr-prn-common-backend` | `src/EPR.PRN.Backend.API/Controllers/PrnController.cs`, `src/EPR.PRN.Backend.API/Repositories/Repository.cs`, `src/EPR.PRN.Backend.API.Common/DTO/PaginatedRequestDto.cs`, `src/EPR.PRN.Backend.API.Common/DTO/PaginatedResponseDto.cs`, `src/EPR.PRN.Backend.API/Dto/PrnBaseDto.cs`, `src/EPR.PRN.Backend.API/Startup.cs` |
 | `epr-pom-api-web` | `WebApiGateway/WebApiGateway.Api/Controllers/PrnController.cs`, `WebApiGateway/WebApiGateway.Api/Clients/PrnServiceClient.cs`, `WebApiGateway/WebApiGateway.Api/ConfigurationExtensions/HttpClientServiceCollectionExtensions.cs`, `WebApiGateway/WebApiGateway.Core/Models/Prns/PrnModel.cs`, `WebApiGateway/WebApiGateway.UnitTests/Api/Clients/PrnServiceClientTests.cs` |
 | `epr-prn-integration-function` | `src/EprPrnIntegration.Common/RESTServices/RrepwService/RrepwRoutes.cs`, `src/EprPrnIntegration.Common/RESTServices/RrepwService/RrepwService.cs`, `src/EprPrnIntegration.Common/Models/Rrepw/PackagingRecyclingNote.cs`, `src/EprPrnIntegration.Common/Mappers/RrepwMappers.cs` |

@@ -12,6 +12,9 @@
 - Use collection expressions where possible
 - Use object initializers where possible
 - When enums are used as variables, inline them instead of creating a property
+- For a public query parameter that accepts one enum value, bind the raw nullable string, validate it against the exact JSON enum values, then parse it after validation; do not bind it directly to an enum because numeric values may be accepted. Use `EnumCommaSeparatedList` when the contract accepts a list of enum values.
+- Merge related conditionals where doing so keeps the condition clear.
+- Prefer `??` directly in a return statement when it clearly expresses a null fallback or exception.
 - Do not use Arrange Act Assert comments in tests
 - Use _camelCase for private instance fields
 - Prefer AwesomeAssertions for assertions; where `Should().NotBeNull()` provides nullable flow information, do not add redundant null suppression operators or extra null guards

@@ -12,9 +12,9 @@ public class MappersTests
     [Fact]
     public void ToDto_ShouldMapPrn()
     {
-        var result = PrnDetailsFixture.Default().Create().ToDto();
+        var result = PrnDataFixture.Default().Create().ToDto();
 
-        result.Id.Should().Be(PrnDetailsFixture.PrnId.ToString("D"));
+        result.Id.Should().Be(PrnDataFixture.PrnId.ToString("D"));
         result.Number.Should().Be("PRN123");
         result.Type.Should().Be(PrnType.Prn);
         result.Status.Should().Be(PrnStatus.AwaitingAcceptance);
@@ -26,7 +26,7 @@ public class MappersTests
         result.RecyclingProcess.Should().Be("R3");
         result.Tonnage.Should().Be(999);
         result.Issuer.OrganisationName.Should().Be("Acme Reprocessors Ltd");
-        result.Recipient.OrganisationId.Should().Be(PrnDetailsFixture.OrganisationId);
+        result.Recipient.OrganisationId.Should().Be(PrnDataFixture.OrganisationId);
         result.Recipient.DisplayName.Should().Be("Test Producer Ltd");
         result.Recipient.Name.Should().BeNull();
         result.Recipient.TradingName.Should().BeNull();
@@ -47,7 +47,7 @@ public class MappersTests
     [Fact]
     public void ToDto_WhenExport_ShouldMapPern()
     {
-        PrnDetailsFixture.Default().With(x => x.IsExport, true).Create().ToDto().Type.Should().Be(PrnType.Pern);
+        PrnDataFixture.Default().With(x => x.IsExport, true).Create().ToDto().Type.Should().Be(PrnType.Pern);
     }
 
     [Theory]
@@ -63,7 +63,7 @@ public class MappersTests
     [InlineData("Glass Re-melt", Material.GlassRemelt)]
     public void ToDto_WhenMaterialKnown_ShouldMap(string source, string expected)
     {
-        PrnDetailsFixture.Default().With(x => x.MaterialName, source).Create().ToDto().Material.Should().Be(expected);
+        PrnDataFixture.Default().With(x => x.MaterialName, source).Create().ToDto().Material.Should().Be(expected);
     }
 
     [Fact]
@@ -71,7 +71,7 @@ public class MappersTests
     {
         const string material = "Unknown";
 
-        var act = () => PrnDetailsFixture.Default().With(x => x.MaterialName, material).Create().ToDto();
+        var act = () => PrnDataFixture.Default().With(x => x.MaterialName, material).Create().ToDto();
 
         act.Should().Throw<InvalidOperationException>().WithMessage($"*MaterialName*{material}*");
     }
@@ -84,7 +84,7 @@ public class MappersTests
     [InlineData("CANCELED", PrnStatus.Cancelled)]
     public void ToDto_WhenStatusKnown_ShouldMap(string source, string expected)
     {
-        PrnDetailsFixture.Default().With(x => x.PrnStatus, source).Create().ToDto().Status.Should().Be(expected);
+        PrnDataFixture.Default().With(x => x.PrnStatus, source).Create().ToDto().Status.Should().Be(expected);
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public class MappersTests
     {
         const string status = "Unknown";
 
-        var act = () => PrnDetailsFixture.Default().With(x => x.PrnStatus, status).Create().ToDto();
+        var act = () => PrnDataFixture.Default().With(x => x.PrnStatus, status).Create().ToDto();
 
         act.Should().Throw<InvalidOperationException>().WithMessage($"*PrnStatus*{status}*");
     }
@@ -103,7 +103,7 @@ public class MappersTests
     [InlineData("not-a-year")]
     public void ToDto_WhenObligationYearInvalid_ShouldThrow(string? year)
     {
-        var act = () => PrnDetailsFixture.Default().With(x => x.ObligationYear, year).Create().ToDto();
+        var act = () => PrnDataFixture.Default().With(x => x.ObligationYear, year).Create().ToDto();
 
         act.Should().Throw<InvalidOperationException>().WithMessage("*ObligationYear*");
     }
@@ -114,7 +114,7 @@ public class MappersTests
     [InlineData("not-a-year")]
     public void ToDto_WhenAccreditationYearInvalid_ShouldThrow(string? year)
     {
-        var act = () => PrnDetailsFixture.Default().With(x => x.AccreditationYear, year).Create().ToDto();
+        var act = () => PrnDataFixture.Default().With(x => x.AccreditationYear, year).Create().ToDto();
 
         act.Should().Throw<InvalidOperationException>().WithMessage("*AccreditationYear*");
     }
@@ -125,7 +125,7 @@ public class MappersTests
     [InlineData(" ")]
     public void ToDto_WhenRecyclingProcessInvalid_ShouldThrow(string? process)
     {
-        var act = () => PrnDetailsFixture.Default().With(x => x.ProcessToBeUsed, process).Create().ToDto();
+        var act = () => PrnDataFixture.Default().With(x => x.ProcessToBeUsed, process).Create().ToDto();
 
         act.Should().Throw<InvalidOperationException>().WithMessage("*ProcessToBeUsed*");
     }
@@ -136,7 +136,7 @@ public class MappersTests
     [InlineData(" ")]
     public void ToDto_WhenReprocessorExporterAgencyInvalid_ShouldThrow(string? agency)
     {
-        var act = () => PrnDetailsFixture.Default().With(x => x.ReprocessorExporterAgency, agency).Create().ToDto();
+        var act = () => PrnDataFixture.Default().With(x => x.ReprocessorExporterAgency, agency).Create().ToDto();
 
         act.Should().Throw<InvalidOperationException>().WithMessage("*ReprocessorExporterAgency*");
     }
@@ -144,7 +144,7 @@ public class MappersTests
     [Fact]
     public void ToDto_WhenExternalIdEmpty_ShouldThrow()
     {
-        var act = () => PrnDetailsFixture.Default().With(x => x.ExternalId, Guid.Empty).Create().ToDto();
+        var act = () => PrnDataFixture.Default().With(x => x.ExternalId, Guid.Empty).Create().ToDto();
 
         act.Should().Throw<InvalidOperationException>().WithMessage("*ExternalId*");
     }
@@ -152,7 +152,7 @@ public class MappersTests
     [Fact]
     public void ToDto_WhenOrganisationIdEmpty_ShouldThrow()
     {
-        var act = () => PrnDetailsFixture.Default().With(x => x.OrganisationId, Guid.Empty).Create().ToDto();
+        var act = () => PrnDataFixture.Default().With(x => x.OrganisationId, Guid.Empty).Create().ToDto();
 
         act.Should().Throw<InvalidOperationException>().WithMessage("*OrganisationId*");
     }
@@ -160,7 +160,7 @@ public class MappersTests
     [Fact]
     public void ToDto_WhenIssueDateDefault_ShouldThrow()
     {
-        var act = () => PrnDetailsFixture.Default().With(x => x.IssueDate, default(DateTime)).Create().ToDto();
+        var act = () => PrnDataFixture.Default().With(x => x.IssueDate, default(DateTime)).Create().ToDto();
 
         act.Should().Throw<InvalidOperationException>().WithMessage("*IssueDate*");
     }
@@ -168,7 +168,7 @@ public class MappersTests
     [Fact]
     public void ToDto_WhenCreatedOnDefault_ShouldThrow()
     {
-        var act = () => PrnDetailsFixture.Default().With(x => x.CreatedOn, default(DateTime)).Create().ToDto();
+        var act = () => PrnDataFixture.Default().With(x => x.CreatedOn, default(DateTime)).Create().ToDto();
 
         act.Should().Throw<InvalidOperationException>().WithMessage("*CreatedOn*");
     }
@@ -176,7 +176,7 @@ public class MappersTests
     [Fact]
     public void ToDto_WhenLastUpdatedDateDefault_ShouldThrow()
     {
-        var act = () => PrnDetailsFixture.Default().With(x => x.LastUpdatedDate, default(DateTime)).Create().ToDto();
+        var act = () => PrnDataFixture.Default().With(x => x.LastUpdatedDate, default(DateTime)).Create().ToDto();
 
         act.Should().Throw<InvalidOperationException>().WithMessage("*LastUpdatedDate*");
     }
@@ -184,7 +184,7 @@ public class MappersTests
     [Fact]
     public void ToDto_WhenTonnageValueDefault_ShouldThrow()
     {
-        var act = () => PrnDetailsFixture.Default().With(x => x.TonnageValue, default(int)).Create().ToDto();
+        var act = () => PrnDataFixture.Default().With(x => x.TonnageValue, default(int)).Create().ToDto();
 
         act.Should().Throw<InvalidOperationException>().WithMessage("*TonnageValue*");
     }
@@ -192,7 +192,7 @@ public class MappersTests
     [Fact]
     public void ToDto_WhenOptionalStringsBlank_ShouldMapNull()
     {
-        var result = PrnDetailsFixture
+        var result = PrnDataFixture
             .Default()
             .With(x => x.PrnSignatory, " ")
             .With(x => x.PrnSignatoryPosition, "")
@@ -207,12 +207,21 @@ public class MappersTests
         result.AdditionalNotes.Should().BeNull();
     }
 
-    [Theory]
-    [InlineData(DateTimeKind.Utc)]
-    [InlineData(DateTimeKind.Unspecified)]
-    public void ToUtcDateTimeOffset_WhenUtcOrUnspecified_ShouldPreserveClockValue(DateTimeKind kind)
+    [Fact]
+    public void ToUtcDateTimeOffset_WhenUtc_ShouldPreserveClockValue()
     {
-        var value = new DateTime(2026, 1, 15, 10, 0, 0, kind);
+        var value = new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc);
+
+        PrnCommonBackendMappers
+            .ToUtcDateTimeOffset(value)
+            .Should()
+            .Be(new DateTimeOffset(2026, 1, 15, 10, 0, 0, TimeSpan.Zero));
+    }
+
+    [Fact]
+    public void ToUtcDateTimeOffset_WhenUnspecified_ShouldAttachUtcWithoutChangingClockValue()
+    {
+        var value = new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Unspecified);
 
         PrnCommonBackendMappers
             .ToUtcDateTimeOffset(value)

@@ -16,6 +16,10 @@ public class EndpointFilter
 
     public static EndpointFilter Status(string status) => new($"status={status}");
 
+    public static EndpointFilter Search(string search) => new($"search={Uri.EscapeDataString(search)}");
+
+    public static EndpointFilter Sort(string sort) => new($"sort={sort}");
+
     public static EndpointFilter RegistrationType(RegistrationType[] registrationType) =>
         RegistrationType(string.Join(",", registrationType.Select(x => x.ToJsonValue())));
 

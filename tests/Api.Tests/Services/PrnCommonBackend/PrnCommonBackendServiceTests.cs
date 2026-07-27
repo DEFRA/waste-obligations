@@ -85,14 +85,14 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
     }
 
     [Fact]
-    public async Task ReadPrn_ShouldReturnPrnDetails()
+    public async Task ReadPrn_ShouldReturnPrnData()
     {
         await using var sp = Services.BuildServiceProvider();
 
         var service = sp.GetRequiredService<IPrnCommonBackendService>();
         sp.GetRequiredService<HeaderPropagationValues>().Headers = new Dictionary<string, StringValues>();
         const string accessToken = "access_token";
-        var prn = PrnDetailsFixture.Default().Create();
+        var prn = PrnDataFixture.Default().Create();
 
         WireMock.StubTokenRequest();
         WireMock.StubPrnCommonBackendPrnRequest(prn.ExternalId, prn, prn.OrganisationId.ToString("D"), accessToken);
@@ -282,5 +282,40 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
         );
 
         result.Should().Be(PrnStatusUpdateResult.NotFound);
+    }
+
+    [Fact]
+    public async Task SearchPrns_ShouldReturnSearchResponse()
+    {
+        await using var sp = Services.BuildServiceProvider();
+
+        var service = sp.GetRequiredService<IPrnCommonBackendService>();
+        sp.GetRequiredService<HeaderPropagationValues>().Headers = new Dictionary<string, StringValues>();
+        const string accessToken = "access_token";
+        var search = new PrnSearchRequest
+        {
+            Page = 2,
+            PageSize = 50,
+            Search = "PRN123",
+            FilterBy = "accepted-all",
+            SortBy = "tonnage-desc",
+        };
+        var response = new PrnSearchResponse { Items = [PrnDataFixture.Default().Create()], TotalItems = 51 };
+
+        WireMock.StubTokenRequest();
+        WireMock.StubPrnCommonBackendPrnSearchRequest(
+            search,
+            response,
+            PrnDataFixture.OrganisationId.ToString("D"),
+            accessToken
+        );
+
+        var result = await service.SearchPrns(
+            PrnDataFixture.OrganisationId,
+            search,
+            TestContext.Current.CancellationToken
+        );
+
+        result.Should().BeEquivalentTo(response);
     }
 }

@@ -25,7 +25,7 @@ public class ReadPrnTests : IntegrationTestBase
             organisationId,
             BasicAuthCredential.ForClient(ClientIds.WasteOrganisations)
         );
-        var prn = PrnDetailsFixture.Default().With(x => x.OrganisationId, organisationId).Create();
+        var prn = PrnDataFixture.Default().With(x => x.OrganisationId, organisationId).Create();
         await WireMockContext.WireMockAdminApi.StubPrnCommonBackendPrnRequest(
             prn.ExternalId,
             prn,

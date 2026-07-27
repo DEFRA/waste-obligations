@@ -5,6 +5,7 @@ using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Endpoints;
 using Defra.WasteObligations.Api.Endpoints.ComplianceDeclarations;
 using Defra.WasteObligations.Api.Endpoints.OpenApi;
+using Defra.WasteObligations.Api.Endpoints.Organisations.Prns;
 using Defra.WasteObligations.Api.Extensions;
 using Defra.WasteObligations.Api.Schemas;
 using Defra.WasteObligations.Api.Services;
@@ -47,6 +48,7 @@ try
         options.AddSchemaTransformer<PossibleValueSchemaTransformer>();
         options.AddDocumentTransformer<OpenApiDocumentTransformer>();
         options.AddOperationTransformer<SearchComplianceDeclarationsOperationTransformer>();
+        options.AddOperationTransformer<SearchPrnsOperationTransformer>();
     });
     builder.Services.AddAuthenticationAuthorization();
     builder.Services.AddRequestMetrics();
