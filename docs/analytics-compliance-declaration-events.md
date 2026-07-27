@@ -4,7 +4,7 @@ The analytics topic receives generic analytics event envelopes. Each envelope id
 
 Compliance declaration create, update, and delete operations are captured internally in the same transaction as the declaration change. The analytics processor reads undispatched changes, serialises them as analytics events, and publishes them to the analytics SNS topic configured by `AnalyticsAuditEventProcessor:TopicArn`.
 
-The nested compliance declaration payload is serialised using the embedded [compliance declaration schema](../src/Api/Schemas/ComplianceDeclaration/compliance-declaration.v1.2.schema.json). For compliance declarations, the analytics message `schemaVersion` is currently `compliance_declaration.v1.2`.
+The nested compliance declaration payload is serialised using the embedded [compliance declaration schema](../src/Api/Schemas/ComplianceDeclaration/compliance-declaration.v1.2.schema.json). Its version history is recorded in the [compliance declaration schema changelog](../src/Api/Schemas/ComplianceDeclaration/CHANGELOG.md). For compliance declarations, the analytics message `schemaVersion` is currently `compliance_declaration.v1.2`.
 
 ## Message transport
 

@@ -48,13 +48,14 @@ Follow this order for a persisted entity shape change:
 1. Classify the change as no schema change, minor, or major, and decide whether the rollout needs separate expand, backfill, and contract deployments that remain compatible with the previous application version.
 2. Update the entity and all affected nested entities, DTOs, validators, mappings, and shared fixtures. Keep new persisted fields optional during a mixed-version rollout unless old hosts can safely read and write them.
 3. Copy the current embedded schema to the chosen new version, update only the new file and its `$id`, and update `SchemaVersionValue`. Do not edit or remove the previous schema.
-4. Add a new, monotonically ordered Mongo migration when existing documents need a new shape or `schemaVersion`; never edit a migration that may already have run in an environment.
-5. Implement the migration against raw `BsonDocument` values so tests and migration logic represent the old stored shape rather than receiving defaults from the current entity serializer. Filter to the exact source versions, preserve values that a newer or concurrently running host may already have written, update the data and `schemaVersion` together, and make repeated execution safe.
-6. Do not rewrite historical `AuditEvent` documents, their `before` or `after` snapshots, or their `schemaVersion`. The retained old embedded schema is what keeps those events publishable.
-7. Add migration integration tests for each applicable starting state: the explicit previous version, a missing legacy `schemaVersion`, a pre-existing new field value, and an already-target-version document. Assert the transformed BSON and version, non-target data preservation, idempotent `UpAsync`, and `DownAsync` behaviour where reversal is supported.
-8. Add or update unit tests that load both the new and retained prior schemas and serialise representative audit events with each version. Update entity, mapping, validation, endpoint, OpenAPI, analytics, and integration snapshots affected by the shape change.
-9. Update `docs/compliance-declaration-end-to-end-event-flow.md` and `docs/analytics-compliance-declaration-events.md`, including current schema links, raw and qualified version examples, payload examples, and any migration or compatibility notes. Search all documentation for stale versions.
-10. Format, build, and run Api.Tests and Api.IntegrationTests using the commands below.
+4. Add a reverse-chronological entry for the new schema to the `CHANGELOG.md` alongside that entity's versioned schemas. State the exact contract changes, whether the increment is compatible, and any live-data migration or historical audit-event behaviour.
+5. Add a new, monotonically ordered Mongo migration when existing documents need a new shape or `schemaVersion`; never edit a migration that may already have run in an environment.
+6. Implement the migration against raw `BsonDocument` values so tests and migration logic represent the old stored shape rather than receiving defaults from the current entity serializer. Filter to the exact source versions, preserve values that a newer or concurrently running host may already have written, update the data and `schemaVersion` together, and make repeated execution safe.
+7. Do not rewrite historical `AuditEvent` documents, their `before` or `after` snapshots, or their `schemaVersion`. The retained old embedded schema is what keeps those events publishable.
+8. Add migration integration tests for each applicable starting state: the explicit previous version, a missing legacy `schemaVersion`, a pre-existing new field value, and an already-target-version document. Assert the transformed BSON and version, non-target data preservation, idempotent `UpAsync`, and `DownAsync` behaviour where reversal is supported.
+9. Add or update unit tests that load both the new and retained prior schemas and serialise representative audit events with each version. Update entity, mapping, validation, endpoint, OpenAPI, analytics, and integration snapshots affected by the shape change.
+10. Update `docs/compliance-declaration-end-to-end-event-flow.md` and `docs/analytics-compliance-declaration-events.md`, including current schema links, raw and qualified version examples, payload examples, and any migration or compatibility notes. Search all documentation for stale versions.
+11. Format, build, and run Api.Tests and Api.IntegrationTests using the commands below.
 
 ## Mongo migrations
 - Mongo migrations run on API host startup, so they must be guarded by a distributed Mongo lease before any migration work is attempted
@@ -75,7 +76,7 @@ Follow this order for a persisted entity shape change:
 ## Integration tests
 - Keep integration tests focused on integration boundaries. Use them to prove real components are wired together and observable side effects happen; put detailed formatting, serialisation, and field-by-field assertions in fast unit tests where possible.
 - Do not change shared infrastructure settings, such as queue attributes or database-level configuration, from integration tests unless the test owns an isolated resource created specifically for that test.
-- Run the local environment with `docker compose up --build -d`
+- Run the local environment with `docker compose up --build -d --wait`
 - Run Api.IntegrationTests with `DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE=1 dotnet test tests/Api.IntegrationTests/Api.IntegrationTests.csproj --no-restore -p:OpenApiGenerateDocuments=false -m:1 -nodeReuse:false --disable-build-servers -v:minimal`
 - Stop the local environment with `docker compose down -v --remove-orphans`
 - In the sandbox environment, Api.IntegrationTests need escalation because VSTest binds a local socket and the tests access Docker Compose services

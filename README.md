@@ -15,7 +15,7 @@ An API for managing obligation data in relation to EPR.
 ### Running locally via Docker
 
 ```bash
-docker compose up -d
+docker compose up -d --wait
 ```
 
 ### Running via .NET
@@ -23,7 +23,7 @@ docker compose up -d
 Mongo will be needed and can be started as follows:
 
 ```bash
-docker compose up mongodb -d
+docker compose up mongodb -d --wait
 ```
 
 Start the API as follows:
