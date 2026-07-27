@@ -18,14 +18,16 @@ public static class ApplicationBuilderExtensions
                 AllowStatusCode404Response = true,
                 ExceptionHandler = async context =>
                 {
-                    var exceptionHandlerFeature = context.Features.Get<IExceptionHandlerFeature>();
-                    var error = exceptionHandlerFeature?.Error;
+                    var exceptionHandlerFeature =
+                        context.Features.Get<IExceptionHandlerFeature>()
+                        ?? throw new InvalidOperationException("Exception handler feature is unavailable.");
+                    var error = exceptionHandlerFeature.Error;
                     var (statusCode, title, detail) = error switch
                     {
                         BadHttpRequestException ex => (
                             ex.StatusCode,
                             "Bad request",
-                            GetEnumValidationDetail(ex, exceptionHandlerFeature?.Endpoint) ?? ex.Message
+                            GetEnumValidationDetail(ex, exceptionHandlerFeature.Endpoint) ?? ex.Message
                         ),
                         EntityException ex => (
                             StatusCodes.Status422UnprocessableEntity,
@@ -55,7 +57,7 @@ public static class ApplicationBuilderExtensions
                             new ProblemDetailsContext
                             {
                                 HttpContext = context,
-                                AdditionalMetadata = exceptionHandlerFeature?.Endpoint?.Metadata,
+                                AdditionalMetadata = exceptionHandlerFeature.Endpoint?.Metadata,
                                 ProblemDetails = problemDetails,
                             }
                         );
