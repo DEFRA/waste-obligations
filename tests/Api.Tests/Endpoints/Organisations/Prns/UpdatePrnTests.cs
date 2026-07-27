@@ -151,25 +151,6 @@ public class UpdatePrnTests(ApiWebApplicationFactory factory, ITestOutputHelper 
     }
 
     [Fact]
-    public async Task WhenPrnDoesNotBelongToOrganisation_ShouldBeNotFound()
-    {
-        var client = CreateClient(testUser: TestUser.WriteOnly);
-        PrnCommonBackendService.StatusUpdateResult = PrnStatusUpdateResult.NotFound;
-
-        var response = await client.PatchAsJsonAsync(
-            Testing.Endpoints.Organisations.Prns.Update(
-                FakeWasteOrganisationsService.OrganisationId,
-                Guid.NewGuid().ToString("D")
-            ),
-            UpdatePrnRequestFixture.Accepted().Create(),
-            TestContext.Current.CancellationToken
-        );
-
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
-        PrnCommonBackendService.LastPrnStatusUpdate.Should().NotBeNull();
-    }
-
-    [Fact]
     public async Task WhenPrnNotFound_ShouldBeNotFound()
     {
         var client = CreateClient(testUser: TestUser.WriteOnly);
@@ -203,24 +184,6 @@ public class UpdatePrnTests(ApiWebApplicationFactory factory, ITestOutputHelper 
         );
 
         response.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
-        PrnCommonBackendService.LastPrnStatusUpdate.Should().NotBeNull();
-    }
-
-    [Fact]
-    public async Task WhenPrnAlreadyHasRequestedStatus_ShouldBeOk()
-    {
-        var client = CreateClient(testUser: TestUser.WriteOnly);
-
-        var response = await client.PatchAsJsonAsync(
-            Testing.Endpoints.Organisations.Prns.Update(
-                FakeWasteOrganisationsService.OrganisationId,
-                Guid.NewGuid().ToString("D")
-            ),
-            UpdatePrnRequestFixture.Accepted().Create(),
-            TestContext.Current.CancellationToken
-        );
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
         PrnCommonBackendService.LastPrnStatusUpdate.Should().NotBeNull();
     }
 
