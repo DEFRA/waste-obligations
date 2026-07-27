@@ -1,4 +1,5 @@
 using System.Net;
+using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Utils.Http;
 
 namespace Defra.WasteObligations.Api.Services.PrnCommonBackend;
@@ -40,5 +41,44 @@ public class PrnCommonBackendService(HttpClient httpClient) : IPrnCommonBackendS
         response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadFromJsonAsync<PrnDetails>(cancellationToken);
+    }
+
+    public async Task<PrnStatusUpdateResult> UpdatePrnStatus(
+        Guid organisationId,
+        Guid userId,
+        string prnId,
+        string status,
+        CancellationToken cancellationToken
+    )
+    {
+        if (!Guid.TryParse(prnId, out var commonBackendPrnId))
+            return PrnStatusUpdateResult.NotFound;
+
+        var request = httpClient.CreateRequest(HttpMethod.Post, "api/v1/prn/status");
+        request.Headers.Add("X-EPR-ORGANISATION", organisationId.ToString("D"));
+        request.Headers.Add("X-EPR-USER", userId.ToString("D"));
+        request.Content = JsonContent.Create(
+            new[]
+            {
+                new PrnStatusUpdate { PrnId = commonBackendPrnId, Status = status },
+            }
+        );
+
+        var response = await httpClient.SendAsync(request, cancellationToken);
+
+        return response.StatusCode switch
+        {
+            HttpStatusCode.OK => PrnStatusUpdateResult.Updated,
+            HttpStatusCode.NotFound => PrnStatusUpdateResult.NotFound,
+            HttpStatusCode.Conflict => throw new ConcurrencyException("The PRN status has already been updated."),
+            _ => EnsureSuccessAndReturnUpdated(response),
+        };
+    }
+
+    private static PrnStatusUpdateResult EnsureSuccessAndReturnUpdated(HttpResponseMessage response)
+    {
+        response.EnsureSuccessStatusCode();
+
+        return PrnStatusUpdateResult.Updated;
     }
 }

@@ -7,8 +7,12 @@ namespace Defra.WasteObligations.Api.Dtos;
 public record User : IValidatableObject
 {
     [Required]
+    [GuidValue]
     [JsonPropertyName("id")]
     public required string Id { get; init; }
+
+    [JsonIgnore]
+    internal Guid EffectiveId => Guid.Parse(Id);
 
     [Required]
     [JsonPropertyName("email")]

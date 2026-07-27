@@ -1,4 +1,5 @@
 using AutoFixture;
+using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.Api.Services.PrnCommonBackend;
 using Defra.WasteObligations.Testing.Fixtures.PrnCommonBackend;
@@ -59,6 +60,11 @@ public class FakePrnCommonBackendService : IPrnCommonBackendService
         },
     };
 
+    public PrnStatusUpdate? LastPrnStatusUpdate { get; private set; }
+    public PrnStatusUpdateResult StatusUpdateResult { get; set; } = PrnStatusUpdateResult.Updated;
+    public bool ConcurrencyError { get; set; }
+    public bool Throws { get; set; }
+
     public Task<IEnumerable<Obligation>> ReadObligations(
         Guid organisationId,
         int year,
@@ -73,5 +79,27 @@ public class FakePrnCommonBackendService : IPrnCommonBackendService
     public Task<PrnDetails?> ReadPrn(Guid organisationId, string prnId, CancellationToken cancellationToken)
     {
         return Task.FromResult(s_prns.GetValueOrDefault((organisationId, prnId)));
+    }
+
+    public Task<PrnStatusUpdateResult> UpdatePrnStatus(
+        Guid organisationId,
+        Guid userId,
+        string prnId,
+        string status,
+        CancellationToken cancellationToken
+    )
+    {
+        if (ConcurrencyError)
+            throw new ConcurrencyException("The PRN status has already been updated.");
+
+        if (Throws)
+            throw new HttpRequestException();
+
+        if (!Guid.TryParse(prnId, out var commonBackendPrnId))
+            return Task.FromResult(PrnStatusUpdateResult.NotFound);
+
+        LastPrnStatusUpdate = new PrnStatusUpdate { PrnId = commonBackendPrnId, Status = status };
+
+        return Task.FromResult(StatusUpdateResult);
     }
 }
