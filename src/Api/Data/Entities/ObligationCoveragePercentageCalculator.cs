@@ -4,7 +4,7 @@ namespace Defra.WasteObligations.Api.Data.Entities;
 
 public static class ObligationCoveragePercentageCalculator
 {
-    private const int DecimalPlaces = 2;
+    private const int DecimalPlaces = 1;
     private const string TonnagesField = "tonnages";
     private const string AcceptedField = "accepted";
     private const string ObligatedField = "obligated";

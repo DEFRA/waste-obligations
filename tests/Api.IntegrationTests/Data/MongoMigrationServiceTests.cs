@@ -315,7 +315,7 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             .Find(Builders<BsonDocument>.Filter.Eq("_id", roundingLegacyId))
             .SingleAsync(TestContext.Current.CancellationToken);
         roundingLegacy["schemaVersion"].AsString.Should().Be(SchemaVersionV1_2);
-        roundingLegacy[ObligationCoveragePercentageField].ToDecimal().Should().Be(33.33m);
+        roundingLegacy[ObligationCoveragePercentageField].ToDecimal().Should().Be(33.3m);
 
         var existingPercentageDocument = await collection
             .Find(Builders<BsonDocument>.Filter.Eq("_id", existingPercentageId))
@@ -346,6 +346,90 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             .SingleAsync(TestContext.Current.CancellationToken);
         existingPercentageDocument["schemaVersion"].AsString.Should().Be(SchemaVersionV1_1);
         existingPercentageDocument.Contains(ObligationCoveragePercentageField).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ComplianceDeclarationObligationCoveragePercentagePrecision_ShouldRecalculateAtOneDecimalPlace()
+    {
+        var database = GetMongoDatabase();
+        var collection = database.GetCollection<BsonDocument>(nameof(ComplianceDeclaration));
+        var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
+        var subject = new ComplianceDeclarationObligationCoveragePercentagePrecision();
+        var recalculatedId = ObjectId.GenerateNewId();
+        var storedTwoDecimalPlacesId = ObjectId.GenerateNewId();
+        var wholeNumberId = ObjectId.GenerateNewId();
+        var timestamp = new DateTime(2026, 4, 26, 14, 0, 0, DateTimeKind.Utc);
+        const decimal wholeNumberPercentage = 75m;
+
+        await collection.InsertManyAsync(
+            [
+                CreateLegacyComplianceDeclaration(
+                    recalculatedId,
+                    timestamp,
+                    submittedUserLocale: UserLocale.En,
+                    schemaVersion: SchemaVersionV1_2,
+                    obligationCoveragePercentage: null,
+                    accepted: 1,
+                    obligated: 3
+                ),
+                CreateLegacyComplianceDeclaration(
+                    storedTwoDecimalPlacesId,
+                    timestamp,
+                    submittedUserLocale: UserLocale.En,
+                    schemaVersion: SchemaVersionV1_2,
+                    obligationCoveragePercentage: 33.33m,
+                    accepted: 1,
+                    obligated: 3
+                ),
+                CreateLegacyComplianceDeclaration(
+                    wholeNumberId,
+                    timestamp,
+                    submittedUserLocale: UserLocale.En,
+                    schemaVersion: SchemaVersionV1_2,
+                    obligationCoveragePercentage: wholeNumberPercentage,
+                    accepted: 2,
+                    obligated: 5
+                ),
+            ],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+
+        await subject.UpAsync(context);
+
+        var recalculated = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", recalculatedId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        recalculated["schemaVersion"].AsString.Should().Be(SchemaVersionV1_2);
+        recalculated[ObligationCoveragePercentageField].ToDecimal().Should().Be(33.3m);
+
+        var storedTwoDecimalPlaces = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", storedTwoDecimalPlacesId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        storedTwoDecimalPlaces["schemaVersion"].AsString.Should().Be(SchemaVersionV1_2);
+        storedTwoDecimalPlaces[ObligationCoveragePercentageField].ToDecimal().Should().Be(33.3m);
+
+        var wholeNumber = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", wholeNumberId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        wholeNumber["schemaVersion"].AsString.Should().Be(SchemaVersionV1_2);
+        wholeNumber[ObligationCoveragePercentageField].ToDecimal().Should().Be(wholeNumberPercentage);
+
+        await subject.UpAsync(context);
+
+        recalculated[ObligationCoveragePercentageField].ToDecimal().Should().Be(33.3m);
+
+        await subject.DownAsync(context);
+
+        recalculated = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", recalculatedId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        recalculated["schemaVersion"].AsString.Should().Be(SchemaVersionV1_2);
+        recalculated[ObligationCoveragePercentageField].ToDecimal().Should().Be(33.33m);
+
+        storedTwoDecimalPlaces = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", storedTwoDecimalPlacesId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        storedTwoDecimalPlaces[ObligationCoveragePercentageField].ToDecimal().Should().Be(33.33m);
     }
 
     private const string ObligationCoveragePercentageField = "obligationCoveragePercentage";
