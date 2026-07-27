@@ -71,11 +71,11 @@ public class PrnCommonBackendService(HttpClient httpClient) : IPrnCommonBackendS
             HttpStatusCode.OK => PrnStatusUpdateResult.Updated,
             HttpStatusCode.NotFound => PrnStatusUpdateResult.NotFound,
             HttpStatusCode.Conflict => throw new ConcurrencyException("The PRN status has already been updated."),
-            _ => HandleUnexpectedResponse(response),
+            _ => EnsureSuccessAndReturnUpdated(response),
         };
     }
 
-    private static PrnStatusUpdateResult HandleUnexpectedResponse(HttpResponseMessage response)
+    private static PrnStatusUpdateResult EnsureSuccessAndReturnUpdated(HttpResponseMessage response)
     {
         response.EnsureSuccessStatusCode();
 
