@@ -52,11 +52,7 @@ public class SearchPrnsTests(ApiWebApplicationFactory factory, ITestOutputHelper
             .SearchPrns(
                 FakeWasteOrganisationsService.OrganisationId,
                 Arg.Is<PrnSearchRequest>(x =>
-                    x.Page == 1
-                    && x.PageSize == 20
-                    && x.Search == null
-                    && x.FilterBy == null
-                    && x.SortBy == "date-issued-desc"
+                    x.Page == 1 && x.PageSize == 20 && x.Search == null && x.FilterBy == null && x.SortBy == null
                 ),
                 Arg.Any<CancellationToken>()
             );

@@ -32,7 +32,6 @@ public class SearchPrnsTests : IntegrationTestBase
             Page = 1,
             PageSize = 20,
             Search = searchTerm,
-            SortBy = "date-issued-desc",
         };
         await WireMockContext.WireMockAdminApi.StubPrnCommonBackendPrnSearchRequest(
             search,
@@ -125,12 +124,7 @@ public class SearchPrnsTests : IntegrationTestBase
             organisationId,
             BasicAuthCredential.ForClient(ClientIds.WasteOrganisations)
         );
-        var search = new PrnSearchRequest
-        {
-            Page = 1,
-            PageSize = 20,
-            SortBy = "date-issued-desc",
-        };
+        var search = new PrnSearchRequest { Page = 1, PageSize = 20 };
         await WireMockContext.WireMockAdminApi.StubPrnCommonBackendPrnSearchRequest(
             search,
             new PrnSearchResponse(),

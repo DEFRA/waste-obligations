@@ -143,8 +143,10 @@ public static class PrnCommonBackendExtensions
             .UsingGet()
             .WithPath("/api/v1/prn/search")
             .WithParam("page", search.Page.ToString())
-            .WithParam("pageSize", search.PageSize.ToString())
-            .WithParam("sortBy", search.SortBy);
+            .WithParam("pageSize", search.PageSize.ToString());
+
+        if (search.SortBy is not null)
+            request = request.WithParam("sortBy", search.SortBy);
 
         if (search.Search is not null)
             request = request.WithParam("search", search.Search);
@@ -179,8 +181,10 @@ public static class PrnCommonBackendExtensions
         {
             ExactParam("page", search.Page.ToString()),
             ExactParam("pageSize", search.PageSize.ToString()),
-            ExactParam("sortBy", search.SortBy),
         };
+
+        if (search.SortBy is not null)
+            parameters.Add(ExactParam("sortBy", search.SortBy));
 
         if (search.Search is not null)
             parameters.Add(ExactParam("search", search.Search));

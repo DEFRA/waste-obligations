@@ -83,9 +83,10 @@ public static class SearchPrns
             _ => throw new ArgumentOutOfRangeException(nameof(status)),
         };
 
-    private static string ToSortBy(OrganisationPrnSort sort) =>
+    private static string? ToSortBy(OrganisationPrnSort? sort) =>
         sort switch
         {
+            null => null,
             OrganisationPrnSort.IssuedAtDescending => "date-issued-desc",
             OrganisationPrnSort.IssuedAtAscending => "date-issued-asc",
             OrganisationPrnSort.TonnageDescending => "tonnage-desc",

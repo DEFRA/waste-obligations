@@ -322,6 +322,21 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
     }
 
     [Fact]
+    public async Task SearchPrns_WhenSortIsNotSpecified_ShouldNotSendSortBy()
+    {
+        var subject = new PrnCommonBackendService(Context.HttpClient);
+        var search = new PrnSearchRequest { Page = 1, PageSize = 20 };
+
+        WireMock.StubPrnCommonBackendPrnSearchRequest(search);
+
+        await subject.SearchPrns(Guid.NewGuid(), search, TestContext.Current.CancellationToken);
+
+        var request = WireMock.LogEntries.Single(x => x.RequestMessage?.Path == "/api/v1/prn/search").RequestMessage;
+        request.Should().NotBeNull();
+        request.RawQuery.Should().NotContain("sortBy");
+    }
+
+    [Fact]
     public async Task SearchPrns_WhenPrnCommonBackendReturnsNull_ShouldThrow()
     {
         var subject = new PrnCommonBackendService(Context.HttpClient);

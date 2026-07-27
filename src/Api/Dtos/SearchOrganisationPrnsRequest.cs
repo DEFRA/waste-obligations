@@ -37,6 +37,5 @@ public record SearchOrganisationPrnsRequest
 
     public OrganisationPrnStatus? ParsedStatus() => Status?.FromJsonValue<OrganisationPrnStatus>();
 
-    public OrganisationPrnSort ParsedSort() =>
-        Sort?.FromJsonValue<OrganisationPrnSort>() ?? OrganisationPrnSort.IssuedAtDescending;
+    public OrganisationPrnSort? ParsedSort() => Sort?.FromJsonValue<OrganisationPrnSort>();
 }

@@ -158,7 +158,7 @@ The public request uses PRN terminology while retaining the compliance-declarati
 | `pageSize` | `[FromQuery(Name = "pageSize")] int?`, `[Range(1, 100)]`. | `PageSize ?? 20`. | `pageSize={EffectivePageSize}`. | Direct mapping. Waste Obligations deliberately caps the request below the unbounded upstream value. |
 | `search` | Optional free-text value. | Omitted when no value is supplied. | `search={search}`. | Direct mapping. Searches PRN number or issuer organisation name only; it is not a general PRN or recipient search. The source uses SQL `LIKE`, so `%` and `_` retain wildcard meaning. |
 | `status` | Optional single list-status value: `AwaitingAcceptance`, `Accepted`, `Rejected`, or `Cancelled`. Validate against this allow-list; it is not a comma-separated parameter. | No value means every common-backend status. | `filterBy` from the status mapping below; omitted when no status is requested. | Direct status translation. `AwaitingCancellation` is deliberately excluded from the list request contract because common backend cannot return it. |
-| `sort` | Optional list-sort value from the allow-list below. | `IssuedAtDescending` when omitted. | `sortBy` from the sort mapping below. | Make the public default explicit instead of depending on common backend's fallback. |
+| `sort` | Optional list-sort value from the allow-list below. | Omitted when no value is supplied. | `sortBy` from the sort mapping below; omitted when no sort is requested. | Let common backend apply its source default when no sort is requested. |
 
 The endpoint binds this record with `[AsParameters]`, as `SearchComplianceDeclarations` does. Invalid page, page-size, status, or sort values are rejected as `400` by Waste Obligations request validation and are not forwarded to common backend. The public response is `PrnsPaged`: complete `Prn` items are mapped, source `totalItems` becomes `total`, and the effective page values become public `page` and `pageSize`. Common backend's `typeAhead` value is not exposed.
 
@@ -209,7 +209,7 @@ The comma-separated status pattern used by `SearchComplianceDeclarationsRequest`
 
 #### Public sort map
 
-The list request has an optional `sort` parameter. It uses public names that describe Waste Obligations fields rather than exposing the legacy values. The default is `IssuedAtDescending`.
+The list request has an optional `sort` parameter. It uses public names that describe Waste Obligations fields rather than exposing the legacy values. When omitted, Waste Obligations does not send `sortBy`; common backend currently defaults to issue date descending with `prnNumber` as a tie-breaker.
 
 | Proposed public `sort` | Common-backend `sortBy` | Position |
 | --- | --- | --- |
@@ -322,11 +322,11 @@ For dates, public Waste Obligations output remains `DateTimeOffset` at UTC offse
 
 ## Implemented design and test coverage
 
-1. `SearchOrganisationPrnsRequest` uses `[AsParameters]`, default page 1, default page size 20, `[Minimum(1)]`, and `[Range(1, 100)]`. Its single-status and sort allow-lists exclude compliance-declaration-only filters, comma-separated status values, and `AwaitingCancellation`.
+1. `SearchOrganisationPrnsRequest` uses `[AsParameters]`, default page 1, default page size 20, `[Minimum(1)]`, and `[Range(1, 100)]`. Its single-status and sort allow-lists exclude compliance-declaration-only filters, comma-separated status values, and `AwaitingCancellation`; an omitted sort is not forwarded to common backend.
 2. The endpoint passes the route organisation as the `X-EPR-ORGANISATION` recipient scope, checks the organisation exists, and rejects a returned recipient mismatch with `404`.
-3. Tests cover every public status and sort mapping to one outbound `filterBy` or `sortBy` value, together with invalid inputs that must result in `400` before calling common backend.
+3. Tests cover every supplied public status and sort mapping to one outbound `filterBy` or `sortBy` value, omission of `sortBy` when no sort is requested, and invalid inputs that must result in `400` before calling common backend.
 4. `PrnsPaged` returns `IEnumerable<Prn> Prns`, `total`, `page`, and `pageSize`. The neutral source `PrnData` DTO is used by both common-backend routes, while adapter and endpoint tests prove the complete search model is deserialised and returned as the existing public `Prn` type. Invalid/default required values continue to be rejected by that mapper.
-5. Tests cover default values, zero/negative/over-maximum values, maximum `pageSize`, empty results, total semantics, and the outbound default `page=1`/`pageSize=20` values.
+5. Tests cover default paging values, zero/negative/over-maximum values, maximum `pageSize`, empty results, total semantics, and the outbound default `page=1`/`pageSize=20` values.
 6. Tests cover missing organisations, returned recipient mismatch, authorisation, and the common-backend HTTP request including its paging/filter/sort query and organisation header. Upstream `404`/unauthorised propagation remains the standard integration-client failure path and should be exercised when source error-handling semantics change.
 7. A navigation test remains useful: common-backend list `externalId` should retrieve the same note through the current detail route. Do not generate future epr-backend links from a cache-local common-backend GUID.
 8. When a future source is selected, add contract tests for its source route, date representation, status visibility, ordering, and pagination stability under record/status changes.
