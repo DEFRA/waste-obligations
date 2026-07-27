@@ -12,6 +12,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Primitives;
+using WireMock.RequestBuilders;
+using WireMock.ResponseBuilders;
 
 namespace Defra.WasteObligations.Api.Tests.Services.PrnCommonBackend;
 
@@ -317,5 +319,27 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
         );
 
         result.Should().BeEquivalentTo(response);
+    }
+
+    [Fact]
+    public async Task SearchPrns_WhenPrnCommonBackendReturnsNull_ShouldThrow()
+    {
+        var subject = new PrnCommonBackendService(Context.HttpClient);
+        var search = new PrnSearchRequest
+        {
+            Page = 1,
+            PageSize = 20,
+            SortBy = "date-issued-desc",
+        };
+
+        WireMock
+            .Given(Request.Create().UsingGet().WithPath("/api/v1/prn/search"))
+            .RespondWith(Response.Create().WithStatusCode(HttpStatusCode.OK).WithBody("null"));
+
+        var act = () => subject.SearchPrns(Guid.NewGuid(), search, TestContext.Current.CancellationToken);
+
+        await act.Should()
+            .ThrowAsync<InvalidOperationException>()
+            .WithMessage("PRN common backend returned an empty search response");
     }
 }
