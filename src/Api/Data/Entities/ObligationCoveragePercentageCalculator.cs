@@ -9,16 +9,22 @@ public static class ObligationCoveragePercentageCalculator
     private const string AcceptedField = "accepted";
     private const string ObligatedField = "obligated";
 
-    public static decimal CalculateFromObligations(IEnumerable<Obligation> obligations)
+    public static decimal CalculateFromObligations(IEnumerable<Obligation> obligations) =>
+        CalculateFromObligations(obligations, DecimalPlaces);
+
+    public static decimal CalculateFromObligations(IEnumerable<Obligation> obligations, int decimalPlaces)
     {
         var obligationsArray = obligations as Obligation[] ?? obligations.ToArray();
         var totalAccepted = obligationsArray.Sum(o => Math.Min(o.Tonnages.Accepted, o.Tonnages.Obligated));
         var totalObligated = obligationsArray.Sum(o => o.Tonnages.Obligated);
 
-        return Calculate(totalAccepted, totalObligated);
+        return Calculate(totalAccepted, totalObligated, decimalPlaces);
     }
 
-    public static decimal CalculateFromBsonObligations(BsonArray obligations)
+    public static decimal CalculateFromBsonObligations(BsonArray obligations) =>
+        CalculateFromBsonObligations(obligations, DecimalPlaces);
+
+    public static decimal CalculateFromBsonObligations(BsonArray obligations, int decimalPlaces)
     {
         var totalAccepted = 0;
         var totalObligated = 0;
@@ -32,10 +38,13 @@ public static class ObligationCoveragePercentageCalculator
             totalObligated += obligated;
         }
 
-        return Calculate(totalAccepted, totalObligated);
+        return Calculate(totalAccepted, totalObligated, decimalPlaces);
     }
 
-    public static decimal Calculate(int totalAccepted, int totalObligated)
+    public static decimal Calculate(int totalAccepted, int totalObligated) =>
+        Calculate(totalAccepted, totalObligated, DecimalPlaces);
+
+    public static decimal Calculate(int totalAccepted, int totalObligated, int decimalPlaces)
     {
         if (totalObligated == 0)
         {
@@ -44,6 +53,6 @@ public static class ObligationCoveragePercentageCalculator
 
         var percentage = (decimal)totalAccepted / totalObligated * 100m;
 
-        return Math.Round(percentage, DecimalPlaces, MidpointRounding.AwayFromZero);
+        return Math.Round(percentage, decimalPlaces, MidpointRounding.AwayFromZero);
     }
 }

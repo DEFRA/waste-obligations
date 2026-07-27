@@ -57,7 +57,7 @@ public class ComplianceDeclarationObligationCoveragePercentagePrecision : MongoM
         {
             foreach (var document in cursor.Current)
             {
-                var obligationCoveragePercentage = RoundFromBsonObligations(
+                var obligationCoveragePercentage = ObligationCoveragePercentageCalculator.CalculateFromBsonObligations(
                     document[ObligationsField].AsBsonArray,
                     PreviousDecimalPlaces
                 );
@@ -73,29 +73,5 @@ public class ComplianceDeclarationObligationCoveragePercentagePrecision : MongoM
                 );
             }
         }
-    }
-
-    private static decimal RoundFromBsonObligations(BsonArray obligations, int decimalPlaces)
-    {
-        var totalAccepted = 0;
-        var totalObligated = 0;
-
-        foreach (var obligation in obligations)
-        {
-            var tonnages = obligation.AsBsonDocument["tonnages"].AsBsonDocument;
-            var accepted = tonnages["accepted"].ToInt32();
-            var obligated = tonnages["obligated"].ToInt32();
-            totalAccepted += Math.Min(accepted, obligated);
-            totalObligated += obligated;
-        }
-
-        if (totalObligated == 0)
-        {
-            return 0m;
-        }
-
-        var percentage = (decimal)totalAccepted / totalObligated * 100m;
-
-        return Math.Round(percentage, decimalPlaces, MidpointRounding.AwayFromZero);
     }
 }
