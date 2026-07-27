@@ -243,6 +243,32 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
     }
 
     [Fact]
+    public async Task UpdatePrnStatus_WhenPrnCommonBackendReturnsOtherSuccessfulResponse_ShouldReturnUpdated()
+    {
+        var subject = new PrnCommonBackendService(Context.HttpClient);
+        var organisationId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var statusUpdate = new PrnStatusUpdate { PrnId = Guid.NewGuid(), Status = "REJECTED" };
+
+        WireMock.StubPrnCommonBackendPrnStatusUpdateRequest(
+            statusUpdate,
+            organisationId,
+            userId,
+            HttpStatusCode.NoContent
+        );
+
+        var result = await subject.UpdatePrnStatus(
+            organisationId,
+            userId,
+            statusUpdate.PrnId.ToString("D"),
+            statusUpdate.Status,
+            TestContext.Current.CancellationToken
+        );
+
+        result.Should().Be(PrnStatusUpdateResult.Updated);
+    }
+
+    [Fact]
     public async Task UpdatePrnStatus_WhenPrnIdIsNotGuid_ShouldReturnNotFound()
     {
         var subject = new PrnCommonBackendService(Context.HttpClient);

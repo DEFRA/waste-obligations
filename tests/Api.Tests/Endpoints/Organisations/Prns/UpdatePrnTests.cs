@@ -104,6 +104,24 @@ public class UpdatePrnTests(ApiWebApplicationFactory factory, ITestOutputHelper 
     }
 
     [Fact]
+    public async Task WhenStatusIsNotSupported_ShouldBeInternalServerErrorWithoutProxying()
+    {
+        var client = CreateClient(testUser: TestUser.WriteOnly);
+
+        var response = await client.PatchAsJsonAsync(
+            Testing.Endpoints.Organisations.Prns.Update(
+                FakeWasteOrganisationsService.OrganisationId,
+                Guid.NewGuid().ToString("D")
+            ),
+            new { Status = 99, User = UserFixture.Regulator().Create() },
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
+        PrnCommonBackendService.LastPrnStatusUpdate.Should().BeNull();
+    }
+
+    [Fact]
     public async Task WhenUserIdInvalid_ShouldBeBadRequestWithoutProxying()
     {
         var response = await RequestShouldBeBadRequest(
@@ -167,6 +185,25 @@ public class UpdatePrnTests(ApiWebApplicationFactory factory, ITestOutputHelper 
         );
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task WhenPrnCommonBackendReturnsUnsupportedResult_ShouldBeInternalServerError()
+    {
+        var client = CreateClient(testUser: TestUser.WriteOnly);
+        PrnCommonBackendService.StatusUpdateResult = (PrnStatusUpdateResult)99;
+
+        var response = await client.PatchAsJsonAsync(
+            Testing.Endpoints.Organisations.Prns.Update(
+                FakeWasteOrganisationsService.OrganisationId,
+                Guid.NewGuid().ToString("D")
+            ),
+            UpdatePrnRequestFixture.Accepted().Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
+        PrnCommonBackendService.LastPrnStatusUpdate.Should().NotBeNull();
     }
 
     [Fact]
