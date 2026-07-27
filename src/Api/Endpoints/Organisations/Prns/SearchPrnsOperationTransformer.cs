@@ -36,7 +36,7 @@ public class SearchPrnsOperationTransformer : IOpenApiOperationTransformer
         parameter.Schema = new OpenApiSchema
         {
             Type = JsonSchemaType.String,
-            Enum = Enum.GetNames<T>().Select(x => (JsonNode)JsonValue.Create(x)!).ToList(),
+            Enum = Enum.GetNames<T>().Select(x => (JsonNode)JsonValue.Create(x)).ToList(),
         };
     }
 
