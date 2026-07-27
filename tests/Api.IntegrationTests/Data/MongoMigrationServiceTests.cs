@@ -387,8 +387,8 @@ public class MongoMigrationServiceTests : IntegrationTestBase
                     submittedUserLocale: UserLocale.En,
                     schemaVersion: SchemaVersionV1_2,
                     obligationCoveragePercentage: wholeNumberPercentage,
-                    accepted: 2,
-                    obligated: 5
+                    accepted: 3,
+                    obligated: 4
                 ),
             ],
             cancellationToken: TestContext.Current.CancellationToken
