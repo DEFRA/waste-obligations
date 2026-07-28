@@ -10,11 +10,14 @@ namespace Defra.WasteObligations.Api.Data.Migrations;
 [MigrationCollection(nameof(ComplianceDeclaration), MigrationDirection.Both)]
 public class ComplianceDeclarationObligationCoveragePercentagePrecision : MongoMigration
 {
-    private const int PreviousDecimalPlaces = 2;
+    private const int PreviousDecimalPlaces = 1;
     private const string SchemaVersionField = "schemaVersion";
     private const string ObligationCoveragePercentageField = "obligationCoveragePercentage";
     private const string ObligationsField = "obligations";
     private const string SchemaVersionV1_2 = "v1.2";
+    private const string TonnagesField = "tonnages";
+    private const string AcceptedField = "accepted";
+    private const string ObligatedField = "obligated";
 
     public override MigrationVersion Version => new(1, 0, 4);
 
@@ -57,7 +60,7 @@ public class ComplianceDeclarationObligationCoveragePercentagePrecision : MongoM
         {
             foreach (var document in cursor.Current)
             {
-                var obligationCoveragePercentage = ObligationCoveragePercentageCalculator.CalculateFromBsonObligations(
+                var obligationCoveragePercentage = CalculateFromBsonObligations(
                     document[ObligationsField].AsBsonArray,
                     PreviousDecimalPlaces
                 );
@@ -73,5 +76,29 @@ public class ComplianceDeclarationObligationCoveragePercentagePrecision : MongoM
                 );
             }
         }
+    }
+
+    private static decimal CalculateFromBsonObligations(BsonArray obligations, int decimalPlaces)
+    {
+        var totalAccepted = 0;
+        var totalObligated = 0;
+
+        foreach (var obligation in obligations)
+        {
+            var tonnages = obligation.AsBsonDocument[TonnagesField].AsBsonDocument;
+            var accepted = tonnages[AcceptedField].ToInt32();
+            var obligated = tonnages[ObligatedField].ToInt32();
+            totalAccepted += Math.Min(accepted, obligated);
+            totalObligated += obligated;
+        }
+
+        if (totalObligated == 0)
+        {
+            return 0m;
+        }
+
+        var percentage = (decimal)totalAccepted / totalObligated * 100m;
+
+        return Math.Round(percentage, decimalPlaces, MidpointRounding.AwayFromZero);
     }
 }

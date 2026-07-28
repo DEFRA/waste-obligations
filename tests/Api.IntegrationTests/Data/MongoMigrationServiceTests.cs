@@ -315,7 +315,7 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             .Find(Builders<BsonDocument>.Filter.Eq("_id", roundingLegacyId))
             .SingleAsync(TestContext.Current.CancellationToken);
         roundingLegacy["schemaVersion"].AsString.Should().Be(SchemaVersionV1_2);
-        roundingLegacy[ObligationCoveragePercentageField].ToDecimal().Should().Be(33.3m);
+        roundingLegacy[ObligationCoveragePercentageField].ToDecimal().Should().Be(33m);
 
         var existingPercentageDocument = await collection
             .Find(Builders<BsonDocument>.Filter.Eq("_id", existingPercentageId))
@@ -349,15 +349,19 @@ public class MongoMigrationServiceTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task ComplianceDeclarationObligationCoveragePercentagePrecision_ShouldRecalculateAtOneDecimalPlace()
+    public async Task ComplianceDeclarationObligationCoveragePercentagePrecision_ShouldRecalculateWithSumFormulaAndCap()
     {
         var database = GetMongoDatabase();
         var collection = database.GetCollection<BsonDocument>(nameof(ComplianceDeclaration));
         var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
         var subject = new ComplianceDeclarationObligationCoveragePercentagePrecision();
         var recalculatedId = ObjectId.GenerateNewId();
+        var cappedId = ObjectId.GenerateNewId();
+        var scenario2Id = ObjectId.GenerateNewId();
+        var multiMaterialId = ObjectId.GenerateNewId();
         var storedTwoDecimalPlacesId = ObjectId.GenerateNewId();
         var wholeNumberId = ObjectId.GenerateNewId();
+        var zeroObligatedId = ObjectId.GenerateNewId();
         var timestamp = new DateTime(2026, 4, 26, 14, 0, 0, DateTimeKind.Utc);
         const decimal wholeNumberPercentage = 75m;
 
@@ -371,6 +375,36 @@ public class MongoMigrationServiceTests : IntegrationTestBase
                     obligationCoveragePercentage: null,
                     accepted: 1,
                     obligated: 3
+                ),
+                CreateLegacyComplianceDeclaration(
+                    cappedId,
+                    timestamp,
+                    submittedUserLocale: UserLocale.En,
+                    schemaVersion: SchemaVersionV1_2,
+                    obligationCoveragePercentage: 124m,
+                    accepted: 1150,
+                    obligated: 925
+                ),
+                CreateLegacyComplianceDeclaration(
+                    scenario2Id,
+                    timestamp,
+                    submittedUserLocale: UserLocale.En,
+                    schemaVersion: SchemaVersionV1_2,
+                    obligationCoveragePercentage: 92m,
+                    accepted: 850,
+                    obligated: 925
+                ),
+                CreateLegacyComplianceDeclarationWithObligations(
+                    multiMaterialId,
+                    timestamp,
+                    submittedUserLocale: UserLocale.En,
+                    schemaVersion: SchemaVersionV1_2,
+                    obligationCoveragePercentage: 50m,
+                    obligations:
+                    [
+                        CreateLegacyObligation("Plastic", accepted: 100, obligated: 50),
+                        CreateLegacyObligation("Glass", accepted: 0, obligated: 50),
+                    ]
                 ),
                 CreateLegacyComplianceDeclaration(
                     storedTwoDecimalPlacesId,
@@ -390,6 +424,15 @@ public class MongoMigrationServiceTests : IntegrationTestBase
                     accepted: 3,
                     obligated: 4
                 ),
+                CreateLegacyComplianceDeclaration(
+                    zeroObligatedId,
+                    timestamp,
+                    submittedUserLocale: UserLocale.En,
+                    schemaVersion: SchemaVersionV1_2,
+                    obligationCoveragePercentage: 10m,
+                    accepted: 0,
+                    obligated: 0
+                ),
             ],
             cancellationToken: TestContext.Current.CancellationToken
         );
@@ -400,36 +443,64 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             .Find(Builders<BsonDocument>.Filter.Eq("_id", recalculatedId))
             .SingleAsync(TestContext.Current.CancellationToken);
         recalculated["schemaVersion"].AsString.Should().Be(SchemaVersionV1_2);
-        recalculated[ObligationCoveragePercentageField].ToDecimal().Should().Be(33.3m);
+        recalculated[ObligationCoveragePercentageField].ToDecimal().Should().Be(33m);
+
+        var capped = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", cappedId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        capped[ObligationCoveragePercentageField].ToDecimal().Should().Be(100m);
+
+        var scenario2 = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", scenario2Id))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        scenario2[ObligationCoveragePercentageField].ToDecimal().Should().Be(92m);
+
+        var multiMaterial = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", multiMaterialId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        multiMaterial[ObligationCoveragePercentageField].ToDecimal().Should().Be(100m);
 
         var storedTwoDecimalPlaces = await collection
             .Find(Builders<BsonDocument>.Filter.Eq("_id", storedTwoDecimalPlacesId))
             .SingleAsync(TestContext.Current.CancellationToken);
-        storedTwoDecimalPlaces["schemaVersion"].AsString.Should().Be(SchemaVersionV1_2);
-        storedTwoDecimalPlaces[ObligationCoveragePercentageField].ToDecimal().Should().Be(33.3m);
+        storedTwoDecimalPlaces[ObligationCoveragePercentageField].ToDecimal().Should().Be(33m);
 
         var wholeNumber = await collection
             .Find(Builders<BsonDocument>.Filter.Eq("_id", wholeNumberId))
             .SingleAsync(TestContext.Current.CancellationToken);
-        wholeNumber["schemaVersion"].AsString.Should().Be(SchemaVersionV1_2);
         wholeNumber[ObligationCoveragePercentageField].ToDecimal().Should().Be(wholeNumberPercentage);
+
+        var zeroObligated = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", zeroObligatedId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        zeroObligated[ObligationCoveragePercentageField].ToDecimal().Should().Be(0m);
 
         await subject.UpAsync(context);
 
-        recalculated[ObligationCoveragePercentageField].ToDecimal().Should().Be(33.3m);
+        recalculated[ObligationCoveragePercentageField].ToDecimal().Should().Be(33m);
+        capped[ObligationCoveragePercentageField].ToDecimal().Should().Be(100m);
 
         await subject.DownAsync(context);
 
         recalculated = await collection
             .Find(Builders<BsonDocument>.Filter.Eq("_id", recalculatedId))
             .SingleAsync(TestContext.Current.CancellationToken);
-        recalculated["schemaVersion"].AsString.Should().Be(SchemaVersionV1_2);
-        recalculated[ObligationCoveragePercentageField].ToDecimal().Should().Be(33.33m);
+        recalculated[ObligationCoveragePercentageField].ToDecimal().Should().Be(33.3m);
+
+        multiMaterial = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", multiMaterialId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        multiMaterial[ObligationCoveragePercentageField].ToDecimal().Should().Be(50m);
 
         storedTwoDecimalPlaces = await collection
             .Find(Builders<BsonDocument>.Filter.Eq("_id", storedTwoDecimalPlacesId))
             .SingleAsync(TestContext.Current.CancellationToken);
-        storedTwoDecimalPlaces[ObligationCoveragePercentageField].ToDecimal().Should().Be(33.33m);
+        storedTwoDecimalPlaces[ObligationCoveragePercentageField].ToDecimal().Should().Be(33.3m);
+
+        zeroObligated = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", zeroObligatedId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        zeroObligated[ObligationCoveragePercentageField].ToDecimal().Should().Be(0m);
     }
 
     private const string ObligationCoveragePercentageField = "obligationCoveragePercentage";
@@ -514,6 +585,43 @@ public class MongoMigrationServiceTests : IntegrationTestBase
 
         return document;
     }
+
+    private static BsonDocument CreateLegacyComplianceDeclarationWithObligations(
+        ObjectId id,
+        DateTime timestamp,
+        string? submittedUserLocale,
+        string schemaVersion,
+        decimal? obligationCoveragePercentage,
+        BsonArray obligations
+    )
+    {
+        var document = CreateLegacyComplianceDeclaration(
+            id,
+            timestamp,
+            submittedUserLocale,
+            schemaVersion,
+            obligationCoveragePercentage
+        );
+        document["obligations"] = obligations;
+
+        return document;
+    }
+
+    private static BsonDocument CreateLegacyObligation(string material, int accepted, int obligated) =>
+        new()
+        {
+            ["material"] = material,
+            ["recyclingTarget"] = 0.75m,
+            ["status"] = "NoDataYet",
+            ["tonnages"] = new BsonDocument
+            {
+                ["material"] = 100,
+                ["awaitingAcceptance"] = 10,
+                ["accepted"] = accepted,
+                ["outstanding"] = 20,
+                ["obligated"] = obligated,
+            },
+        };
 
     private static BsonDocument GetSubmittedAuditUser(BsonDocument document) =>
         document["audit"]
