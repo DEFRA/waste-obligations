@@ -3,6 +3,7 @@ using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
+using MongoDB.Bson;
 using Obligation = Defra.WasteObligations.Api.Data.Entities.Obligation;
 
 namespace Defra.WasteObligations.Api.Tests.Data.Entities;
@@ -54,6 +55,59 @@ public class ObligationCoveragePercentageCalculatorTests
 
         ObligationCoveragePercentageCalculator.CalculateFromObligations(obligations).Should().Be(100m);
     }
+
+    [Fact]
+    public void CalculateFromObligations_WhenObligationsAreNotAnArray_ShouldCalculateFromEnumerable()
+    {
+        var obligations = new List<Obligation>
+        {
+            ObligationFixture
+                .Default()
+                .With(
+                    x => x.Tonnages,
+                    ObligationTonnagesFixture.Default().With(t => t.Accepted, 2).With(t => t.Obligated, 5).Create()
+                )
+                .Create(),
+        };
+
+        ObligationCoveragePercentageCalculator.CalculateFromObligations(obligations).Should().Be(40m);
+    }
+
+    [Fact]
+    public void CalculateFromBsonObligations_WhenJiraAcceptanceCriteriaExamplesProvided_ShouldReturnExpectedWholeNumber()
+    {
+        var obligations = new BsonArray { CreateBsonObligation(accepted: 850, obligated: 925) };
+
+        ObligationCoveragePercentageCalculator.CalculateFromBsonObligations(obligations).Should().Be(92m);
+    }
+
+    [Fact]
+    public void CalculateFromBsonObligations_WhenAcceptedExceedsObligatedOnOneMaterial_ShouldCapAtOneHundred()
+    {
+        var obligations = new BsonArray
+        {
+            CreateBsonObligation(accepted: 100, obligated: 50),
+            CreateBsonObligation(accepted: 0, obligated: 50),
+        };
+
+        ObligationCoveragePercentageCalculator.CalculateFromBsonObligations(obligations).Should().Be(100m);
+    }
+
+    private static BsonDocument CreateBsonObligation(int accepted, int obligated) =>
+        new()
+        {
+            ["material"] = Material.Plastic,
+            ["recyclingTarget"] = 0.75m,
+            ["status"] = ObligationStatus.NoDataYet,
+            ["tonnages"] = new BsonDocument
+            {
+                ["material"] = 100,
+                ["awaitingAcceptance"] = 10,
+                ["accepted"] = accepted,
+                ["outstanding"] = 20,
+                ["obligated"] = obligated,
+            },
+        };
 
     [Theory]
     [InlineData(1, 200, 1)]
