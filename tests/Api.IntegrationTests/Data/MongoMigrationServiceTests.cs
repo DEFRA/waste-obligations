@@ -361,6 +361,7 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         var multiMaterialId = ObjectId.GenerateNewId();
         var storedTwoDecimalPlacesId = ObjectId.GenerateNewId();
         var wholeNumberId = ObjectId.GenerateNewId();
+        var zeroObligatedId = ObjectId.GenerateNewId();
         var timestamp = new DateTime(2026, 4, 26, 14, 0, 0, DateTimeKind.Utc);
         const decimal wholeNumberPercentage = 75m;
 
@@ -423,6 +424,15 @@ public class MongoMigrationServiceTests : IntegrationTestBase
                     accepted: 3,
                     obligated: 4
                 ),
+                CreateLegacyComplianceDeclaration(
+                    zeroObligatedId,
+                    timestamp,
+                    submittedUserLocale: UserLocale.En,
+                    schemaVersion: SchemaVersionV1_2,
+                    obligationCoveragePercentage: 10m,
+                    accepted: 0,
+                    obligated: 0
+                ),
             ],
             cancellationToken: TestContext.Current.CancellationToken
         );
@@ -460,6 +470,11 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             .SingleAsync(TestContext.Current.CancellationToken);
         wholeNumber[ObligationCoveragePercentageField].ToDecimal().Should().Be(wholeNumberPercentage);
 
+        var zeroObligated = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", zeroObligatedId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        zeroObligated[ObligationCoveragePercentageField].ToDecimal().Should().Be(0m);
+
         await subject.UpAsync(context);
 
         recalculated[ObligationCoveragePercentageField].ToDecimal().Should().Be(33m);
@@ -481,6 +496,11 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             .Find(Builders<BsonDocument>.Filter.Eq("_id", storedTwoDecimalPlacesId))
             .SingleAsync(TestContext.Current.CancellationToken);
         storedTwoDecimalPlaces[ObligationCoveragePercentageField].ToDecimal().Should().Be(33.3m);
+
+        zeroObligated = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", zeroObligatedId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        zeroObligated[ObligationCoveragePercentageField].ToDecimal().Should().Be(0m);
     }
 
     private const string ObligationCoveragePercentageField = "obligationCoveragePercentage";
