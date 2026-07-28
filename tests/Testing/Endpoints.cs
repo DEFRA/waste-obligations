@@ -40,6 +40,9 @@ public static class Endpoints
         {
             private static string Root = "prns";
 
+            public static string Search(Guid organisationId, EndpointQuery? query = null) =>
+                $"{Organisations.Read(organisationId)}/{Root}{query}";
+
             public static string Read(Guid organisationId, string prnId) =>
                 $"{Organisations.Read(organisationId)}/{Root}/{prnId}";
 
