@@ -315,7 +315,7 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             .Find(Builders<BsonDocument>.Filter.Eq("_id", roundingLegacyId))
             .SingleAsync(TestContext.Current.CancellationToken);
         roundingLegacy["schemaVersion"].AsString.Should().Be(SchemaVersionV1_2);
-        roundingLegacy[ObligationCoveragePercentageField].ToDecimal().Should().Be(33.3m);
+        roundingLegacy[ObligationCoveragePercentageField].ToDecimal().Should().Be(33m);
 
         var existingPercentageDocument = await collection
             .Find(Builders<BsonDocument>.Filter.Eq("_id", existingPercentageId))
@@ -349,7 +349,7 @@ public class MongoMigrationServiceTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task ComplianceDeclarationObligationCoveragePercentagePrecision_ShouldRecalculateAtOneDecimalPlace()
+    public async Task ComplianceDeclarationObligationCoveragePercentagePrecision_ShouldRecalculateAsWholeNumber()
     {
         var database = GetMongoDatabase();
         var collection = database.GetCollection<BsonDocument>(nameof(ComplianceDeclaration));
@@ -400,13 +400,13 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             .Find(Builders<BsonDocument>.Filter.Eq("_id", recalculatedId))
             .SingleAsync(TestContext.Current.CancellationToken);
         recalculated["schemaVersion"].AsString.Should().Be(SchemaVersionV1_2);
-        recalculated[ObligationCoveragePercentageField].ToDecimal().Should().Be(33.3m);
+        recalculated[ObligationCoveragePercentageField].ToDecimal().Should().Be(33m);
 
         var storedTwoDecimalPlaces = await collection
             .Find(Builders<BsonDocument>.Filter.Eq("_id", storedTwoDecimalPlacesId))
             .SingleAsync(TestContext.Current.CancellationToken);
         storedTwoDecimalPlaces["schemaVersion"].AsString.Should().Be(SchemaVersionV1_2);
-        storedTwoDecimalPlaces[ObligationCoveragePercentageField].ToDecimal().Should().Be(33.3m);
+        storedTwoDecimalPlaces[ObligationCoveragePercentageField].ToDecimal().Should().Be(33m);
 
         var wholeNumber = await collection
             .Find(Builders<BsonDocument>.Filter.Eq("_id", wholeNumberId))
@@ -416,7 +416,7 @@ public class MongoMigrationServiceTests : IntegrationTestBase
 
         await subject.UpAsync(context);
 
-        recalculated[ObligationCoveragePercentageField].ToDecimal().Should().Be(33.3m);
+        recalculated[ObligationCoveragePercentageField].ToDecimal().Should().Be(33m);
 
         await subject.DownAsync(context);
 
@@ -424,12 +424,12 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             .Find(Builders<BsonDocument>.Filter.Eq("_id", recalculatedId))
             .SingleAsync(TestContext.Current.CancellationToken);
         recalculated["schemaVersion"].AsString.Should().Be(SchemaVersionV1_2);
-        recalculated[ObligationCoveragePercentageField].ToDecimal().Should().Be(33.33m);
+        recalculated[ObligationCoveragePercentageField].ToDecimal().Should().Be(33.3m);
 
         storedTwoDecimalPlaces = await collection
             .Find(Builders<BsonDocument>.Filter.Eq("_id", storedTwoDecimalPlacesId))
             .SingleAsync(TestContext.Current.CancellationToken);
-        storedTwoDecimalPlaces[ObligationCoveragePercentageField].ToDecimal().Should().Be(33.33m);
+        storedTwoDecimalPlaces[ObligationCoveragePercentageField].ToDecimal().Should().Be(33.3m);
     }
 
     private const string ObligationCoveragePercentageField = "obligationCoveragePercentage";

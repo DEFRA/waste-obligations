@@ -101,7 +101,7 @@ public class ComplianceDeclarationTests
     }
 
     [Fact]
-    public void Submit_WhenRepeatingDecimal_ShouldRoundToOneDecimalPlace()
+    public void Submit_WhenRepeatingDecimal_ShouldRoundToWholeNumber()
     {
         var draft = CreateDraft(
             ObligationFixture
@@ -116,7 +116,7 @@ public class ComplianceDeclarationTests
 
         var submitted = draft.Submit(user, UtcNow);
 
-        submitted.ObligationCoveragePercentage.Should().Be(33.3m);
+        submitted.ObligationCoveragePercentage.Should().Be(33m);
     }
 
     [Fact]
@@ -143,7 +143,7 @@ public class ComplianceDeclarationTests
                 .Default()
                 .With(
                     x => x.Tonnages,
-                    ObligationTonnagesFixture.Default().With(t => t.Accepted, 1).With(t => t.Obligated, 2_000).Create()
+                    ObligationTonnagesFixture.Default().With(t => t.Accepted, 1).With(t => t.Obligated, 200).Create()
                 )
                 .Create()
         );
@@ -151,7 +151,7 @@ public class ComplianceDeclarationTests
 
         var submitted = draft.Submit(user, UtcNow);
 
-        submitted.ObligationCoveragePercentage.Should().Be(0.1m);
+        submitted.ObligationCoveragePercentage.Should().Be(1m);
     }
 
     private static ComplianceDeclaration CreateDraft() =>
