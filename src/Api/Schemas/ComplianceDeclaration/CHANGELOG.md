@@ -9,7 +9,7 @@ The current schema is [v1.2](compliance-declaration.v1.2.schema.json).
 - Added the optional root `obligationCoveragePercentage` property as a JSON number.
 - This is a backwards-compatible minor version: v1.1 payloads remain valid under v1.2.
 - Mongo migration `004_ComplianceDeclarationObligationCoveragePercentage` calculates and backfills the value for existing v1.1 declarations. Historical audit-event snapshots remain on v1.1.
-- `obligationCoveragePercentage` is rounded to the nearest whole number on submit and when recalculated by Mongo migration `005_ComplianceDeclarationObligationCoveragePercentagePrecision` for existing v1.2 declarations.
+- `obligationCoveragePercentage` is calculated as `sum(tonnages.accepted) / sum(tonnages.obligated) × 100`, capped at 100%, and rounded to the nearest whole number on submit and when recalculated by Mongo migration `005_ComplianceDeclarationObligationCoveragePercentagePrecision` for existing v1.2 declarations.
 
 ## v1.1
 
