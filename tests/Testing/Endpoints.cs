@@ -14,6 +14,8 @@ public static class Endpoints
     {
         public static string Ready() => "health";
 
+        public static string Authorized() => $"{Ready()}/authorized";
+
         public static string All() => $"{Ready()}/all";
     }
 
