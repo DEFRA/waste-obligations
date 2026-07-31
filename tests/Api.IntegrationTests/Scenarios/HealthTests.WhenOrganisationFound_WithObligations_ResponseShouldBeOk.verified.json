@@ -3,7 +3,17 @@
   "results": {
     "PrnCommonBackend": {
       "status": "Healthy",
-      "description": "Connected to http://wiremock/admin/health"
+      "description": "Connected to http://wiremock/admin/health",
+      "data": {
+        "accessToken": {
+          "status": "Retrieved"
+        },
+        "downstream": {
+          "status": "Succeeded",
+          "endpoint": "http://wiremock/admin/health",
+          "statusCode": 200
+        }
+      }
     },
     "WasteOrganisations": {
       "status": "Healthy",
