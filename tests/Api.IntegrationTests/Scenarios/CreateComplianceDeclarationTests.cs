@@ -30,11 +30,6 @@ public class CreateComplianceDeclarationTests : IntegrationTestBase
             organisationId,
             BasicAuthCredential.ForClient(ClientIds.WasteOrganisations)
         );
-        await WireMockContext.WireMockAdminApi.StubTokenRequest(
-            expiryInSeconds: 60,
-            clientId: ClientIds.AccountBackend
-        );
-
         var client = CreateClient();
         client.DefaultRequestHeaders.Add(TraceHeaderName, TraceId);
 
@@ -100,11 +95,6 @@ public class CreateComplianceDeclarationTests : IntegrationTestBase
             organisationId,
             BasicAuthCredential.ForClient(ClientIds.WasteOrganisations)
         );
-        await WireMockContext.WireMockAdminApi.StubTokenRequest(
-            expiryInSeconds: 60,
-            clientId: ClientIds.AccountBackend
-        );
-
         var client = CreateClient();
 
         var response = await client.PostAsJsonAsync(
@@ -147,11 +137,6 @@ public class CreateComplianceDeclarationTests : IntegrationTestBase
                 .With(x => x.BusinessCountry, BusinessCountry.Wales)
                 .Create()
         );
-        await WireMockContext.WireMockAdminApi.StubTokenRequest(
-            expiryInSeconds: 60,
-            clientId: ClientIds.AccountBackend
-        );
-
         var client = CreateClient();
         var request = directProducer
             ? CreateComplianceDeclarationRequestFixture.DirectProducer(organisationId).Create()

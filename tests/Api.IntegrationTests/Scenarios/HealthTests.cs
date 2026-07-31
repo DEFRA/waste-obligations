@@ -9,19 +9,12 @@ public class HealthTests : IntegrationTestBase
     public async Task WhenOrganisationFound_WithObligations_ResponseShouldBeOk()
     {
         const string prnCommonBackendAccessToken = nameof(prnCommonBackendAccessToken);
-        const string accountBackendAccessToken = nameof(accountBackendAccessToken);
         await WireMockContext.WireMockAdminApi.StubTokenRequest(
             expiryInSeconds: 60,
             clientId: ClientIds.PrnCommonBackend,
             accessToken: prnCommonBackendAccessToken
         );
-        await WireMockContext.WireMockAdminApi.StubTokenRequest(
-            expiryInSeconds: 60,
-            clientId: ClientIds.AccountBackend,
-            accessToken: accountBackendAccessToken
-        );
         await WireMockContext.WireMockAdminApi.StubPrnCommonBackendAdminHealth(prnCommonBackendAccessToken);
-        await WireMockContext.WireMockAdminApi.StubAccountBackendAdminHealth(accountBackendAccessToken);
         await WireMockContext.WireMockAdminApi.StubWasteOrganisationsHealth(
             BasicAuthCredential.ForClient(ClientIds.WasteOrganisations)
         );
