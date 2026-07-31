@@ -26,11 +26,6 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
             organisationId,
             BasicAuthCredential.ForClient(ClientIds.WasteOrganisations)
         );
-        await WireMockContext.WireMockAdminApi.StubTokenRequest(
-            expiryInSeconds: 60,
-            clientId: ClientIds.AccountBackend
-        );
-
         var client = CreateClient();
 
         var response = await client.PostAsJsonAsync(
@@ -74,11 +69,6 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
             organisationId,
             BasicAuthCredential.ForClient(ClientIds.WasteOrganisations)
         );
-        await WireMockContext.WireMockAdminApi.StubTokenRequest(
-            expiryInSeconds: 60,
-            clientId: ClientIds.AccountBackend
-        );
-
         var client = CreateClient();
 
         var response = await client.PostAsJsonAsync(
