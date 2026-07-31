@@ -5,6 +5,7 @@
 - Add blank line before return statement
 - Prefer typed `Results.[method]()` helpers over `Results.Problem()` for endpoint responses; reserve `Results.Problem()` for cases without an appropriate typed helper
 - Use constants for values that are used more than once; inline values that are only used once
+- Declare variables as close to their point of use as possible
 - Use camelCase for constants declared within methods
 - Lint files changed/created using "dotnet csharpier format ."
 - Name expressions with x => x. syntax where possible

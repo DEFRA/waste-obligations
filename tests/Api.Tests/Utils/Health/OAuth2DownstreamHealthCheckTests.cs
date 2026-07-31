@@ -1,4 +1,5 @@
 using System.Net;
+using System.Security.Claims;
 using System.Text.Json;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Utils.Health;
@@ -18,12 +19,14 @@ public class OAuth2DownstreamHealthCheckTests(WireMockContext context) : WireMoc
 {
     private const string Name = "downstream";
     private const string HealthEndpoint = "custom/health";
+    private const string Audience = "89d9dba8-b47f-44db-900d-df9a4982b1db";
+    private const string RequestedScope = $"{Audience}/.default";
 
     [Fact]
     public async Task WhenAccessTokenAndDownstreamCallSucceed_ShouldReportBothStages()
     {
-        const string accessToken = "access_token";
-        WireMock.StubTokenRequest(accessToken);
+        var accessToken = Jwt.GenerateJwt([new Claim("aud", Audience)]);
+        WireMock.StubTokenRequest(accessToken, scope: RequestedScope);
         WireMock
             .Given(
                 Request
@@ -39,6 +42,17 @@ public class OAuth2DownstreamHealthCheckTests(WireMockContext context) : WireMoc
 
         result.Status.Should().Be(HealthStatus.Healthy);
         data.GetProperty("accessToken").GetProperty("status").GetString().Should().Be("Retrieved");
+        data.GetProperty("accessToken").GetProperty("requestedScope").GetString().Should().Be(RequestedScope);
+        data.GetProperty("accessToken").GetProperty("claimsAvailable").GetBoolean().Should().BeTrue();
+        data.GetProperty("accessToken")
+            .GetProperty("audiences")
+            .EnumerateArray()
+            .Select(x => x.GetString())
+            .Should()
+            .ContainSingle()
+            .Which.Should()
+            .Be(Audience);
+        data.GetProperty("accessToken").GetProperty("audienceMatchesRequestedScope").GetBoolean().Should().BeTrue();
         data.GetProperty("downstream").GetProperty("status").GetString().Should().Be("Succeeded");
         data.GetProperty("downstream")
             .GetProperty("endpoint")
@@ -48,10 +62,37 @@ public class OAuth2DownstreamHealthCheckTests(WireMockContext context) : WireMoc
     }
 
     [Fact]
+    public async Task WhenScopeIsNotConfigured_ShouldNotCheckTheAccessTokenAudience()
+    {
+        var accessToken = Jwt.GenerateJwt([new Claim("aud", Audience)]);
+        WireMock.StubTokenRequest(accessToken, scope: null);
+        WireMock
+            .Given(
+                Request
+                    .Create()
+                    .UsingGet()
+                    .WithPath($"/{HealthEndpoint}")
+                    .WithHeader("Authorization", $"Bearer {accessToken}")
+            )
+            .RespondWith(Response.Create().WithStatusCode(HttpStatusCode.OK));
+
+        var result = await CheckHealth(scope: null);
+        var data = JsonSerializer.SerializeToElement(result.Data);
+
+        result.Status.Should().Be(HealthStatus.Healthy);
+        data.GetProperty("accessToken").GetProperty("requestedScope").ValueKind.Should().Be(JsonValueKind.Null);
+        data.GetProperty("accessToken").GetProperty("claimsAvailable").GetBoolean().Should().BeTrue();
+        data.GetProperty("accessToken")
+            .GetProperty("audienceMatchesRequestedScope")
+            .ValueKind.Should()
+            .Be(JsonValueKind.Null);
+    }
+
+    [Fact]
     public async Task WhenDownstreamCallFails_ShouldReportRetrievedAccessTokenAndFailedDownstream()
     {
         const string accessToken = "access_token";
-        WireMock.StubTokenRequest(accessToken);
+        WireMock.StubTokenRequest(accessToken, scope: RequestedScope);
         WireMock
             .Given(
                 Request
@@ -68,6 +109,12 @@ public class OAuth2DownstreamHealthCheckTests(WireMockContext context) : WireMoc
         result.Status.Should().Be(HealthStatus.Unhealthy);
         result.Exception?.Message.Should().Be($"Failed to connect to {Name} after retrieving an access token");
         data.GetProperty("accessToken").GetProperty("status").GetString().Should().Be("Retrieved");
+        data.GetProperty("accessToken").GetProperty("claimsAvailable").GetBoolean().Should().BeFalse();
+        data.GetProperty("accessToken").GetProperty("audiences").GetArrayLength().Should().Be(0);
+        data.GetProperty("accessToken")
+            .GetProperty("audienceMatchesRequestedScope")
+            .ValueKind.Should()
+            .Be(JsonValueKind.Null);
         data.GetProperty("downstream").GetProperty("status").GetString().Should().Be("Failed");
         data.GetProperty("downstream")
             .GetProperty("statusCode")
@@ -89,7 +136,7 @@ public class OAuth2DownstreamHealthCheckTests(WireMockContext context) : WireMoc
         WireMock.LogEntries.Count(x => x.RequestMessage?.Path == $"/{HealthEndpoint}").Should().Be(0);
     }
 
-    private async Task<HealthReportEntry> CheckHealth()
+    private async Task<HealthReportEntry> CheckHealth(string? scope = RequestedScope)
     {
         var services = new ServiceCollection();
         var configuration = new Dictionary<string, string?>
@@ -97,7 +144,7 @@ public class OAuth2DownstreamHealthCheckTests(WireMockContext context) : WireMoc
             { $"{Name}:TokenEndpoint", $"{Context.BaseAddress}/token" },
             { $"{Name}:ClientId", "client_id" },
             { $"{Name}:ClientSecret", "client_secret" },
-            { $"{Name}:Scope", "scope" },
+            { $"{Name}:Scope", scope },
         };
 
         services.AddLogging();

@@ -6,7 +6,11 @@
       "description": "Connected to http://wiremock/admin/health",
       "data": {
         "accessToken": {
-          "status": "Retrieved"
+          "status": "Retrieved",
+          "requestedScope": "scope",
+          "claimsAvailable": false,
+          "audiences": [],
+          "audienceMatchesRequestedScope": null
         },
         "downstream": {
           "status": "Succeeded",
