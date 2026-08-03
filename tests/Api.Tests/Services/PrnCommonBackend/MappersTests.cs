@@ -123,11 +123,11 @@ public class MappersTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData(" ")]
-    public void ToDto_WhenRecyclingProcessInvalid_ShouldThrow(string? process)
+    public void ToDto_WhenRecyclingProcessEmpty_ShouldMapNull(string? process)
     {
-        var act = () => PrnDataFixture.Default().With(x => x.ProcessToBeUsed, process).Create().ToDto();
+        var result = PrnDataFixture.Default().With(x => x.ProcessToBeUsed, process).Create().ToDto();
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*ProcessToBeUsed*");
+        result.RecyclingProcess.Should().BeNull();
     }
 
     [Theory]

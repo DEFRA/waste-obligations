@@ -31,7 +31,7 @@ The current detail endpoint is implemented in `src/Api/Endpoints/Organisations/P
 
 `GET api/v1/prn/{prnId}` with `X-EPR-ORGANISATION: {organisationId}`
 
-The existing `Dtos.Prn` is a full-detail model. It requires, among other fields, the note type, accreditation year and number, recycling process, regulator/agency, recipient ID, and source-store `createdAt` and `updatedAt`. It is the agreed public item type for the proposed list, so the source integration must supply every required value correctly; it must not manufacture them from a partial source item.
+The existing `Dtos.Prn` is a full-detail model. It requires, among other fields, the note type, accreditation year and number, regulator/agency, recipient ID, and source-store `createdAt` and `updatedAt`. `recyclingProcess` is optional: a `null`, empty, or whitespace-only `processToBeUsed` source value is returned as `null`. It is the agreed public item type for the proposed list, so the source integration must supply every required value correctly; it must not manufacture them from a partial source item.
 
 The closest existing Waste Obligations page-number API is `GET /compliance-declarations`. Its public envelope is:
 
@@ -86,7 +86,7 @@ The two endpoints below are implemented in `epr-prn-common-backend` `PrnControll
 
 ### Search item versus detail item
 
-`/organisation` maps every property on `PrnDto`. `/search` still creates a projection, but it now assigns every source field required for the Waste Obligations public `Prn` contract:
+`/organisation` maps every property on `PrnDto`. `/search` still creates a projection, but it now assigns every source field used to construct the Waste Obligations public `Prn` contract:
 
 `externalId`, `prnNumber`, `organisationId`, `organisationName`, `reprocessorExporterAgency`, `prnStatusId`, `tonnageValue`, `materialName`, `issuerNotes`, `prnSignatory`, `prnSignatoryPosition`, `issueDate`, `processToBeUsed`, `decemberWaste`, `issuedByOrg`, `accreditationNumber`, `reprocessingSite`, `accreditationYear`, `obligationYear`, `createdOn`, `lastUpdatedDate`, and `isExport`.
 
@@ -104,11 +104,11 @@ The current `/search` item can now hydrate `Dtos.Prn` directly:
 | Accreditation and processing fields | `accreditationNumber`, `accreditationYear`, `processToBeUsed`, `reprocessingSite`, and `reprocessorExporterAgency`. |
 | Notes and audit | `issuerNotes`, `createdOn`, and `lastUpdatedDate`. |
 
-Recipient `name`, `tradingName`, and `registrationType`, together with the three lifecycle-event timestamps, remain nullable in the public contract and may be `null`; their absence does not prevent a valid `Prn` response.
+Recipient `name`, `tradingName`, and `registrationType`, together with the three lifecycle-event timestamps and `recyclingProcess`, remain nullable in the public contract and may be `null`; their absence does not prevent a valid `Prn` response. The mapper normalises a `null`, empty, or whitespace-only `processToBeUsed` value to `null`.
 
 #### Nullability and validation effect
 
-The new projection removes the previous direct-mapping nullability gap. A source-specific search response model must still validate the values required by the public mapper: `required` and `[Required]` do not validate an outbound `Results.Ok` payload automatically, and a persisted legacy record can still contain an invalid blank or default value. Reuse the existing mapping rules for required strings, IDs, years, dates, material, and status. In particular, `isExport` is now projected and can map the PRN/PERN type correctly rather than relying on a default `false` value.
+The new projection removes the previous direct-mapping nullability gap. A source-specific search response model must still validate the values required by the public mapper: `required` and `[Required]` do not validate an outbound `Results.Ok` payload automatically, and a persisted legacy record can still contain an invalid blank or default value. Reuse the existing mapping rules for required strings, IDs, years, dates, material, and status; `processToBeUsed` is the exception and is normalised to a nullable `recyclingProcess`. In particular, `isExport` is now projected and can map the PRN/PERN type correctly rather than relying on a default `false` value.
 
 ### Current search mapping decision
 
@@ -130,7 +130,7 @@ This is one common-backend request per public page. The existing detail route re
 
 The client deserialises the downstream JSON directly into `PaginatedResponse<PrnModel>` with Json.NET; the controller then returns that same object. There is no separate gateway mapper or response projection. `PrnModel` already contains every field added to the common-backend search projection: `organisationId`, `reprocessorExporterAgency`, `prnSignatory`, `prnSignatoryPosition`, `processToBeUsed`, `accreditationNumber`, `reprocessingSite`, `accreditationYear`, `lastUpdatedDate`, and `isExport`. They therefore survive the gateway unchanged when the updated common-backend deployment is the configured target.
 
-`prnStatus` is the only relevant type conversion: common backend serialises its `EprnStatus` enum as a string, and the gateway's `PrnModel.PrnStatus` is also a string. This is compatible with the existing Waste Obligations status mapping. The gateway's search-client tests currently assert only a minimal response, so add a contract test with every required list field before treating the gateway route as a verified dependency.
+`prnStatus` is the only relevant type conversion: common backend serialises its `EprnStatus` enum as a string, and the gateway's `PrnModel.PrnStatus` is also a string. This is compatible with the existing Waste Obligations status mapping. The gateway's search-client tests currently assert only a minimal response, so add a contract test with every required list field and a `null` `processToBeUsed` before treating the gateway route as a verified dependency.
 
 ### Common-backend search gotchas
 
@@ -240,7 +240,7 @@ Do not add a public `material` query parameter until common backend can filter b
 
 The adapter should:
 
-1. Model the common-backend search response envelope under `Services/PrnCommonBackend`. Both the detail response and search items use the same neutral `PrnData` source DTO because the search projection now supplies every field required by the public mapper.
+1. Model the common-backend search response envelope under `Services/PrnCommonBackend`. Both the detail response and search items use the same neutral `PrnData` source DTO because the search projection now supplies every field used by the public mapper.
 2. Map every returned search item directly to `Prn` using the complete projection above. Do not infer fields that are not part of the public contract from source defaults.
 3. Validate the returned recipient ID against the route organisation before returning a mapped `Prn`.
 4. Map the upstream search envelope to a Waste Obligations-owned envelope. Preserve the upstream `totalItems` as the public total because the first delivery applies no additional client-side filter.
@@ -262,7 +262,7 @@ Its current implementation is in `epr-backend` `src/packaging-recycling-notes/ro
 | Status coverage | `statuses` is required and accepts only `awaiting_acceptance` and `cancelled`. | Blocker for a general recipient PRN list. Accepted, awaiting cancellation, and any future agreed statuses are not available. |
 | Ordering | Mongo query filters by current status/date but orders by `_id` and uses `_id` as cursor. | Cursor is source-specific and should remain opaque. The query is not a recipient list ordering contract and status changes during traversal need source-owner clarification. |
 | Detail fields | Exposes source ID, note number where present, status/event dates, issuer and recipient organisation snapshots, accreditation snapshot, note type flag, tonnage, December-waste flag, and issuer notes. | Useful source data, but not a complete Waste Obligations detail response as currently exposed. |
-| Missing fields | No obligation year, source-store `createdAt`, or source-store `updatedAt` in the external mapper. `recyclingProcess` is derivable from material/glass-process rules but is not sent directly. | These prevent it from producing the current detail `Prn` contract without an agreed source change or a justified derived-value rule. |
+| Missing fields | No obligation year, source-store `createdAt`, or source-store `updatedAt` in the external mapper. `recyclingProcess` is derivable from material/glass-process rules but is not sent directly; it is optional in the current contract. | The missing obligation year and audit timestamps prevent it from producing the current detail `Prn` contract without an agreed source change. |
 | Authentication | API-gateway client authentication. | A future direct integration needs its own client credentials, scope, operational ownership, and resilience agreement. |
 
 The existing integration function hard-codes `ObligationYear = "2026"` while mapping this epr-backend external projection to common backend. That is cache/sync behaviour, not evidence that the external route supplies an obligation year. Waste Obligations must not repeat that hard-code.
@@ -325,7 +325,7 @@ For dates, public Waste Obligations output remains `DateTimeOffset` at UTC offse
 1. `SearchOrganisationPrnsRequest` uses `[AsParameters]`, default page 1, default page size 20, `[Minimum(1)]`, and `[Range(1, 100)]`. Its single-status and sort allow-lists exclude compliance-declaration-only filters, comma-separated status values, and `AwaitingCancellation`; an omitted sort is not forwarded to common backend.
 2. The endpoint passes the route organisation as the `X-EPR-ORGANISATION` recipient scope, checks the organisation exists, and rejects a returned recipient mismatch with `404`.
 3. Tests cover every supplied public status and sort mapping to one outbound `filterBy` or `sortBy` value, omission of `sortBy` when no sort is requested, and invalid inputs that must result in `400` before calling common backend.
-4. `PrnsPaged` returns `IEnumerable<Prn> Prns`, `total`, `page`, and `pageSize`. The neutral source `PrnData` DTO is used by both common-backend routes, while adapter and endpoint tests prove the complete search model is deserialised and returned as the existing public `Prn` type. Invalid/default required values continue to be rejected by that mapper.
+4. `PrnsPaged` returns `IEnumerable<Prn> Prns`, `total`, `page`, and `pageSize`. The neutral source `PrnData` DTO is used by both common-backend routes, while adapter and endpoint tests prove the complete search model is deserialised and returned as the existing public `Prn` type. Invalid/default required values continue to be rejected by that mapper; a `null`, empty, or whitespace-only `processToBeUsed` is returned as a `null` `recyclingProcess`.
 5. Tests cover default paging values, zero/negative/over-maximum values, maximum `pageSize`, empty results, total semantics, and the outbound default `page=1`/`pageSize=20` values.
 6. Tests cover missing organisations, returned recipient mismatch, authorisation, and the common-backend HTTP request including its paging/filter/sort query and organisation header. Upstream `404`/unauthorised propagation remains the standard integration-client failure path and should be exercised when source error-handling semantics change.
 7. A navigation test remains useful: common-backend list `externalId` should retrieve the same note through the current detail route. Do not generate future epr-backend links from a cache-local common-backend GUID.
