@@ -62,9 +62,8 @@ public record Prn
     [JsonPropertyName("material")]
     public required string Material { get; init; }
 
-    [Required]
     [JsonPropertyName("recyclingProcess")]
-    public required string RecyclingProcess { get; init; }
+    public string? RecyclingProcess { get; init; }
 
     [Required]
     [JsonPropertyName("tonnage")]

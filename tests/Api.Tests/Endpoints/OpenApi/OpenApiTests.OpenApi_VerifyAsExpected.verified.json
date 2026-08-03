@@ -1381,7 +1381,6 @@
           "accreditationYear",
           "decemberWaste",
           "material",
-          "recyclingProcess",
           "tonnage",
           "issuer",
           "recipient",
@@ -1453,7 +1452,10 @@
             "type": "string"
           },
           "recyclingProcess": {
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "tonnage": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",

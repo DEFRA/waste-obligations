@@ -32,7 +32,7 @@ public static class Mappers
             AccreditationYear = ParseYear(prn.AccreditationYear, nameof(prn.AccreditationYear)),
             DecemberWaste = prn.DecemberWaste,
             Material = MapMaterial(prn.MaterialName),
-            RecyclingProcess = Required(prn.ProcessToBeUsed, nameof(prn.ProcessToBeUsed)),
+            RecyclingProcess = Optional(prn.ProcessToBeUsed),
             Tonnage = Required(prn.TonnageValue, nameof(prn.TonnageValue)),
             Issuer = new PrnIssuer { OrganisationName = Required(prn.IssuedByOrg, nameof(prn.IssuedByOrg)) },
             Recipient = new PrnRecipient
