@@ -34,4 +34,12 @@ public interface IComplianceDeclarationService
         ComplianceDeclaration updated,
         CancellationToken cancellationToken
     );
+
+    Task<ComplianceDeclaration> UpdateStatus(
+        ComplianceDeclaration current,
+        ComplianceDeclarationStatus status,
+        string? reason,
+        User user,
+        CancellationToken cancellationToken
+    );
 }
