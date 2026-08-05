@@ -99,67 +99,69 @@ public class ComplianceDeclarationService(
 
     public async Task<bool> Delete(string id, CancellationToken cancellationToken)
     {
+        var objectId = ObjectId.Parse(id);
         using var session = await dbContext.StartSession(cancellationToken);
-        session.StartTransaction();
 
-        try
-        {
-            var objectId = ObjectId.Parse(id);
-            var current = await dbContext
-                .ComplianceDeclarations.Find(session, Builders<ComplianceDeclaration>.Filter.Eq(x => x.Id, objectId))
-                .FirstOrDefaultAsync(cancellationToken: cancellationToken);
-
-            if (current is null)
+        var deleted = await ExecuteTransaction(
+            session,
+            "delete",
+            objectId,
+            async (transactionSession, transactionCancellationToken) =>
             {
-                await session.AbortTransactionAsync(cancellationToken);
+                var current = await dbContext
+                    .ComplianceDeclarations.Find(
+                        transactionSession,
+                        Builders<ComplianceDeclaration>.Filter.Eq(x => x.Id, objectId)
+                    )
+                    .FirstOrDefaultAsync(cancellationToken: transactionCancellationToken);
 
-                return false;
-            }
+                if (current is null)
+                    return false;
 
-            var deleteFilter = Builders<ComplianceDeclaration>.Filter.And(
-                Builders<ComplianceDeclaration>.Filter.Eq(x => x.Id, objectId),
-                Builders<ComplianceDeclaration>.Filter.Eq(x => x.Version, current.Version)
-            );
-
-            var deleteResult = await dbContext.ComplianceDeclarations.DeleteOneAsync(
-                session,
-                deleteFilter,
-                null,
-                cancellationToken
-            );
-
-            if (deleteResult.DeletedCount == 0)
-                throw new ConcurrencyException(
-                    $"Concurrency issue on delete, compliance declaration with id '{current.Id}' was not deleted"
+                var deleteFilter = Builders<ComplianceDeclaration>.Filter.And(
+                    Builders<ComplianceDeclaration>.Filter.Eq(x => x.Id, objectId),
+                    Builders<ComplianceDeclaration>.Filter.Eq(x => x.Version, current.Version)
                 );
 
-            var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
-            await auditEventService.RecordEvent(
-                session,
-                new AuditEventRequest(
-                    Actor,
-                    ComplianceDeclarationEntity,
-                    AuditEventOperation.Delete,
-                    "submission.removed",
-                    "elevated system allowed removal",
-                    current.Id.ToString(),
-                    current.Version + 1,
-                    current.ToBsonDocument(),
+                var deleteResult = await dbContext.ComplianceDeclarations.DeleteOneAsync(
+                    transactionSession,
+                    deleteFilter,
                     null,
-                    current.SchemaVersion,
-                    utcNow,
-                    ReadTraceId()
-                ),
-                cancellationToken
-            );
+                    transactionCancellationToken
+                );
 
-            await session.CommitTransactionAsync(cancellationToken);
-        }
-        catch
-        {
-            await session.AbortTransactionAsync(CancellationToken.None);
-            throw;
-        }
+                if (deleteResult.DeletedCount == 0)
+                    throw new ConcurrencyException(
+                        $"Concurrency issue on delete, compliance declaration with id '{current.Id}' was not deleted"
+                    );
+
+                var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
+                await auditEventService.RecordEvent(
+                    transactionSession,
+                    new AuditEventRequest(
+                        Actor,
+                        ComplianceDeclarationEntity,
+                        AuditEventOperation.Delete,
+                        "submission.removed",
+                        "elevated system allowed removal",
+                        current.Id.ToString(),
+                        current.Version + 1,
+                        current.ToBsonDocument(),
+                        null,
+                        current.SchemaVersion,
+                        utcNow,
+                        ReadTraceId()
+                    ),
+                    transactionCancellationToken
+                );
+
+                return true;
+            },
+            cancellationToken
+        );
+
+        if (!deleted)
+            return false;
 
         complianceDeclarationMetrics.Deleted();
         logger.LogInformation("Deleted compliance declaration with id '{ComplianceDeclarationId}'", id);
