@@ -3,7 +3,6 @@ using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Utils.Logging;
 using Defra.WasteObligations.Api.Utils.Metrics;
 using Defra.WasteObligations.AuditEvents;
-using Microsoft.AspNetCore.HeaderPropagation;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Driver;
@@ -17,12 +16,15 @@ public class ComplianceDeclarationService(
     TimeProvider timeProvider,
     IAuditEventService auditEventService,
     IComplianceDeclarationMetrics complianceDeclarationMetrics,
-    HeaderPropagationValues headerPropagationValues,
-    IOptions<TraceHeader> traceHeaderOptions
+    TraceIdReader traceIdReader,
+    IOptions<ComplianceDeclarationOptions> complianceDeclarationOptions
 ) : IComplianceDeclarationService
 {
     private const string Actor = "service:waste-obligations";
     private const string ComplianceDeclarationEntity = "compliance_declaration";
+    private readonly TimeSpan _transactionTimeout = TimeSpan.FromSeconds(
+        complianceDeclarationOptions.Value.TransactionTimeoutSeconds
+    );
 
     public async Task<ComplianceDeclaration> Create(
         ComplianceDeclaration complianceDeclaration,
@@ -33,42 +35,41 @@ public class ComplianceDeclarationService(
         complianceDeclaration = complianceDeclaration with { Version = 1, Created = utcNow, Updated = utcNow };
 
         using var session = await dbContext.StartSession(cancellationToken);
-        session.StartTransaction();
+        await ExecuteTransaction(
+            session,
+            "create",
+            complianceDeclaration.Id,
+            async (transactionSession, transactionCancellationToken) =>
+            {
+                await dbContext.ComplianceDeclarations.InsertOneAsync(
+                    transactionSession,
+                    complianceDeclaration,
+                    cancellationToken: transactionCancellationToken
+                );
 
-        try
-        {
-            await dbContext.ComplianceDeclarations.InsertOneAsync(
-                session,
-                complianceDeclaration,
-                cancellationToken: cancellationToken
-            );
+                await auditEventService.RecordEvent(
+                    transactionSession,
+                    new AuditEventRequest(
+                        Actor,
+                        ComplianceDeclarationEntity,
+                        AuditEventOperation.Insert,
+                        "submission.created",
+                        null,
+                        complianceDeclaration.Id.ToString(),
+                        complianceDeclaration.Version,
+                        null,
+                        complianceDeclaration.ToBsonDocument(),
+                        complianceDeclaration.SchemaVersion,
+                        utcNow,
+                        traceIdReader.Read()
+                    ),
+                    transactionCancellationToken
+                );
 
-            await auditEventService.RecordEvent(
-                session,
-                new AuditEventRequest(
-                    Actor,
-                    ComplianceDeclarationEntity,
-                    AuditEventOperation.Insert,
-                    "submission.created",
-                    null,
-                    complianceDeclaration.Id.ToString(),
-                    complianceDeclaration.Version,
-                    null,
-                    complianceDeclaration.ToBsonDocument(),
-                    complianceDeclaration.SchemaVersion,
-                    utcNow,
-                    ReadTraceId()
-                ),
-                cancellationToken
-            );
-
-            await session.CommitTransactionAsync(cancellationToken);
-        }
-        catch
-        {
-            await session.AbortTransactionAsync(CancellationToken.None);
-            throw;
-        }
+                return complianceDeclaration;
+            },
+            cancellationToken
+        );
 
         complianceDeclarationMetrics.Created();
         logger.LogInformation(
@@ -96,67 +97,69 @@ public class ComplianceDeclarationService(
 
     public async Task<bool> Delete(string id, CancellationToken cancellationToken)
     {
+        var objectId = ObjectId.Parse(id);
         using var session = await dbContext.StartSession(cancellationToken);
-        session.StartTransaction();
 
-        try
-        {
-            var objectId = ObjectId.Parse(id);
-            var current = await dbContext
-                .ComplianceDeclarations.Find(session, Builders<ComplianceDeclaration>.Filter.Eq(x => x.Id, objectId))
-                .FirstOrDefaultAsync(cancellationToken: cancellationToken);
-
-            if (current is null)
+        var deleted = await ExecuteTransaction(
+            session,
+            "delete",
+            objectId,
+            async (transactionSession, transactionCancellationToken) =>
             {
-                await session.AbortTransactionAsync(cancellationToken);
+                var current = await dbContext
+                    .ComplianceDeclarations.Find(
+                        transactionSession,
+                        Builders<ComplianceDeclaration>.Filter.Eq(x => x.Id, objectId)
+                    )
+                    .FirstOrDefaultAsync(cancellationToken: transactionCancellationToken);
 
-                return false;
-            }
+                if (current is null)
+                    return false;
 
-            var deleteFilter = Builders<ComplianceDeclaration>.Filter.And(
-                Builders<ComplianceDeclaration>.Filter.Eq(x => x.Id, objectId),
-                Builders<ComplianceDeclaration>.Filter.Eq(x => x.Version, current.Version)
-            );
-
-            var deleteResult = await dbContext.ComplianceDeclarations.DeleteOneAsync(
-                session,
-                deleteFilter,
-                null,
-                cancellationToken
-            );
-
-            if (deleteResult.DeletedCount == 0)
-                throw new ConcurrencyException(
-                    $"Concurrency issue on delete, compliance declaration with id '{current.Id}' was not deleted"
+                var deleteFilter = Builders<ComplianceDeclaration>.Filter.And(
+                    Builders<ComplianceDeclaration>.Filter.Eq(x => x.Id, objectId),
+                    Builders<ComplianceDeclaration>.Filter.Eq(x => x.Version, current.Version)
                 );
 
-            var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
-            await auditEventService.RecordEvent(
-                session,
-                new AuditEventRequest(
-                    Actor,
-                    ComplianceDeclarationEntity,
-                    AuditEventOperation.Delete,
-                    "submission.removed",
-                    "elevated system allowed removal",
-                    current.Id.ToString(),
-                    current.Version + 1,
-                    current.ToBsonDocument(),
+                var deleteResult = await dbContext.ComplianceDeclarations.DeleteOneAsync(
+                    transactionSession,
+                    deleteFilter,
                     null,
-                    current.SchemaVersion,
-                    utcNow,
-                    ReadTraceId()
-                ),
-                cancellationToken
-            );
+                    transactionCancellationToken
+                );
 
-            await session.CommitTransactionAsync(cancellationToken);
-        }
-        catch
-        {
-            await session.AbortTransactionAsync(CancellationToken.None);
-            throw;
-        }
+                if (deleteResult.DeletedCount == 0)
+                    throw new ConcurrencyException(
+                        $"Concurrency issue on delete, compliance declaration with id '{current.Id}' was not deleted"
+                    );
+
+                var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
+                await auditEventService.RecordEvent(
+                    transactionSession,
+                    new AuditEventRequest(
+                        Actor,
+                        ComplianceDeclarationEntity,
+                        AuditEventOperation.Delete,
+                        "submission.removed",
+                        "elevated system allowed removal",
+                        current.Id.ToString(),
+                        current.Version + 1,
+                        current.ToBsonDocument(),
+                        null,
+                        current.SchemaVersion,
+                        utcNow,
+                        traceIdReader.Read()
+                    ),
+                    transactionCancellationToken
+                );
+
+                return true;
+            },
+            cancellationToken
+        );
+
+        if (!deleted)
+            return false;
 
         complianceDeclarationMetrics.Deleted();
         logger.LogInformation("Deleted compliance declaration with id '{ComplianceDeclarationId}'", id);
@@ -232,7 +235,6 @@ public class ComplianceDeclarationService(
     )
     {
         using var session = await dbContext.StartSession(cancellationToken);
-        session.StartTransaction();
 
         var filter = Builders<ComplianceDeclaration>.Filter.And(
             Builders<ComplianceDeclaration>.Filter.Eq(x => x.Id, current.Id),
@@ -241,47 +243,48 @@ public class ComplianceDeclarationService(
 
         updated = updated with { Version = current.Version + 1, Updated = timeProvider.GetUtcNowWithoutMicroseconds() };
 
-        try
-        {
-            var replaceOneResult = await dbContext.ComplianceDeclarations.ReplaceOneAsync(
-                session,
-                filter,
-                updated,
-                new ReplaceOptions { IsUpsert = false },
-                cancellationToken: cancellationToken
-            );
-
-            if (replaceOneResult.ModifiedCount == 0)
-                throw new ConcurrencyException(
-                    $"Concurrency issue on write, compliance declaration with id '{current.Id}' was not updated"
+        await ExecuteTransaction(
+            session,
+            "update",
+            updated.Id,
+            async (transactionSession, transactionCancellationToken) =>
+            {
+                var replaceOneResult = await dbContext.ComplianceDeclarations.ReplaceOneAsync(
+                    transactionSession,
+                    filter,
+                    updated,
+                    new ReplaceOptions { IsUpsert = false },
+                    cancellationToken: transactionCancellationToken
                 );
 
-            await auditEventService.RecordEvent(
-                session,
-                new AuditEventRequest(
-                    Actor,
-                    ComplianceDeclarationEntity,
-                    AuditEventOperation.Update,
-                    "submission.amended",
-                    null,
-                    updated.Id.ToString(),
-                    updated.Version,
-                    current.ToBsonDocument(),
-                    updated.ToBsonDocument(),
-                    updated.SchemaVersion,
-                    updated.Updated,
-                    ReadTraceId()
-                ),
-                cancellationToken
-            );
+                if (replaceOneResult.ModifiedCount == 0)
+                    throw new ConcurrencyException(
+                        $"Concurrency issue on write, compliance declaration with id '{current.Id}' was not updated"
+                    );
 
-            await session.CommitTransactionAsync(cancellationToken);
-        }
-        catch
-        {
-            await session.AbortTransactionAsync(CancellationToken.None);
-            throw;
-        }
+                await auditEventService.RecordEvent(
+                    transactionSession,
+                    new AuditEventRequest(
+                        Actor,
+                        ComplianceDeclarationEntity,
+                        AuditEventOperation.Update,
+                        "submission.amended",
+                        null,
+                        updated.Id.ToString(),
+                        updated.Version,
+                        current.ToBsonDocument(),
+                        updated.ToBsonDocument(),
+                        updated.SchemaVersion,
+                        updated.Updated,
+                        traceIdReader.Read()
+                    ),
+                    transactionCancellationToken
+                );
+
+                return updated;
+            },
+            cancellationToken
+        );
 
         complianceDeclarationMetrics.Updated(updated.Status);
         logger.LogInformation("Updated compliance declaration with id '{ComplianceDeclarationId}'", updated.Id);
@@ -289,16 +292,51 @@ public class ComplianceDeclarationService(
         return updated;
     }
 
-    private string? ReadTraceId()
+    private async Task<TResult> ExecuteTransaction<TResult>(
+        IClientSessionHandle session,
+        string operation,
+        ObjectId complianceDeclarationId,
+        Func<IClientSessionHandle, CancellationToken, Task<TResult>> callback,
+        CancellationToken cancellationToken
+    )
     {
-        if (headerPropagationValues.Headers is null)
-            return null;
+        using var timeoutCancellationTokenSource = new CancellationTokenSource(_transactionTimeout);
 
-        if (!headerPropagationValues.Headers.TryGetValue(traceHeaderOptions.Value.Name, out var values))
-            return null;
+        // Keep the driver token tied to the caller so WithTransactionAsync can abort with a live token when this
+        // service-owned budget expires. Passing the budget token to the driver would also cancel its abort command.
+        return await session.WithTransactionAsync(
+            async (transactionSession, transactionCancellationToken) =>
+            {
+                using var operationCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(
+                    transactionCancellationToken,
+                    timeoutCancellationTokenSource.Token
+                );
 
-        var traceId = values.ToString();
+                try
+                {
+                    return await callback(transactionSession, operationCancellationTokenSource.Token);
+                }
+                catch (OperationCanceledException exception)
+                    when (timeoutCancellationTokenSource.IsCancellationRequested
+                        && !cancellationToken.IsCancellationRequested
+                    )
+                {
+                    logger.LogWarning(
+                        exception,
+                        "Compliance declaration {Operation} transaction for id '{ComplianceDeclarationId}' timed out after {TransactionTimeoutSeconds} seconds",
+                        operation,
+                        complianceDeclarationId,
+                        _transactionTimeout.TotalSeconds
+                    );
 
-        return string.IsNullOrWhiteSpace(traceId) ? null : traceId;
+                    throw new TimeoutException(
+                        $"Compliance declaration {operation} transaction timed out after {_transactionTimeout.TotalSeconds} seconds",
+                        exception
+                    );
+                }
+            },
+            new TransactionOptions(maxCommitTime: _transactionTimeout),
+            cancellationToken
+        );
     }
 }
