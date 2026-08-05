@@ -111,6 +111,29 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Create_WhenConcurrent_ShouldCreateEachDeclarationAndAuditEvent()
+    {
+        const int declarationCount = 40;
+        var createTasks = Enumerable
+            .Range(0, declarationCount)
+            .Select(_ =>
+                Subject.Create(ComplianceDeclarationFixture.Default().Create(), TestContext.Current.CancellationToken)
+            );
+
+        var declarations = await Task.WhenAll(createTasks);
+        var auditEvents = await AuditEvents
+            .Find(FilterDefinition<AuditEvent>.Empty)
+            .ToListAsync(TestContext.Current.CancellationToken);
+
+        declarations.Should().HaveCount(declarationCount);
+        auditEvents.Should().HaveCount(declarationCount);
+        auditEvents
+            .Select(x => x.Sequence)
+            .Should()
+            .BeEquivalentTo(Enumerable.Range(1, declarationCount).Select(x => (long)x));
+    }
+
+    [Fact]
     public async Task Create_WhenAuditEventFails_ShouldAbortTransaction()
     {
         var database = GetMongoDatabase();

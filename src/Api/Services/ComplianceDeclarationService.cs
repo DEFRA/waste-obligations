@@ -33,42 +33,38 @@ public class ComplianceDeclarationService(
         complianceDeclaration = complianceDeclaration with { Version = 1, Created = utcNow, Updated = utcNow };
 
         using var session = await dbContext.StartSession(cancellationToken);
-        session.StartTransaction();
+        await session.WithTransactionAsync(
+            async (transactionSession, transactionCancellationToken) =>
+            {
+                await dbContext.ComplianceDeclarations.InsertOneAsync(
+                    transactionSession,
+                    complianceDeclaration,
+                    cancellationToken: transactionCancellationToken
+                );
 
-        try
-        {
-            await dbContext.ComplianceDeclarations.InsertOneAsync(
-                session,
-                complianceDeclaration,
-                cancellationToken: cancellationToken
-            );
+                await auditEventService.RecordEvent(
+                    transactionSession,
+                    new AuditEventRequest(
+                        Actor,
+                        ComplianceDeclarationEntity,
+                        AuditEventOperation.Insert,
+                        "submission.created",
+                        null,
+                        complianceDeclaration.Id.ToString(),
+                        complianceDeclaration.Version,
+                        null,
+                        complianceDeclaration.ToBsonDocument(),
+                        complianceDeclaration.SchemaVersion,
+                        utcNow,
+                        ReadTraceId()
+                    ),
+                    transactionCancellationToken
+                );
 
-            await auditEventService.RecordEvent(
-                session,
-                new AuditEventRequest(
-                    Actor,
-                    ComplianceDeclarationEntity,
-                    AuditEventOperation.Insert,
-                    "submission.created",
-                    null,
-                    complianceDeclaration.Id.ToString(),
-                    complianceDeclaration.Version,
-                    null,
-                    complianceDeclaration.ToBsonDocument(),
-                    complianceDeclaration.SchemaVersion,
-                    utcNow,
-                    ReadTraceId()
-                ),
-                cancellationToken
-            );
-
-            await session.CommitTransactionAsync(cancellationToken);
-        }
-        catch
-        {
-            await session.AbortTransactionAsync(CancellationToken.None);
-            throw;
-        }
+                return complianceDeclaration;
+            },
+            cancellationToken: cancellationToken
+        );
 
         complianceDeclarationMetrics.Created();
         logger.LogInformation(
@@ -232,7 +228,6 @@ public class ComplianceDeclarationService(
     )
     {
         using var session = await dbContext.StartSession(cancellationToken);
-        session.StartTransaction();
 
         var filter = Builders<ComplianceDeclaration>.Filter.And(
             Builders<ComplianceDeclaration>.Filter.Eq(x => x.Id, current.Id),
@@ -241,47 +236,45 @@ public class ComplianceDeclarationService(
 
         updated = updated with { Version = current.Version + 1, Updated = timeProvider.GetUtcNowWithoutMicroseconds() };
 
-        try
-        {
-            var replaceOneResult = await dbContext.ComplianceDeclarations.ReplaceOneAsync(
-                session,
-                filter,
-                updated,
-                new ReplaceOptions { IsUpsert = false },
-                cancellationToken: cancellationToken
-            );
-
-            if (replaceOneResult.ModifiedCount == 0)
-                throw new ConcurrencyException(
-                    $"Concurrency issue on write, compliance declaration with id '{current.Id}' was not updated"
+        await session.WithTransactionAsync(
+            async (transactionSession, transactionCancellationToken) =>
+            {
+                var replaceOneResult = await dbContext.ComplianceDeclarations.ReplaceOneAsync(
+                    transactionSession,
+                    filter,
+                    updated,
+                    new ReplaceOptions { IsUpsert = false },
+                    cancellationToken: transactionCancellationToken
                 );
 
-            await auditEventService.RecordEvent(
-                session,
-                new AuditEventRequest(
-                    Actor,
-                    ComplianceDeclarationEntity,
-                    AuditEventOperation.Update,
-                    "submission.amended",
-                    null,
-                    updated.Id.ToString(),
-                    updated.Version,
-                    current.ToBsonDocument(),
-                    updated.ToBsonDocument(),
-                    updated.SchemaVersion,
-                    updated.Updated,
-                    ReadTraceId()
-                ),
-                cancellationToken
-            );
+                if (replaceOneResult.ModifiedCount == 0)
+                    throw new ConcurrencyException(
+                        $"Concurrency issue on write, compliance declaration with id '{current.Id}' was not updated"
+                    );
 
-            await session.CommitTransactionAsync(cancellationToken);
-        }
-        catch
-        {
-            await session.AbortTransactionAsync(CancellationToken.None);
-            throw;
-        }
+                await auditEventService.RecordEvent(
+                    transactionSession,
+                    new AuditEventRequest(
+                        Actor,
+                        ComplianceDeclarationEntity,
+                        AuditEventOperation.Update,
+                        "submission.amended",
+                        null,
+                        updated.Id.ToString(),
+                        updated.Version,
+                        current.ToBsonDocument(),
+                        updated.ToBsonDocument(),
+                        updated.SchemaVersion,
+                        updated.Updated,
+                        ReadTraceId()
+                    ),
+                    transactionCancellationToken
+                );
+
+                return updated;
+            },
+            cancellationToken: cancellationToken
+        );
 
         complianceDeclarationMetrics.Updated(updated.Status);
         logger.LogInformation("Updated compliance declaration with id '{ComplianceDeclarationId}'", updated.Id);
