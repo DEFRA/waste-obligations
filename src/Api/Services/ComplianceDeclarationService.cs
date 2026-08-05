@@ -18,11 +18,15 @@ public class ComplianceDeclarationService(
     IAuditEventService auditEventService,
     IComplianceDeclarationMetrics complianceDeclarationMetrics,
     HeaderPropagationValues headerPropagationValues,
-    IOptions<TraceHeader> traceHeaderOptions
+    IOptions<TraceHeader> traceHeaderOptions,
+    IOptions<ComplianceDeclarationOptions> complianceDeclarationOptions
 ) : IComplianceDeclarationService
 {
     private const string Actor = "service:waste-obligations";
     private const string ComplianceDeclarationEntity = "compliance_declaration";
+    private readonly TimeSpan _transactionTimeout = TimeSpan.FromSeconds(
+        complianceDeclarationOptions.Value.TransactionTimeoutSeconds
+    );
 
     public async Task<ComplianceDeclaration> Create(
         ComplianceDeclaration complianceDeclaration,
@@ -33,7 +37,10 @@ public class ComplianceDeclarationService(
         complianceDeclaration = complianceDeclaration with { Version = 1, Created = utcNow, Updated = utcNow };
 
         using var session = await dbContext.StartSession(cancellationToken);
-        await session.WithTransactionAsync(
+        await ExecuteTransaction(
+            session,
+            "create",
+            complianceDeclaration.Id,
             async (transactionSession, transactionCancellationToken) =>
             {
                 await dbContext.ComplianceDeclarations.InsertOneAsync(
@@ -63,7 +70,7 @@ public class ComplianceDeclarationService(
 
                 return complianceDeclaration;
             },
-            cancellationToken: cancellationToken
+            cancellationToken
         );
 
         complianceDeclarationMetrics.Created();
@@ -236,7 +243,10 @@ public class ComplianceDeclarationService(
 
         updated = updated with { Version = current.Version + 1, Updated = timeProvider.GetUtcNowWithoutMicroseconds() };
 
-        await session.WithTransactionAsync(
+        await ExecuteTransaction(
+            session,
+            "update",
+            updated.Id,
             async (transactionSession, transactionCancellationToken) =>
             {
                 var replaceOneResult = await dbContext.ComplianceDeclarations.ReplaceOneAsync(
@@ -273,13 +283,61 @@ public class ComplianceDeclarationService(
 
                 return updated;
             },
-            cancellationToken: cancellationToken
+            cancellationToken
         );
 
         complianceDeclarationMetrics.Updated(updated.Status);
         logger.LogInformation("Updated compliance declaration with id '{ComplianceDeclarationId}'", updated.Id);
 
         return updated;
+    }
+
+    private async Task<TResult> ExecuteTransaction<TResult>(
+        IClientSessionHandle session,
+        string operation,
+        ObjectId complianceDeclarationId,
+        Func<IClientSessionHandle, CancellationToken, Task<TResult>> callback,
+        CancellationToken cancellationToken
+    )
+    {
+        using var timeoutCancellationTokenSource = new CancellationTokenSource(_transactionTimeout);
+
+        // Keep the driver token tied to the caller so WithTransactionAsync can abort with a live token when this
+        // service-owned budget expires. Passing the budget token to the driver would also cancel its abort command.
+        return await session.WithTransactionAsync(
+            async (transactionSession, transactionCancellationToken) =>
+            {
+                using var operationCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(
+                    transactionCancellationToken,
+                    timeoutCancellationTokenSource.Token
+                );
+
+                try
+                {
+                    return await callback(transactionSession, operationCancellationTokenSource.Token);
+                }
+                catch (OperationCanceledException exception)
+                    when (timeoutCancellationTokenSource.IsCancellationRequested
+                        && !cancellationToken.IsCancellationRequested
+                    )
+                {
+                    logger.LogWarning(
+                        exception,
+                        "Compliance declaration {Operation} transaction for id '{ComplianceDeclarationId}' timed out after {TransactionTimeoutSeconds} seconds",
+                        operation,
+                        complianceDeclarationId,
+                        _transactionTimeout.TotalSeconds
+                    );
+
+                    throw new TimeoutException(
+                        $"Compliance declaration {operation} transaction timed out after {_transactionTimeout.TotalSeconds} seconds",
+                        exception
+                    );
+                }
+            },
+            new TransactionOptions(maxCommitTime: _transactionTimeout),
+            cancellationToken
+        );
     }
 
     private string? ReadTraceId()

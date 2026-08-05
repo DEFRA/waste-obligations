@@ -46,7 +46,8 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             auditEventService,
             ComplianceDeclarationMetrics,
             HeaderPropagationValues(),
-            Options.Create(new TraceHeader { Name = TraceHeaderName })
+            Options.Create(new TraceHeader { Name = TraceHeaderName }),
+            Options.Create(new ComplianceDeclarationOptions())
         );
     }
 
@@ -145,7 +146,8 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             new ThrowingAuditEventService(),
             complianceDeclarationMetrics,
             HeaderPropagationValues(),
-            Options.Create(new TraceHeader { Name = TraceHeaderName })
+            Options.Create(new TraceHeader { Name = TraceHeaderName }),
+            Options.Create(new ComplianceDeclarationOptions())
         );
         var complianceDeclaration = ComplianceDeclarationFixture.Default().Create();
         var act = async () => await subject.Create(complianceDeclaration, TestContext.Current.CancellationToken);
@@ -285,7 +287,8 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             Substitute.For<IAuditEventService>(),
             Substitute.For<IComplianceDeclarationMetrics>(),
             HeaderPropagationValues(),
-            Options.Create(new TraceHeader { Name = TraceHeaderName })
+            Options.Create(new TraceHeader { Name = TraceHeaderName }),
+            Options.Create(new ComplianceDeclarationOptions())
         );
         var act = async () => await subject.Delete(current.Id.ToString(), TestContext.Current.CancellationToken);
 
@@ -307,7 +310,8 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             new ThrowingAuditEventService(),
             complianceDeclarationMetrics,
             HeaderPropagationValues(),
-            Options.Create(new TraceHeader { Name = TraceHeaderName })
+            Options.Create(new TraceHeader { Name = TraceHeaderName }),
+            Options.Create(new ComplianceDeclarationOptions())
         );
         var initial = await Subject.Create(
             ComplianceDeclarationFixture.DirectProducer().Create(),
@@ -740,7 +744,8 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             new AuditEventService(new AuditEventDbContext(database), TimeProvider.System, new FakeEventIdGenerator()),
             Substitute.For<IComplianceDeclarationMetrics>(),
             HeaderPropagationValues(),
-            Options.Create(new TraceHeader { Name = TraceHeaderName })
+            Options.Create(new TraceHeader { Name = TraceHeaderName }),
+            Options.Create(new ComplianceDeclarationOptions())
         );
 
     private static object? ToPlainDocument(BsonDocument? document)

@@ -39,7 +39,8 @@ public class SearchComplianceDeclarationTests : IntegrationTestBase
             auditEventService,
             Substitute.For<IComplianceDeclarationMetrics>(),
             new HeaderPropagationValues(),
-            Options.Create(new TraceHeader { Name = TraceHeaderName })
+            Options.Create(new TraceHeader { Name = TraceHeaderName }),
+            Options.Create(new ComplianceDeclarationOptions())
         );
     }
 
