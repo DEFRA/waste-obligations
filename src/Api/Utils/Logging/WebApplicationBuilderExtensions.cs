@@ -32,6 +32,7 @@ public static class WebApplicationBuilderExtensions
             });
         });
         builder.Services.TryAddSingleton<HeaderPropagationValues>();
+        builder.Services.AddSingleton<TraceIdReader>();
 
         if (!integrationTest)
         {

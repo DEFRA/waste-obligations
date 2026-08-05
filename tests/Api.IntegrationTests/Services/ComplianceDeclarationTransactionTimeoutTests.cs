@@ -21,7 +21,7 @@ public class ComplianceDeclarationTransactionTimeoutTests : IAsyncLifetime
 {
     private const string DatabaseName = "waste-obligations-transaction-timeout-tests";
 
-    private readonly IMongoClient _mongoClient;
+    private readonly MongoClient _mongoClient;
     private readonly IMongoDatabase _database;
 
     public ComplianceDeclarationTransactionTimeoutTests()
@@ -48,8 +48,10 @@ public class ComplianceDeclarationTransactionTimeoutTests : IAsyncLifetime
             TimeProvider.System,
             new WaitingAuditEventService(),
             complianceDeclarationMetrics,
-            new HeaderPropagationValues(),
-            Options.Create(new TraceHeader { Name = "x-cdp-request-id" }),
+            new TraceIdReader(
+                new HeaderPropagationValues(),
+                Options.Create(new TraceHeader { Name = "x-cdp-request-id" })
+            ),
             Options.Create(new ComplianceDeclarationOptions { TransactionTimeoutSeconds = 1 })
         );
         var complianceDeclaration = ComplianceDeclarationFixture.Default().Create();

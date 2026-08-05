@@ -3,7 +3,6 @@ using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Utils.Logging;
 using Defra.WasteObligations.Api.Utils.Metrics;
 using Defra.WasteObligations.AuditEvents;
-using Microsoft.AspNetCore.HeaderPropagation;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Driver;
@@ -17,8 +16,7 @@ public class ComplianceDeclarationService(
     TimeProvider timeProvider,
     IAuditEventService auditEventService,
     IComplianceDeclarationMetrics complianceDeclarationMetrics,
-    HeaderPropagationValues headerPropagationValues,
-    IOptions<TraceHeader> traceHeaderOptions,
+    TraceIdReader traceIdReader,
     IOptions<ComplianceDeclarationOptions> complianceDeclarationOptions
 ) : IComplianceDeclarationService
 {
@@ -63,7 +61,7 @@ public class ComplianceDeclarationService(
                         complianceDeclaration.ToBsonDocument(),
                         complianceDeclaration.SchemaVersion,
                         utcNow,
-                        ReadTraceId()
+                        traceIdReader.Read()
                     ),
                     transactionCancellationToken
                 );
@@ -150,7 +148,7 @@ public class ComplianceDeclarationService(
                         null,
                         current.SchemaVersion,
                         utcNow,
-                        ReadTraceId()
+                        traceIdReader.Read()
                     ),
                     transactionCancellationToken
                 );
@@ -278,7 +276,7 @@ public class ComplianceDeclarationService(
                         updated.ToBsonDocument(),
                         updated.SchemaVersion,
                         updated.Updated,
-                        ReadTraceId()
+                        traceIdReader.Read()
                     ),
                     transactionCancellationToken
                 );
@@ -340,18 +338,5 @@ public class ComplianceDeclarationService(
             new TransactionOptions(maxCommitTime: _transactionTimeout),
             cancellationToken
         );
-    }
-
-    private string? ReadTraceId()
-    {
-        if (headerPropagationValues.Headers is null)
-            return null;
-
-        if (!headerPropagationValues.Headers.TryGetValue(traceHeaderOptions.Value.Name, out var values))
-            return null;
-
-        var traceId = values.ToString();
-
-        return string.IsNullOrWhiteSpace(traceId) ? null : traceId;
     }
 }

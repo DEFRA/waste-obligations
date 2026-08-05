@@ -45,8 +45,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             TimeProvider.System,
             auditEventService,
             ComplianceDeclarationMetrics,
-            HeaderPropagationValues(),
-            Options.Create(new TraceHeader { Name = TraceHeaderName }),
+            TraceIdReader(),
             Options.Create(new ComplianceDeclarationOptions())
         );
     }
@@ -145,8 +144,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             TimeProvider.System,
             new ThrowingAuditEventService(),
             complianceDeclarationMetrics,
-            HeaderPropagationValues(),
-            Options.Create(new TraceHeader { Name = TraceHeaderName }),
+            TraceIdReader(),
             Options.Create(new ComplianceDeclarationOptions())
         );
         var complianceDeclaration = ComplianceDeclarationFixture.Default().Create();
@@ -290,8 +288,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             TimeProvider.System,
             new ThrowingAuditEventService(),
             complianceDeclarationMetrics,
-            HeaderPropagationValues(),
-            Options.Create(new TraceHeader { Name = TraceHeaderName }),
+            TraceIdReader(),
             Options.Create(new ComplianceDeclarationOptions())
         );
         var initial = await Subject.Create(
@@ -717,6 +714,9 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
     private static HeaderPropagationValues HeaderPropagationValues() =>
         new() { Headers = new Dictionary<string, StringValues> { [TraceHeaderName] = TraceId } };
 
+    private static TraceIdReader TraceIdReader() =>
+        new(HeaderPropagationValues(), Options.Create(new TraceHeader { Name = TraceHeaderName }));
+
     private static ComplianceDeclarationService CreateSubject(IMongoDatabase database) =>
         new(
             new MongoDbContext(database),
@@ -724,8 +724,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             TimeProvider.System,
             new AuditEventService(new AuditEventDbContext(database), TimeProvider.System, new FakeEventIdGenerator()),
             Substitute.For<IComplianceDeclarationMetrics>(),
-            HeaderPropagationValues(),
-            Options.Create(new TraceHeader { Name = TraceHeaderName }),
+            TraceIdReader(),
             Options.Create(new ComplianceDeclarationOptions())
         );
 
