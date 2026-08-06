@@ -275,6 +275,7 @@ public class ComplianceDeclarationService(
 
         return updated;
     }
+
     private async Task<ComplianceDeclarationPageResult> ReadPaged(
         FilterDefinition<ComplianceDeclaration> filter,
         SortDefinition<ComplianceDeclaration> sort,
