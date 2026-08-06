@@ -60,7 +60,7 @@ public class MongoDbContext(
                 );
             }
             catch (MongoException exception)
-                when (IsRetryableTransactionError(exception)
+                when (IsRetryableTransactionWriteError(exception)
                     && retryCount < mongoDbOptions.Value.TransactionWriteConflictRetryCount
                 )
             {
@@ -68,7 +68,7 @@ public class MongoDbContext(
                 retryCount++;
                 logger.LogWarning(
                     exception,
-                    "Retrying MongoDB transaction '{MongoTransactionName}' after a write conflict. Retry {TransactionRetryAttempt} of {TransactionWriteConflictRetryCount} in {TransactionRetryDelayMilliseconds}ms",
+                    "Retrying MongoDB transaction '{MongoTransactionName}' after a retryable transaction write error. Retry {TransactionRetryAttempt} of {TransactionWriteConflictRetryCount} in {TransactionRetryDelayMilliseconds}ms",
                     transactionName,
                     retryCount,
                     mongoDbOptions.Value.TransactionWriteConflictRetryCount,
@@ -124,7 +124,7 @@ public class MongoDbContext(
         );
     }
 
-    private static bool IsRetryableTransactionError(MongoException exception) =>
+    private static bool IsRetryableTransactionWriteError(MongoException exception) =>
         exception.HasErrorLabel("TransientTransactionError")
         || exception is MongoCommandException { Code: WriteConflictErrorCode }
         || exception is MongoWriteException { WriteError.Code: WriteConflictErrorCode };

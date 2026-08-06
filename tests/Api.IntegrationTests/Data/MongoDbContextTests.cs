@@ -61,7 +61,7 @@ public class MongoDbContextTests
                 x.Level == LogLevel.Warning
                 && x.Exception == writeConflict
                 && x.Message.StartsWith(
-                    "Retrying MongoDB transaction 'write conflict test' after a write conflict. Retry 1 of 1 in "
+                    "Retrying MongoDB transaction 'write conflict test' after a retryable transaction write error. Retry 1 of 1 in "
                 )
             );
     }
