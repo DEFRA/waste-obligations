@@ -1,4 +1,5 @@
 using Defra.WasteObligations.Api.Dtos;
+using Defra.WasteObligations.Api.Endpoints.Organisations.ComplianceDeclarations;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
 
@@ -12,27 +13,34 @@ public class SearchComplianceDeclarationsOperationTransformer : IOpenApiOperatio
         CancellationToken cancellationToken
     )
     {
-        if (operation.OperationId is not SearchComplianceDeclarations.OperationId)
+        if (
+            operation.OperationId
+            is not SearchComplianceDeclarations.OperationId
+                and not ReadComplianceDeclarations.OperationId
+        )
             return Task.CompletedTask;
 
-        ReplaceParameter(
-            operation,
-            nameof(SearchComplianceDeclarationsRequest.Status),
-            index: 1,
-            source => CreateEnumArrayParameter(source, nameof(ComplianceDeclarationStatus))
-        );
+        if (operation.OperationId is SearchComplianceDeclarations.OperationId)
+        {
+            ReplaceParameter(
+                operation,
+                nameof(SearchComplianceDeclarationsRequest.Status),
+                index: 1,
+                source => CreateEnumArrayParameter(source, nameof(ComplianceDeclarationStatus))
+            );
+
+            ReplaceParameter(
+                operation,
+                nameof(SearchComplianceDeclarationsRequest.RegistrationType),
+                index: 2,
+                source => CreateEnumArrayParameter(source, nameof(RegistrationType))
+            );
+        }
 
         ReplaceParameter(
             operation,
-            nameof(SearchComplianceDeclarationsRequest.RegistrationType),
-            index: 2,
-            source => CreateEnumArrayParameter(source, nameof(RegistrationType))
-        );
-
-        ReplaceParameter(
-            operation,
-            nameof(SearchComplianceDeclarationsRequest.Page),
-            index: 4,
+            nameof(ReadComplianceDeclarationsRequest.Page),
+            index: PageParameterIndex(operation.OperationId),
             source => new OpenApiParameter
             {
                 Name = source.Name,
@@ -51,6 +59,9 @@ public class SearchComplianceDeclarationsOperationTransformer : IOpenApiOperatio
 
         return Task.CompletedTask;
     }
+
+    private static int PageParameterIndex(string? operationId) =>
+        operationId is ReadComplianceDeclarations.OperationId ? 2 : 4;
 
     private static void ReplaceParameter(
         OpenApiOperation operation,

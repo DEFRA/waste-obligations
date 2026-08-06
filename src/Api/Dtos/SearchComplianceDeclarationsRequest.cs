@@ -26,17 +26,17 @@ public record SearchComplianceDeclarationsRequest
     public string? OrganisationName { get; init; }
 
     [Description("Page number (1-based), defaults to 1 if not specified")]
-    [Minimum(1)]
+    [Minimum(Paging.MinimumPage)]
     [FromQuery(Name = "page")]
     public int? Page { get; init; }
 
     [Description("Number of items per page, defaults to 20 if not specified, max of 100")]
-    [Range(1, 100)]
+    [Range(Paging.MinimumPageSize, Paging.MaximumPageSize)]
     [FromQuery(Name = "pageSize")]
     public int? PageSize { get; init; }
 
-    public int EffectivePage => Page ?? 1;
-    public int EffectivePageSize => PageSize ?? 20;
+    public int EffectivePage => Page ?? Paging.DefaultPage;
+    public int EffectivePageSize => PageSize ?? Paging.DefaultPageSize;
 
     public ComplianceDeclarationStatus[] ParsedStatus() =>
         Status?.Split(',').NotNull().Select(x => x.FromJsonValue<ComplianceDeclarationStatus>()).ToArray() ?? [];

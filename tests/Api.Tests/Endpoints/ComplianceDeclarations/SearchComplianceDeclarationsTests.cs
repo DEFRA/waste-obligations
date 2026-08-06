@@ -116,7 +116,7 @@ public class SearchComplianceDeclarationsTests(ApiWebApplicationFactory factory,
                 cancellationToken: Arg.Any<CancellationToken>()
             )
             .Returns(
-                new ComplianceDeclarationSearchResult
+                new ComplianceDeclarationPageResult
                 {
                     ComplianceDeclarations =
                     [

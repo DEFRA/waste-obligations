@@ -6,7 +6,6 @@ using Defra.WasteObligations.AuditEvents;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Driver;
-using MongoDB.Driver.Linq;
 
 namespace Defra.WasteObligations.Api.Services;
 
@@ -85,15 +84,27 @@ public class ComplianceDeclarationService(
             .ComplianceDeclarations.Find(Builders<ComplianceDeclaration>.Filter.Eq(x => x.Id, ObjectId.Parse(id)))
             .FirstOrDefaultAsync(cancellationToken: cancellationToken);
 
-    public async Task<IEnumerable<ComplianceDeclaration>> Read(
+    public async Task<ComplianceDeclarationPageResult> Read(
         Guid organisationId,
         int obligationYear,
+        int page,
+        int pageSize,
         CancellationToken cancellationToken
-    ) =>
-        await dbContext
-            .ComplianceDeclarations.AsQueryable()
-            .Where(x => x.Organisation.Id == organisationId && x.ObligationYear == obligationYear)
-            .ToListAsync(cancellationToken);
+    )
+    {
+        var filter = Builders<ComplianceDeclaration>.Filter.And(
+            Builders<ComplianceDeclaration>.Filter.Eq(x => x.Organisation.Id, organisationId),
+            Builders<ComplianceDeclaration>.Filter.Eq(x => x.ObligationYear, obligationYear)
+        );
+
+        return await ReadPaged(
+            filter,
+            Builders<ComplianceDeclaration>.Sort.Descending(x => x.Updated).Ascending(x => x.Id),
+            page,
+            pageSize,
+            cancellationToken
+        );
+    }
 
     public async Task<bool> Delete(string id, CancellationToken cancellationToken)
     {
@@ -167,7 +178,7 @@ public class ComplianceDeclarationService(
         return true;
     }
 
-    public async Task<ComplianceDeclarationSearchResult> Search(
+    public async Task<ComplianceDeclarationPageResult> Search(
         ComplianceDeclarationSearchQuery query,
         int page,
         int pageSize,
@@ -208,24 +219,13 @@ public class ComplianceDeclarationService(
                 ? Builders<ComplianceDeclaration>.Filter.Empty
                 : Builders<ComplianceDeclaration>.Filter.And(filters);
 
-        var countTask = dbContext.ComplianceDeclarations.CountDocumentsAsync(
+        return await ReadPaged(
             combinedFilter,
-            cancellationToken: cancellationToken
+            Builders<ComplianceDeclaration>.Sort.Ascending(x => x.Id),
+            page,
+            pageSize,
+            cancellationToken
         );
-        var resultsTask = dbContext
-            .ComplianceDeclarations.Find(combinedFilter)
-            .SortBy(x => x.Id)
-            .Skip((page - 1) * pageSize)
-            .Limit(pageSize)
-            .ToListAsync(cancellationToken);
-
-        await Task.WhenAll(countTask, resultsTask);
-
-        return new ComplianceDeclarationSearchResult
-        {
-            ComplianceDeclarations = resultsTask.Result,
-            Total = (int)countTask.Result,
-        };
     }
 
     public async Task<ComplianceDeclaration> Update(
@@ -338,5 +338,33 @@ public class ComplianceDeclarationService(
             new TransactionOptions(maxCommitTime: _transactionTimeout),
             cancellationToken
         );
+    }
+
+    private async Task<ComplianceDeclarationPageResult> ReadPaged(
+        FilterDefinition<ComplianceDeclaration> filter,
+        SortDefinition<ComplianceDeclaration> sort,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken
+    )
+    {
+        var countTask = dbContext.ComplianceDeclarations.CountDocumentsAsync(
+            filter,
+            cancellationToken: cancellationToken
+        );
+        var resultsTask = dbContext
+            .ComplianceDeclarations.Find(filter)
+            .Sort(sort)
+            .Skip((page - 1) * pageSize)
+            .Limit(pageSize)
+            .ToListAsync(cancellationToken);
+
+        await Task.WhenAll(countTask, resultsTask);
+
+        return new ComplianceDeclarationPageResult
+        {
+            ComplianceDeclarations = resultsTask.Result,
+            Total = (int)countTask.Result,
+        };
     }
 }
