@@ -10,9 +10,9 @@ public class ComplianceDeclarationOrganisationReadIndex : MongoMigration
 {
     private const string OrganisationIdObligationYearIndexName = "OrganisationId_ObligationYear";
 
-    public override MigrationVersion Version => new(1, 0, 2);
+    public override MigrationVersion Version => new(1, 0, 5);
 
-    public override string Name => "003 - ComplianceDeclaration organisation read index";
+    public override string Name => "006 - ComplianceDeclaration organisation read index";
 
     public override async Task UpAsync(MigrationContext context)
     {
