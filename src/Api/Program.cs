@@ -60,11 +60,6 @@ try
     builder.Services.AddAuditEvents(builder.Configuration, !integrationTest && !openApiBuild);
     builder.Services.AddConsumers(builder.Configuration, !integrationTest && !openApiBuild);
     builder.Services.AddSingleton<IEntityJsonSchemaProvider, EmbeddedEntityJsonSchemaProvider>();
-    builder
-        .Services.AddOptions<ComplianceDeclarationOptions>()
-        .BindConfiguration(ComplianceDeclarationOptions.SectionName)
-        .ValidateDataAnnotations()
-        .ValidateOnStart();
     builder.Services.AddTransient<IComplianceDeclarationService, ComplianceDeclarationService>();
     builder.Services.AddTransient<IEmailService, EmailService>();
 

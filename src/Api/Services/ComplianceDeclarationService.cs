@@ -3,7 +3,6 @@ using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Utils.Logging;
 using Defra.WasteObligations.Api.Utils.Metrics;
 using Defra.WasteObligations.AuditEvents;
-using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Driver;
 
@@ -15,22 +14,11 @@ public class ComplianceDeclarationService(
     TimeProvider timeProvider,
     IAuditEventService auditEventService,
     IComplianceDeclarationMetrics complianceDeclarationMetrics,
-    TraceIdReader traceIdReader,
-    IOptions<ComplianceDeclarationOptions> complianceDeclarationOptions
+    TraceIdReader traceIdReader
 ) : IComplianceDeclarationService
 {
     private const string Actor = "service:waste-obligations";
     private const string ComplianceDeclarationEntity = "compliance_declaration";
-    private const int WriteConflictErrorCode = 112;
-    private const int InitialWriteConflictRetryDelayMilliseconds = 25;
-    private const int WriteConflictRetryJitterMilliseconds = 25;
-
-    private readonly TimeSpan _transactionTimeout = TimeSpan.FromSeconds(
-        complianceDeclarationOptions.Value.TransactionTimeoutSeconds
-    );
-    private readonly int _transactionWriteConflictRetryCount = complianceDeclarationOptions
-        .Value
-        .TransactionWriteConflictRetryCount;
 
     public async Task<ComplianceDeclaration> Create(
         ComplianceDeclaration complianceDeclaration,
@@ -40,11 +28,7 @@ public class ComplianceDeclarationService(
         var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
         complianceDeclaration = complianceDeclaration with { Version = 1, Created = utcNow, Updated = utcNow };
 
-        using var session = await dbContext.StartSession(cancellationToken);
-        await ExecuteTransaction(
-            session,
-            "create",
-            complianceDeclaration.Id,
+        await dbContext.ExecuteTransaction(
             async (transactionSession, transactionCancellationToken) =>
             {
                 await dbContext.ComplianceDeclarations.InsertOneAsync(
@@ -74,6 +58,7 @@ public class ComplianceDeclarationService(
 
                 return complianceDeclaration;
             },
+            $"compliance declaration create {complianceDeclaration.Id}",
             cancellationToken
         );
 
@@ -116,12 +101,7 @@ public class ComplianceDeclarationService(
     public async Task<bool> Delete(string id, CancellationToken cancellationToken)
     {
         var objectId = ObjectId.Parse(id);
-        using var session = await dbContext.StartSession(cancellationToken);
-
-        var deleted = await ExecuteTransaction(
-            session,
-            "delete",
-            objectId,
+        var deleted = await dbContext.ExecuteTransaction(
             async (transactionSession, transactionCancellationToken) =>
             {
                 var current = await dbContext
@@ -173,6 +153,7 @@ public class ComplianceDeclarationService(
 
                 return true;
             },
+            $"compliance declaration delete {objectId}",
             cancellationToken
         );
 
@@ -241,8 +222,6 @@ public class ComplianceDeclarationService(
         CancellationToken cancellationToken
     )
     {
-        using var session = await dbContext.StartSession(cancellationToken);
-
         var filter = Builders<ComplianceDeclaration>.Filter.And(
             Builders<ComplianceDeclaration>.Filter.Eq(x => x.Id, current.Id),
             Builders<ComplianceDeclaration>.Filter.Eq(x => x.Version, current.Version)
@@ -250,10 +229,7 @@ public class ComplianceDeclarationService(
 
         updated = updated with { Version = current.Version + 1, Updated = timeProvider.GetUtcNowWithoutMicroseconds() };
 
-        await ExecuteTransaction(
-            session,
-            "update",
-            updated.Id,
+        await dbContext.ExecuteTransaction(
             async (transactionSession, transactionCancellationToken) =>
             {
                 var replaceOneResult = await dbContext.ComplianceDeclarations.ReplaceOneAsync(
@@ -290,6 +266,7 @@ public class ComplianceDeclarationService(
 
                 return updated;
             },
+            $"compliance declaration update {updated.Id}",
             cancellationToken
         );
 
@@ -298,103 +275,6 @@ public class ComplianceDeclarationService(
 
         return updated;
     }
-
-    private async Task<TResult> ExecuteTransaction<TResult>(
-        IClientSessionHandle session,
-        string operation,
-        ObjectId complianceDeclarationId,
-        Func<IClientSessionHandle, CancellationToken, Task<TResult>> callback,
-        CancellationToken cancellationToken
-    )
-    {
-        using var timeoutCancellationTokenSource = new CancellationTokenSource(_transactionTimeout);
-
-        var retryCount = 0;
-        while (true)
-        {
-            try
-            {
-                // Keep the driver token tied to the caller so WithTransactionAsync can abort with a live token when this
-                // service-owned budget expires. Passing the budget token to the driver would also cancel its abort command.
-                return await session.WithTransactionAsync(
-                    async (transactionSession, transactionCancellationToken) =>
-                    {
-                        using var operationCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(
-                            transactionCancellationToken,
-                            timeoutCancellationTokenSource.Token
-                        );
-
-                        try
-                        {
-                            return await callback(transactionSession, operationCancellationTokenSource.Token);
-                        }
-                        catch (OperationCanceledException exception)
-                            when (timeoutCancellationTokenSource.IsCancellationRequested
-                                && !cancellationToken.IsCancellationRequested
-                            )
-                        {
-                            throw TransactionTimedOut(exception, operation, complianceDeclarationId);
-                        }
-                    },
-                    new TransactionOptions(maxCommitTime: _transactionTimeout),
-                    cancellationToken
-                );
-            }
-            catch (MongoException exception)
-                when (IsRetryableTransactionError(exception) && retryCount < _transactionWriteConflictRetryCount)
-            {
-                var retryDelay = RetryDelay(retryCount);
-                retryCount++;
-                logger.LogWarning(
-                    exception,
-                    "Retrying compliance declaration {Operation} transaction for id '{ComplianceDeclarationId}' after a MongoDB write conflict. Retry {TransactionRetryAttempt} of {TransactionWriteConflictRetryCount} in {TransactionRetryDelayMilliseconds}ms",
-                    operation,
-                    complianceDeclarationId,
-                    retryCount,
-                    _transactionWriteConflictRetryCount,
-                    retryDelay.TotalMilliseconds
-                );
-
-                using var retryDelayCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(
-                    cancellationToken,
-                    timeoutCancellationTokenSource.Token
-                );
-
-                try
-                {
-                    await Task.Delay(retryDelay, retryDelayCancellationTokenSource.Token);
-                }
-                catch (OperationCanceledException cancellationException)
-                    when (timeoutCancellationTokenSource.IsCancellationRequested
-                        && !cancellationToken.IsCancellationRequested
-                    )
-                {
-                    throw TransactionTimedOut(cancellationException, operation, complianceDeclarationId);
-                }
-            }
-        }
-    }
-
-    private TimeoutException TransactionTimedOut(
-        OperationCanceledException exception,
-        string operation,
-        ObjectId complianceDeclarationId
-    )
-    {
-        logger.LogWarning(
-            exception,
-            "Compliance declaration {Operation} transaction for id '{ComplianceDeclarationId}' timed out after {TransactionTimeoutSeconds} seconds",
-            operation,
-            complianceDeclarationId,
-            _transactionTimeout.TotalSeconds
-        );
-
-        return new TimeoutException(
-            $"Compliance declaration {operation} transaction timed out after {_transactionTimeout.TotalSeconds} seconds",
-            exception
-        );
-    }
-
     private async Task<ComplianceDeclarationPageResult> ReadPaged(
         FilterDefinition<ComplianceDeclaration> filter,
         SortDefinition<ComplianceDeclaration> sort,
@@ -421,18 +301,5 @@ public class ComplianceDeclarationService(
             ComplianceDeclarations = resultsTask.Result,
             Total = (int)countTask.Result,
         };
-    }
-
-    private static bool IsRetryableTransactionError(MongoException exception) =>
-        exception.HasErrorLabel("TransientTransactionError")
-        || exception is MongoCommandException { Code: WriteConflictErrorCode }
-        || exception is MongoWriteException { WriteError.Code: WriteConflictErrorCode };
-
-    private static TimeSpan RetryDelay(int retryCount)
-    {
-        var exponentialDelayMilliseconds = InitialWriteConflictRetryDelayMilliseconds * (1 << retryCount);
-        var jitterMilliseconds = Random.Shared.Next(WriteConflictRetryJitterMilliseconds + 1);
-
-        return TimeSpan.FromMilliseconds(exponentialDelayMilliseconds + jitterMilliseconds);
     }
 }

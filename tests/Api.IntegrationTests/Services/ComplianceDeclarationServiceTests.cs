@@ -31,7 +31,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
     {
         var database = GetMongoDatabase();
         var auditEventDbContext = new AuditEventDbContext(database);
-        var dbContext = new MongoDbContext(database);
+        var dbContext = CreateDbContext(database);
         var auditEventService = new AuditEventService(
             auditEventDbContext,
             TimeProvider.System,
@@ -45,8 +45,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             TimeProvider.System,
             auditEventService,
             ComplianceDeclarationMetrics,
-            TraceIdReader(),
-            Options.Create(new ComplianceDeclarationOptions())
+            TraceIdReader()
         );
     }
 
@@ -139,13 +138,12 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         var database = GetMongoDatabase();
         var complianceDeclarationMetrics = Substitute.For<IComplianceDeclarationMetrics>();
         var subject = new ComplianceDeclarationService(
-            new MongoDbContext(database),
+            CreateDbContext(database),
             Substitute.For<ILogger<ComplianceDeclarationService>>(),
             TimeProvider.System,
             new ThrowingAuditEventService(),
             complianceDeclarationMetrics,
-            TraceIdReader(),
-            Options.Create(new ComplianceDeclarationOptions())
+            TraceIdReader()
         );
         var complianceDeclaration = ComplianceDeclarationFixture.Default().Create();
         var act = async () => await subject.Create(complianceDeclaration, TestContext.Current.CancellationToken);
@@ -353,13 +351,12 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         var database = GetMongoDatabase();
         var complianceDeclarationMetrics = Substitute.For<IComplianceDeclarationMetrics>();
         var subject = new ComplianceDeclarationService(
-            new MongoDbContext(database),
+            CreateDbContext(database),
             Substitute.For<ILogger<ComplianceDeclarationService>>(),
             TimeProvider.System,
             new ThrowingAuditEventService(),
             complianceDeclarationMetrics,
-            TraceIdReader(),
-            Options.Create(new ComplianceDeclarationOptions())
+            TraceIdReader()
         );
         var initial = await Subject.Create(
             ComplianceDeclarationFixture.DirectProducer().Create(),
@@ -789,14 +786,16 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
 
     private static ComplianceDeclarationService CreateSubject(IMongoDatabase database) =>
         new(
-            new MongoDbContext(database),
+            CreateDbContext(database),
             Substitute.For<ILogger<ComplianceDeclarationService>>(),
             TimeProvider.System,
             new AuditEventService(new AuditEventDbContext(database), TimeProvider.System, new FakeEventIdGenerator()),
             Substitute.For<IComplianceDeclarationMetrics>(),
-            TraceIdReader(),
-            Options.Create(new ComplianceDeclarationOptions())
+            TraceIdReader()
         );
+
+    private static MongoDbContext CreateDbContext(IMongoDatabase database) =>
+        new(database, Options.Create(new MongoDbOptions()), Substitute.For<ILogger<MongoDbContext>>());
 
     private static object? ToPlainDocument(BsonDocument? document)
     {
