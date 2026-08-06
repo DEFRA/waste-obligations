@@ -21,9 +21,16 @@ public class ComplianceDeclarationService(
 {
     private const string Actor = "service:waste-obligations";
     private const string ComplianceDeclarationEntity = "compliance_declaration";
+    private const int WriteConflictErrorCode = 112;
+    private const int InitialWriteConflictRetryDelayMilliseconds = 25;
+    private const int WriteConflictRetryJitterMilliseconds = 25;
+
     private readonly TimeSpan _transactionTimeout = TimeSpan.FromSeconds(
         complianceDeclarationOptions.Value.TransactionTimeoutSeconds
     );
+    private readonly int _transactionWriteConflictRetryCount = complianceDeclarationOptions
+        .Value
+        .TransactionWriteConflictRetryCount;
 
     public async Task<ComplianceDeclaration> Create(
         ComplianceDeclaration complianceDeclaration,
@@ -302,41 +309,89 @@ public class ComplianceDeclarationService(
     {
         using var timeoutCancellationTokenSource = new CancellationTokenSource(_transactionTimeout);
 
-        // Keep the driver token tied to the caller so WithTransactionAsync can abort with a live token when this
-        // service-owned budget expires. Passing the budget token to the driver would also cancel its abort command.
-        return await session.WithTransactionAsync(
-            async (transactionSession, transactionCancellationToken) =>
+        var retryCount = 0;
+        while (true)
+        {
+            try
             {
-                using var operationCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(
-                    transactionCancellationToken,
+                // Keep the driver token tied to the caller so WithTransactionAsync can abort with a live token when this
+                // service-owned budget expires. Passing the budget token to the driver would also cancel its abort command.
+                return await session.WithTransactionAsync(
+                    async (transactionSession, transactionCancellationToken) =>
+                    {
+                        using var operationCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(
+                            transactionCancellationToken,
+                            timeoutCancellationTokenSource.Token
+                        );
+
+                        try
+                        {
+                            return await callback(transactionSession, operationCancellationTokenSource.Token);
+                        }
+                        catch (OperationCanceledException exception)
+                            when (timeoutCancellationTokenSource.IsCancellationRequested
+                                && !cancellationToken.IsCancellationRequested
+                            )
+                        {
+                            throw TransactionTimedOut(exception, operation, complianceDeclarationId);
+                        }
+                    },
+                    new TransactionOptions(maxCommitTime: _transactionTimeout),
+                    cancellationToken
+                );
+            }
+            catch (MongoException exception)
+                when (IsRetryableTransactionError(exception) && retryCount < _transactionWriteConflictRetryCount)
+            {
+                var retryDelay = RetryDelay(retryCount);
+                retryCount++;
+                logger.LogWarning(
+                    exception,
+                    "Retrying compliance declaration {Operation} transaction for id '{ComplianceDeclarationId}' after a MongoDB write conflict. Retry {TransactionRetryAttempt} of {TransactionWriteConflictRetryCount} in {TransactionRetryDelayMilliseconds}ms",
+                    operation,
+                    complianceDeclarationId,
+                    retryCount,
+                    _transactionWriteConflictRetryCount,
+                    retryDelay.TotalMilliseconds
+                );
+
+                using var retryDelayCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(
+                    cancellationToken,
                     timeoutCancellationTokenSource.Token
                 );
 
                 try
                 {
-                    return await callback(transactionSession, operationCancellationTokenSource.Token);
+                    await Task.Delay(retryDelay, retryDelayCancellationTokenSource.Token);
                 }
-                catch (OperationCanceledException exception)
+                catch (OperationCanceledException cancellationException)
                     when (timeoutCancellationTokenSource.IsCancellationRequested
                         && !cancellationToken.IsCancellationRequested
                     )
                 {
-                    logger.LogWarning(
-                        exception,
-                        "Compliance declaration {Operation} transaction for id '{ComplianceDeclarationId}' timed out after {TransactionTimeoutSeconds} seconds",
-                        operation,
-                        complianceDeclarationId,
-                        _transactionTimeout.TotalSeconds
-                    );
-
-                    throw new TimeoutException(
-                        $"Compliance declaration {operation} transaction timed out after {_transactionTimeout.TotalSeconds} seconds",
-                        exception
-                    );
+                    throw TransactionTimedOut(cancellationException, operation, complianceDeclarationId);
                 }
-            },
-            new TransactionOptions(maxCommitTime: _transactionTimeout),
-            cancellationToken
+            }
+        }
+    }
+
+    private TimeoutException TransactionTimedOut(
+        OperationCanceledException exception,
+        string operation,
+        ObjectId complianceDeclarationId
+    )
+    {
+        logger.LogWarning(
+            exception,
+            "Compliance declaration {Operation} transaction for id '{ComplianceDeclarationId}' timed out after {TransactionTimeoutSeconds} seconds",
+            operation,
+            complianceDeclarationId,
+            _transactionTimeout.TotalSeconds
+        );
+
+        return new TimeoutException(
+            $"Compliance declaration {operation} transaction timed out after {_transactionTimeout.TotalSeconds} seconds",
+            exception
         );
     }
 
@@ -366,5 +421,18 @@ public class ComplianceDeclarationService(
             ComplianceDeclarations = resultsTask.Result,
             Total = (int)countTask.Result,
         };
+    }
+
+    private static bool IsRetryableTransactionError(MongoException exception) =>
+        exception.HasErrorLabel("TransientTransactionError")
+        || exception is MongoCommandException { Code: WriteConflictErrorCode }
+        || exception is MongoWriteException { WriteError.Code: WriteConflictErrorCode };
+
+    private static TimeSpan RetryDelay(int retryCount)
+    {
+        var exponentialDelayMilliseconds = InitialWriteConflictRetryDelayMilliseconds * (1 << retryCount);
+        var jitterMilliseconds = Random.Shared.Next(WriteConflictRetryJitterMilliseconds + 1);
+
+        return TimeSpan.FromMilliseconds(exponentialDelayMilliseconds + jitterMilliseconds);
     }
 }

@@ -8,4 +8,7 @@ public class ComplianceDeclarationOptions
 
     [Range(1, 120)]
     public int TransactionTimeoutSeconds { get; init; } = 5;
+
+    [Range(0, 10)]
+    public int TransactionWriteConflictRetryCount { get; init; } = 5;
 }
