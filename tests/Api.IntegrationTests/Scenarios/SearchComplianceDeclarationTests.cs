@@ -25,7 +25,11 @@ public class SearchComplianceDeclarationTests : IntegrationTestBase
     {
         var database = GetMongoDatabase();
         var auditEventDbContext = new AuditEventDbContext(database);
-        var dbContext = new MongoDbContext(database);
+        var dbContext = new MongoDbContext(
+            database,
+            Options.Create(new MongoDbOptions()),
+            Substitute.For<Microsoft.Extensions.Logging.ILogger<MongoDbContext>>()
+        );
         var auditEventService = new AuditEventService(
             auditEventDbContext,
             TimeProvider.System,
@@ -38,11 +42,7 @@ public class SearchComplianceDeclarationTests : IntegrationTestBase
             TimeProvider.System,
             auditEventService,
             Substitute.For<IComplianceDeclarationMetrics>(),
-            new TraceIdReader(
-                new HeaderPropagationValues(),
-                Options.Create(new TraceHeader { Name = TraceHeaderName })
-            ),
-            Options.Create(new ComplianceDeclarationOptions())
+            new TraceIdReader(new HeaderPropagationValues(), Options.Create(new TraceHeader { Name = TraceHeaderName }))
         );
     }
 

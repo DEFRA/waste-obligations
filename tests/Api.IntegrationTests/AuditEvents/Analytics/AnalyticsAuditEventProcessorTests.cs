@@ -59,11 +59,11 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
                             AttemptCount = 1,
                         }
                     );
+                logger.Messages.Should().Contain(x => x.Contains(auditEvent.EventId) && x.Contains(TraceId));
             },
             timeout: 5,
             delay: TimeSpan.FromMilliseconds(50)
         );
-        logger.Messages.Should().Contain(x => x.Contains(auditEvent.EventId) && x.Contains(TraceId));
         await subject.StopAsync(TestContext.Current.CancellationToken);
 
         auditEventMetrics.Received().DispatchPollStarted(Analytics);

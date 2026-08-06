@@ -41,32 +41,39 @@ public class ComplianceDeclarationTransactionTimeoutTests : IAsyncLifetime
     public async Task Create_WhenTransactionExceedsTimeout_ShouldRollbackAndLogTimeout()
     {
         var complianceDeclarationMetrics = Substitute.For<IComplianceDeclarationMetrics>();
-        var logger = new RecordingLogger<ComplianceDeclarationService>();
+        var mongoDbLogger = new RecordingLogger<MongoDbContext>();
         var subject = new ComplianceDeclarationService(
-            new MongoDbContext(_database),
-            logger,
+            new MongoDbContext(
+                _database,
+                Options.Create(new MongoDbOptions { TransactionTimeoutSeconds = 1 }),
+                mongoDbLogger
+            ),
+            Substitute.For<ILogger<ComplianceDeclarationService>>(),
             TimeProvider.System,
             new WaitingAuditEventService(),
             complianceDeclarationMetrics,
             new TraceIdReader(
                 new HeaderPropagationValues(),
                 Options.Create(new TraceHeader { Name = "x-cdp-request-id" })
-            ),
-            Options.Create(new ComplianceDeclarationOptions { TransactionTimeoutSeconds = 1 })
+            )
         );
         var complianceDeclaration = ComplianceDeclarationFixture.Default().Create();
         var act = async () => await subject.Create(complianceDeclaration, TestContext.Current.CancellationToken);
 
-        await act.Should().ThrowAsync<TimeoutException>().WithMessage("*create transaction timed out after 1 seconds");
+        await act.Should()
+            .ThrowAsync<TimeoutException>()
+            .WithMessage(
+                $"MongoDB transaction 'compliance declaration create {complianceDeclaration.Id}' timed out after 1 seconds"
+            );
 
         var retrieved = await subject.Read(complianceDeclaration.Id.ToString(), TestContext.Current.CancellationToken);
         retrieved.Should().BeNull();
-        logger
+        mongoDbLogger
             .Entries.Should()
             .ContainSingle(x =>
                 x.Level == LogLevel.Warning
                 && x.Message
-                    == $"Compliance declaration create transaction for id '{complianceDeclaration.Id}' timed out after 1 seconds"
+                    == $"MongoDB transaction 'compliance declaration create {complianceDeclaration.Id}' timed out after 1 seconds"
                 && x.Exception is OperationCanceledException
             );
         complianceDeclarationMetrics.DidNotReceive().Created();
