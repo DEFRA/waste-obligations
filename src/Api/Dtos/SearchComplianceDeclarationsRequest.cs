@@ -25,6 +25,13 @@ public record SearchComplianceDeclarationsRequest
     [FromQuery(Name = "organisationName")]
     public string? OrganisationName { get; init; }
 
+    [Description(
+        "Case-insensitive partial match on organisation name, compliance scheme name, scheme operator name or reference number"
+    )]
+    [StringLength(100)]
+    [FromQuery(Name = "organisationSearch")]
+    public string? OrganisationSearch { get; init; }
+
     [Description("Page number (1-based), defaults to 1 if not specified")]
     [Minimum(1)]
     [FromQuery(Name = "page")]

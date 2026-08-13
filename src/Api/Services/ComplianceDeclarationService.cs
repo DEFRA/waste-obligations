@@ -200,6 +200,26 @@ public class ComplianceDeclarationService(
             );
         }
 
+        if (!string.IsNullOrWhiteSpace(query.OrganisationSearch))
+        {
+            // Every name field is matched because which one the regulator sees depends on
+            // the organisation type: compliance scheme declarations leave Name null and are
+            // displayed by their scheme operator name.
+            var pattern = new BsonRegularExpression(
+                System.Text.RegularExpressions.Regex.Escape(query.OrganisationSearch.Trim()),
+                "i"
+            );
+
+            filters.Add(
+                Builders<ComplianceDeclaration>.Filter.Or(
+                    Builders<ComplianceDeclaration>.Filter.Regex(x => x.Organisation.Name, pattern),
+                    Builders<ComplianceDeclaration>.Filter.Regex(x => x.Organisation.ComplianceSchemeName, pattern),
+                    Builders<ComplianceDeclaration>.Filter.Regex(x => x.Organisation.SchemeOperatorName, pattern),
+                    Builders<ComplianceDeclaration>.Filter.Regex(x => x.Organisation.ReferenceNumber, pattern)
+                )
+            );
+        }
+
         var combinedFilter =
             filters.Count == 0
                 ? Builders<ComplianceDeclaration>.Filter.Empty

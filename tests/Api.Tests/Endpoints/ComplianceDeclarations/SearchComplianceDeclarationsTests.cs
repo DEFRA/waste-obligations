@@ -110,6 +110,7 @@ public class SearchComplianceDeclarationsTests(ApiWebApplicationFactory factory,
                         }
                     )
                     && x.OrganisationName == "org name"
+                    && x.OrganisationSearch == "zeina"
                 ),
                 page: 1,
                 pageSize: 20,
@@ -143,6 +144,7 @@ public class SearchComplianceDeclarationsTests(ApiWebApplicationFactory factory,
                         ])
                     )
                     .Where(EndpointFilter.OrganisationName("org name"))
+                    .Where(EndpointFilter.OrganisationSearch("zeina"))
             ),
             TestContext.Current.CancellationToken
         );

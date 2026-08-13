@@ -39,6 +39,7 @@ public static class SearchComplianceDeclarations
                 Status = [.. request.ParsedStatus().Select(x => x.ToEntity())],
                 RegistrationType = [.. request.ParsedRegistrationType().Select(x => x.ToEntity())],
                 OrganisationName = request.OrganisationName,
+                OrganisationSearch = request.OrganisationSearch,
             },
             page,
             pageSize,

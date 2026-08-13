@@ -545,6 +545,88 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         resultUppercase.ComplianceDeclarations.Should().HaveCount(2);
     }
 
+    [Theory]
+    [InlineData("zeina foods")] // organisation name
+    [InlineData("ZEINA")] // partial, and stored in a different case
+    [InlineData("green scheme")] // compliance scheme name
+    [InlineData("operator co")] // scheme operator name, which is what the UI displays
+    [InlineData("100245")] // reference number
+    [InlineData("0024")] // partial reference number
+    public async Task Search_WhenFilteringByOrganisationSearch_ShouldMatchAnyOrganisationField(string term)
+    {
+        await CreateDeclarationForOrganisation(
+            OrganisationFixture
+                .Organisation()
+                .With(x => x.Name, "ZEINA FOODS LIMITED")
+                .With(x => x.ComplianceSchemeName, "Green Scheme")
+                .With(x => x.SchemeOperatorName, "Operator Co")
+                .With(x => x.ReferenceNumber, "100245")
+                .Create()
+        );
+        await CreateDeclarationForOrganisation(
+            OrganisationFixture
+                .Organisation()
+                .With(x => x.Name, "Unrelated Holdings")
+                .With(x => x.ComplianceSchemeName, (string?)null)
+                .With(x => x.SchemeOperatorName, (string?)null)
+                .With(x => x.ReferenceNumber, "999999")
+                .Create()
+        );
+
+        var result = await Search(new ComplianceDeclarationSearchQuery { OrganisationSearch = term });
+
+        result.ComplianceDeclarations.Should().ContainSingle();
+        result.ComplianceDeclarations.Single().Organisation.ReferenceNumber.Should().Be("100245");
+    }
+
+    [Fact]
+    public async Task Search_WhenOrganisationSearchContainsRegexMetacharacters_ShouldTreatThemLiterally()
+    {
+        await CreateDeclarationForOrganisation(
+            OrganisationFixture.Organisation().With(x => x.Name, "AxB Trading").Create()
+        );
+
+        var result = await Search(new ComplianceDeclarationSearchQuery { OrganisationSearch = "A.B" });
+
+        result.ComplianceDeclarations.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Search_WhenOrganisationSearchIsCombinedWithStatus_ShouldApplyBoth()
+    {
+        var organisation = OrganisationFixture.Organisation().With(x => x.Name, "Combined Filters Ltd").Create();
+        var submitted = await CreateDeclarationForOrganisation(organisation);
+        await Subject.Update(
+            submitted,
+            submitted with
+            {
+                Status = ComplianceDeclarationStatus.Accepted,
+            },
+            TestContext.Current.CancellationToken
+        );
+        await CreateDeclarationForOrganisation(organisation);
+
+        var result = await Search(
+            new ComplianceDeclarationSearchQuery
+            {
+                OrganisationSearch = "combined filters",
+                Status = [ComplianceDeclarationStatus.Accepted],
+            }
+        );
+
+        result.ComplianceDeclarations.Should().ContainSingle();
+        result.ComplianceDeclarations.Single().Status.Should().Be(ComplianceDeclarationStatus.Accepted);
+    }
+
+    private Task<ComplianceDeclaration> CreateDeclarationForOrganisation(Organisation organisation) =>
+        Subject.Create(
+            ComplianceDeclarationFixture.Default().With(x => x.Organisation, organisation).Create(),
+            TestContext.Current.CancellationToken
+        );
+
+    private Task<ComplianceDeclarationSearchResult> Search(ComplianceDeclarationSearchQuery query) =>
+        Subject.Search(query, 1, 10, TestContext.Current.CancellationToken);
+
     [Fact]
     public async Task Search_WhenPaging_ShouldReturnCorrectPageAndTotal()
     {

@@ -25,6 +25,9 @@ public class EndpointFilter
     public static EndpointFilter OrganisationName(string organisationName) =>
         new($"organisationName={Uri.EscapeDataString(organisationName)}");
 
+    public static EndpointFilter OrganisationSearch(string organisationSearch) =>
+        new($"organisationSearch={Uri.EscapeDataString(organisationSearch)}");
+
     public static EndpointFilter Page(int page) => new($"page={page}");
 
     public static EndpointFilter PageSize(int pageSize) => new($"pageSize={pageSize}");

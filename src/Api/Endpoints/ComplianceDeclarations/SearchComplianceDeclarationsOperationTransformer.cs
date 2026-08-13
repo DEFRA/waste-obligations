@@ -18,21 +18,18 @@ public class SearchComplianceDeclarationsOperationTransformer : IOpenApiOperatio
         ReplaceParameter(
             operation,
             nameof(SearchComplianceDeclarationsRequest.Status),
-            index: 1,
             source => CreateEnumArrayParameter(source, nameof(ComplianceDeclarationStatus))
         );
 
         ReplaceParameter(
             operation,
             nameof(SearchComplianceDeclarationsRequest.RegistrationType),
-            index: 2,
             source => CreateEnumArrayParameter(source, nameof(RegistrationType))
         );
 
         ReplaceParameter(
             operation,
             nameof(SearchComplianceDeclarationsRequest.Page),
-            index: 4,
             source => new OpenApiParameter
             {
                 Name = source.Name,
@@ -52,10 +49,11 @@ public class SearchComplianceDeclarationsOperationTransformer : IOpenApiOperatio
         return Task.CompletedTask;
     }
 
+    // The replacement is put back where the original sat, so that adding a query
+    // parameter to the request record cannot silently reorder the documented ones.
     private static void ReplaceParameter(
         OpenApiOperation operation,
         string propertyName,
-        int index,
         Func<OpenApiParameter, OpenApiParameter> transform
     )
     {
@@ -68,7 +66,9 @@ public class SearchComplianceDeclarationsOperationTransformer : IOpenApiOperatio
         )
             return;
 
-        operation.Parameters.Remove(parameter);
+        var index = operation.Parameters.IndexOf(parameter);
+
+        operation.Parameters.RemoveAt(index);
         operation.Parameters.Insert(index, transform(parameter));
     }
 
