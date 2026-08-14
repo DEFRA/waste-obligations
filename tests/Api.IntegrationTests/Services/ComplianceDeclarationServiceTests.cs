@@ -852,6 +852,51 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         result.ComplianceDeclarations.Select(x => x.Id).Should().Equal(secondId, fifthId, thirdId, firstId, fourthId);
     }
 
+    [Fact]
+    public async Task Search_WhenPrimarySortValuesEqual_ShouldOrderByOrganisationName()
+    {
+        var bravoId = ObjectId.Parse("000000000000000000000001");
+        var alphaId = ObjectId.Parse("000000000000000000000002");
+        var date = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+
+        await ComplianceDeclarations.InsertManyAsync(
+            [
+                ComplianceDeclarationFixture
+                    .Default()
+                    .With(x => x.Id, bravoId)
+                    .With(x => x.Organisation, OrganisationFixture.DirectProducer().With(x => x.Name, "Bravo").Create())
+                    .With(x => x.Created, date)
+                    .Create(),
+                ComplianceDeclarationFixture
+                    .Default()
+                    .With(x => x.Id, alphaId)
+                    .With(x => x.Organisation, OrganisationFixture.DirectProducer().With(x => x.Name, "Alpha").Create())
+                    .With(x => x.Created, date)
+                    .Create(),
+            ],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+
+        var result = await Subject.Search(
+            new ComplianceDeclarationSearchQuery
+            {
+                Sort =
+                [
+                    new ComplianceDeclarationSort
+                    {
+                        Field = ComplianceDeclarationSortField.DateSubmitted,
+                        Direction = ComplianceDeclarationSortDirection.Descending,
+                    },
+                ],
+            },
+            1,
+            10,
+            TestContext.Current.CancellationToken
+        );
+
+        result.ComplianceDeclarations.Select(x => x.Id).Should().Equal(alphaId, bravoId);
+    }
+
     [Theory]
     [InlineData(
         ComplianceDeclarationSortField.RecyclingObligations,
