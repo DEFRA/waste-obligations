@@ -9,6 +9,7 @@ namespace Defra.WasteObligations.Api.Endpoints.ComplianceDeclarations;
 public static class SearchComplianceDeclarations
 {
     public const string OperationId = "SearchComplianceDeclarations";
+    public const int OpenApiPageParameterIndex = 5;
 
     public static void MapComplianceDeclarationsSearch(this IEndpointRouteBuilder app)
     {
@@ -39,6 +40,7 @@ public static class SearchComplianceDeclarations
                 Status = [.. request.ParsedStatus().Select(x => x.ToEntity())],
                 RegistrationType = [.. request.ParsedRegistrationType().Select(x => x.ToEntity())],
                 OrganisationName = request.OrganisationName,
+                Sort = request.ParsedSort(),
             },
             page,
             pageSize,

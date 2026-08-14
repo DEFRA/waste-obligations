@@ -25,6 +25,14 @@ public record SearchComplianceDeclarationsRequest
     [FromQuery(Name = "organisationName")]
     public string? OrganisationName { get; init; }
 
+    [Description(
+        "Comma separated sort fields in priority order. Each field must use the format Field[asc] or Field[desc]. "
+            + "Fields: RecyclingObligations, PercentageMet, DateSubmitted, Regulation43, OrganisationName, OrganisationId"
+    )]
+    [FromQuery(Name = "sort")]
+    [ComplianceDeclarationSortList(ErrorMessage = "Invalid compliance declaration sort")]
+    public string? Sort { get; init; }
+
     [Description("Page number (1-based), defaults to 1 if not specified")]
     [Minimum(Paging.MinimumPage)]
     [FromQuery(Name = "page")]
@@ -43,4 +51,6 @@ public record SearchComplianceDeclarationsRequest
 
     public RegistrationType[] ParsedRegistrationType() =>
         RegistrationType?.Split(',').NotNull().Select(x => x.FromJsonValue<RegistrationType>()).ToArray() ?? [];
+
+    public Data.ComplianceDeclarationSort[] ParsedSort() => ComplianceDeclarationSortParser.Parse(Sort);
 }

@@ -885,6 +885,14 @@
             }
           },
           {
+            "name": "sort",
+            "in": "query",
+            "description": "Comma separated sort fields in priority order. Each field must use the format Field[asc] or Field[desc]. Fields: RecyclingObligations, PercentageMet, DateSubmitted, Regulation43, OrganisationName, OrganisationId",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "page",
             "in": "query",
             "description": "Page number (1-based), defaults to 1 if not specified",

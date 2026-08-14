@@ -10,6 +10,7 @@ namespace Defra.WasteObligations.Api.Endpoints.Organisations.ComplianceDeclarati
 public static class ReadComplianceDeclarations
 {
     public const string OperationId = "ReadOrganisationComplianceDeclarations";
+    public const int OpenApiPageParameterIndex = 2;
 
     public static void MapComplianceDeclarationsRead(this IEndpointRouteBuilder app)
     {

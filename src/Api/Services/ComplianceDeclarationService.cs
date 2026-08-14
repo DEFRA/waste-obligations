@@ -207,13 +207,7 @@ public class ComplianceDeclarationService(
                 ? Builders<ComplianceDeclaration>.Filter.Empty
                 : Builders<ComplianceDeclaration>.Filter.And(filters);
 
-        return await ReadPaged(
-            combinedFilter,
-            Builders<ComplianceDeclaration>.Sort.Ascending(x => x.Id),
-            page,
-            pageSize,
-            cancellationToken
-        );
+        return await ReadPaged(combinedFilter, BuildSearchSort(query.Sort), page, pageSize, cancellationToken);
     }
 
     public async Task<ComplianceDeclaration> Update(
@@ -303,4 +297,69 @@ public class ComplianceDeclarationService(
             Total = (int)countTask.Result,
         };
     }
+
+    private static SortDefinition<ComplianceDeclaration> BuildSearchSort(
+        IReadOnlyCollection<ComplianceDeclarationSort>? sort
+    )
+    {
+        var sortBuilder = Builders<ComplianceDeclaration>.Sort;
+        if (sort is not { Count: > 0 })
+            return sortBuilder.Ascending(x => x.Id);
+
+        var sortDefinitions = sort.Select(BuildSearchSort).ToList();
+        if (!sort.Any(x => x.Field is ComplianceDeclarationSortField.OrganisationName))
+            sortDefinitions.Add(sortBuilder.Ascending(x => x.Organisation.Name));
+
+        sortDefinitions.Add(sortBuilder.Ascending(x => x.Id));
+
+        return sortBuilder.Combine(sortDefinitions);
+    }
+
+    private static SortDefinition<ComplianceDeclaration> BuildSearchSort(ComplianceDeclarationSort sort) =>
+        sort.Field switch
+        {
+            ComplianceDeclarationSortField.RecyclingObligations => SortByReversedDirection(
+                sort.Direction,
+                Builders<ComplianceDeclaration>.Sort.Ascending(x => x.ObligationStatus),
+                Builders<ComplianceDeclaration>.Sort.Descending(x => x.ObligationStatus)
+            ),
+            ComplianceDeclarationSortField.PercentageMet => SortByDirection(
+                sort.Direction,
+                Builders<ComplianceDeclaration>.Sort.Ascending(x => x.ObligationCoveragePercentage),
+                Builders<ComplianceDeclaration>.Sort.Descending(x => x.ObligationCoveragePercentage)
+            ),
+            ComplianceDeclarationSortField.DateSubmitted => SortByDirection(
+                sort.Direction,
+                Builders<ComplianceDeclaration>.Sort.Ascending(x => x.Created),
+                Builders<ComplianceDeclaration>.Sort.Descending(x => x.Created)
+            ),
+            ComplianceDeclarationSortField.Regulation43 => SortByDirection(
+                sort.Direction,
+                Builders<ComplianceDeclaration>.Sort.Ascending(x => x.IsRegulation43Compliant),
+                Builders<ComplianceDeclaration>.Sort.Descending(x => x.IsRegulation43Compliant)
+            ),
+            ComplianceDeclarationSortField.OrganisationName => SortByDirection(
+                sort.Direction,
+                Builders<ComplianceDeclaration>.Sort.Ascending(x => x.Organisation.Name),
+                Builders<ComplianceDeclaration>.Sort.Descending(x => x.Organisation.Name)
+            ),
+            ComplianceDeclarationSortField.OrganisationId => SortByDirection(
+                sort.Direction,
+                Builders<ComplianceDeclaration>.Sort.Ascending(x => x.Organisation.Id),
+                Builders<ComplianceDeclaration>.Sort.Descending(x => x.Organisation.Id)
+            ),
+            _ => throw new ArgumentOutOfRangeException(nameof(sort)),
+        };
+
+    private static SortDefinition<ComplianceDeclaration> SortByDirection(
+        ComplianceDeclarationSortDirection direction,
+        SortDefinition<ComplianceDeclaration> ascending,
+        SortDefinition<ComplianceDeclaration> descending
+    ) => direction is ComplianceDeclarationSortDirection.Ascending ? ascending : descending;
+
+    private static SortDefinition<ComplianceDeclaration> SortByReversedDirection(
+        ComplianceDeclarationSortDirection direction,
+        SortDefinition<ComplianceDeclaration> ascending,
+        SortDefinition<ComplianceDeclaration> descending
+    ) => direction is ComplianceDeclarationSortDirection.Ascending ? descending : ascending;
 }
