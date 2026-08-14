@@ -61,7 +61,12 @@ public class SearchComplianceDeclarationsOperationTransformer : IOpenApiOperatio
     }
 
     private static int PageParameterIndex(string? operationId) =>
-        operationId is ReadComplianceDeclarations.OperationId ? 2 : 4;
+        operationId switch
+        {
+            ReadComplianceDeclarations.OperationId => ReadComplianceDeclarations.OpenApiPageParameterIndex,
+            SearchComplianceDeclarations.OperationId => SearchComplianceDeclarations.OpenApiPageParameterIndex,
+            _ => throw new ArgumentOutOfRangeException(nameof(operationId)),
+        };
 
     private static void ReplaceParameter(
         OpenApiOperation operation,

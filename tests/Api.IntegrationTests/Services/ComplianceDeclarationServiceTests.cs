@@ -759,6 +759,177 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         result.ComplianceDeclarations.Should().Contain(x => x.Organisation.Name == regexName);
     }
 
+    [Fact]
+    public async Task Search_WhenSortingByMultipleFields_ShouldApplyThemInPriorityOrderThenId()
+    {
+        var firstId = ObjectId.Parse("000000000000000000000001");
+        var secondId = ObjectId.Parse("000000000000000000000002");
+        var thirdId = ObjectId.Parse("000000000000000000000003");
+        var fourthId = ObjectId.Parse("000000000000000000000004");
+        var fifthId = ObjectId.Parse("000000000000000000000005");
+        var organisationId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+        var otherOrganisationId = Guid.Parse("00000000-0000-0000-0000-000000000002");
+        var date = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+
+        await ComplianceDeclarations.InsertManyAsync(
+            [
+                ComplianceDeclarationFixture
+                    .Default()
+                    .With(x => x.Id, firstId)
+                    .With(
+                        x => x.Organisation,
+                        OrganisationFixture.DirectProducer(organisationId).With(x => x.Name, "Bravo").Create()
+                    )
+                    .With(x => x.Created, date)
+                    .Create(),
+                ComplianceDeclarationFixture
+                    .Default()
+                    .With(x => x.Id, secondId)
+                    .With(
+                        x => x.Organisation,
+                        OrganisationFixture.DirectProducer(organisationId).With(x => x.Name, "Alpha").Create()
+                    )
+                    .With(x => x.Created, date)
+                    .Create(),
+                ComplianceDeclarationFixture
+                    .Default()
+                    .With(x => x.Id, thirdId)
+                    .With(
+                        x => x.Organisation,
+                        OrganisationFixture.DirectProducer(otherOrganisationId).With(x => x.Name, "Alpha").Create()
+                    )
+                    .With(x => x.Created, date)
+                    .Create(),
+                ComplianceDeclarationFixture
+                    .Default()
+                    .With(x => x.Id, fourthId)
+                    .With(
+                        x => x.Organisation,
+                        OrganisationFixture.DirectProducer(otherOrganisationId).With(x => x.Name, "Charlie").Create()
+                    )
+                    .With(x => x.Created, date.AddDays(-1))
+                    .Create(),
+                ComplianceDeclarationFixture
+                    .Default()
+                    .With(x => x.Id, fifthId)
+                    .With(
+                        x => x.Organisation,
+                        OrganisationFixture.DirectProducer(organisationId).With(x => x.Name, "Alpha").Create()
+                    )
+                    .With(x => x.Created, date)
+                    .Create(),
+            ],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+
+        var result = await Subject.Search(
+            new ComplianceDeclarationSearchQuery
+            {
+                Sort =
+                [
+                    new ComplianceDeclarationSort
+                    {
+                        Field = ComplianceDeclarationSortField.DateSubmitted,
+                        Direction = ComplianceDeclarationSortDirection.Descending,
+                    },
+                    new ComplianceDeclarationSort
+                    {
+                        Field = ComplianceDeclarationSortField.OrganisationName,
+                        Direction = ComplianceDeclarationSortDirection.Ascending,
+                    },
+                    new ComplianceDeclarationSort
+                    {
+                        Field = ComplianceDeclarationSortField.OrganisationId,
+                        Direction = ComplianceDeclarationSortDirection.Ascending,
+                    },
+                ],
+            },
+            1,
+            10,
+            TestContext.Current.CancellationToken
+        );
+
+        result.ComplianceDeclarations.Select(x => x.Id).Should().Equal(secondId, fifthId, thirdId, firstId, fourthId);
+    }
+
+    [Theory]
+    [InlineData(
+        ComplianceDeclarationSortField.RecyclingObligations,
+        ComplianceDeclarationSortDirection.Ascending,
+        false
+    )]
+    [InlineData(ComplianceDeclarationSortField.PercentageMet, ComplianceDeclarationSortDirection.Ascending, false)]
+    [InlineData(ComplianceDeclarationSortField.DateSubmitted, ComplianceDeclarationSortDirection.Ascending, false)]
+    [InlineData(ComplianceDeclarationSortField.Regulation43, ComplianceDeclarationSortDirection.Ascending, false)]
+    [InlineData(ComplianceDeclarationSortField.OrganisationName, ComplianceDeclarationSortDirection.Ascending, false)]
+    [InlineData(ComplianceDeclarationSortField.OrganisationId, ComplianceDeclarationSortDirection.Ascending, false)]
+    [InlineData(
+        ComplianceDeclarationSortField.RecyclingObligations,
+        ComplianceDeclarationSortDirection.Descending,
+        true
+    )]
+    [InlineData(ComplianceDeclarationSortField.PercentageMet, ComplianceDeclarationSortDirection.Descending, true)]
+    [InlineData(ComplianceDeclarationSortField.DateSubmitted, ComplianceDeclarationSortDirection.Descending, true)]
+    [InlineData(ComplianceDeclarationSortField.Regulation43, ComplianceDeclarationSortDirection.Descending, true)]
+    [InlineData(ComplianceDeclarationSortField.OrganisationName, ComplianceDeclarationSortDirection.Descending, true)]
+    [InlineData(ComplianceDeclarationSortField.OrganisationId, ComplianceDeclarationSortDirection.Descending, true)]
+    public async Task Search_WhenSorting_ShouldOrderByTheRequestedField(
+        ComplianceDeclarationSortField field,
+        ComplianceDeclarationSortDirection direction,
+        bool firstDeclarationShouldBeFirst
+    )
+    {
+        var firstId = ObjectId.Parse("000000000000000000000001");
+        var secondId = ObjectId.Parse("000000000000000000000002");
+        var firstOrganisationId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+        var secondOrganisationId = Guid.Parse("00000000-0000-0000-0000-000000000002");
+
+        await ComplianceDeclarations.InsertManyAsync(
+            [
+                ComplianceDeclarationFixture
+                    .Default()
+                    .With(x => x.Id, firstId)
+                    .With(x => x.ObligationStatus, Defra.WasteObligations.Api.Dtos.ObligationStatus.Met)
+                    .With(x => x.ObligationCoveragePercentage, 80m)
+                    .With(x => x.Created, new DateTime(2026, 1, 2, 12, 0, 0, DateTimeKind.Utc))
+                    .With(x => x.IsRegulation43Compliant, true)
+                    .With(
+                        x => x.Organisation,
+                        OrganisationFixture.DirectProducer(secondOrganisationId).With(x => x.Name, "Bravo").Create()
+                    )
+                    .Create(),
+                ComplianceDeclarationFixture
+                    .Default()
+                    .With(x => x.Id, secondId)
+                    .With(x => x.ObligationStatus, Defra.WasteObligations.Api.Dtos.ObligationStatus.NotMet)
+                    .With(x => x.ObligationCoveragePercentage, 20m)
+                    .With(x => x.Created, new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc))
+                    .With(x => x.IsRegulation43Compliant, false)
+                    .With(
+                        x => x.Organisation,
+                        OrganisationFixture.DirectProducer(firstOrganisationId).With(x => x.Name, "Alpha").Create()
+                    )
+                    .Create(),
+            ],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+
+        var result = await Subject.Search(
+            new ComplianceDeclarationSearchQuery
+            {
+                Sort = [new ComplianceDeclarationSort { Field = field, Direction = direction }],
+            },
+            1,
+            10,
+            TestContext.Current.CancellationToken
+        );
+
+        var expectedFirstId = firstDeclarationShouldBeFirst ? firstId : secondId;
+        var expectedSecondId = firstDeclarationShouldBeFirst ? secondId : firstId;
+
+        result.ComplianceDeclarations.Select(x => x.Id).Should().Equal(expectedFirstId, expectedSecondId);
+    }
+
     private static IEnumerable<object> ToVerifyAuditEvents(IEnumerable<AuditEvent> auditEvents) =>
         auditEvents.Select(x => new
         {

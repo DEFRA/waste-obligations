@@ -67,6 +67,23 @@ public class SearchComplianceDeclarationsTests(ApiWebApplicationFactory factory,
         await VerifyJson(content);
     }
 
+    [Fact]
+    public async Task Validation_WhenSortFieldUnknown_ShouldBeBadRequest()
+    {
+        var content = await RequestShouldBeBadRequest(EndpointQuery.New.Where(EndpointFilter.Sort("Unknown[asc]")));
+
+        await VerifyJson(content);
+    }
+
+    [Theory]
+    [InlineData("DateSubmitted[ascending]")]
+    [InlineData("DateSubmitted[asc],DateSubmitted[desc]")]
+    [InlineData("DateSubmitted[asc],")]
+    public async Task Validation_WhenSortInvalid_ShouldBeBadRequest(string sort)
+    {
+        await RequestShouldBeBadRequest(EndpointQuery.New.Where(EndpointFilter.Sort(sort)));
+    }
+
     [Theory]
     [InlineData(0)]
     public async Task Validation_WhenPageInvalid_ShouldBeBadRequest(int page)
@@ -110,6 +127,8 @@ public class SearchComplianceDeclarationsTests(ApiWebApplicationFactory factory,
                         }
                     )
                     && x.OrganisationName == "org name"
+                    && x.Sort != null
+                    && x.Sort.Length == 0
                 ),
                 page: 1,
                 pageSize: 20,
@@ -149,6 +168,36 @@ public class SearchComplianceDeclarationsTests(ApiWebApplicationFactory factory,
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         await VerifyJson(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task WhenSortSpecified_ShouldMapSort()
+    {
+        ComplianceDeclarationService
+            .Search(
+                Arg.Is<ComplianceDeclarationSearchQuery>(x =>
+                    x.Sort != null
+                    && x.Sort.Length == 2
+                    && x.Sort[0].Field == ComplianceDeclarationSortField.DateSubmitted
+                    && x.Sort[0].Direction == ComplianceDeclarationSortDirection.Descending
+                    && x.Sort[1].Field == ComplianceDeclarationSortField.OrganisationName
+                    && x.Sort[1].Direction == ComplianceDeclarationSortDirection.Ascending
+                ),
+                page: 1,
+                pageSize: 20,
+                cancellationToken: Arg.Any<CancellationToken>()
+            )
+            .Returns(new ComplianceDeclarationPageResult());
+        var client = CreateClient(testUser: TestUser.ReadOnly);
+
+        var response = await client.GetAsync(
+            Testing.Endpoints.ComplianceDeclarations.Search(
+                EndpointQuery.New.Where(EndpointFilter.Sort("DateSubmitted[desc],OrganisationName[asc]"))
+            ),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     private async Task<string> RequestShouldBeBadRequest(EndpointQuery query)
