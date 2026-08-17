@@ -1,6 +1,7 @@
 using AutoFixture;
 using AutoFixture.Dsl;
 using Defra.WasteObligations.Api.Dtos;
+using Defra.WasteObligations.Api.Services;
 
 namespace Defra.WasteObligations.Testing.Fixtures.Dtos;
 
@@ -35,11 +36,24 @@ public static class UpdateComplianceDeclarationRequestFixture
             .With(x => x.User, UserFixture.Regulator().Create());
     }
 
-    public static IPostprocessComposer<UpdateComplianceDeclarationRequest> Cancelled(string? reason = null)
+    public static IPostprocessComposer<UpdateComplianceDeclarationRequest> Cancelled(
+        string? reason = null,
+        bool complianceScheme = false,
+        NotificationRequest? notification = null
+    )
     {
         return Default()
             .With(x => x.Status, ComplianceDeclarationStatus.Cancelled)
-            .With(x => x.Reason, reason ?? "Producer requested to cancel")
-            .With(x => x.User, UserFixture.ApprovedPerson().Create());
+            .With(x => x.Reason, reason ?? ComplianceDeclarationCancellationReasons.ProducerRequestedToCancel)
+            .With(x => x.User, UserFixture.ApprovedPerson().Create())
+            .With(
+                x => x.Notification,
+                notification
+                    ?? (
+                        complianceScheme
+                            ? NotificationFixture.ComplianceSchemeCancellation()
+                            : NotificationFixture.DirectProducerCancellation()
+                    )
+            );
     }
 }

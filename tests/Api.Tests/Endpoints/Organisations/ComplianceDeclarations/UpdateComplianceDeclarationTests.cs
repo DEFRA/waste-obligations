@@ -67,10 +67,83 @@ public class UpdateComplianceDeclarationTests : EndpointTestBase
     }
 
     [Fact]
+    public async Task Validation_WhenCancellingAndNotificationMissing_ShouldBeBadRequest()
+    {
+        var content = await RequestShouldBeBadRequest(
+            UpdateComplianceDeclarationRequestFixture
+                .Cancelled()
+                .With(x => x.Notification, (NotificationRequest?)null)
+                .Create()
+        );
+
+        await VerifyJson(content);
+    }
+
+    [Fact]
     public async Task Validation_WhenCancellingAndReasonIsMissing_ShouldBeBadRequest()
     {
         var content = await RequestShouldBeBadRequest(
             UpdateComplianceDeclarationRequestFixture.Cancelled().With(x => x.Reason, (string?)null).Create()
+        );
+
+        await VerifyJson(content);
+    }
+
+    [Fact]
+    public async Task Validation_WhenAccepted_WithoutNotification_ShouldBeOk()
+    {
+        var client = CreateClient(testUser: TestUser.WriteOnly);
+
+        var response = await client.PatchAsJsonAsync(
+            Testing.Endpoints.Organisations.ComplianceDeclarations.Update(
+                FakeWasteOrganisationsService.OrganisationId,
+                FakeComplianceDeclarationService.ComplianceDeclarationId.ToString()
+            ),
+            UpdateComplianceDeclarationRequestFixture.Accepted().Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task WhenAccepted_WithNotification_ShouldNotSendCancellationEmail()
+    {
+        var client = CreateClient(testUser: TestUser.WriteOnly);
+
+        var response = await client.PatchAsJsonAsync(
+            Testing.Endpoints.Organisations.ComplianceDeclarations.Update(
+                FakeWasteOrganisationsService.OrganisationId,
+                FakeComplianceDeclarationService.ComplianceDeclarationId.ToString()
+            ),
+            UpdateComplianceDeclarationRequestFixture
+                .Accepted()
+                .With(x => x.Notification, NotificationFixture.DirectProducerCancellation())
+                .Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        await EmailService
+            .DidNotReceive()
+            .SendCancelledEmail(
+                Arg.Any<Defra.WasteObligations.Api.Data.Entities.ComplianceDeclaration>(),
+                Arg.Any<Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation>(),
+                Arg.Any<string>(),
+                Arg.Any<IReadOnlyDictionary<string, string>>(),
+                Arg.Any<CancellationToken>()
+            );
+    }
+
+    [Fact]
+    public async Task Validation_WhenCancellingAndNotificationParametersEmpty_ShouldBeBadRequest()
+    {
+        var content = await RequestShouldBeBadRequest(
+            UpdateComplianceDeclarationRequestFixture
+                .Cancelled()
+                .With(x => x.Notification, NotificationFixture.WithParameters(new Dictionary<string, string>()))
+                .Create()
         );
 
         await VerifyJson(content);
@@ -217,6 +290,7 @@ public class UpdateComplianceDeclarationTests : EndpointTestBase
                 Arg.Any<Defra.WasteObligations.Api.Data.Entities.ComplianceDeclaration>(),
                 Arg.Any<Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation>(),
                 Arg.Any<string>(),
+                Arg.Any<IReadOnlyDictionary<string, string>>(),
                 Arg.Any<CancellationToken>()
             );
     }
@@ -243,6 +317,9 @@ public class UpdateComplianceDeclarationTests : EndpointTestBase
                 Arg.Any<Defra.WasteObligations.Api.Data.Entities.ComplianceDeclaration>(),
                 Arg.Any<Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation>(),
                 ComplianceDeclarationCancellationReasons.ProducerRequestedToCancel,
+                Arg.Is<IReadOnlyDictionary<string, string>>(x =>
+                    x.Count == NotificationFixture.DirectProducerCancellationParameters().Count
+                ),
                 Arg.Any<CancellationToken>()
             );
         await EmailService

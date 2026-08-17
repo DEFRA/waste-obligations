@@ -213,7 +213,10 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
         var response = await client.PatchAsJsonAsync(
             Testing.Endpoints.Organisations.ComplianceDeclarations.Update(organisationId, result.Id),
             UpdateComplianceDeclarationRequestFixture
-                .Cancelled(ComplianceDeclarationCancellationReasons.ComplianceSchemeRequestedToCancel)
+                .Cancelled(
+                    ComplianceDeclarationCancellationReasons.ComplianceSchemeRequestedToCancel,
+                    complianceScheme: true
+                )
                 .Create(),
             TestContext.Current.CancellationToken
         );
@@ -383,7 +386,7 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
         if (personalisation.GetProperty("certOrStatement").GetString() != expectedCertOrStatement)
             return false;
 
-        if (personalisation.GetProperty("certOrStatement_Welsh").GetString() != expectedCertOrStatementWelsh)
+        if (personalisation.GetProperty("certOrStatement_cy").GetString() != expectedCertOrStatementWelsh)
             return false;
 
         if (personalisation.GetProperty("year").GetInt32() != 2026)
@@ -392,10 +395,7 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
         if (personalisation.GetProperty("environmentalRegulator").GetString() != "Regulator")
             return false;
 
-        if (
-            personalisation.GetProperty("environmentalRegulator_Welsh").GetString()
-            != expectedEnvironmentalRegulatorWelsh
-        )
+        if (personalisation.GetProperty("environmentalRegulator_cy").GetString() != expectedEnvironmentalRegulatorWelsh)
             return false;
 
         if (personalisation.GetProperty("regulatorEmail").GetString() != "regulator@email.com")
