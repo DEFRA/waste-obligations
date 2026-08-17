@@ -15,6 +15,7 @@ public interface IEmailService
         ComplianceDeclaration complianceDeclaration,
         Organisation organisation,
         string reason,
+        IReadOnlyDictionary<string, string>? notificationParameters,
         CancellationToken cancellationToken
     );
 }

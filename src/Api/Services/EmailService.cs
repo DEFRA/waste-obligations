@@ -81,6 +81,7 @@ public class EmailService(
         ComplianceDeclaration complianceDeclaration,
         Organisation organisation,
         string reason,
+        IReadOnlyDictionary<string, string>? notificationParameters,
         CancellationToken cancellationToken
     )
     {
@@ -125,10 +126,21 @@ public class EmailService(
                 recipients.Length
             );
 
+            var basePersonalisation = ComplianceDeclarationCancellationNotificationParameters.Build(
+                complianceDeclaration,
+                notificationParameters
+            );
             var cancellationRecipients = recipients
                 .Select(recipient =>
-                    (recipient.Email, BuildCancellationPersonalisation(complianceDeclaration, recipient))
-                )
+                {
+                    var personalisation = new Dictionary<string, object>(basePersonalisation, StringComparer.Ordinal)
+                    {
+                        ["firstName"] = recipient.FirstName,
+                        ["lastName"] = recipient.LastName,
+                    };
+
+                    return (recipient.Email, personalisation);
+                })
                 .ToArray();
 
             await govukNotifyService.SendComplianceDeclarationCancelledEmail(
@@ -160,36 +172,4 @@ public class EmailService(
             RegistrationType.ComplianceScheme => EntityTypeCode.CS,
             _ => EntityTypeCode.DR,
         };
-
-    private static Dictionary<string, object> BuildCancellationPersonalisation(
-        ComplianceDeclaration complianceDeclaration,
-        PersonEmail recipient
-    )
-    {
-        var registrationType = complianceDeclaration.Organisation.RegistrationType;
-        var environmentalRegulator = complianceDeclaration.Organisation.Regulator;
-
-        return new Dictionary<string, object>
-        {
-            {
-                "certOrStatement",
-                ComplianceDeclarationCancellationEmailPersonalisation.GetCertOrStatement(registrationType)
-            },
-            {
-                "certOrStatement_Welsh",
-                ComplianceDeclarationCancellationEmailPersonalisation.GetCertOrStatementWelsh(registrationType)
-            },
-            { "year", complianceDeclaration.ObligationYear },
-            { "environmentalRegulator", environmentalRegulator },
-            {
-                "environmentalRegulator_Welsh",
-                ComplianceDeclarationCancellationEmailPersonalisation.GetEnvironmentalRegulatorWelsh(
-                    environmentalRegulator
-                )
-            },
-            { "regulatorEmail", complianceDeclaration.Organisation.RegulatorEmail },
-            { "firstName", recipient.FirstName },
-            { "lastName", recipient.LastName },
-        };
-    }
 }
