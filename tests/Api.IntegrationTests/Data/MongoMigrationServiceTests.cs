@@ -18,6 +18,9 @@ public class MongoMigrationServiceTests : IntegrationTestBase
     private const string OrganisationIdObligationYearIndexName = "OrganisationId_ObligationYear";
     private const string SearchIndexName = "ObligationYear_Status_OrganisationRegistrationType";
     private const string OrganisationNameIndexName = "OrganisationName";
+    private const string OrganisationComplianceSchemeNameIndexName = "OrganisationComplianceSchemeName";
+    private const string OrganisationSchemeOperatorNameIndexName = "OrganisationSchemeOperatorName";
+    private const string OrganisationReferenceNumberIndexName = "OrganisationReferenceNumber";
     private const string SequenceIndexName = "Sequence";
     private const string EntityEntityIdVersionIndexName = "Entity_EntityId_Version";
     private const string DispatchAnalyticsIndexName = "Dispatch_analytics";
@@ -115,6 +118,32 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         indexes.Should().NotContain(x => x.GetValue("name") == OrganisationIdObligationYearIndexName);
         indexes.Should().NotContain(x => x.GetValue("name") == SearchIndexName);
         indexes.Should().NotContain(x => x.GetValue("name") == OrganisationNameIndexName);
+
+        await subject.UpAsync(context);
+    }
+
+    [Fact]
+    public async Task ComplianceDeclarationSearchIndexes_ShouldCreateAndDropIndexes()
+    {
+        var database = GetMongoDatabase();
+        var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
+        var subject = new ComplianceDeclarationSearchIndexes();
+        await subject.DownAsync(context);
+
+        await subject.UpAsync(context);
+
+        var indexes = await ListComplianceDeclarationIndexes();
+        indexes.Should().Contain(x => x.GetValue("name") == OrganisationComplianceSchemeNameIndexName);
+        indexes.Should().Contain(x => x.GetValue("name") == OrganisationSchemeOperatorNameIndexName);
+        indexes.Should().Contain(x => x.GetValue("name") == OrganisationReferenceNumberIndexName);
+
+        await subject.DownAsync(context);
+        await subject.DownAsync(context);
+        indexes = await ListComplianceDeclarationIndexes();
+
+        indexes.Should().NotContain(x => x.GetValue("name") == OrganisationComplianceSchemeNameIndexName);
+        indexes.Should().NotContain(x => x.GetValue("name") == OrganisationSchemeOperatorNameIndexName);
+        indexes.Should().NotContain(x => x.GetValue("name") == OrganisationReferenceNumberIndexName);
 
         await subject.UpAsync(context);
     }

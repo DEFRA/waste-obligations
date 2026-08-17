@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Utils.Logging;
@@ -190,25 +191,12 @@ public class ComplianceDeclarationService(
             );
         }
 
-        if (!string.IsNullOrWhiteSpace(query.OrganisationName))
-        {
-            filters.Add(
-                Builders<ComplianceDeclaration>.Filter.Regex(
-                    x => x.Organisation.Name,
-                    new BsonRegularExpression(System.Text.RegularExpressions.Regex.Escape(query.OrganisationName), "i")
-                )
-            );
-        }
-
-        if (!string.IsNullOrWhiteSpace(query.OrganisationSearch))
+        if (!string.IsNullOrWhiteSpace(query.Search))
         {
             // Every name field is matched because which one the regulator sees depends on
             // the organisation type: compliance scheme declarations leave Name null and are
             // displayed by their scheme operator name.
-            var pattern = new BsonRegularExpression(
-                System.Text.RegularExpressions.Regex.Escape(query.OrganisationSearch.Trim()),
-                "i"
-            );
+            var pattern = new BsonRegularExpression(Regex.Escape(query.Search.Trim()), "i");
 
             filters.Add(
                 Builders<ComplianceDeclaration>.Filter.Or(

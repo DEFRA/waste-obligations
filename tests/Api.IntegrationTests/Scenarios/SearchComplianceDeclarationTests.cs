@@ -86,4 +86,76 @@ public class SearchComplianceDeclarationTests : IntegrationTestBase
         collectedDeclarations.Should().HaveCount(recordCount);
         collectedDeclarations.Select(x => x.Id).Should().BeEquivalentTo(seededIds);
     }
+
+    [Theory]
+    [InlineData("zeina")] // partial organisation name
+    [InlineData("OPERATOR CO")] // scheme operator name in a different case
+    [InlineData("100245")] // reference number
+    public async Task Search_WhenFilteringByTerm_ShouldReturnOnlyMatchingDeclarations(string term)
+    {
+        var matching = await SeedDeclaration("ZEINA FOODS LIMITED", "Operator Co", "100245");
+        await SeedDeclaration("Unrelated Holdings", "Other Operator", "999999");
+
+        var response = await Search(term);
+
+        response!.Total.Should().Be(1);
+        response.ComplianceDeclarations.Should().ContainSingle(x => x.Id == matching);
+    }
+
+    [Fact]
+    public async Task Search_WhenNothingMatchesTheTerm_ShouldReturnAnEmptyPage()
+    {
+        await SeedDeclaration("ZEINA FOODS LIMITED", "Operator Co", "100245");
+
+        var response = await Search("zzzznomatchzzzz");
+
+        response!.Total.Should().Be(0);
+        response.ComplianceDeclarations.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Search_WhenTermExceedsTheMaximumLength_ShouldBeBadRequest()
+    {
+        var client = CreateClient();
+
+        var response = await client.GetAsync(
+            Testing.Endpoints.ComplianceDeclarations.Search(
+                EndpointQuery.New.Where(EndpointFilter.Search(new string('a', 101)))
+            ),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.BadRequest);
+    }
+
+    private static async Task<ComplianceDeclarationsPaged?> Search(string term)
+    {
+        var client = CreateClient();
+
+        return await client.GetFromJsonAsync<ComplianceDeclarationsPaged>(
+            Testing.Endpoints.ComplianceDeclarations.Search(EndpointQuery.New.Where(EndpointFilter.Search(term))),
+            TestContext.Current.CancellationToken
+        );
+    }
+
+    private async Task<string> SeedDeclaration(string name, string schemeOperatorName, string referenceNumber)
+    {
+        var entity = await Subject.Create(
+            ComplianceDeclarationFixture
+                .Default()
+                .With(
+                    x => x.Organisation,
+                    OrganisationFixture
+                        .Organisation()
+                        .With(y => y.Name, name)
+                        .With(y => y.SchemeOperatorName, schemeOperatorName)
+                        .With(y => y.ReferenceNumber, referenceNumber)
+                        .Create()
+                )
+                .Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        return entity.Id.ToString();
+    }
 }

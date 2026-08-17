@@ -522,14 +522,7 @@
             }
           },
           {
-            "name": "organisationName",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "organisationSearch",
+            "name": "search",
             "in": "query",
             "description": "Case-insensitive partial match on organisation name, compliance scheme name, scheme operator name or reference number",
             "schema": {

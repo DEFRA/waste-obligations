@@ -7,6 +7,5 @@ public record ComplianceDeclarationSearchQuery
     public int? ObligationYear { get; init; }
     public ComplianceDeclarationStatus[]? Status { get; init; }
     public RegistrationType[]? RegistrationType { get; init; }
-    public string? OrganisationName { get; init; }
-    public string? OrganisationSearch { get; init; }
+    public string? Search { get; init; }
 }

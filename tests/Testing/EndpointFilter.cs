@@ -22,11 +22,7 @@ public class EndpointFilter
     public static EndpointFilter RegistrationType(string registrationType) =>
         new($"registrationType={registrationType}");
 
-    public static EndpointFilter OrganisationName(string organisationName) =>
-        new($"organisationName={Uri.EscapeDataString(organisationName)}");
-
-    public static EndpointFilter OrganisationSearch(string organisationSearch) =>
-        new($"organisationSearch={Uri.EscapeDataString(organisationSearch)}");
+    public static EndpointFilter Search(string search) => new($"search={Uri.EscapeDataString(search)}");
 
     public static EndpointFilter Page(int page) => new($"page={page}");
 
