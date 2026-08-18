@@ -39,7 +39,7 @@ public static class SearchComplianceDeclarations
                 ObligationYear = request.ObligationYear,
                 Status = [.. request.ParsedStatus().Select(x => x.ToEntity())],
                 RegistrationType = [.. request.ParsedRegistrationType().Select(x => x.ToEntity())],
-                OrganisationName = request.OrganisationName,
+                Search = request.Search,
                 Sort = request.ParsedSort(),
             },
             page,

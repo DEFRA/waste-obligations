@@ -8,6 +8,8 @@ namespace Defra.WasteObligations.Api.Dtos;
 
 public record SearchComplianceDeclarationsRequest
 {
+    private const int SearchMaxLength = 100;
+
     [FromQuery(Name = "obligationYear")]
     [Range(Dtos.ObligationYear.Minimum, Dtos.ObligationYear.Maximum)]
     public int? ObligationYear { get; init; }
@@ -22,8 +24,12 @@ public record SearchComplianceDeclarationsRequest
     [EnumCommaSeparatedList<RegistrationType>(ErrorMessage = "Invalid organisation registration type(s)")]
     public string? RegistrationType { get; init; }
 
-    [FromQuery(Name = "organisationName")]
-    public string? OrganisationName { get; init; }
+    [Description(
+        "Case-insensitive partial match on organisation name, compliance scheme name, scheme operator name or reference number"
+    )]
+    [StringLength(SearchMaxLength)]
+    [FromQuery(Name = "search")]
+    public string? Search { get; init; }
 
     [Description(
         "Comma separated sort fields in priority order. Each field must use the format Field[asc] or Field[desc]. "

@@ -878,9 +878,12 @@
             }
           },
           {
-            "name": "organisationName",
+            "name": "search",
             "in": "query",
+            "description": "Case-insensitive partial match on organisation name, compliance scheme name, scheme operator name or reference number",
             "schema": {
+              "maxLength": 100,
+              "minLength": 0,
               "type": "string"
             }
           },

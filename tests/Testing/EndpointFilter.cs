@@ -16,8 +16,6 @@ public class EndpointFilter
 
     public static EndpointFilter Status(string status) => new($"status={status}");
 
-    public static EndpointFilter Search(string search) => new($"search={Uri.EscapeDataString(search)}");
-
     public static EndpointFilter Sort(string sort) => new($"sort={sort}");
 
     public static EndpointFilter RegistrationType(RegistrationType[] registrationType) =>
@@ -26,8 +24,7 @@ public class EndpointFilter
     public static EndpointFilter RegistrationType(string registrationType) =>
         new($"registrationType={registrationType}");
 
-    public static EndpointFilter OrganisationName(string organisationName) =>
-        new($"organisationName={Uri.EscapeDataString(organisationName)}");
+    public static EndpointFilter Search(string search) => new($"search={Uri.EscapeDataString(search)}");
 
     public static EndpointFilter Page(int page) => new($"page={page}");
 

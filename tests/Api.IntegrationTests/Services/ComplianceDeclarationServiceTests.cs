@@ -23,6 +23,7 @@ namespace Defra.WasteObligations.Api.IntegrationTests.Services;
 public class ComplianceDeclarationServiceTests : IntegrationTestBase
 {
     private const string Entity = "compliance_declaration";
+    private const string MatchingReferenceNumber = "100245";
 
     private ComplianceDeclarationService Subject { get; }
     private IComplianceDeclarationMetrics ComplianceDeclarationMetrics { get; }
@@ -570,52 +571,196 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             .AllSatisfy(x => x.Organisation.RegistrationType.Should().BeOneOf(registrationTypes));
     }
 
-    [Fact]
-    public async Task Search_WhenFilteringByOrganisationName_ShouldBeCaseInsensitive()
+    [Theory]
+    [InlineData("zeina foods")] // organisation name
+    [InlineData("ZEINA")] // partial name
+    [InlineData("zeina foods limited")] // full name, lowercased against an uppercase stored value
+    [InlineData("green scheme")] // compliance scheme name
+    [InlineData("operator co")] // scheme operator name, which is what the UI displays for schemes
+    [InlineData("OPERATOR")] // partial operator name in a different case
+    [InlineData(MatchingReferenceNumber)] // reference number
+    [InlineData("0024")] // partial reference number
+    public async Task Search_WhenFiltering_ShouldMatchAnyOrganisationField(string term)
     {
-        const string name = "Waste Management Ltd";
+        await CreateMatchingAndNonMatchingDeclarations();
 
-        await Subject.Create(
-            ComplianceDeclarationFixture
-                .Default()
-                .With(x => x.Organisation, OrganisationFixture.Organisation().With(y => y.Name, name).Create())
-                .Create(),
-            TestContext.Current.CancellationToken
-        );
-        await Subject.Create(
-            ComplianceDeclarationFixture
-                .Default()
-                .With(
-                    x => x.Organisation,
-                    OrganisationFixture.Organisation().With(y => y.Name, name.ToUpper()).Create()
-                )
-                .Create(),
-            TestContext.Current.CancellationToken
-        );
-        await Subject.Create(
-            ComplianceDeclarationFixture
-                .Default()
-                .With(x => x.Organisation, OrganisationFixture.Organisation().With(y => y.Name, "Other Corp").Create())
-                .Create(),
-            TestContext.Current.CancellationToken
-        );
+        var result = await Search(new ComplianceDeclarationSearchQuery { Search = term });
 
-        var resultLowercase = await Subject.Search(
-            new ComplianceDeclarationSearchQuery { OrganisationName = name.ToLower() },
-            1,
-            10,
-            TestContext.Current.CancellationToken
-        );
-        var resultUppercase = await Subject.Search(
-            new ComplianceDeclarationSearchQuery { OrganisationName = name.ToUpper() },
-            1,
-            10,
-            TestContext.Current.CancellationToken
-        );
-
-        resultLowercase.ComplianceDeclarations.Should().HaveCount(2);
-        resultUppercase.ComplianceDeclarations.Should().HaveCount(2);
+        result.ComplianceDeclarations.Should().ContainSingle();
+        result.ComplianceDeclarations.Single().Organisation.ReferenceNumber.Should().Be(MatchingReferenceNumber);
     }
+
+    [Theory]
+    [InlineData("zzzznomatchzzzz")]
+    [InlineData("9999999")]
+    public async Task Search_WhenNothingMatches_ShouldReturnNoResults(string term)
+    {
+        await CreateMatchingAndNonMatchingDeclarations();
+
+        var result = await Search(new ComplianceDeclarationSearchQuery { Search = term });
+
+        result.ComplianceDeclarations.Should().BeEmpty();
+        result.Total.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Search_WhenTermIsSurroundedByWhitespace_ShouldBeTrimmed()
+    {
+        await CreateMatchingAndNonMatchingDeclarations();
+
+        var result = await Search(new ComplianceDeclarationSearchQuery { Search = "  zeina  " });
+
+        result.ComplianceDeclarations.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Search_WhenTermMatchesSeveralDeclarations_ShouldReturnAllOfThem()
+    {
+        const string sharedName = "Repeat Submitter Ltd";
+        var organisation = OrganisationFixture.Organisation().With(x => x.Name, sharedName).Create();
+        await CreateDeclarationForOrganisation(organisation);
+        await CreateDeclarationForOrganisation(organisation);
+
+        var result = await Search(new ComplianceDeclarationSearchQuery { Search = "repeat submitter" });
+
+        result.ComplianceDeclarations.Should().HaveCount(2);
+        result.Total.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Search_WhenTermContainsRegexMetacharacters_ShouldTreatThemLiterally()
+    {
+        await CreateDeclarationForOrganisation(
+            OrganisationFixture.Organisation().With(x => x.Name, "AxB Trading").Create()
+        );
+
+        var result = await Search(new ComplianceDeclarationSearchQuery { Search = "A.B" });
+
+        result.ComplianceDeclarations.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Search_WhenCombinedWithStatus_ShouldApplyBoth()
+    {
+        var organisation = OrganisationFixture.Organisation().With(x => x.Name, "Combined Filters Ltd").Create();
+        var submitted = await CreateDeclarationForOrganisation(organisation);
+        await Subject.Update(
+            submitted,
+            submitted with
+            {
+                Status = ComplianceDeclarationStatus.Accepted,
+            },
+            TestContext.Current.CancellationToken
+        );
+        await CreateDeclarationForOrganisation(organisation);
+
+        var result = await Search(
+            new ComplianceDeclarationSearchQuery
+            {
+                Search = "combined filters",
+                Status = [ComplianceDeclarationStatus.Accepted],
+            }
+        );
+
+        result.ComplianceDeclarations.Should().ContainSingle();
+        result.ComplianceDeclarations.Single().Status.Should().Be(ComplianceDeclarationStatus.Accepted);
+    }
+
+    [Fact]
+    public async Task Search_WhenCombinedWithRegistrationType_ShouldApplyBoth()
+    {
+        const string sharedName = "Dual Type Ltd";
+        await CreateDeclarationForOrganisation(
+            OrganisationFixture
+                .Organisation()
+                .With(x => x.Name, sharedName)
+                .With(x => x.RegistrationType, RegistrationType.DirectProducer)
+                .Create()
+        );
+        await CreateDeclarationForOrganisation(
+            OrganisationFixture
+                .Organisation()
+                .With(x => x.Name, sharedName)
+                .With(x => x.RegistrationType, RegistrationType.ComplianceScheme)
+                .Create()
+        );
+
+        var result = await Search(
+            new ComplianceDeclarationSearchQuery
+            {
+                Search = "dual type",
+                RegistrationType = [RegistrationType.ComplianceScheme],
+            }
+        );
+
+        result.ComplianceDeclarations.Should().ContainSingle();
+        result
+            .ComplianceDeclarations.Single()
+            .Organisation.RegistrationType.Should()
+            .Be(RegistrationType.ComplianceScheme);
+    }
+
+    [Fact]
+    public async Task Search_WhenCombinedWithObligationYear_ShouldApplyBoth()
+    {
+        const string sharedName = "Two Year Ltd";
+        const int matchingYear = 2026;
+        var organisation = OrganisationFixture.Organisation().With(x => x.Name, sharedName).Create();
+        await Subject.Create(
+            ComplianceDeclarationFixture
+                .Default()
+                .With(x => x.Organisation, organisation)
+                .With(x => x.ObligationYear, matchingYear)
+                .Create(),
+            TestContext.Current.CancellationToken
+        );
+        await Subject.Create(
+            ComplianceDeclarationFixture
+                .Default()
+                .With(x => x.Organisation, organisation)
+                .With(x => x.ObligationYear, 2027)
+                .Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        var result = await Search(
+            new ComplianceDeclarationSearchQuery { Search = "two year", ObligationYear = matchingYear }
+        );
+
+        result.ComplianceDeclarations.Should().ContainSingle();
+        result.ComplianceDeclarations.Single().ObligationYear.Should().Be(matchingYear);
+    }
+
+    private async Task CreateMatchingAndNonMatchingDeclarations()
+    {
+        await CreateDeclarationForOrganisation(
+            OrganisationFixture
+                .Organisation()
+                .With(x => x.Name, "ZEINA FOODS LIMITED")
+                .With(x => x.ComplianceSchemeName, "Green Scheme")
+                .With(x => x.SchemeOperatorName, "Operator Co")
+                .With(x => x.ReferenceNumber, MatchingReferenceNumber)
+                .Create()
+        );
+        await CreateDeclarationForOrganisation(
+            OrganisationFixture
+                .Organisation()
+                .With(x => x.Name, "Unrelated Holdings")
+                .With(x => x.ComplianceSchemeName, (string?)null)
+                .With(x => x.SchemeOperatorName, (string?)null)
+                .With(x => x.ReferenceNumber, "999999")
+                .Create()
+        );
+    }
+
+    private Task<ComplianceDeclaration> CreateDeclarationForOrganisation(Organisation organisation) =>
+        Subject.Create(
+            ComplianceDeclarationFixture.Default().With(x => x.Organisation, organisation).Create(),
+            TestContext.Current.CancellationToken
+        );
+
+    private Task<ComplianceDeclarationPageResult> Search(ComplianceDeclarationSearchQuery query) =>
+        Subject.Search(query, 1, 10, TestContext.Current.CancellationToken);
 
     [Fact]
     public async Task Search_WhenPaging_ShouldReturnCorrectPageAndTotal()
@@ -728,32 +873,19 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task Search_WhenFilteringByOrganisationNameWithRegexCharacters_ShouldTreatLiterally()
+    public async Task Search_WhenSearchContainsRegexCharacters_ShouldTreatLiterally()
     {
         const string regexName = "Waste Management Ltd (UK)";
         const string otherName = "Waste Management Ltd";
 
-        await Subject.Create(
-            ComplianceDeclarationFixture
-                .Default()
-                .With(x => x.Organisation, OrganisationFixture.Organisation().With(y => y.Name, regexName).Create())
-                .Create(),
-            TestContext.Current.CancellationToken
+        await CreateDeclarationForOrganisation(
+            OrganisationFixture.Organisation().With(x => x.Name, regexName).Create()
         );
-        await Subject.Create(
-            ComplianceDeclarationFixture
-                .Default()
-                .With(x => x.Organisation, OrganisationFixture.Organisation().With(y => y.Name, otherName).Create())
-                .Create(),
-            TestContext.Current.CancellationToken
+        await CreateDeclarationForOrganisation(
+            OrganisationFixture.Organisation().With(x => x.Name, otherName).Create()
         );
 
-        var result = await Subject.Search(
-            new ComplianceDeclarationSearchQuery { OrganisationName = regexName },
-            1,
-            10,
-            TestContext.Current.CancellationToken
-        );
+        var result = await Search(new ComplianceDeclarationSearchQuery { Search = regexName });
 
         result.ComplianceDeclarations.Should().ContainSingle();
         result.ComplianceDeclarations.Should().Contain(x => x.Organisation.Name == regexName);

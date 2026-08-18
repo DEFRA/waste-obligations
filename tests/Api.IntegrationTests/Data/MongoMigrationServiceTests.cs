@@ -151,6 +151,28 @@ public class MongoMigrationServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task ComplianceDeclarationRemoveOrganisationNameIndex_ShouldDropAndRestoreIndex()
+    {
+        var database = GetMongoDatabase();
+        var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
+        var subject = new ComplianceDeclarationRemoveOrganisationNameIndex();
+        await subject.DownAsync(context);
+
+        await subject.UpAsync(context);
+        await subject.UpAsync(context);
+
+        var names = await ListComplianceDeclarationIndexNames();
+        names.Should().NotContain(OrganisationNameIndexName);
+
+        await subject.DownAsync(context);
+        names = await ListComplianceDeclarationIndexNames();
+
+        names.Should().Contain(OrganisationNameIndexName);
+
+        await subject.UpAsync(context);
+    }
+
+    [Fact]
     public async Task AuditEventIndexes_ShouldCreateReplaceAndDropIndexes()
     {
         var database = GetMongoDatabase();
@@ -681,6 +703,9 @@ public class MongoMigrationServiceTests : IntegrationTestBase
                 ComplianceDeclarations.Settings.SerializerRegistry
             )
         );
+
+    private async Task<List<string>> ListComplianceDeclarationIndexNames() =>
+        [.. (await ListComplianceDeclarationIndexes()).Select(x => x.GetValue("name").AsString)];
 
     private async Task<List<BsonDocument>> ListComplianceDeclarationIndexes() =>
         await (await ComplianceDeclarations.Indexes.ListAsync(TestContext.Current.CancellationToken)).ToListAsync(
