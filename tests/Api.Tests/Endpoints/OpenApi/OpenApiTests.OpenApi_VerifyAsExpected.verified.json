@@ -1140,6 +1140,15 @@
           }
         }
       },
+      "ComplianceDeclarationCancellationReason": {
+        "enum": [
+          "IncorrectSigner",
+          "RecyclingObligationsChanged",
+          "CanMeetRecyclingObligations",
+          "RequestedToCancel",
+          null
+        ]
+      },
       "ComplianceDeclarationsPaged": {
         "type": "object",
         "properties": {
@@ -1749,9 +1758,13 @@
             ]
           },
           "reason": {
-            "type": [
-              "null",
-              "string"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ComplianceDeclarationCancellationReason"
+              }
             ]
           },
           "user": {

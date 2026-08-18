@@ -136,22 +136,25 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
 
     [Theory]
     [InlineData(
-        ComplianceDeclarationCancellationReasons.NotSignedByCorrectPerson,
+        ComplianceDeclarationCancellationReason.IncorrectSigner,
         GovukNotifyTemplateIds.ComplianceDeclarationCancellationNotSignedByCorrectPersonEnglish
     )]
     [InlineData(
-        ComplianceDeclarationCancellationReasons.RecyclingObligationsChanged,
+        ComplianceDeclarationCancellationReason.RecyclingObligationsChanged,
         GovukNotifyTemplateIds.ComplianceDeclarationCancellationRecyclingObligationsChangedEnglish
     )]
     [InlineData(
-        ComplianceDeclarationCancellationReasons.ProducerCanMeetRecyclingObligations,
+        ComplianceDeclarationCancellationReason.CanMeetRecyclingObligations,
         GovukNotifyTemplateIds.ComplianceDeclarationCancellationCanMeetRecyclingObligationsEnglish
     )]
     [InlineData(
-        ComplianceDeclarationCancellationReasons.ProducerRequestedToCancel,
+        ComplianceDeclarationCancellationReason.RequestedToCancel,
         GovukNotifyTemplateIds.ComplianceDeclarationCancellationProducerRequestedEnglish
     )]
-    public async Task WhenCancelled_ShouldSendEmailForReason(string reason, string expectedTemplateId)
+    public async Task WhenCancelled_ShouldSendEmailForReason(
+        ComplianceDeclarationCancellationReason reason,
+        string expectedTemplateId
+    )
     {
         var organisationId = Guid.NewGuid();
         await StubCancellationDependencies(organisationId, directProducer: true, welshOrganisation: false);
@@ -213,10 +216,7 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
         var response = await client.PatchAsJsonAsync(
             Testing.Endpoints.Organisations.ComplianceDeclarations.Update(organisationId, result.Id),
             UpdateComplianceDeclarationRequestFixture
-                .Cancelled(
-                    ComplianceDeclarationCancellationReasons.ComplianceSchemeRequestedToCancel,
-                    complianceScheme: true
-                )
+                .Cancelled(ComplianceDeclarationCancellationReason.RequestedToCancel, complianceScheme: true)
                 .Create(),
             TestContext.Current.CancellationToken
         );
@@ -261,7 +261,7 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
         var response = await client.PatchAsJsonAsync(
             Testing.Endpoints.Organisations.ComplianceDeclarations.Update(organisationId, result.Id),
             UpdateComplianceDeclarationRequestFixture
-                .Cancelled(ComplianceDeclarationCancellationReasons.NotSignedByCorrectPerson)
+                .Cancelled(ComplianceDeclarationCancellationReason.IncorrectSigner)
                 .Create(),
             TestContext.Current.CancellationToken
         );

@@ -83,7 +83,10 @@ public class UpdateComplianceDeclarationTests : EndpointTestBase
     public async Task Validation_WhenCancellingAndReasonIsMissing_ShouldBeBadRequest()
     {
         var content = await RequestShouldBeBadRequest(
-            UpdateComplianceDeclarationRequestFixture.Cancelled().With(x => x.Reason, (string?)null).Create()
+            UpdateComplianceDeclarationRequestFixture
+                .Cancelled()
+                .With(x => x.Reason, (ComplianceDeclarationCancellationReason?)null)
+                .Create()
         );
 
         await VerifyJson(content);
@@ -130,7 +133,7 @@ public class UpdateComplianceDeclarationTests : EndpointTestBase
             .SendCancelledEmail(
                 Arg.Any<Defra.WasteObligations.Api.Data.Entities.ComplianceDeclaration>(),
                 Arg.Any<Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation>(),
-                Arg.Any<string>(),
+                Arg.Any<ComplianceDeclarationCancellationReason>(),
                 Arg.Any<IReadOnlyDictionary<string, string>>(),
                 Arg.Any<CancellationToken>()
             );
@@ -289,7 +292,7 @@ public class UpdateComplianceDeclarationTests : EndpointTestBase
             .SendCancelledEmail(
                 Arg.Any<Defra.WasteObligations.Api.Data.Entities.ComplianceDeclaration>(),
                 Arg.Any<Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation>(),
-                Arg.Any<string>(),
+                Arg.Any<ComplianceDeclarationCancellationReason>(),
                 Arg.Any<IReadOnlyDictionary<string, string>>(),
                 Arg.Any<CancellationToken>()
             );
@@ -316,7 +319,7 @@ public class UpdateComplianceDeclarationTests : EndpointTestBase
             .SendCancelledEmail(
                 Arg.Any<Defra.WasteObligations.Api.Data.Entities.ComplianceDeclaration>(),
                 Arg.Any<Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation>(),
-                ComplianceDeclarationCancellationReasons.ProducerRequestedToCancel,
+                ComplianceDeclarationCancellationReason.RequestedToCancel,
                 Arg.Is<IReadOnlyDictionary<string, string>>(x =>
                     x.Count == NotificationFixture.DirectProducerCancellationParameters().Count
                 ),

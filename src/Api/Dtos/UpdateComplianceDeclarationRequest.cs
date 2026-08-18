@@ -9,7 +9,7 @@ public record UpdateComplianceDeclarationRequest : IValidatableObject
     public ComplianceDeclarationStatus? Status { get; init; }
 
     [JsonPropertyName("reason")]
-    public string? Reason { get; init; }
+    public ComplianceDeclarationCancellationReason? Reason { get; init; }
 
     [Required]
     [JsonPropertyName("user")]
@@ -20,7 +20,7 @@ public record UpdateComplianceDeclarationRequest : IValidatableObject
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
-        if (Status is ComplianceDeclarationStatus.Cancelled && string.IsNullOrWhiteSpace(Reason))
+        if (Status is ComplianceDeclarationStatus.Cancelled && Reason is null)
         {
             yield return new ValidationResult(
                 "Reason is required when cancelling a compliance declaration.",

@@ -1,5 +1,6 @@
 using AutoFixture;
 using AwesomeAssertions;
+using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.AccountBackend;
 using Defra.WasteObligations.Api.Services.GovukNotify;
@@ -195,31 +196,23 @@ public class EmailServiceTests
 
     [Theory]
     [InlineData(
-        ComplianceDeclarationCancellationReasons.NotSignedByCorrectPerson,
+        ComplianceDeclarationCancellationReason.IncorrectSigner,
         GovukNotifyOptions.TemplateName.ComplianceDeclarationCancellationNotSignedByCorrectPerson
     )]
     [InlineData(
-        ComplianceDeclarationCancellationReasons.RecyclingObligationsChanged,
+        ComplianceDeclarationCancellationReason.RecyclingObligationsChanged,
         GovukNotifyOptions.TemplateName.ComplianceDeclarationCancellationRecyclingObligationsChanged
     )]
     [InlineData(
-        ComplianceDeclarationCancellationReasons.ProducerCanMeetRecyclingObligations,
+        ComplianceDeclarationCancellationReason.CanMeetRecyclingObligations,
         GovukNotifyOptions.TemplateName.ComplianceDeclarationCancellationCanMeetRecyclingObligations
     )]
     [InlineData(
-        ComplianceDeclarationCancellationReasons.ComplianceSchemeCanMeetRecyclingObligations,
-        GovukNotifyOptions.TemplateName.ComplianceDeclarationCancellationCanMeetRecyclingObligations
-    )]
-    [InlineData(
-        ComplianceDeclarationCancellationReasons.ProducerRequestedToCancel,
-        GovukNotifyOptions.TemplateName.ComplianceDeclarationCancellationProducerRequested
-    )]
-    [InlineData(
-        ComplianceDeclarationCancellationReasons.ComplianceSchemeRequestedToCancel,
+        ComplianceDeclarationCancellationReason.RequestedToCancel,
         GovukNotifyOptions.TemplateName.ComplianceDeclarationCancellationProducerRequested
     )]
     public async Task SendCancelledEmail_ShouldCallGovukNotify(
-        string reason,
+        ComplianceDeclarationCancellationReason reason,
         GovukNotifyOptions.TemplateName expectedTemplate
     )
     {
@@ -274,7 +267,7 @@ public class EmailServiceTests
         await Subject.SendCancelledEmail(
             complianceDeclaration,
             organisation,
-            ComplianceDeclarationCancellationReasons.ProducerRequestedToCancel,
+            ComplianceDeclarationCancellationReason.RequestedToCancel,
             NotificationFixture.ComplianceSchemeCancellationParameters(),
             TestContext.Current.CancellationToken
         );
@@ -305,7 +298,7 @@ public class EmailServiceTests
         await Subject.SendCancelledEmail(
             complianceDeclaration,
             organisation,
-            ComplianceDeclarationCancellationReasons.ProducerRequestedToCancel,
+            ComplianceDeclarationCancellationReason.RequestedToCancel,
             NotificationFixture.DirectProducerCancellationParameters(),
             TestContext.Current.CancellationToken
         );
@@ -334,7 +327,7 @@ public class EmailServiceTests
         await Subject.SendCancelledEmail(
             complianceDeclaration,
             organisation,
-            ComplianceDeclarationCancellationReasons.ProducerRequestedToCancel,
+            ComplianceDeclarationCancellationReason.RequestedToCancel,
             NotificationFixture.ComplianceSchemeCancellationParameters(),
             TestContext.Current.CancellationToken
         );
@@ -363,7 +356,7 @@ public class EmailServiceTests
         await Subject.SendCancelledEmail(
             complianceDeclaration,
             organisation,
-            ComplianceDeclarationCancellationReasons.ProducerRequestedToCancel,
+            ComplianceDeclarationCancellationReason.RequestedToCancel,
             new Dictionary<string, string> { ["environmentalRegulator_cy"] = overrideValue },
             TestContext.Current.CancellationToken
         );
@@ -380,27 +373,6 @@ public class EmailServiceTests
     }
 
     [Fact]
-    public async Task SendCancelledEmail_WhenReasonIsUnknown_ShouldNotCallGovukNotify()
-    {
-        await Subject.SendCancelledEmail(
-            ComplianceDeclarationFixture.DirectProducer(OrganisationFixture.OrganisationId).Create(),
-            OrganisationFixture.Default().Create(),
-            "Unknown reason",
-            NotificationFixture.DirectProducerCancellationParameters(),
-            TestContext.Current.CancellationToken
-        );
-
-        await GovukNotifyService
-            .DidNotReceive()
-            .SendComplianceDeclarationCancelledEmail(
-                Arg.Any<GovukNotifyOptions.TemplateName>(),
-                Arg.Any<IEnumerable<(string Email, Dictionary<string, object> Personalisation)>>(),
-                Arg.Any<string>()
-            );
-        EmailMetrics.DidNotReceive().SendStarted(Arg.Any<string>(), Arg.Any<string>());
-    }
-
-    [Fact]
     public async Task SendCancelledEmail_WhenNoRecipients_ShouldNotCallGovukNotify()
     {
         AccountBackendService
@@ -410,7 +382,7 @@ public class EmailServiceTests
         await Subject.SendCancelledEmail(
             ComplianceDeclarationFixture.DirectProducer(OrganisationFixture.OrganisationId).Create(),
             OrganisationFixture.Default().Create(),
-            ComplianceDeclarationCancellationReasons.ProducerRequestedToCancel,
+            ComplianceDeclarationCancellationReason.RequestedToCancel,
             NotificationFixture.DirectProducerCancellationParameters(),
             TestContext.Current.CancellationToken
         );
@@ -439,7 +411,7 @@ public class EmailServiceTests
             Subject.SendCancelledEmail(
                 ComplianceDeclarationFixture.DirectProducer(OrganisationFixture.OrganisationId).Create(),
                 OrganisationFixture.Default().Create(),
-                ComplianceDeclarationCancellationReasons.ProducerRequestedToCancel,
+                ComplianceDeclarationCancellationReason.RequestedToCancel,
                 NotificationFixture.DirectProducerCancellationParameters(),
                 TestContext.Current.CancellationToken
             );
@@ -461,7 +433,7 @@ public class EmailServiceTests
             Subject.SendCancelledEmail(
                 ComplianceDeclarationFixture.DirectProducer().Create(),
                 OrganisationFixture.Default().Create(),
-                ComplianceDeclarationCancellationReasons.ProducerRequestedToCancel,
+                ComplianceDeclarationCancellationReason.RequestedToCancel,
                 NotificationFixture.DirectProducerCancellationParameters(),
                 TestContext.Current.CancellationToken
             );

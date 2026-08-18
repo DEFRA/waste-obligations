@@ -52,7 +52,7 @@
       "action": "Submitted"
     },
     {
-      "reason": "Producer requested to cancel",
+      "reason": "RequestedToCancel",
       "user": {
         "id": "Guid_3",
         "email": "approved-person@email.com",
