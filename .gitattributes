@@ -1,0 +1,5 @@
+# Shell scripts are executed inside Linux containers, so they must keep LF
+# endings regardless of the platform they are checked out on. Without this a
+# Windows clone gives compose/init-floci.sh CRLF endings and `set -eu` fails
+# with "invalid option", leaving the AWS resources unprovisioned.
+*.sh text eol=lf
