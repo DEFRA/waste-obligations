@@ -373,6 +373,29 @@ public class EmailServiceTests
     }
 
     [Fact]
+    public async Task SendCancelledEmail_WhenReasonHasNoTemplate_ShouldNotCallGovukNotify()
+    {
+        const ComplianceDeclarationCancellationReason reason = (ComplianceDeclarationCancellationReason)999;
+
+        await Subject.SendCancelledEmail(
+            ComplianceDeclarationFixture.DirectProducer(OrganisationFixture.OrganisationId).Create(),
+            OrganisationFixture.Default().Create(),
+            reason,
+            NotificationFixture.DirectProducerCancellationParameters(),
+            TestContext.Current.CancellationToken
+        );
+
+        await GovukNotifyService
+            .DidNotReceive()
+            .SendComplianceDeclarationCancelledEmail(
+                Arg.Any<GovukNotifyOptions.TemplateName>(),
+                Arg.Any<IEnumerable<(string Email, Dictionary<string, object> Personalisation)>>(),
+                Arg.Any<string>()
+            );
+        EmailMetrics.DidNotReceive().SendStarted(Arg.Any<string>(), Arg.Any<string>());
+    }
+
+    [Fact]
     public async Task SendCancelledEmail_WhenNoRecipients_ShouldNotCallGovukNotify()
     {
         AccountBackendService

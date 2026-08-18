@@ -192,6 +192,21 @@ public class UpdateComplianceDeclarationTests : EndpointTestBase
     }
 
     [Fact]
+    public async Task Validation_WhenCancellingAndReasonInvalid_ShouldBeBadRequest()
+    {
+        var content = await RequestShouldBeBadRequest(
+            new
+            {
+                Status = "Cancelled",
+                Reason = "Not signed by correct person",
+                User = UserFixture.ApprovedPerson().Create(),
+            }
+        );
+
+        await VerifyJson(content);
+    }
+
+    [Fact]
     public async Task WhenException_ShouldBeInternalServerError()
     {
         var client = CreateClient(testUser: TestUser.WriteOnly);
