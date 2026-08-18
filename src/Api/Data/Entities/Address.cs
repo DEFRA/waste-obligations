@@ -1,5 +1,8 @@
+using MongoDB.Bson.Serialization.Attributes;
+
 namespace Defra.WasteObligations.Api.Data.Entities;
 
+[BsonIgnoreExtraElements]
 public record Address
 {
     public string? AddressLine1 { get; init; }

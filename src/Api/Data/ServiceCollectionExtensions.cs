@@ -19,7 +19,8 @@ public static class ServiceCollectionExtensions
         services
             .AddOptions<MongoDbOptions>()
             .Bind(configuration.GetSection(MongoDbOptions.SectionName))
-            .ValidateDataAnnotations();
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
         if (validateConfigOnly)
             return services;

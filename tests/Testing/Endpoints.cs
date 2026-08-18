@@ -14,6 +14,8 @@ public static class Endpoints
     {
         public static string Ready() => "health";
 
+        public static string Authorized() => $"{Ready()}/authorized";
+
         public static string All() => $"{Ready()}/all";
     }
 
@@ -34,6 +36,19 @@ public static class Endpoints
 
             public static string Read(Guid organisationId, EndpointQuery? query = null) =>
                 $"{Organisations.Read(organisationId)}/{Root}{query}";
+        }
+
+        public static class Prns
+        {
+            private static string Root = "prns";
+
+            public static string Search(Guid organisationId, EndpointQuery? query = null) =>
+                $"{Organisations.Read(organisationId)}/{Root}{query}";
+
+            public static string Read(Guid organisationId, string prnId) =>
+                $"{Organisations.Read(organisationId)}/{Root}/{prnId}";
+
+            public static string Update(Guid organisationId, string prnId) => Read(organisationId, prnId);
         }
 
         public static class ComplianceDeclarations

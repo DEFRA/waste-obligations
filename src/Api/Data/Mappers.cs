@@ -5,7 +5,7 @@ namespace Defra.WasteObligations.Api.Data;
 public static class Mappers
 {
     public static Dtos.ComplianceDeclarationsPaged ToDto(
-        this ComplianceDeclarationSearchResult result,
+        this ComplianceDeclarationPageResult result,
         int page,
         int pageSize
     ) =>

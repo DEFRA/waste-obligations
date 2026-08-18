@@ -8,7 +8,7 @@ namespace Defra.WasteObligations.Api.Data.Entities;
 [BsonIgnoreExtraElements]
 public record ComplianceDeclaration
 {
-    public const string SchemaVersionValue = "v1.0";
+    public const string SchemaVersionValue = "v1.2";
 
     public ObjectId Id { get; init; }
     public string SchemaVersion { get; private init; } = SchemaVersionValue;
@@ -27,6 +27,7 @@ public record ComplianceDeclaration
     public required string SubmitterName { get; init; }
     public IEnumerable<AuditEntry> Audit { get; init; } = [];
     public bool IsRegulation43Compliant { get; init; }
+    public decimal? ObligationCoveragePercentage { get; init; }
 
     public ComplianceDeclaration Submit(User user, DateTime timestamp)
     {
@@ -36,6 +37,7 @@ public record ComplianceDeclaration
         {
             Id = ObjectId.GenerateNewId(),
             Status = ComplianceDeclarationStatus.Submitted,
+            ObligationCoveragePercentage = ObligationCoveragePercentageCalculator.CalculateFromObligations(Obligations),
             Audit = new List<AuditEntry>
             {
                 new(nameof(ComplianceDeclarationStatus.Submitted)) { User = user, Timestamp = timestamp },
@@ -85,6 +87,7 @@ public record ComplianceDeclaration
             ComplianceDeclarationStatus.Submitted => next
                 is ComplianceDeclarationStatus.Accepted
                     or ComplianceDeclarationStatus.Cancelled,
+            ComplianceDeclarationStatus.Accepted => next is ComplianceDeclarationStatus.Cancelled,
             _ => false,
         };
 }

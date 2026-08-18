@@ -1,4 +1,4 @@
-﻿{
+{
   "id": "6830b14f9d2a7c61f4e8b935",
   "created": "DateTimeOffset_1",
   "updated": "DateTimeOffset_2",
@@ -39,12 +39,14 @@
   "obligationStatus": "NotMet",
   "submitterName": "Submitter Name",
   "isRegulation43Compliant": true,
+  "obligationCoveragePercentage": 40,
   "audit": [
     {
       "user": {
         "id": "Guid_2",
         "email": "submitter@email.com",
-        "name": "Submitter Name"
+        "name": "Submitter Name",
+        "locale": "en"
       },
       "timestamp": "DateTimeOffset_1",
       "action": "Submitted"
@@ -53,7 +55,8 @@
       "user": {
         "id": "Guid_3",
         "email": "regulator@email.com",
-        "name": "Regulator Name"
+        "name": "Regulator Name",
+        "locale": "en"
       },
       "timestamp": "DateTimeOffset_1",
       "action": "Accepted"

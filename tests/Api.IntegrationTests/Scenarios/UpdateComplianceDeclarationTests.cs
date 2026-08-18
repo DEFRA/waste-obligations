@@ -18,7 +18,7 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
     private const string Update = "update";
 
     [Fact]
-    public async Task WhenCreatedAndAccepted_ShouldUpdate()
+    public async Task WhenCreatedAcceptedThenCancelled_ShouldUpdate()
     {
         var organisationId = Guid.NewGuid();
         using var sqsClient = CreateSqsClient();
@@ -26,11 +26,6 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
             organisationId,
             BasicAuthCredential.ForClient(ClientIds.WasteOrganisations)
         );
-        await WireMockContext.WireMockAdminApi.StubTokenRequest(
-            expiryInSeconds: 60,
-            clientId: ClientIds.AccountBackend
-        );
-
         var client = CreateClient();
 
         var response = await client.PostAsJsonAsync(
@@ -55,6 +50,15 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
         );
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
+        await AssertAnalyticsEventQueued(sqsClient, result.Id, Update, Amended);
+
+        response = await client.PatchAsJsonAsync(
+            Testing.Endpoints.Organisations.ComplianceDeclarations.Update(organisationId, result.Id),
+            UpdateComplianceDeclarationRequestFixture.Cancelled().Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var complianceDeclaration = await client.GetStringAsync(
             Testing.Endpoints.Organisations.ComplianceDeclarations.Read(organisationId, result.Id),
@@ -74,11 +78,6 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
             organisationId,
             BasicAuthCredential.ForClient(ClientIds.WasteOrganisations)
         );
-        await WireMockContext.WireMockAdminApi.StubTokenRequest(
-            expiryInSeconds: 60,
-            clientId: ClientIds.AccountBackend
-        );
-
         var client = CreateClient();
 
         var response = await client.PostAsJsonAsync(

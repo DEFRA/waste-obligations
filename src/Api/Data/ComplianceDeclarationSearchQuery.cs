@@ -8,4 +8,5 @@ public record ComplianceDeclarationSearchQuery
     public ComplianceDeclarationStatus[]? Status { get; init; }
     public RegistrationType[]? RegistrationType { get; init; }
     public string? Search { get; init; }
+    public ComplianceDeclarationSort[]? Sort { get; init; }
 }

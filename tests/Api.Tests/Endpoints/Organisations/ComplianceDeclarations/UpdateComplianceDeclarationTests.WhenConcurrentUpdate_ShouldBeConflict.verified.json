@@ -1,4 +1,4 @@
-﻿{
+{
   "type": "https://tools.ietf.org/html/rfc9110#section-15.5.10",
   "title": "Concurrency conflict",
   "status": 409,

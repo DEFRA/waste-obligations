@@ -3,6 +3,7 @@ using MongoDB.Bson.Serialization.Attributes;
 
 namespace Defra.WasteObligations.Api.Data.Entities;
 
+[BsonIgnoreExtraElements]
 public record Organisation
 {
     [BsonGuidRepresentation(GuidRepresentation.Standard)]

@@ -25,7 +25,11 @@ public class SearchComplianceDeclarationTests : IntegrationTestBase
     {
         var database = GetMongoDatabase();
         var auditEventDbContext = new AuditEventDbContext(database);
-        var dbContext = new MongoDbContext(database);
+        var dbContext = new MongoDbContext(
+            database,
+            Options.Create(new MongoDbOptions()),
+            Substitute.For<Microsoft.Extensions.Logging.ILogger<MongoDbContext>>()
+        );
         var auditEventService = new AuditEventService(
             auditEventDbContext,
             TimeProvider.System,
@@ -38,8 +42,7 @@ public class SearchComplianceDeclarationTests : IntegrationTestBase
             TimeProvider.System,
             auditEventService,
             Substitute.For<IComplianceDeclarationMetrics>(),
-            new HeaderPropagationValues(),
-            Options.Create(new TraceHeader { Name = TraceHeaderName })
+            new TraceIdReader(new HeaderPropagationValues(), Options.Create(new TraceHeader { Name = TraceHeaderName }))
         );
     }
 
@@ -85,6 +88,7 @@ public class SearchComplianceDeclarationTests : IntegrationTestBase
 
         collectedDeclarations.Should().HaveCount(recordCount);
         collectedDeclarations.Select(x => x.Id).Should().BeEquivalentTo(seededIds);
+        collectedDeclarations.Should().OnlyContain(x => x.ObligationCoveragePercentage == 40m);
     }
 
     [Theory]

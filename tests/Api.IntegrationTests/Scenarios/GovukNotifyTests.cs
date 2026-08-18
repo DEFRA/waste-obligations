@@ -6,26 +6,35 @@ namespace Defra.WasteObligations.Api.IntegrationTests.Scenarios;
 public class GovukNotifyTests(ITestOutputHelper testOutputHelper) : IntegrationTestBase
 {
     [Theory]
-    [InlineData(GovukNotifyTemplateIds.ComplianceDeclarationSubmissionDirectProducerEnglish)]
-    [InlineData(GovukNotifyTemplateIds.ComplianceDeclarationSubmissionDirectProducerWelsh)]
-    [InlineData(GovukNotifyTemplateIds.ComplianceDeclarationSubmissionComplianceSchemeEnglish)]
-    [InlineData(GovukNotifyTemplateIds.ComplianceDeclarationSubmissionComplianceSchemeWelsh)]
-    public async Task SubmissionEmail_ShouldRenderPersonalisation(string templateId)
+    [InlineData(GovukNotifyTemplateIds.ComplianceDeclarationSubmissionDirectProducerEnglish, false)]
+    [InlineData(GovukNotifyTemplateIds.ComplianceDeclarationSubmissionDirectProducerWelsh, true)]
+    [InlineData(GovukNotifyTemplateIds.ComplianceDeclarationSubmissionComplianceSchemeEnglish, false)]
+    [InlineData(GovukNotifyTemplateIds.ComplianceDeclarationSubmissionComplianceSchemeWelsh, true)]
+    public async Task SubmissionEmail_ShouldRenderPersonalisation(string templateId, bool isWales)
     {
         const int obligationYear = 2026;
         const string obligationYearText = "2026";
-        const string regulator = "Regulator";
+        const string regulatorName = "Regulator";
         const string regulatorEmail = "regulator@email.com";
         const string user = "Submitter Name";
+        var regulatorLeading = isWales ? regulatorName : $"The {regulatorName}";
+        var regulatorInline = isWales ? regulatorName : $"the {regulatorName}";
 
-        var preview = await GenerateTemplatePreview(templateId, obligationYear, regulator, regulatorEmail, user);
+        var preview = await GenerateTemplatePreview(
+            templateId,
+            obligationYear,
+            regulatorLeading,
+            regulatorInline,
+            regulatorEmail,
+            user
+        );
         if (preview is null)
             return;
 
         preview.Value.Subject.Should().Contain(obligationYearText);
-        preview.Value.Subject.Should().Contain(regulator);
+        preview.Value.Subject.Should().Contain(regulatorName);
         preview.Value.Body.Should().Contain(obligationYearText);
-        preview.Value.Body.Should().Contain(regulator);
+        preview.Value.Body.Should().Contain(regulatorName);
         preview.Value.Body.Should().Contain(regulatorEmail);
         preview.Value.Body.Should().Contain(user);
     }
@@ -33,7 +42,8 @@ public class GovukNotifyTests(ITestOutputHelper testOutputHelper) : IntegrationT
     private async Task<(string Body, string Subject)?> GenerateTemplatePreview(
         string templateId,
         int obligationYear,
-        string regulator,
+        string regulatorLeading,
+        string regulatorInline,
         string regulatorEmail,
         string user
     )
@@ -52,7 +62,8 @@ public class GovukNotifyTests(ITestOutputHelper testOutputHelper) : IntegrationT
         var personalisation = new Dictionary<string, object>
         {
             { "obligationYear", obligationYear },
-            { "regulator", regulator },
+            { "regulatorLeading", regulatorLeading },
+            { "regulatorInline", regulatorInline },
             { "regulatorEmail", regulatorEmail },
             { "user", user },
         };

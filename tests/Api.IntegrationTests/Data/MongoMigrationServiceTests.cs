@@ -3,6 +3,7 @@ using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Data.Migrations;
+using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.AuditEvents.Data;
 using Defra.WasteObligations.AuditEvents.Entities;
 using Microsoft.Extensions.Logging;
@@ -10,11 +11,16 @@ using MongoDB.Bson;
 using MongoDB.Driver;
 using NSubstitute;
 using AuditEventIndexesMigration = Defra.WasteObligations.Api.Data.Migrations.AuditEventIndexes;
+using ComplianceDeclaration = Defra.WasteObligations.Api.Data.Entities.ComplianceDeclaration;
+using ComplianceDeclarationStatus = Defra.WasteObligations.Api.Data.Entities.ComplianceDeclarationStatus;
+using RegistrationType = Defra.WasteObligations.Api.Data.Entities.RegistrationType;
 
 namespace Defra.WasteObligations.Api.IntegrationTests.Data;
 
 public class MongoMigrationServiceTests : IntegrationTestBase
 {
+    private const string SchemaVersionV1_1 = "v1.1";
+    private const string SchemaVersionV1_2 = "v1.2";
     private const string OrganisationIdObligationYearIndexName = "OrganisationId_ObligationYear";
     private const string SearchIndexName = "ObligationYear_Status_OrganisationRegistrationType";
     private const string OrganisationNameIndexName = "OrganisationName";
@@ -31,11 +37,16 @@ public class MongoMigrationServiceTests : IntegrationTestBase
     public async Task Start_ShouldCreateIndex()
     {
         var database = GetMongoDatabase();
+        var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
         var subject = new MongoMigrationService(
             database,
             TimeProvider.System,
             Substitute.For<ILogger<MongoMigrationService>>()
         );
+        await database.DropCollectionAsync("_migrations", TestContext.Current.CancellationToken);
+        await database.DropCollectionAsync("_migrations_lease", TestContext.Current.CancellationToken);
+        await new ComplianceDeclarationIndexes().DownAsync(context);
+        await new AuditEventIndexesMigration().DownAsync(context);
 
         await subject.StartAsync(TestContext.Current.CancellationToken);
 
@@ -60,7 +71,9 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             ["sequence"] = 1,
         };
 
-        complianceDeclarationIndexes.Should().Contain(x => x.GetValue("name") == "OrganisationId_ObligationYear");
+        complianceDeclarationIndexes
+            .Should()
+            .Contain(x => IsIndex(x, OrganisationIdObligationYearIndexName, OrganisationReadIndexKeys()));
         auditEventIndexes.Should().Contain(x => IsIndex(x, SequenceIndexName, sequenceKeys, unique: true));
         auditEventIndexes.Should().Contain(x => IsIndex(x, EntityEntityIdVersionIndexName, entityKeys));
         auditEventIndexes.Should().Contain(x => IsIndex(x, DispatchAnalyticsIndexName, dispatchKeys));
@@ -101,15 +114,9 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         await subject.UpAsync(context);
 
         var indexes = await ListComplianceDeclarationIndexes();
-        indexes.Should().Contain(x => x.GetValue("name") == OrganisationIdObligationYearIndexName);
+        indexes.Should().Contain(x => IsIndex(x, OrganisationIdObligationYearIndexName, OrganisationYearIndexKeys()));
         indexes.Should().Contain(x => x.GetValue("name") == SearchIndexName);
         indexes.Should().Contain(x => x.GetValue("name") == OrganisationNameIndexName);
-        indexes
-            .Single(x => x.GetValue("name") == OrganisationIdObligationYearIndexName)
-            .GetValue("key")
-            .AsBsonDocument.Equals(new BsonDocument("created", 1))
-            .Should()
-            .BeFalse();
 
         await subject.DownAsync(context);
         await subject.DownAsync(context);
@@ -123,27 +130,53 @@ public class MongoMigrationServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task ComplianceDeclarationOrganisationReadIndex_ShouldCreateReplaceAndRestoreIndex()
+    {
+        var database = GetMongoDatabase();
+        var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
+        var subject = new ComplianceDeclarationOrganisationReadIndex();
+        await subject.DownAsync(context);
+
+        var indexes = await ListComplianceDeclarationIndexes();
+        indexes.Should().Contain(x => IsIndex(x, OrganisationIdObligationYearIndexName, OrganisationYearIndexKeys()));
+
+        await subject.UpAsync(context);
+
+        indexes = await ListComplianceDeclarationIndexes();
+        indexes.Should().Contain(x => IsIndex(x, OrganisationIdObligationYearIndexName, OrganisationReadIndexKeys()));
+
+        await subject.DownAsync(context);
+
+        indexes = await ListComplianceDeclarationIndexes();
+        indexes.Should().Contain(x => IsIndex(x, OrganisationIdObligationYearIndexName, OrganisationYearIndexKeys()));
+
+        await subject.UpAsync(context);
+    }
+
+    [Fact]
     public async Task ComplianceDeclarationSearchIndexes_ShouldCreateAndDropIndexes()
     {
         var database = GetMongoDatabase();
         var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
         var subject = new ComplianceDeclarationSearchIndexes();
+        var searchIndexNames = new[]
+        {
+            OrganisationComplianceSchemeNameIndexName,
+            OrganisationSchemeOperatorNameIndexName,
+            OrganisationReferenceNumberIndexName,
+        };
         await subject.DownAsync(context);
 
         await subject.UpAsync(context);
 
-        var indexes = await ListComplianceDeclarationIndexes();
-        indexes.Should().Contain(x => x.GetValue("name") == OrganisationComplianceSchemeNameIndexName);
-        indexes.Should().Contain(x => x.GetValue("name") == OrganisationSchemeOperatorNameIndexName);
-        indexes.Should().Contain(x => x.GetValue("name") == OrganisationReferenceNumberIndexName);
+        var names = await ListComplianceDeclarationIndexNames();
+        names.Should().Contain(searchIndexNames);
 
         await subject.DownAsync(context);
         await subject.DownAsync(context);
-        indexes = await ListComplianceDeclarationIndexes();
+        names = await ListComplianceDeclarationIndexNames();
 
-        indexes.Should().NotContain(x => x.GetValue("name") == OrganisationComplianceSchemeNameIndexName);
-        indexes.Should().NotContain(x => x.GetValue("name") == OrganisationSchemeOperatorNameIndexName);
-        indexes.Should().NotContain(x => x.GetValue("name") == OrganisationReferenceNumberIndexName);
+        names.Should().NotContain(searchIndexNames);
 
         await subject.UpAsync(context);
     }
@@ -205,10 +238,483 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         await subject.UpAsync(context);
     }
 
+    [Fact]
+    public async Task ComplianceDeclarationUserLocale_ShouldBumpSchemaVersionAndLeaveLegacyLocaleNull()
+    {
+        var database = GetMongoDatabase();
+        var collection = database.GetCollection<BsonDocument>(nameof(ComplianceDeclaration));
+        var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
+        var subject = new ComplianceDeclarationUserLocale();
+        var legacyId = ObjectId.GenerateNewId();
+        var existingLocaleId = ObjectId.GenerateNewId();
+        var alreadyMigratedId = ObjectId.GenerateNewId();
+        var timestamp = new DateTime(2026, 4, 26, 14, 0, 0, DateTimeKind.Utc);
+
+        await collection.InsertManyAsync(
+            [
+                CreateLegacyComplianceDeclaration(
+                    legacyId,
+                    timestamp,
+                    submittedUserLocale: null,
+                    schemaVersion: "v1.0"
+                ),
+                CreateLegacyComplianceDeclaration(
+                    existingLocaleId,
+                    timestamp,
+                    submittedUserLocale: UserLocale.Cy,
+                    schemaVersion: "v1.0"
+                ),
+                CreateLegacyComplianceDeclaration(
+                    alreadyMigratedId,
+                    timestamp,
+                    submittedUserLocale: UserLocale.En,
+                    schemaVersion: SchemaVersionV1_1
+                ),
+            ],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+
+        await subject.UpAsync(context);
+
+        var legacy = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", legacyId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        legacy["schemaVersion"].AsString.Should().Be(SchemaVersionV1_1);
+        GetSubmittedAuditUser(legacy)["locale"].Should().Be(BsonNull.Value);
+
+        var existingLocale = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", existingLocaleId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        existingLocale["schemaVersion"].AsString.Should().Be(SchemaVersionV1_1);
+        GetSubmittedAuditUser(existingLocale)["locale"].AsString.Should().Be(UserLocale.Cy);
+
+        var alreadyMigrated = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", alreadyMigratedId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        alreadyMigrated["schemaVersion"].AsString.Should().Be(SchemaVersionV1_1);
+        GetSubmittedAuditUser(alreadyMigrated)["locale"].AsString.Should().Be(UserLocale.En);
+
+        await subject.DownAsync(context);
+
+        legacy = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", legacyId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        legacy["schemaVersion"].AsString.Should().Be("v1.0");
+        GetSubmittedAuditUser(legacy).Contains("locale").Should().BeFalse();
+
+        existingLocale = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", existingLocaleId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        existingLocale["schemaVersion"].AsString.Should().Be("v1.0");
+        GetSubmittedAuditUser(existingLocale).Contains("locale").Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ComplianceDeclarationObligationCoveragePercentage_ShouldBackfillAndBumpSchemaVersion()
+    {
+        var database = GetMongoDatabase();
+        var collection = database.GetCollection<BsonDocument>(nameof(ComplianceDeclaration));
+        var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
+        var subject = new ComplianceDeclarationObligationCoveragePercentage();
+        var legacyId = ObjectId.GenerateNewId();
+        var roundingLegacyId = ObjectId.GenerateNewId();
+        var existingPercentageId = ObjectId.GenerateNewId();
+        var alreadyMigratedId = ObjectId.GenerateNewId();
+        var timestamp = new DateTime(2026, 4, 26, 14, 0, 0, DateTimeKind.Utc);
+        const decimal existingPercentage = 75m;
+
+        await collection.InsertManyAsync(
+            [
+                CreateLegacyComplianceDeclaration(
+                    legacyId,
+                    timestamp,
+                    submittedUserLocale: null,
+                    schemaVersion: SchemaVersionV1_1,
+                    obligationCoveragePercentage: null
+                ),
+                CreateLegacyComplianceDeclaration(
+                    roundingLegacyId,
+                    timestamp,
+                    submittedUserLocale: UserLocale.En,
+                    schemaVersion: SchemaVersionV1_1,
+                    obligationCoveragePercentage: null,
+                    accepted: 1,
+                    obligated: 3
+                ),
+                CreateLegacyComplianceDeclaration(
+                    existingPercentageId,
+                    timestamp,
+                    submittedUserLocale: UserLocale.En,
+                    schemaVersion: SchemaVersionV1_1,
+                    obligationCoveragePercentage: existingPercentage
+                ),
+                CreateLegacyComplianceDeclaration(
+                    alreadyMigratedId,
+                    timestamp,
+                    submittedUserLocale: UserLocale.En,
+                    schemaVersion: SchemaVersionV1_2,
+                    obligationCoveragePercentage: existingPercentage
+                ),
+            ],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+
+        await subject.UpAsync(context);
+
+        var legacy = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", legacyId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        legacy["schemaVersion"].AsString.Should().Be(SchemaVersionV1_2);
+        legacy[ObligationCoveragePercentageField].ToDecimal().Should().Be(40m);
+
+        var roundingLegacy = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", roundingLegacyId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        roundingLegacy["schemaVersion"].AsString.Should().Be(SchemaVersionV1_2);
+        roundingLegacy[ObligationCoveragePercentageField].ToDecimal().Should().Be(33m);
+
+        var existingPercentageDocument = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", existingPercentageId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        existingPercentageDocument["schemaVersion"].AsString.Should().Be(SchemaVersionV1_2);
+        existingPercentageDocument[ObligationCoveragePercentageField].ToDecimal().Should().Be(existingPercentage);
+
+        var alreadyMigrated = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", alreadyMigratedId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        alreadyMigrated["schemaVersion"].AsString.Should().Be(SchemaVersionV1_2);
+        alreadyMigrated[ObligationCoveragePercentageField].ToDecimal().Should().Be(existingPercentage);
+
+        await subject.UpAsync(context);
+
+        legacy[ObligationCoveragePercentageField].ToDecimal().Should().Be(40m);
+
+        await subject.DownAsync(context);
+
+        legacy = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", legacyId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        legacy["schemaVersion"].AsString.Should().Be(SchemaVersionV1_1);
+        legacy.Contains(ObligationCoveragePercentageField).Should().BeFalse();
+
+        existingPercentageDocument = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", existingPercentageId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        existingPercentageDocument["schemaVersion"].AsString.Should().Be(SchemaVersionV1_1);
+        existingPercentageDocument.Contains(ObligationCoveragePercentageField).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ComplianceDeclarationObligationCoveragePercentagePrecision_ShouldRecalculateWithSumFormulaAndCap()
+    {
+        var database = GetMongoDatabase();
+        var collection = database.GetCollection<BsonDocument>(nameof(ComplianceDeclaration));
+        var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
+        var subject = new ComplianceDeclarationObligationCoveragePercentagePrecision();
+        var recalculatedId = ObjectId.GenerateNewId();
+        var cappedId = ObjectId.GenerateNewId();
+        var scenario2Id = ObjectId.GenerateNewId();
+        var multiMaterialId = ObjectId.GenerateNewId();
+        var storedTwoDecimalPlacesId = ObjectId.GenerateNewId();
+        var wholeNumberId = ObjectId.GenerateNewId();
+        var zeroObligatedId = ObjectId.GenerateNewId();
+        var timestamp = new DateTime(2026, 4, 26, 14, 0, 0, DateTimeKind.Utc);
+        const decimal wholeNumberPercentage = 75m;
+
+        await collection.InsertManyAsync(
+            [
+                CreateLegacyComplianceDeclaration(
+                    recalculatedId,
+                    timestamp,
+                    submittedUserLocale: UserLocale.En,
+                    schemaVersion: SchemaVersionV1_2,
+                    obligationCoveragePercentage: null,
+                    accepted: 1,
+                    obligated: 3
+                ),
+                CreateLegacyComplianceDeclaration(
+                    cappedId,
+                    timestamp,
+                    submittedUserLocale: UserLocale.En,
+                    schemaVersion: SchemaVersionV1_2,
+                    obligationCoveragePercentage: 124m,
+                    accepted: 1150,
+                    obligated: 925
+                ),
+                CreateLegacyComplianceDeclaration(
+                    scenario2Id,
+                    timestamp,
+                    submittedUserLocale: UserLocale.En,
+                    schemaVersion: SchemaVersionV1_2,
+                    obligationCoveragePercentage: 92m,
+                    accepted: 850,
+                    obligated: 925
+                ),
+                CreateLegacyComplianceDeclarationWithObligations(
+                    multiMaterialId,
+                    timestamp,
+                    submittedUserLocale: UserLocale.En,
+                    schemaVersion: SchemaVersionV1_2,
+                    obligationCoveragePercentage: 50m,
+                    obligations:
+                    [
+                        CreateLegacyObligation("Plastic", accepted: 100, obligated: 50),
+                        CreateLegacyObligation("Glass", accepted: 0, obligated: 50),
+                    ]
+                ),
+                CreateLegacyComplianceDeclaration(
+                    storedTwoDecimalPlacesId,
+                    timestamp,
+                    submittedUserLocale: UserLocale.En,
+                    schemaVersion: SchemaVersionV1_2,
+                    obligationCoveragePercentage: 33.33m,
+                    accepted: 1,
+                    obligated: 3
+                ),
+                CreateLegacyComplianceDeclaration(
+                    wholeNumberId,
+                    timestamp,
+                    submittedUserLocale: UserLocale.En,
+                    schemaVersion: SchemaVersionV1_2,
+                    obligationCoveragePercentage: wholeNumberPercentage,
+                    accepted: 3,
+                    obligated: 4
+                ),
+                CreateLegacyComplianceDeclaration(
+                    zeroObligatedId,
+                    timestamp,
+                    submittedUserLocale: UserLocale.En,
+                    schemaVersion: SchemaVersionV1_2,
+                    obligationCoveragePercentage: 10m,
+                    accepted: 0,
+                    obligated: 0
+                ),
+            ],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+
+        await subject.UpAsync(context);
+
+        var recalculated = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", recalculatedId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        recalculated["schemaVersion"].AsString.Should().Be(SchemaVersionV1_2);
+        recalculated[ObligationCoveragePercentageField].ToDecimal().Should().Be(33m);
+
+        var capped = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", cappedId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        capped[ObligationCoveragePercentageField].ToDecimal().Should().Be(100m);
+
+        var scenario2 = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", scenario2Id))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        scenario2[ObligationCoveragePercentageField].ToDecimal().Should().Be(92m);
+
+        var multiMaterial = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", multiMaterialId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        multiMaterial[ObligationCoveragePercentageField].ToDecimal().Should().Be(100m);
+
+        var storedTwoDecimalPlaces = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", storedTwoDecimalPlacesId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        storedTwoDecimalPlaces[ObligationCoveragePercentageField].ToDecimal().Should().Be(33m);
+
+        var wholeNumber = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", wholeNumberId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        wholeNumber[ObligationCoveragePercentageField].ToDecimal().Should().Be(wholeNumberPercentage);
+
+        var zeroObligated = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", zeroObligatedId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        zeroObligated[ObligationCoveragePercentageField].ToDecimal().Should().Be(0m);
+
+        await subject.UpAsync(context);
+
+        recalculated[ObligationCoveragePercentageField].ToDecimal().Should().Be(33m);
+        capped[ObligationCoveragePercentageField].ToDecimal().Should().Be(100m);
+
+        await subject.DownAsync(context);
+
+        recalculated = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", recalculatedId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        recalculated[ObligationCoveragePercentageField].ToDecimal().Should().Be(33.3m);
+
+        multiMaterial = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", multiMaterialId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        multiMaterial[ObligationCoveragePercentageField].ToDecimal().Should().Be(50m);
+
+        storedTwoDecimalPlaces = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", storedTwoDecimalPlacesId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        storedTwoDecimalPlaces[ObligationCoveragePercentageField].ToDecimal().Should().Be(33.3m);
+
+        zeroObligated = await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", zeroObligatedId))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        zeroObligated[ObligationCoveragePercentageField].ToDecimal().Should().Be(0m);
+    }
+
+    private const string ObligationCoveragePercentageField = "obligationCoveragePercentage";
+
+    private static BsonDocument CreateLegacyComplianceDeclaration(
+        ObjectId id,
+        DateTime timestamp,
+        string? submittedUserLocale,
+        string schemaVersion,
+        decimal? obligationCoveragePercentage = null,
+        int accepted = 2,
+        int obligated = 5
+    )
+    {
+        var submittedUser = new BsonDocument
+        {
+            ["_id"] = "e72be574-8b5b-4836-af47-dd7e0c0d1d87",
+            ["email"] = "submitter@email.com",
+            ["name"] = "Submitter Name",
+        };
+
+        if (submittedUserLocale is not null)
+        {
+            submittedUser["locale"] = submittedUserLocale;
+        }
+
+        var document = new BsonDocument
+        {
+            ["_id"] = id,
+            ["schemaVersion"] = schemaVersion,
+            ["version"] = 1,
+            ["created"] = timestamp,
+            ["updated"] = timestamp,
+            ["status"] = nameof(ComplianceDeclarationStatus.Submitted),
+            ["obligationYear"] = 2026,
+            ["obligationStatus"] = "NotMet",
+            ["submitterName"] = "Submitter Name",
+            ["isRegulation43Compliant"] = true,
+            ["organisation"] = new BsonDocument
+            {
+                ["_id"] = Guid.NewGuid().ToString(),
+                ["registrationType"] = nameof(RegistrationType.DirectProducer),
+                ["name"] = "Org Name",
+                ["complianceSchemeName"] = BsonNull.Value,
+                ["schemeOperatorName"] = BsonNull.Value,
+                ["referenceNumber"] = "123456",
+                ["regulator"] = "Regulator",
+                ["regulatorEmail"] = "regulator@email.com",
+            },
+            ["obligations"] = new BsonArray
+            {
+                new BsonDocument
+                {
+                    ["material"] = "Plastic",
+                    ["recyclingTarget"] = 0.75m,
+                    ["status"] = "NoDataYet",
+                    ["tonnages"] = new BsonDocument
+                    {
+                        ["material"] = 100,
+                        ["awaitingAcceptance"] = 10,
+                        ["accepted"] = accepted,
+                        ["outstanding"] = 20,
+                        ["obligated"] = obligated,
+                    },
+                },
+            },
+            ["audit"] = new BsonArray
+            {
+                new BsonDocument
+                {
+                    ["action"] = nameof(ComplianceDeclarationStatus.Submitted),
+                    ["timestamp"] = timestamp,
+                    ["user"] = submittedUser,
+                },
+            },
+        };
+
+        if (obligationCoveragePercentage is not null)
+        {
+            document[ObligationCoveragePercentageField] = new BsonDecimal128(obligationCoveragePercentage.Value);
+        }
+
+        return document;
+    }
+
+    private static BsonDocument CreateLegacyComplianceDeclarationWithObligations(
+        ObjectId id,
+        DateTime timestamp,
+        string? submittedUserLocale,
+        string schemaVersion,
+        decimal? obligationCoveragePercentage,
+        BsonArray obligations
+    )
+    {
+        var document = CreateLegacyComplianceDeclaration(
+            id,
+            timestamp,
+            submittedUserLocale,
+            schemaVersion,
+            obligationCoveragePercentage
+        );
+        document["obligations"] = obligations;
+
+        return document;
+    }
+
+    private static BsonDocument CreateLegacyObligation(string material, int accepted, int obligated) =>
+        new()
+        {
+            ["material"] = material,
+            ["recyclingTarget"] = 0.75m,
+            ["status"] = "NoDataYet",
+            ["tonnages"] = new BsonDocument
+            {
+                ["material"] = 100,
+                ["awaitingAcceptance"] = 10,
+                ["accepted"] = accepted,
+                ["outstanding"] = 20,
+                ["obligated"] = obligated,
+            },
+        };
+
+    private static BsonDocument GetSubmittedAuditUser(BsonDocument document) =>
+        document["audit"]
+            .AsBsonArray.Single(x =>
+                x.AsBsonDocument["action"].AsString == nameof(ComplianceDeclarationStatus.Submitted)
+            )["user"]
+            .AsBsonDocument;
+
     private static bool IsIndex(BsonDocument index, string name, BsonDocument keys, bool unique = false) =>
         index.GetValue("name") == name
         && index.GetValue("key").AsBsonDocument == keys
         && (!unique || index.GetValue("unique", false).AsBoolean);
+
+    private BsonDocument OrganisationReadIndexKeys() =>
+        RenderIndexKeys(
+            Builders<ComplianceDeclaration>
+                .IndexKeys.Ascending(x => x.Organisation.Id)
+                .Ascending(x => x.ObligationYear)
+                .Descending(x => x.Updated)
+                .Ascending(x => x.Id)
+        );
+
+    private BsonDocument OrganisationYearIndexKeys() =>
+        RenderIndexKeys(
+            Builders<ComplianceDeclaration>.IndexKeys.Ascending(x => x.Organisation.Id).Ascending(x => x.ObligationYear)
+        );
+
+    private BsonDocument RenderIndexKeys(IndexKeysDefinition<ComplianceDeclaration> keys) =>
+        keys.Render(
+            new RenderArgs<ComplianceDeclaration>(
+                ComplianceDeclarations.DocumentSerializer,
+                ComplianceDeclarations.Settings.SerializerRegistry
+            )
+        );
+
+    private async Task<List<string>> ListComplianceDeclarationIndexNames() =>
+        [.. (await ListComplianceDeclarationIndexes()).Select(x => x.GetValue("name").AsString)];
 
     private async Task<List<BsonDocument>> ListComplianceDeclarationIndexes() =>
         await (await ComplianceDeclarations.Indexes.ListAsync(TestContext.Current.CancellationToken)).ToListAsync(

@@ -33,21 +33,36 @@ jobs:
         run: |
           set -o pipefail
 
-          docker compose up -d
-          output=$(dotnet test \
+          docker compose up -d --wait
+          test_log="$RUNNER_TEMP/integration-tests.log"
+
+          set +e
+          dotnet test \
             --filter "Category=IntegrationTests" \
-            --logger "console;verbosity=detailed" 2>&1)
+            --logger "console;verbosity=normal" 2>&1 | tee "$test_log"
+          test_exit_code=${PIPESTATUS[0]}
+          set -e
 
-          echo "$output"
-
-          if echo "$output" | grep -q "GOVUKNOTIFY_APIKEY is not set"; then
+          if grep -Fq "GOVUKNOTIFY_APIKEY is not set" "$test_log"; then
             echo "❌ GOVUKNOTIFY_APIKEY warning found in test output"
             exit 1
           fi
-      - name: Docker compose logs
-        if: always()
+
+          if [ "$test_exit_code" -ne 0 ]; then
+            echo "::error title=Integration tests failed::dotnet test exited with code $test_exit_code."
+            exit "$test_exit_code"
+          fi
+      - name: Focused Docker diagnostics
+        if: failure()
         run: |
-          docker compose logs
+          docker compose ps
+
+          for service in api wiremock mongodb; do
+            echo "::group::$service errors"
+            docker compose logs --no-color --tail=100 "$service" \
+              | grep -Eai -C 3 '\[EROR\]|\[FATAL\]|UnhandledException|exception|fail' || true
+            echo "::endgroup::"
+          done
       - name: Check Dockerfile Builds
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
         with:

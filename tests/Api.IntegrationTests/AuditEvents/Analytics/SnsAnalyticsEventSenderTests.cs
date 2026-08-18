@@ -104,11 +104,6 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
             organisationId,
             BasicAuthCredential.ForClient(ClientIds.WasteOrganisations)
         );
-        await WireMockContext.WireMockAdminApi.StubTokenRequest(
-            expiryInSeconds: 60,
-            clientId: ClientIds.AccountBackend
-        );
-
         var response = await client.PostAsJsonAsync(
             Testing.Endpoints.Organisations.ComplianceDeclarations.Create(organisationId),
             CreateComplianceDeclarationRequestFixture.DirectProducer(organisationId).Create(),

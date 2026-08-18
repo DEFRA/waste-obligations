@@ -17,6 +17,9 @@ namespace Defra.WasteObligations.Api.IntegrationTests.Scenarios;
 public class CreateComplianceDeclarationTests : IntegrationTestBase
 {
     private const string Analytics = "analytics";
+    private const string RegulatorName = "Regulator";
+    private const string RegulatorLeading = "The Regulator";
+    private const string RegulatorInline = "the Regulator";
 
     [Fact]
     public async Task WhenOrganisationFound_ShouldBeCreated()
@@ -27,11 +30,6 @@ public class CreateComplianceDeclarationTests : IntegrationTestBase
             organisationId,
             BasicAuthCredential.ForClient(ClientIds.WasteOrganisations)
         );
-        await WireMockContext.WireMockAdminApi.StubTokenRequest(
-            expiryInSeconds: 60,
-            clientId: ClientIds.AccountBackend
-        );
-
         var client = CreateClient();
         client.DefaultRequestHeaders.Add(TraceHeaderName, TraceId);
 
@@ -48,6 +46,7 @@ public class CreateComplianceDeclarationTests : IntegrationTestBase
         );
 
         result.Should().NotBeNull();
+        result!.ObligationCoveragePercentage.Should().Be(40m);
 
         var complianceDeclaration = await client.GetFromJsonAsync<ComplianceDeclaration>(
             Testing.Endpoints.Organisations.ComplianceDeclarations.Read(organisationId, result.Id),
@@ -64,7 +63,9 @@ public class CreateComplianceDeclarationTests : IntegrationTestBase
 
             AssertSubmittedEmailTemplate(
                 entries[0].Request?.Body,
-                GovukNotifyTemplateIds.ComplianceDeclarationSubmissionDirectProducerEnglish
+                GovukNotifyTemplateIds.ComplianceDeclarationSubmissionDirectProducerEnglish,
+                RegulatorLeading,
+                RegulatorInline
             );
         });
 
@@ -94,11 +95,6 @@ public class CreateComplianceDeclarationTests : IntegrationTestBase
             organisationId,
             BasicAuthCredential.ForClient(ClientIds.WasteOrganisations)
         );
-        await WireMockContext.WireMockAdminApi.StubTokenRequest(
-            expiryInSeconds: 60,
-            clientId: ClientIds.AccountBackend
-        );
-
         var client = CreateClient();
 
         var response = await client.PostAsJsonAsync(
@@ -117,7 +113,9 @@ public class CreateComplianceDeclarationTests : IntegrationTestBase
 
             AssertSubmittedEmailTemplate(
                 entries[0].Request?.Body,
-                GovukNotifyTemplateIds.ComplianceDeclarationSubmissionComplianceSchemeEnglish
+                GovukNotifyTemplateIds.ComplianceDeclarationSubmissionComplianceSchemeEnglish,
+                RegulatorLeading,
+                RegulatorInline
             );
         });
     }
@@ -139,11 +137,6 @@ public class CreateComplianceDeclarationTests : IntegrationTestBase
                 .With(x => x.BusinessCountry, BusinessCountry.Wales)
                 .Create()
         );
-        await WireMockContext.WireMockAdminApi.StubTokenRequest(
-            expiryInSeconds: 60,
-            clientId: ClientIds.AccountBackend
-        );
-
         var client = CreateClient();
         var request = directProducer
             ? CreateComplianceDeclarationRequestFixture.DirectProducer(organisationId).Create()
@@ -163,17 +156,25 @@ public class CreateComplianceDeclarationTests : IntegrationTestBase
 
             entries.Should().ContainSingle();
 
-            AssertSubmittedEmailTemplate(entries[0].Request?.Body, expectedTemplateId);
+            AssertSubmittedEmailTemplate(entries[0].Request?.Body, expectedTemplateId, RegulatorName, RegulatorName);
         });
     }
 
-    private static void AssertSubmittedEmailTemplate(string? body, string expectedTemplateId)
+    private static void AssertSubmittedEmailTemplate(
+        string? body,
+        string expectedTemplateId,
+        string expectedRegulatorLeading,
+        string expectedRegulatorInline
+    )
     {
         if (body is null)
             throw new InvalidOperationException("Expected GOV.UK Notify request body.");
 
         using var jsonDocument = JsonDocument.Parse(body);
+        var personalisation = jsonDocument.RootElement.GetProperty("personalisation");
 
         jsonDocument.RootElement.GetProperty("template_id").GetString().Should().Be(expectedTemplateId);
+        personalisation.GetProperty("regulatorLeading").GetString().Should().Be(expectedRegulatorLeading);
+        personalisation.GetProperty("regulatorInline").GetString().Should().Be(expectedRegulatorInline);
     }
 }

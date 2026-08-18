@@ -7,5 +7,9 @@ public interface IDbContext
 {
     IMongoCollection<ComplianceDeclaration> ComplianceDeclarations { get; }
 
-    Task<IClientSessionHandle> StartSession(CancellationToken cancellationToken);
+    Task<TResult> ExecuteTransaction<TResult>(
+        Func<IClientSessionHandle, CancellationToken, Task<TResult>> callback,
+        string transactionName,
+        CancellationToken cancellationToken
+    );
 }

@@ -13,4 +13,10 @@ public class MongoDbOptions
 
     [Required]
     public string? DatabaseName { get; set; }
+
+    [Range(1, 120)]
+    public int TransactionTimeoutSeconds { get; init; } = 5;
+
+    [Range(0, 10)]
+    public int TransactionWriteConflictRetryCount { get; init; } = 5;
 }

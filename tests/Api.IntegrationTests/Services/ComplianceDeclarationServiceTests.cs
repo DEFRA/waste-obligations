@@ -32,7 +32,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
     {
         var database = GetMongoDatabase();
         var auditEventDbContext = new AuditEventDbContext(database);
-        var dbContext = new MongoDbContext(database);
+        var dbContext = CreateDbContext(database);
         var auditEventService = new AuditEventService(
             auditEventDbContext,
             TimeProvider.System,
@@ -46,8 +46,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             TimeProvider.System,
             auditEventService,
             ComplianceDeclarationMetrics,
-            HeaderPropagationValues(),
-            Options.Create(new TraceHeader { Name = TraceHeaderName })
+            TraceIdReader()
         );
     }
 
@@ -112,18 +111,40 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Create_WhenConcurrent_ShouldCreateEachDeclarationAndAuditEvent()
+    {
+        const int declarationCount = 40;
+        var createTasks = Enumerable
+            .Range(0, declarationCount)
+            .Select(_ =>
+                Subject.Create(ComplianceDeclarationFixture.Default().Create(), TestContext.Current.CancellationToken)
+            );
+
+        var declarations = await Task.WhenAll(createTasks);
+        var auditEvents = await AuditEvents
+            .Find(FilterDefinition<AuditEvent>.Empty)
+            .ToListAsync(TestContext.Current.CancellationToken);
+
+        declarations.Should().HaveCount(declarationCount);
+        auditEvents.Should().HaveCount(declarationCount);
+        auditEvents
+            .Select(x => x.Sequence)
+            .Should()
+            .BeEquivalentTo(Enumerable.Range(1, declarationCount).Select(x => (long)x));
+    }
+
+    [Fact]
     public async Task Create_WhenAuditEventFails_ShouldAbortTransaction()
     {
         var database = GetMongoDatabase();
         var complianceDeclarationMetrics = Substitute.For<IComplianceDeclarationMetrics>();
         var subject = new ComplianceDeclarationService(
-            new MongoDbContext(database),
+            CreateDbContext(database),
             Substitute.For<ILogger<ComplianceDeclarationService>>(),
             TimeProvider.System,
             new ThrowingAuditEventService(),
             complianceDeclarationMetrics,
-            HeaderPropagationValues(),
-            Options.Create(new TraceHeader { Name = TraceHeaderName })
+            TraceIdReader()
         );
         var complianceDeclaration = ComplianceDeclarationFixture.Default().Create();
         var act = async () => await subject.Create(complianceDeclaration, TestContext.Current.CancellationToken);
@@ -162,12 +183,82 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             TestContext.Current.CancellationToken
         );
 
-        var complianceDeclarations = (
-            await Subject.Read(organisationId, obligationYear, TestContext.Current.CancellationToken)
-        ).ToList();
+        var readResult = await Subject.Read(
+            organisationId,
+            obligationYear,
+            page: 1,
+            pageSize: 10,
+            cancellationToken: TestContext.Current.CancellationToken
+        );
 
-        complianceDeclarations.Should().ContainSingle();
-        complianceDeclarations.Should().Contain(x => x.Id == result.Id);
+        readResult.ComplianceDeclarations.Should().ContainSingle();
+        readResult.ComplianceDeclarations.Should().Contain(x => x.Id == result.Id);
+        readResult.Total.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Read_WhenPaging_ShouldReturnCorrectPageAndTotalInUpdatedOrder()
+    {
+        var organisationId = Guid.NewGuid();
+        const int obligationYear = 2025;
+        const int pageSize = 2;
+        var oldestId = ObjectId.GenerateNewId();
+        var middleId = ObjectId.GenerateNewId();
+        var newestId = ObjectId.GenerateNewId();
+        var otherDeclarationId = ObjectId.GenerateNewId();
+        var organisation = OrganisationFixture.Organisation().With(x => x.Id, organisationId).Create();
+
+        await ComplianceDeclarations.InsertManyAsync(
+            [
+                ComplianceDeclarationFixture
+                    .Default()
+                    .With(x => x.Id, oldestId)
+                    .With(x => x.Organisation, organisation)
+                    .With(x => x.ObligationYear, obligationYear)
+                    .With(x => x.Updated, new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc))
+                    .Create(),
+                ComplianceDeclarationFixture
+                    .Default()
+                    .With(x => x.Id, middleId)
+                    .With(x => x.Organisation, organisation)
+                    .With(x => x.ObligationYear, obligationYear)
+                    .With(x => x.Updated, new DateTime(2025, 1, 2, 12, 0, 0, DateTimeKind.Utc))
+                    .Create(),
+                ComplianceDeclarationFixture
+                    .Default()
+                    .With(x => x.Id, newestId)
+                    .With(x => x.Organisation, organisation)
+                    .With(x => x.ObligationYear, obligationYear)
+                    .With(x => x.Updated, new DateTime(2025, 1, 3, 12, 0, 0, DateTimeKind.Utc))
+                    .Create(),
+                ComplianceDeclarationFixture
+                    .Default()
+                    .With(x => x.Id, otherDeclarationId)
+                    .With(x => x.ObligationYear, obligationYear)
+                    .Create(),
+            ],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+
+        var firstPage = await Subject.Read(
+            organisationId,
+            obligationYear,
+            page: 1,
+            pageSize: pageSize,
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        var secondPage = await Subject.Read(
+            organisationId,
+            obligationYear,
+            page: 2,
+            pageSize: pageSize,
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+
+        firstPage.ComplianceDeclarations.Select(x => x.Id).Should().Equal(newestId, middleId);
+        firstPage.Total.Should().Be(3);
+        secondPage.ComplianceDeclarations.Select(x => x.Id).Should().Equal(oldestId);
+        secondPage.Total.Should().Be(3);
     }
 
     [Fact]
@@ -226,51 +317,33 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task Delete_WhenConcurrent_ShouldFail()
+    public async Task Delete_WhenConcurrent_ShouldDeleteEachDeclarationAndAuditEvent()
     {
-        var current = ComplianceDeclarationFixture.DirectProducer().Create();
-        var session = Substitute.For<IClientSessionHandle>();
-        var cursor = Substitute.For<IAsyncCursor<ComplianceDeclaration>>();
-        cursor.MoveNextAsync(TestContext.Current.CancellationToken).Returns(true, false);
-        cursor.Current.Returns([current]);
-
-        var collection = Substitute.For<IMongoCollection<ComplianceDeclaration>>();
-        collection
-            .FindAsync(
-                session,
-                Arg.Any<FilterDefinition<ComplianceDeclaration>>(),
-                Arg.Any<FindOptions<ComplianceDeclaration, ComplianceDeclaration>>(),
-                TestContext.Current.CancellationToken
-            )
-            .Returns(cursor);
-        collection
-            .DeleteOneAsync(
-                session,
-                Arg.Any<FilterDefinition<ComplianceDeclaration>>(),
-                Arg.Any<DeleteOptions>(),
-                TestContext.Current.CancellationToken
-            )
-            .Returns(new DeleteResult.Acknowledged(0));
-
-        var dbContext = Substitute.For<IDbContext>();
-        dbContext.ComplianceDeclarations.Returns(collection);
-        dbContext.StartSession(TestContext.Current.CancellationToken).Returns(session);
-
-        var subject = new ComplianceDeclarationService(
-            dbContext,
-            Substitute.For<ILogger<ComplianceDeclarationService>>(),
-            TimeProvider.System,
-            Substitute.For<IAuditEventService>(),
-            Substitute.For<IComplianceDeclarationMetrics>(),
-            HeaderPropagationValues(),
-            Options.Create(new TraceHeader { Name = TraceHeaderName })
+        const int declarationCount = 40;
+        var declarations = await Task.WhenAll(
+            Enumerable
+                .Range(0, declarationCount)
+                .Select(_ =>
+                    Subject.Create(
+                        ComplianceDeclarationFixture.DirectProducer().Create(),
+                        TestContext.Current.CancellationToken
+                    )
+                )
         );
-        var act = async () => await subject.Delete(current.Id.ToString(), TestContext.Current.CancellationToken);
 
-        await act.Should()
-            .ThrowAsync<ConcurrencyException>()
-            .WithMessage($"Concurrency issue on delete, compliance declaration with id '{current.Id}' was not deleted");
-        await session.Received(1).AbortTransactionAsync(CancellationToken.None);
+        var deleted = await Task.WhenAll(
+            declarations.Select(x => Subject.Delete(x.Id.ToString(), TestContext.Current.CancellationToken))
+        );
+        var remainingDeclarations = await ComplianceDeclarations
+            .Find(FilterDefinition<ComplianceDeclaration>.Empty)
+            .ToListAsync(TestContext.Current.CancellationToken);
+        var auditEvents = await AuditEvents
+            .Find(FilterDefinition<AuditEvent>.Empty)
+            .ToListAsync(TestContext.Current.CancellationToken);
+
+        deleted.Should().OnlyContain(x => x);
+        remainingDeclarations.Should().BeEmpty();
+        auditEvents.Should().HaveCount(declarationCount * 2);
     }
 
     [Fact]
@@ -279,13 +352,12 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         var database = GetMongoDatabase();
         var complianceDeclarationMetrics = Substitute.For<IComplianceDeclarationMetrics>();
         var subject = new ComplianceDeclarationService(
-            new MongoDbContext(database),
+            CreateDbContext(database),
             Substitute.For<ILogger<ComplianceDeclarationService>>(),
             TimeProvider.System,
             new ThrowingAuditEventService(),
             complianceDeclarationMetrics,
-            HeaderPropagationValues(),
-            Options.Create(new TraceHeader { Name = TraceHeaderName })
+            TraceIdReader()
         );
         var initial = await Subject.Create(
             ComplianceDeclarationFixture.DirectProducer().Create(),
@@ -687,7 +759,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             TestContext.Current.CancellationToken
         );
 
-    private Task<ComplianceDeclarationSearchResult> Search(ComplianceDeclarationSearchQuery query) =>
+    private Task<ComplianceDeclarationPageResult> Search(ComplianceDeclarationSearchQuery query) =>
         Subject.Search(query, 1, 10, TestContext.Current.CancellationToken);
 
     [Fact]
@@ -819,6 +891,222 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         result.ComplianceDeclarations.Should().Contain(x => x.Organisation.Name == regexName);
     }
 
+    [Fact]
+    public async Task Search_WhenSortingByMultipleFields_ShouldApplyThemInPriorityOrderThenId()
+    {
+        var firstId = ObjectId.Parse("000000000000000000000001");
+        var secondId = ObjectId.Parse("000000000000000000000002");
+        var thirdId = ObjectId.Parse("000000000000000000000003");
+        var fourthId = ObjectId.Parse("000000000000000000000004");
+        var fifthId = ObjectId.Parse("000000000000000000000005");
+        var organisationId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+        var otherOrganisationId = Guid.Parse("00000000-0000-0000-0000-000000000002");
+        var date = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+
+        await ComplianceDeclarations.InsertManyAsync(
+            [
+                ComplianceDeclarationFixture
+                    .Default()
+                    .With(x => x.Id, firstId)
+                    .With(
+                        x => x.Organisation,
+                        OrganisationFixture.DirectProducer(organisationId).With(x => x.Name, "Bravo").Create()
+                    )
+                    .With(x => x.Created, date)
+                    .Create(),
+                ComplianceDeclarationFixture
+                    .Default()
+                    .With(x => x.Id, secondId)
+                    .With(
+                        x => x.Organisation,
+                        OrganisationFixture.DirectProducer(organisationId).With(x => x.Name, "Alpha").Create()
+                    )
+                    .With(x => x.Created, date)
+                    .Create(),
+                ComplianceDeclarationFixture
+                    .Default()
+                    .With(x => x.Id, thirdId)
+                    .With(
+                        x => x.Organisation,
+                        OrganisationFixture.DirectProducer(otherOrganisationId).With(x => x.Name, "Alpha").Create()
+                    )
+                    .With(x => x.Created, date)
+                    .Create(),
+                ComplianceDeclarationFixture
+                    .Default()
+                    .With(x => x.Id, fourthId)
+                    .With(
+                        x => x.Organisation,
+                        OrganisationFixture.DirectProducer(otherOrganisationId).With(x => x.Name, "Charlie").Create()
+                    )
+                    .With(x => x.Created, date.AddDays(-1))
+                    .Create(),
+                ComplianceDeclarationFixture
+                    .Default()
+                    .With(x => x.Id, fifthId)
+                    .With(
+                        x => x.Organisation,
+                        OrganisationFixture.DirectProducer(organisationId).With(x => x.Name, "Alpha").Create()
+                    )
+                    .With(x => x.Created, date)
+                    .Create(),
+            ],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+
+        var result = await Subject.Search(
+            new ComplianceDeclarationSearchQuery
+            {
+                Sort =
+                [
+                    new ComplianceDeclarationSort
+                    {
+                        Field = ComplianceDeclarationSortField.DateSubmitted,
+                        Direction = ComplianceDeclarationSortDirection.Descending,
+                    },
+                    new ComplianceDeclarationSort
+                    {
+                        Field = ComplianceDeclarationSortField.OrganisationName,
+                        Direction = ComplianceDeclarationSortDirection.Ascending,
+                    },
+                    new ComplianceDeclarationSort
+                    {
+                        Field = ComplianceDeclarationSortField.OrganisationId,
+                        Direction = ComplianceDeclarationSortDirection.Ascending,
+                    },
+                ],
+            },
+            1,
+            10,
+            TestContext.Current.CancellationToken
+        );
+
+        result.ComplianceDeclarations.Select(x => x.Id).Should().Equal(secondId, fifthId, thirdId, firstId, fourthId);
+    }
+
+    [Fact]
+    public async Task Search_WhenPrimarySortValuesEqual_ShouldOrderByOrganisationName()
+    {
+        var bravoId = ObjectId.Parse("000000000000000000000001");
+        var alphaId = ObjectId.Parse("000000000000000000000002");
+        var date = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+
+        await ComplianceDeclarations.InsertManyAsync(
+            [
+                ComplianceDeclarationFixture
+                    .Default()
+                    .With(x => x.Id, bravoId)
+                    .With(x => x.Organisation, OrganisationFixture.DirectProducer().With(x => x.Name, "Bravo").Create())
+                    .With(x => x.Created, date)
+                    .Create(),
+                ComplianceDeclarationFixture
+                    .Default()
+                    .With(x => x.Id, alphaId)
+                    .With(x => x.Organisation, OrganisationFixture.DirectProducer().With(x => x.Name, "Alpha").Create())
+                    .With(x => x.Created, date)
+                    .Create(),
+            ],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+
+        var result = await Subject.Search(
+            new ComplianceDeclarationSearchQuery
+            {
+                Sort =
+                [
+                    new ComplianceDeclarationSort
+                    {
+                        Field = ComplianceDeclarationSortField.DateSubmitted,
+                        Direction = ComplianceDeclarationSortDirection.Descending,
+                    },
+                ],
+            },
+            1,
+            10,
+            TestContext.Current.CancellationToken
+        );
+
+        result.ComplianceDeclarations.Select(x => x.Id).Should().Equal(alphaId, bravoId);
+    }
+
+    [Theory]
+    [InlineData(
+        ComplianceDeclarationSortField.RecyclingObligations,
+        ComplianceDeclarationSortDirection.Ascending,
+        false
+    )]
+    [InlineData(ComplianceDeclarationSortField.PercentageMet, ComplianceDeclarationSortDirection.Ascending, false)]
+    [InlineData(ComplianceDeclarationSortField.DateSubmitted, ComplianceDeclarationSortDirection.Ascending, false)]
+    [InlineData(ComplianceDeclarationSortField.Regulation43, ComplianceDeclarationSortDirection.Ascending, false)]
+    [InlineData(ComplianceDeclarationSortField.OrganisationName, ComplianceDeclarationSortDirection.Ascending, false)]
+    [InlineData(ComplianceDeclarationSortField.OrganisationId, ComplianceDeclarationSortDirection.Ascending, false)]
+    [InlineData(
+        ComplianceDeclarationSortField.RecyclingObligations,
+        ComplianceDeclarationSortDirection.Descending,
+        true
+    )]
+    [InlineData(ComplianceDeclarationSortField.PercentageMet, ComplianceDeclarationSortDirection.Descending, true)]
+    [InlineData(ComplianceDeclarationSortField.DateSubmitted, ComplianceDeclarationSortDirection.Descending, true)]
+    [InlineData(ComplianceDeclarationSortField.Regulation43, ComplianceDeclarationSortDirection.Descending, true)]
+    [InlineData(ComplianceDeclarationSortField.OrganisationName, ComplianceDeclarationSortDirection.Descending, true)]
+    [InlineData(ComplianceDeclarationSortField.OrganisationId, ComplianceDeclarationSortDirection.Descending, true)]
+    public async Task Search_WhenSorting_ShouldOrderByTheRequestedField(
+        ComplianceDeclarationSortField field,
+        ComplianceDeclarationSortDirection direction,
+        bool firstDeclarationShouldBeFirst
+    )
+    {
+        var firstId = ObjectId.Parse("000000000000000000000001");
+        var secondId = ObjectId.Parse("000000000000000000000002");
+        var firstOrganisationId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+        var secondOrganisationId = Guid.Parse("00000000-0000-0000-0000-000000000002");
+
+        await ComplianceDeclarations.InsertManyAsync(
+            [
+                ComplianceDeclarationFixture
+                    .Default()
+                    .With(x => x.Id, firstId)
+                    .With(x => x.ObligationStatus, Defra.WasteObligations.Api.Dtos.ObligationStatus.Met)
+                    .With(x => x.ObligationCoveragePercentage, 80m)
+                    .With(x => x.Created, new DateTime(2026, 1, 2, 12, 0, 0, DateTimeKind.Utc))
+                    .With(x => x.IsRegulation43Compliant, true)
+                    .With(
+                        x => x.Organisation,
+                        OrganisationFixture.DirectProducer(secondOrganisationId).With(x => x.Name, "Bravo").Create()
+                    )
+                    .Create(),
+                ComplianceDeclarationFixture
+                    .Default()
+                    .With(x => x.Id, secondId)
+                    .With(x => x.ObligationStatus, Defra.WasteObligations.Api.Dtos.ObligationStatus.NotMet)
+                    .With(x => x.ObligationCoveragePercentage, 20m)
+                    .With(x => x.Created, new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc))
+                    .With(x => x.IsRegulation43Compliant, false)
+                    .With(
+                        x => x.Organisation,
+                        OrganisationFixture.DirectProducer(firstOrganisationId).With(x => x.Name, "Alpha").Create()
+                    )
+                    .Create(),
+            ],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+
+        var result = await Subject.Search(
+            new ComplianceDeclarationSearchQuery
+            {
+                Sort = [new ComplianceDeclarationSort { Field = field, Direction = direction }],
+            },
+            1,
+            10,
+            TestContext.Current.CancellationToken
+        );
+
+        var expectedFirstId = firstDeclarationShouldBeFirst ? firstId : secondId;
+        var expectedSecondId = firstDeclarationShouldBeFirst ? secondId : firstId;
+
+        result.ComplianceDeclarations.Select(x => x.Id).Should().Equal(expectedFirstId, expectedSecondId);
+    }
+
     private static IEnumerable<object> ToVerifyAuditEvents(IEnumerable<AuditEvent> auditEvents) =>
         auditEvents.Select(x => new
         {
@@ -841,16 +1129,21 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
     private static HeaderPropagationValues HeaderPropagationValues() =>
         new() { Headers = new Dictionary<string, StringValues> { [TraceHeaderName] = TraceId } };
 
+    private static TraceIdReader TraceIdReader() =>
+        new(HeaderPropagationValues(), Options.Create(new TraceHeader { Name = TraceHeaderName }));
+
     private static ComplianceDeclarationService CreateSubject(IMongoDatabase database) =>
         new(
-            new MongoDbContext(database),
+            CreateDbContext(database),
             Substitute.For<ILogger<ComplianceDeclarationService>>(),
             TimeProvider.System,
             new AuditEventService(new AuditEventDbContext(database), TimeProvider.System, new FakeEventIdGenerator()),
             Substitute.For<IComplianceDeclarationMetrics>(),
-            HeaderPropagationValues(),
-            Options.Create(new TraceHeader { Name = TraceHeaderName })
+            TraceIdReader()
         );
+
+    private static MongoDbContext CreateDbContext(IMongoDatabase database) =>
+        new(database, Options.Create(new MongoDbOptions()), Substitute.For<ILogger<MongoDbContext>>());
 
     private static object? ToPlainDocument(BsonDocument? document)
     {

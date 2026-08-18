@@ -1,4 +1,4 @@
-﻿{
+{
   "complianceDeclarations": [
     {
       "id": "{Scrubbed}",
@@ -41,12 +41,14 @@
       "obligationStatus": "NotMet",
       "submitterName": "Submitter Name",
       "isRegulation43Compliant": true,
+      "obligationCoveragePercentage": 40,
       "audit": [
         {
           "user": {
             "id": "{Scrubbed}",
             "email": "submitter@email.com",
-            "name": "Submitter Name"
+            "name": "Submitter Name",
+            "locale": "en"
           },
           "timestamp": "2026-04-26T14:00:00+00:00",
           "action": "Submitted"
@@ -94,70 +96,22 @@
       "obligationStatus": "NotMet",
       "submitterName": "Submitter Name",
       "isRegulation43Compliant": true,
+      "obligationCoveragePercentage": 40,
       "audit": [
         {
           "user": {
             "id": "{Scrubbed}",
             "email": "submitter@email.com",
-            "name": "Submitter Name"
-          },
-          "timestamp": "2026-04-26T14:00:00+00:00",
-          "action": "Submitted"
-        }
-      ]
-    },
-    {
-      "id": "{Scrubbed}",
-      "created": "2026-04-26T14:00:00+00:00",
-      "updated": "2026-04-26T14:00:00+00:00",
-      "status": "Submitted",
-      "organisation": {
-        "id": "{Scrubbed}",
-        "registrationType": "DirectProducer",
-        "name": "Org Name",
-        "complianceSchemeName": null,
-        "schemeOperatorName": null,
-        "referenceNumber": "123456",
-        "address": {
-          "addressLine1": "Test Name Ltd",
-          "addressLine2": "123 Street",
-          "town": "Town",
-          "county": "County",
-          "postcode": "UK1",
-          "country": "UK"
-        },
-        "regulator": "Regulator",
-        "regulatorEmail": "regulator@email.com"
-      },
-      "obligationYear": 2026,
-      "obligations": [
-        {
-          "material": "Plastic",
-          "recyclingTarget": 0.75,
-          "tonnages": {
-            "material": 100,
-            "awaitingAcceptance": 10,
-            "accepted": 2,
-            "outstanding": 20,
-            "obligated": 5
-          },
-          "status": "NoDataYet"
-        }
-      ],
-      "obligationStatus": "NotMet",
-      "submitterName": "Submitter Name",
-      "isRegulation43Compliant": true,
-      "audit": [
-        {
-          "user": {
-            "id": "{Scrubbed}",
-            "email": "submitter@email.com",
-            "name": "Submitter Name"
+            "name": "Submitter Name",
+            "locale": "en"
           },
           "timestamp": "2026-04-26T14:00:00+00:00",
           "action": "Submitted"
         }
       ]
     }
-  ]
+  ],
+  "total": 2,
+  "page": 1,
+  "pageSize": 20
 }

@@ -4,7 +4,7 @@ The analytics topic receives generic analytics event envelopes. Each envelope id
 
 Compliance declaration create, update, and delete operations are captured internally in the same transaction as the declaration change. The analytics processor reads undispatched changes, serialises them as analytics events, and publishes them to the analytics SNS topic configured by `AnalyticsAuditEventProcessor:TopicArn`.
 
-The nested compliance declaration payload is serialised using the embedded [compliance declaration schema](../src/Api/Schemas/ComplianceDeclaration/compliance-declaration.v1.0.schema.json). For compliance declarations, the analytics message `schemaVersion` is currently `compliance_declaration.v1.0`.
+The nested compliance declaration payload is serialised using the embedded [compliance declaration schema](../src/Api/Schemas/ComplianceDeclaration/compliance-declaration.v1.2.schema.json). Its version history is recorded in the [compliance declaration schema changelog](../src/Api/Schemas/ComplianceDeclaration/CHANGELOG.md). For compliance declarations, the analytics message `schemaVersion` is currently `compliance_declaration.v1.2`.
 
 ## Message transport
 
@@ -142,14 +142,16 @@ The `before` value is `null`. The `after` value is the created compliance declar
         "user": {
           "id": "e72be574-8b5b-4836-af47-dd7e0c0d1d87",
           "email": "submitter@email.com",
-          "name": "Submitter Name"
+          "name": "Submitter Name",
+          "locale": "en"
         },
         "timestamp": "2026-01-02T03:04:05+00:00"
       }
     ],
-    "isRegulation43Compliant": true
+    "isRegulation43Compliant": true,
+    "obligationCoveragePercentage": 40
   },
-  "schemaVersion": "compliance_declaration.v1.0"
+  "schemaVersion": "compliance_declaration.v1.2"
 }
 ```
 
@@ -220,12 +222,14 @@ The `before` value is the declaration state before the update. The `after` value
         "user": {
           "id": "e72be574-8b5b-4836-af47-dd7e0c0d1d87",
           "email": "submitter@email.com",
-          "name": "Submitter Name"
+          "name": "Submitter Name",
+          "locale": "en"
         },
         "timestamp": "2026-01-02T03:04:05+00:00"
       }
     ],
-    "isRegulation43Compliant": true
+    "isRegulation43Compliant": true,
+    "obligationCoveragePercentage": 40
   },
   "after": {
     "id": "65f1f6570bb08052a8a27b01",
@@ -274,7 +278,8 @@ The `before` value is the declaration state before the update. The `after` value
         "user": {
           "id": "e72be574-8b5b-4836-af47-dd7e0c0d1d87",
           "email": "submitter@email.com",
-          "name": "Submitter Name"
+          "name": "Submitter Name",
+          "locale": "en"
         },
         "timestamp": "2026-01-02T03:04:05+00:00"
       },
@@ -289,8 +294,9 @@ The `before` value is the declaration state before the update. The `after` value
         "reason": "Accepted reason"
       }
     ],
-    "isRegulation43Compliant": true
+    "isRegulation43Compliant": true,
+    "obligationCoveragePercentage": 40
   },
-  "schemaVersion": "compliance_declaration.v1.0"
+  "schemaVersion": "compliance_declaration.v1.2"
 }
 ```

@@ -1,4 +1,4 @@
-﻿{
+{
   "id": "{Scrubbed}",
   "created": "{Scrubbed}",
   "updated": "{Scrubbed}",
@@ -39,12 +39,14 @@
   "obligationStatus": "NotMet",
   "submitterName": "Submitter Name",
   "isRegulation43Compliant": true,
+  "obligationCoveragePercentage": 40,
   "audit": [
     {
       "user": {
         "id": "Guid_2",
         "email": "submitter@email.com",
-        "name": "Submitter Name"
+        "name": "Submitter Name",
+        "locale": "en"
       },
       "timestamp": "{Scrubbed}",
       "action": "Submitted"
@@ -54,7 +56,8 @@
       "user": {
         "id": "Guid_3",
         "email": "approved-person@email.com",
-        "name": "Approved Person Name"
+        "name": "Approved Person Name",
+        "locale": "en"
       },
       "timestamp": "{Scrubbed}",
       "action": "Cancelled"

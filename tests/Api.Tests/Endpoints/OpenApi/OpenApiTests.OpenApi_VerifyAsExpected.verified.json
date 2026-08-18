@@ -98,6 +98,333 @@
         }
       }
     },
+    "/organisations/{organisationId}/prns/{prnId}": {
+      "get": {
+        "tags": [
+          "PRNs"
+        ],
+        "summary": "PRN by ID",
+        "description": "Return a PRN by organisation ID and PRN ID",
+        "operationId": "ReadOrganisationPrn",
+        "parameters": [
+          {
+            "name": "organisationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "prnId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Prn"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "PRNs"
+        ],
+        "summary": "Update PRN status by ID",
+        "description": "Accept or reject a PRN by PRN ID",
+        "operationId": "UpdateOrganisationPrn",
+        "parameters": [
+          {
+            "name": "organisationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "prnId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePrnRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/organisations/{organisationId}/prns": {
+      "get": {
+        "tags": [
+          "PRNs"
+        ],
+        "summary": "Search organisation PRNs",
+        "description": "Returns a paged list of PRNs for an organisation",
+        "operationId": "SearchOrganisationPrns",
+        "parameters": [
+          {
+            "name": "organisationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Searches PRN number or issuer organisation name",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "PRN status",
+            "schema": {
+              "enum": [
+                "AwaitingAcceptance",
+                "Accepted",
+                "Rejected",
+                "Cancelled"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "PRN list sort order",
+            "schema": {
+              "enum": [
+                "IssuedAtDescending",
+                "IssuedAtAscending",
+                "TonnageDescending",
+                "TonnageAscending",
+                "IssuerDescending",
+                "IssuerAscending",
+                "DecemberWasteDescending",
+                "MaterialDescending",
+                "MaterialAscending"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (1-based), defaults to 1 if not specified",
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "Number of items per page, defaults to 20 if not specified, max of 100",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrnsPaged"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/organisations/{organisationId}/compliance-declarations": {
       "post": {
         "tags": [
@@ -195,7 +522,7 @@
           "Compliance Declarations"
         ],
         "summary": "Compliance declarations for an organisation by year",
-        "description": "Returns the compliance declarations for an organisation by organisation ID for the specified year",
+        "description": "Returns a paged list of compliance declarations for an organisation by organisation ID for the specified year",
         "operationId": "ReadOrganisationComplianceDeclarations",
         "parameters": [
           {
@@ -220,6 +547,35 @@
               ],
               "format": "int32"
             }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (1-based), defaults to 1 if not specified",
+            "schema": {
+              "minimum": 1,
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "Number of items per page, defaults to 20 if not specified, max of 100",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
           }
         ],
         "responses": {
@@ -228,7 +584,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/OrganisationComplianceDeclarations"
+                  "$ref": "#/components/schemas/ComplianceDeclarationsPaged"
                 }
               }
             }
@@ -532,6 +888,14 @@
             }
           },
           {
+            "name": "sort",
+            "in": "query",
+            "description": "Comma separated sort fields in priority order. Each field must use the format Field[asc] or Field[desc]. Fields: RecyclingObligations, PercentageMet, DateSubmitted, Regulation43, OrganisationName, OrganisationId",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "page",
             "in": "query",
             "description": "Page number (1-based), defaults to 1 if not specified",
@@ -758,6 +1122,15 @@
           },
           "isRegulation43Compliant": {
             "type": "boolean"
+          },
+          "obligationCoveragePercentage": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
           },
           "audit": {
             "type": "array",
@@ -1015,17 +1388,6 @@
           }
         }
       },
-      "OrganisationComplianceDeclarations": {
-        "type": "object",
-        "properties": {
-          "complianceDeclarations": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ComplianceDeclaration"
-            }
-          }
-        }
-      },
       "OrganisationObligations": {
         "type": "object",
         "properties": {
@@ -1034,6 +1396,280 @@
             "items": {
               "$ref": "#/components/schemas/Obligation"
             }
+          }
+        }
+      },
+      "Prn": {
+        "required": [
+          "id",
+          "number",
+          "type",
+          "status",
+          "issuedAt",
+          "obligationYear",
+          "accreditationYear",
+          "decemberWaste",
+          "material",
+          "tonnage",
+          "issuer",
+          "recipient",
+          "authorisedBy",
+          "accreditationNumber",
+          "reprocessorExporterAgency",
+          "audit"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "number": {
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "PRN",
+              "PERN"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "AwaitingAcceptance",
+              "Accepted",
+              "Rejected",
+              "AwaitingCancellation",
+              "Cancelled"
+            ],
+            "type": "string"
+          },
+          "issuedAt": {
+            "type": "string",
+            "description": "Time the PRN or PERN was issued, returned at UTC offset zero. For RREPW and epr-backend records this is also the authorisation time.",
+            "format": "date-time"
+          },
+          "obligationYear": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "accreditationYear": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "decemberWaste": {
+            "type": "boolean"
+          },
+          "material": {
+            "enum": [
+              "Plastic",
+              "Glass",
+              "Aluminium",
+              "Steel",
+              "Wood",
+              "GlassRemelt",
+              "Paper",
+              "Fibre"
+            ],
+            "type": "string"
+          },
+          "recyclingProcess": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "tonnage": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "issuer": {
+            "$ref": "#/components/schemas/PrnIssuer"
+          },
+          "recipient": {
+            "$ref": "#/components/schemas/PrnRecipient"
+          },
+          "authorisedBy": {
+            "$ref": "#/components/schemas/PrnAuthorisedBy"
+          },
+          "accreditationNumber": {
+            "type": "string"
+          },
+          "reprocessingSite": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reprocessorExporterAgency": {
+            "type": "string"
+          },
+          "additionalNotes": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "audit": {
+            "$ref": "#/components/schemas/PrnAudit"
+          }
+        }
+      },
+      "PrnAudit": {
+        "required": [
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "description": "Time the PRN record was created in the source store, returned at UTC offset zero. Source-store timestamps are not directly comparable across PRN pools.",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "Time the PRN record was last updated in the source store, returned at UTC offset zero. Source-store timestamps are not directly comparable across PRN pools.",
+            "format": "date-time"
+          },
+          "acceptedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Time the PRN or PERN was accepted, returned at UTC offset zero. Null when no acceptance event exists or when the source cannot supply lifecycle-event timestamps.",
+            "format": "date-time"
+          },
+          "rejectedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Time the PRN or PERN was rejected, returned at UTC offset zero. Null when no rejection event exists or when the source cannot supply lifecycle-event timestamps.",
+            "format": "date-time"
+          },
+          "cancelledAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Time the PRN or PERN was cancelled, returned at UTC offset zero. Null when no cancellation event exists or when the source cannot supply lifecycle-event timestamps.",
+            "format": "date-time"
+          }
+        }
+      },
+      "PrnAuthorisedBy": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "position": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "PrnIssuer": {
+        "required": [
+          "organisationName"
+        ],
+        "type": "object",
+        "properties": {
+          "organisationName": {
+            "type": "string"
+          }
+        }
+      },
+      "PrnRecipient": {
+        "required": [
+          "organisationId",
+          "displayName"
+        ],
+        "type": "object",
+        "properties": {
+          "organisationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Recipient legal name when supplied by a richer source. PRN common backend and legacy PRN records return null because they retain only a selected display name."
+          },
+          "tradingName": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Recipient trading name when supplied by a richer source. PRN common backend and legacy PRN records return null because they retain only a selected display name."
+          },
+          "registrationType": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "Recipient registration type when supplied by epr-backend. PRN common backend and legacy PRN records return null because they do not retain this value.",
+                "$ref": "#/components/schemas/RegistrationType"
+              }
+            ]
+          }
+        }
+      },
+      "PrnsPaged": {
+        "type": "object",
+        "properties": {
+          "prns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Prn"
+            }
+          },
+          "total": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "page": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "pageSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -1078,7 +1714,8 @@
       "RegistrationType": {
         "enum": [
           "DirectProducer",
-          "ComplianceScheme"
+          "ComplianceScheme",
+          null
         ]
       },
       "UpdateComplianceDeclarationRequest": {
@@ -1108,6 +1745,35 @@
           }
         }
       },
+      "UpdatePrnRequest": {
+        "required": [
+          "status",
+          "user"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/UpdatePrnStatus"
+              }
+            ]
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          }
+        }
+      },
+      "UpdatePrnStatus": {
+        "enum": [
+          "Accepted",
+          "Rejected",
+          null
+        ]
+      },
       "User": {
         "required": [
           "id",
@@ -1124,6 +1790,16 @@
           },
           "name": {
             "type": "string"
+          },
+          "locale": {
+            "enum": [
+              "en",
+              "cy"
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       }
@@ -1132,6 +1808,9 @@
   "tags": [
     {
       "name": "Obligations"
+    },
+    {
+      "name": "PRNs"
     },
     {
       "name": "Compliance Declarations"

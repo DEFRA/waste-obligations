@@ -4,11 +4,8 @@ using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Utils.Logging;
 using Defra.WasteObligations.Api.Utils.Metrics;
 using Defra.WasteObligations.AuditEvents;
-using Microsoft.AspNetCore.HeaderPropagation;
-using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Driver;
-using MongoDB.Driver.Linq;
 
 namespace Defra.WasteObligations.Api.Services;
 
@@ -18,8 +15,7 @@ public class ComplianceDeclarationService(
     TimeProvider timeProvider,
     IAuditEventService auditEventService,
     IComplianceDeclarationMetrics complianceDeclarationMetrics,
-    HeaderPropagationValues headerPropagationValues,
-    IOptions<TraceHeader> traceHeaderOptions
+    TraceIdReader traceIdReader
 ) : IComplianceDeclarationService
 {
     private const string Actor = "service:waste-obligations";
@@ -33,43 +29,39 @@ public class ComplianceDeclarationService(
         var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
         complianceDeclaration = complianceDeclaration with { Version = 1, Created = utcNow, Updated = utcNow };
 
-        using var session = await dbContext.StartSession(cancellationToken);
-        session.StartTransaction();
+        await dbContext.ExecuteTransaction(
+            async (transactionSession, transactionCancellationToken) =>
+            {
+                await dbContext.ComplianceDeclarations.InsertOneAsync(
+                    transactionSession,
+                    complianceDeclaration,
+                    cancellationToken: transactionCancellationToken
+                );
 
-        try
-        {
-            await dbContext.ComplianceDeclarations.InsertOneAsync(
-                session,
-                complianceDeclaration,
-                cancellationToken: cancellationToken
-            );
+                await auditEventService.RecordEvent(
+                    transactionSession,
+                    new AuditEventRequest(
+                        Actor,
+                        ComplianceDeclarationEntity,
+                        AuditEventOperation.Insert,
+                        "submission.created",
+                        null,
+                        complianceDeclaration.Id.ToString(),
+                        complianceDeclaration.Version,
+                        null,
+                        complianceDeclaration.ToBsonDocument(),
+                        complianceDeclaration.SchemaVersion,
+                        utcNow,
+                        traceIdReader.Read()
+                    ),
+                    transactionCancellationToken
+                );
 
-            await auditEventService.RecordEvent(
-                session,
-                new AuditEventRequest(
-                    Actor,
-                    ComplianceDeclarationEntity,
-                    AuditEventOperation.Insert,
-                    "submission.created",
-                    null,
-                    complianceDeclaration.Id.ToString(),
-                    complianceDeclaration.Version,
-                    null,
-                    complianceDeclaration.ToBsonDocument(),
-                    complianceDeclaration.SchemaVersion,
-                    utcNow,
-                    ReadTraceId()
-                ),
-                cancellationToken
-            );
-
-            await session.CommitTransactionAsync(cancellationToken);
-        }
-        catch
-        {
-            await session.AbortTransactionAsync(CancellationToken.None);
-            throw;
-        }
+                return complianceDeclaration;
+            },
+            $"compliance declaration create {complianceDeclaration.Id}",
+            cancellationToken
+        );
 
         complianceDeclarationMetrics.Created();
         logger.LogInformation(
@@ -85,79 +77,89 @@ public class ComplianceDeclarationService(
             .ComplianceDeclarations.Find(Builders<ComplianceDeclaration>.Filter.Eq(x => x.Id, ObjectId.Parse(id)))
             .FirstOrDefaultAsync(cancellationToken: cancellationToken);
 
-    public async Task<IEnumerable<ComplianceDeclaration>> Read(
+    public async Task<ComplianceDeclarationPageResult> Read(
         Guid organisationId,
         int obligationYear,
+        int page,
+        int pageSize,
         CancellationToken cancellationToken
-    ) =>
-        await dbContext
-            .ComplianceDeclarations.AsQueryable()
-            .Where(x => x.Organisation.Id == organisationId && x.ObligationYear == obligationYear)
-            .ToListAsync(cancellationToken);
+    )
+    {
+        var filter = Builders<ComplianceDeclaration>.Filter.And(
+            Builders<ComplianceDeclaration>.Filter.Eq(x => x.Organisation.Id, organisationId),
+            Builders<ComplianceDeclaration>.Filter.Eq(x => x.ObligationYear, obligationYear)
+        );
+
+        return await ReadPaged(
+            filter,
+            Builders<ComplianceDeclaration>.Sort.Descending(x => x.Updated).Ascending(x => x.Id),
+            page,
+            pageSize,
+            cancellationToken
+        );
+    }
 
     public async Task<bool> Delete(string id, CancellationToken cancellationToken)
     {
-        using var session = await dbContext.StartSession(cancellationToken);
-        session.StartTransaction();
-
-        try
-        {
-            var objectId = ObjectId.Parse(id);
-            var current = await dbContext
-                .ComplianceDeclarations.Find(session, Builders<ComplianceDeclaration>.Filter.Eq(x => x.Id, objectId))
-                .FirstOrDefaultAsync(cancellationToken: cancellationToken);
-
-            if (current is null)
+        var objectId = ObjectId.Parse(id);
+        var deleted = await dbContext.ExecuteTransaction(
+            async (transactionSession, transactionCancellationToken) =>
             {
-                await session.AbortTransactionAsync(cancellationToken);
+                var current = await dbContext
+                    .ComplianceDeclarations.Find(
+                        transactionSession,
+                        Builders<ComplianceDeclaration>.Filter.Eq(x => x.Id, objectId)
+                    )
+                    .FirstOrDefaultAsync(cancellationToken: transactionCancellationToken);
 
-                return false;
-            }
+                if (current is null)
+                    return false;
 
-            var deleteFilter = Builders<ComplianceDeclaration>.Filter.And(
-                Builders<ComplianceDeclaration>.Filter.Eq(x => x.Id, objectId),
-                Builders<ComplianceDeclaration>.Filter.Eq(x => x.Version, current.Version)
-            );
-
-            var deleteResult = await dbContext.ComplianceDeclarations.DeleteOneAsync(
-                session,
-                deleteFilter,
-                null,
-                cancellationToken
-            );
-
-            if (deleteResult.DeletedCount == 0)
-                throw new ConcurrencyException(
-                    $"Concurrency issue on delete, compliance declaration with id '{current.Id}' was not deleted"
+                var deleteFilter = Builders<ComplianceDeclaration>.Filter.And(
+                    Builders<ComplianceDeclaration>.Filter.Eq(x => x.Id, objectId),
+                    Builders<ComplianceDeclaration>.Filter.Eq(x => x.Version, current.Version)
                 );
 
-            var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
-            await auditEventService.RecordEvent(
-                session,
-                new AuditEventRequest(
-                    Actor,
-                    ComplianceDeclarationEntity,
-                    AuditEventOperation.Delete,
-                    "submission.removed",
-                    "elevated system allowed removal",
-                    current.Id.ToString(),
-                    current.Version + 1,
-                    current.ToBsonDocument(),
+                var deleteResult = await dbContext.ComplianceDeclarations.DeleteOneAsync(
+                    transactionSession,
+                    deleteFilter,
                     null,
-                    current.SchemaVersion,
-                    utcNow,
-                    ReadTraceId()
-                ),
-                cancellationToken
-            );
+                    transactionCancellationToken
+                );
 
-            await session.CommitTransactionAsync(cancellationToken);
-        }
-        catch
-        {
-            await session.AbortTransactionAsync(CancellationToken.None);
-            throw;
-        }
+                if (deleteResult.DeletedCount == 0)
+                    throw new ConcurrencyException(
+                        $"Concurrency issue on delete, compliance declaration with id '{current.Id}' was not deleted"
+                    );
+
+                var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
+                await auditEventService.RecordEvent(
+                    transactionSession,
+                    new AuditEventRequest(
+                        Actor,
+                        ComplianceDeclarationEntity,
+                        AuditEventOperation.Delete,
+                        "submission.removed",
+                        "elevated system allowed removal",
+                        current.Id.ToString(),
+                        current.Version + 1,
+                        current.ToBsonDocument(),
+                        null,
+                        current.SchemaVersion,
+                        utcNow,
+                        traceIdReader.Read()
+                    ),
+                    transactionCancellationToken
+                );
+
+                return true;
+            },
+            $"compliance declaration delete {objectId}",
+            cancellationToken
+        );
+
+        if (!deleted)
+            return false;
 
         complianceDeclarationMetrics.Deleted();
         logger.LogInformation("Deleted compliance declaration with id '{ComplianceDeclarationId}'", id);
@@ -165,7 +167,7 @@ public class ComplianceDeclarationService(
         return true;
     }
 
-    public async Task<ComplianceDeclarationSearchResult> Search(
+    public async Task<ComplianceDeclarationPageResult> Search(
         ComplianceDeclarationSearchQuery query,
         int page,
         int pageSize,
@@ -213,24 +215,7 @@ public class ComplianceDeclarationService(
                 ? Builders<ComplianceDeclaration>.Filter.Empty
                 : Builders<ComplianceDeclaration>.Filter.And(filters);
 
-        var countTask = dbContext.ComplianceDeclarations.CountDocumentsAsync(
-            combinedFilter,
-            cancellationToken: cancellationToken
-        );
-        var resultsTask = dbContext
-            .ComplianceDeclarations.Find(combinedFilter)
-            .SortBy(x => x.Id)
-            .Skip((page - 1) * pageSize)
-            .Limit(pageSize)
-            .ToListAsync(cancellationToken);
-
-        await Task.WhenAll(countTask, resultsTask);
-
-        return new ComplianceDeclarationSearchResult
-        {
-            ComplianceDeclarations = resultsTask.Result,
-            Total = (int)countTask.Result,
-        };
+        return await ReadPaged(combinedFilter, BuildSearchSort(query.Sort), page, pageSize, cancellationToken);
     }
 
     public async Task<ComplianceDeclaration> Update(
@@ -239,9 +224,6 @@ public class ComplianceDeclarationService(
         CancellationToken cancellationToken
     )
     {
-        using var session = await dbContext.StartSession(cancellationToken);
-        session.StartTransaction();
-
         var filter = Builders<ComplianceDeclaration>.Filter.And(
             Builders<ComplianceDeclaration>.Filter.Eq(x => x.Id, current.Id),
             Builders<ComplianceDeclaration>.Filter.Eq(x => x.Version, current.Version)
@@ -249,47 +231,46 @@ public class ComplianceDeclarationService(
 
         updated = updated with { Version = current.Version + 1, Updated = timeProvider.GetUtcNowWithoutMicroseconds() };
 
-        try
-        {
-            var replaceOneResult = await dbContext.ComplianceDeclarations.ReplaceOneAsync(
-                session,
-                filter,
-                updated,
-                new ReplaceOptions { IsUpsert = false },
-                cancellationToken: cancellationToken
-            );
-
-            if (replaceOneResult.ModifiedCount == 0)
-                throw new ConcurrencyException(
-                    $"Concurrency issue on write, compliance declaration with id '{current.Id}' was not updated"
+        await dbContext.ExecuteTransaction(
+            async (transactionSession, transactionCancellationToken) =>
+            {
+                var replaceOneResult = await dbContext.ComplianceDeclarations.ReplaceOneAsync(
+                    transactionSession,
+                    filter,
+                    updated,
+                    new ReplaceOptions { IsUpsert = false },
+                    cancellationToken: transactionCancellationToken
                 );
 
-            await auditEventService.RecordEvent(
-                session,
-                new AuditEventRequest(
-                    Actor,
-                    ComplianceDeclarationEntity,
-                    AuditEventOperation.Update,
-                    "submission.amended",
-                    null,
-                    updated.Id.ToString(),
-                    updated.Version,
-                    current.ToBsonDocument(),
-                    updated.ToBsonDocument(),
-                    updated.SchemaVersion,
-                    updated.Updated,
-                    ReadTraceId()
-                ),
-                cancellationToken
-            );
+                if (replaceOneResult.ModifiedCount == 0)
+                    throw new ConcurrencyException(
+                        $"Concurrency issue on write, compliance declaration with id '{current.Id}' was not updated"
+                    );
 
-            await session.CommitTransactionAsync(cancellationToken);
-        }
-        catch
-        {
-            await session.AbortTransactionAsync(CancellationToken.None);
-            throw;
-        }
+                await auditEventService.RecordEvent(
+                    transactionSession,
+                    new AuditEventRequest(
+                        Actor,
+                        ComplianceDeclarationEntity,
+                        AuditEventOperation.Update,
+                        "submission.amended",
+                        null,
+                        updated.Id.ToString(),
+                        updated.Version,
+                        current.ToBsonDocument(),
+                        updated.ToBsonDocument(),
+                        updated.SchemaVersion,
+                        updated.Updated,
+                        traceIdReader.Read()
+                    ),
+                    transactionCancellationToken
+                );
+
+                return updated;
+            },
+            $"compliance declaration update {updated.Id}",
+            cancellationToken
+        );
 
         complianceDeclarationMetrics.Updated(updated.Status);
         logger.LogInformation("Updated compliance declaration with id '{ComplianceDeclarationId}'", updated.Id);
@@ -297,16 +278,96 @@ public class ComplianceDeclarationService(
         return updated;
     }
 
-    private string? ReadTraceId()
+    private async Task<ComplianceDeclarationPageResult> ReadPaged(
+        FilterDefinition<ComplianceDeclaration> filter,
+        SortDefinition<ComplianceDeclaration> sort,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken
+    )
     {
-        if (headerPropagationValues.Headers is null)
-            return null;
+        var countTask = dbContext.ComplianceDeclarations.CountDocumentsAsync(
+            filter,
+            cancellationToken: cancellationToken
+        );
+        var resultsTask = dbContext
+            .ComplianceDeclarations.Find(filter)
+            .Sort(sort)
+            .Skip((page - 1) * pageSize)
+            .Limit(pageSize)
+            .ToListAsync(cancellationToken);
 
-        if (!headerPropagationValues.Headers.TryGetValue(traceHeaderOptions.Value.Name, out var values))
-            return null;
+        await Task.WhenAll(countTask, resultsTask);
 
-        var traceId = values.ToString();
-
-        return string.IsNullOrWhiteSpace(traceId) ? null : traceId;
+        return new ComplianceDeclarationPageResult
+        {
+            ComplianceDeclarations = resultsTask.Result,
+            Total = (int)countTask.Result,
+        };
     }
+
+    private static SortDefinition<ComplianceDeclaration> BuildSearchSort(
+        IReadOnlyCollection<ComplianceDeclarationSort>? sort
+    )
+    {
+        var sortBuilder = Builders<ComplianceDeclaration>.Sort;
+        if (sort is not { Count: > 0 })
+            return sortBuilder.Ascending(x => x.Id);
+
+        var sortDefinitions = sort.Select(BuildSearchSort).ToList();
+        if (!sort.Any(x => x.Field is ComplianceDeclarationSortField.OrganisationName))
+            sortDefinitions.Add(sortBuilder.Ascending(x => x.Organisation.Name));
+
+        sortDefinitions.Add(sortBuilder.Ascending(x => x.Id));
+
+        return sortBuilder.Combine(sortDefinitions);
+    }
+
+    private static SortDefinition<ComplianceDeclaration> BuildSearchSort(ComplianceDeclarationSort sort) =>
+        sort.Field switch
+        {
+            ComplianceDeclarationSortField.RecyclingObligations => SortByReversedDirection(
+                sort.Direction,
+                Builders<ComplianceDeclaration>.Sort.Ascending(x => x.ObligationStatus),
+                Builders<ComplianceDeclaration>.Sort.Descending(x => x.ObligationStatus)
+            ),
+            ComplianceDeclarationSortField.PercentageMet => SortByDirection(
+                sort.Direction,
+                Builders<ComplianceDeclaration>.Sort.Ascending(x => x.ObligationCoveragePercentage),
+                Builders<ComplianceDeclaration>.Sort.Descending(x => x.ObligationCoveragePercentage)
+            ),
+            ComplianceDeclarationSortField.DateSubmitted => SortByDirection(
+                sort.Direction,
+                Builders<ComplianceDeclaration>.Sort.Ascending(x => x.Created),
+                Builders<ComplianceDeclaration>.Sort.Descending(x => x.Created)
+            ),
+            ComplianceDeclarationSortField.Regulation43 => SortByDirection(
+                sort.Direction,
+                Builders<ComplianceDeclaration>.Sort.Ascending(x => x.IsRegulation43Compliant),
+                Builders<ComplianceDeclaration>.Sort.Descending(x => x.IsRegulation43Compliant)
+            ),
+            ComplianceDeclarationSortField.OrganisationName => SortByDirection(
+                sort.Direction,
+                Builders<ComplianceDeclaration>.Sort.Ascending(x => x.Organisation.Name),
+                Builders<ComplianceDeclaration>.Sort.Descending(x => x.Organisation.Name)
+            ),
+            ComplianceDeclarationSortField.OrganisationId => SortByDirection(
+                sort.Direction,
+                Builders<ComplianceDeclaration>.Sort.Ascending(x => x.Organisation.Id),
+                Builders<ComplianceDeclaration>.Sort.Descending(x => x.Organisation.Id)
+            ),
+            _ => throw new ArgumentOutOfRangeException(nameof(sort)),
+        };
+
+    private static SortDefinition<ComplianceDeclaration> SortByDirection(
+        ComplianceDeclarationSortDirection direction,
+        SortDefinition<ComplianceDeclaration> ascending,
+        SortDefinition<ComplianceDeclaration> descending
+    ) => direction is ComplianceDeclarationSortDirection.Ascending ? ascending : descending;
+
+    private static SortDefinition<ComplianceDeclaration> SortByReversedDirection(
+        ComplianceDeclarationSortDirection direction,
+        SortDefinition<ComplianceDeclaration> ascending,
+        SortDefinition<ComplianceDeclaration> descending
+    ) => direction is ComplianceDeclarationSortDirection.Ascending ? descending : ascending;
 }
