@@ -83,10 +83,7 @@ public class UpdateComplianceDeclarationTests : EndpointTestBase
     public async Task Validation_WhenCancellingAndReasonIsMissing_ShouldBeBadRequest()
     {
         var content = await RequestShouldBeBadRequest(
-            UpdateComplianceDeclarationRequestFixture
-                .Cancelled()
-                .With(x => x.Reason, (ComplianceDeclarationCancellationReason?)null)
-                .Create()
+            UpdateComplianceDeclarationRequestFixture.Cancelled().With(x => x.Reason, (string?)null).Create()
         );
 
         await VerifyJson(content);
@@ -133,7 +130,7 @@ public class UpdateComplianceDeclarationTests : EndpointTestBase
             .SendCancelledEmail(
                 Arg.Any<Defra.WasteObligations.Api.Data.Entities.ComplianceDeclaration>(),
                 Arg.Any<Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation>(),
-                Arg.Any<ComplianceDeclarationCancellationReason>(),
+                Arg.Any<string>(),
                 Arg.Any<IReadOnlyDictionary<string, string>>(),
                 Arg.Any<CancellationToken>()
             );
@@ -187,21 +184,6 @@ public class UpdateComplianceDeclarationTests : EndpointTestBase
     public async Task Validation_WhenUnknownPayload_ShouldBeBadRequest()
     {
         var content = await RequestShouldBeBadRequest(new { Status = "Unknown" });
-
-        await VerifyJson(content);
-    }
-
-    [Fact]
-    public async Task Validation_WhenCancellingAndReasonInvalid_ShouldBeBadRequest()
-    {
-        var content = await RequestShouldBeBadRequest(
-            new
-            {
-                Status = "Cancelled",
-                Reason = "Not signed by correct person",
-                User = UserFixture.ApprovedPerson().Create(),
-            }
-        );
 
         await VerifyJson(content);
     }
@@ -307,7 +289,7 @@ public class UpdateComplianceDeclarationTests : EndpointTestBase
             .SendCancelledEmail(
                 Arg.Any<Defra.WasteObligations.Api.Data.Entities.ComplianceDeclaration>(),
                 Arg.Any<Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation>(),
-                Arg.Any<ComplianceDeclarationCancellationReason>(),
+                Arg.Any<string>(),
                 Arg.Any<IReadOnlyDictionary<string, string>>(),
                 Arg.Any<CancellationToken>()
             );
@@ -334,7 +316,7 @@ public class UpdateComplianceDeclarationTests : EndpointTestBase
             .SendCancelledEmail(
                 Arg.Any<Defra.WasteObligations.Api.Data.Entities.ComplianceDeclaration>(),
                 Arg.Any<Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation>(),
-                ComplianceDeclarationCancellationReason.RequestedToCancel,
+                ComplianceDeclarationCancellationReasons.ProducerRequestedToCancel,
                 Arg.Is<IReadOnlyDictionary<string, string>>(x =>
                     x.Count == NotificationFixture.DirectProducerCancellationParameters().Count
                 ),

@@ -12,7 +12,7 @@ public static class ComplianceDeclarationCancellationNotificationParameters
         var personalisation = new Dictionary<string, object>(StringComparer.Ordinal)
         {
             { "year", complianceDeclaration.ObligationYear },
-            { "environmentalRegulator", complianceDeclaration.Organisation.Regulator },
+            { "regulator", complianceDeclaration.Organisation.Regulator },
             { "regulatorEmail", complianceDeclaration.Organisation.RegulatorEmail },
         };
 

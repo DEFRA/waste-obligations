@@ -57,7 +57,7 @@ public static class UpdateComplianceDeclaration
             complianceDeclaration = await complianceDeclarationService.UpdateStatus(
                 complianceDeclaration,
                 request.Status.Value.ToEntity(),
-                request.Reason?.ToString(),
+                request.Reason,
                 request.User.ToEntity(),
                 cancellationToken
             );
@@ -67,7 +67,7 @@ public static class UpdateComplianceDeclaration
                 await emailService.SendCancelledEmail(
                     complianceDeclaration,
                     organisation,
-                    request.Reason!.Value,
+                    request.Reason!,
                     request.Notification!.Parameters,
                     cancellationToken
                 );

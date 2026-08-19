@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Defra.WasteObligations.Testing.Fixtures.Dtos;
 using Notify.Client;
 
 namespace Defra.WasteObligations.Api.IntegrationTests.Scenarios;
@@ -22,11 +23,14 @@ public class GovukNotifyTests(ITestOutputHelper testOutputHelper) : IntegrationT
 
         var preview = await GenerateTemplatePreview(
             templateId,
-            obligationYear,
-            regulatorLeading,
-            regulatorInline,
-            regulatorEmail,
-            user
+            new Dictionary<string, object>
+            {
+                { "obligationYear", obligationYear },
+                { "regulatorLeading", regulatorLeading },
+                { "regulatorInline", regulatorInline },
+                { "regulatorEmail", regulatorEmail },
+                { "user", user },
+            }
         );
         if (preview is null)
             return;
@@ -39,13 +43,55 @@ public class GovukNotifyTests(ITestOutputHelper testOutputHelper) : IntegrationT
         preview.Value.Body.Should().Contain(user);
     }
 
+    [Theory]
+    [InlineData(GovukNotifyTemplateIds.ComplianceDeclarationCancellationNotSignedByCorrectPersonEnglish)]
+    [InlineData(GovukNotifyTemplateIds.ComplianceDeclarationCancellationNotSignedByCorrectPersonWelsh)]
+    [InlineData(GovukNotifyTemplateIds.ComplianceDeclarationCancellationRecyclingObligationsChangedEnglish)]
+    [InlineData(GovukNotifyTemplateIds.ComplianceDeclarationCancellationRecyclingObligationsChangedWelsh)]
+    [InlineData(GovukNotifyTemplateIds.ComplianceDeclarationCancellationCanMeetRecyclingObligationsEnglish)]
+    [InlineData(GovukNotifyTemplateIds.ComplianceDeclarationCancellationCanMeetRecyclingObligationsWelsh)]
+    [InlineData(GovukNotifyTemplateIds.ComplianceDeclarationCancellationProducerRequestedEnglish)]
+    [InlineData(GovukNotifyTemplateIds.ComplianceDeclarationCancellationProducerRequestedWelsh)]
+    public async Task CancellationEmail_ShouldRenderPersonalisation(string templateId)
+    {
+        const int obligationYear = 2026;
+        const string obligationYearText = "2026";
+        const string regulatorName = "Regulator";
+        const string regulatorEmail = "regulator@email.com";
+        const string firstName = "First";
+        const string lastName = "Last";
+        var callerParameters = NotificationFixture.DirectProducerCancellationParameters(regulatorName);
+
+        var personalisation = new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            { "year", obligationYear },
+            { "regulator", regulatorName },
+            { "regulatorEmail", regulatorEmail },
+            { "firstName", firstName },
+            { "lastName", lastName },
+        };
+
+        foreach (var (key, value) in callerParameters)
+            personalisation[key] = value;
+
+        var preview = await GenerateTemplatePreview(templateId, personalisation);
+        if (preview is null)
+            return;
+
+        preview.Value.Subject.Should().Contain(obligationYearText);
+        preview.Value.Subject.Should().Contain(regulatorName);
+        preview.Value.Body.Should().Contain(obligationYearText);
+        preview.Value.Body.Should().Contain(regulatorName);
+        preview.Value.Body.Should().Contain(regulatorEmail);
+        preview.Value.Body.Should().Contain(callerParameters["certOrStatement"]);
+        preview.Value.Body.Should().Contain(callerParameters["certOrStatement_cy"]);
+        preview.Value.Body.Should().Contain(firstName);
+        preview.Value.Body.Should().Contain(lastName);
+    }
+
     private async Task<(string Body, string Subject)?> GenerateTemplatePreview(
         string templateId,
-        int obligationYear,
-        string regulatorLeading,
-        string regulatorInline,
-        string regulatorEmail,
-        string user
+        Dictionary<string, object> personalisation
     )
     {
         var apiKey = Environment.GetEnvironmentVariable("GOVUKNOTIFY_APIKEY");
@@ -59,15 +105,6 @@ public class GovukNotifyTests(ITestOutputHelper testOutputHelper) : IntegrationT
         testOutputHelper.WriteLine("GOVUKNOTIFY_APIKEY found, running test");
 
         var notificationClient = new NotificationClient(apiKey);
-        var personalisation = new Dictionary<string, object>
-        {
-            { "obligationYear", obligationYear },
-            { "regulatorLeading", regulatorLeading },
-            { "regulatorInline", regulatorInline },
-            { "regulatorEmail", regulatorEmail },
-            { "user", user },
-        };
-
         var preview = await notificationClient.GenerateTemplatePreviewAsync(templateId, personalisation);
 
         testOutputHelper.WriteLine($"GOV.UK Notify template '{templateId}' rendered subject:");

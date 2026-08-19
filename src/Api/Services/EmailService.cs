@@ -3,7 +3,6 @@ using Defra.WasteObligations.Api.Services.AccountBackend;
 using Defra.WasteObligations.Api.Services.GovukNotify;
 using Defra.WasteObligations.Api.Utils.Metrics;
 using BusinessCountry = Defra.WasteObligations.Api.Services.WasteOrganisations.BusinessCountry;
-using ComplianceDeclarationCancellationReason = Defra.WasteObligations.Api.Dtos.ComplianceDeclarationCancellationReason;
 using Organisation = Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation;
 using RegistrationType = Defra.WasteObligations.Api.Data.Entities.RegistrationType;
 
@@ -81,7 +80,7 @@ public class EmailService(
     public async Task SendCancelledEmail(
         ComplianceDeclaration complianceDeclaration,
         Organisation organisation,
-        ComplianceDeclarationCancellationReason reason,
+        string reason,
         IReadOnlyDictionary<string, string>? notificationParameters,
         CancellationToken cancellationToken
     )
@@ -89,13 +88,10 @@ public class EmailService(
         if (complianceDeclaration.Organisation.Id != organisation.Id)
             throw new InvalidOperationException("Organisations do not match");
 
-        var template = reason.TryGetTemplate();
+        var template = ComplianceDeclarationCancellationReasons.TryGetTemplate(reason);
         if (template is null)
         {
-            logger.LogWarning(
-                "Cancellation email was not sent because no template is configured for reason {Reason}",
-                reason
-            );
+            logger.LogWarning("Cancellation email was not sent because the reason is not recognised: {Reason}", reason);
 
             return;
         }

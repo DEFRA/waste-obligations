@@ -136,25 +136,30 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
 
     [Theory]
     [InlineData(
-        ComplianceDeclarationCancellationReason.IncorrectSigner,
+        ComplianceDeclarationCancellationReasons.NotSignedByCorrectPerson,
         GovukNotifyTemplateIds.ComplianceDeclarationCancellationNotSignedByCorrectPersonEnglish
     )]
     [InlineData(
-        ComplianceDeclarationCancellationReason.RecyclingObligationsChanged,
+        ComplianceDeclarationCancellationReasons.RecyclingObligationsChanged,
         GovukNotifyTemplateIds.ComplianceDeclarationCancellationRecyclingObligationsChangedEnglish
     )]
     [InlineData(
-        ComplianceDeclarationCancellationReason.CanMeetRecyclingObligations,
+        ComplianceDeclarationCancellationReasons.ProducerCanMeetRecyclingObligations,
         GovukNotifyTemplateIds.ComplianceDeclarationCancellationCanMeetRecyclingObligationsEnglish
     )]
     [InlineData(
-        ComplianceDeclarationCancellationReason.RequestedToCancel,
+        ComplianceDeclarationCancellationReasons.ComplianceSchemeCanMeetRecyclingObligations,
+        GovukNotifyTemplateIds.ComplianceDeclarationCancellationCanMeetRecyclingObligationsEnglish
+    )]
+    [InlineData(
+        ComplianceDeclarationCancellationReasons.ProducerRequestedToCancel,
         GovukNotifyTemplateIds.ComplianceDeclarationCancellationProducerRequestedEnglish
     )]
-    public async Task WhenCancelled_ShouldSendEmailForReason(
-        ComplianceDeclarationCancellationReason reason,
-        string expectedTemplateId
-    )
+    [InlineData(
+        ComplianceDeclarationCancellationReasons.ComplianceSchemeRequestedToCancel,
+        GovukNotifyTemplateIds.ComplianceDeclarationCancellationProducerRequestedEnglish
+    )]
+    public async Task WhenCancelled_ShouldSendEmailForReason(string reason, string expectedTemplateId)
     {
         var organisationId = Guid.NewGuid();
         await StubCancellationDependencies(organisationId, directProducer: true, welshOrganisation: false);
@@ -216,7 +221,7 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
         var response = await client.PatchAsJsonAsync(
             Testing.Endpoints.Organisations.ComplianceDeclarations.Update(organisationId, result.Id),
             UpdateComplianceDeclarationRequestFixture
-                .Cancelled(ComplianceDeclarationCancellationReason.RequestedToCancel, complianceScheme: true)
+                .Cancelled(ComplianceDeclarationCancellationReasons.ProducerRequestedToCancel, complianceScheme: true)
                 .Create(),
             TestContext.Current.CancellationToken
         );
@@ -261,7 +266,7 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
         var response = await client.PatchAsJsonAsync(
             Testing.Endpoints.Organisations.ComplianceDeclarations.Update(organisationId, result.Id),
             UpdateComplianceDeclarationRequestFixture
-                .Cancelled(ComplianceDeclarationCancellationReason.IncorrectSigner)
+                .Cancelled(ComplianceDeclarationCancellationReasons.NotSignedByCorrectPerson)
                 .Create(),
             TestContext.Current.CancellationToken
         );
@@ -317,7 +322,7 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
         string expectedTemplateId,
         string expectedCertOrStatement,
         string expectedCertOrStatementWelsh,
-        string expectedEnvironmentalRegulatorWelsh = "Regulator"
+        string expectedRegulatorWelsh = "Regulator"
     )
     {
         var cancellationEntries = GetCancelledEmailEntries(entries);
@@ -333,7 +338,7 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
                         expectedTemplateId,
                         expectedCertOrStatement,
                         expectedCertOrStatementWelsh,
-                        expectedEnvironmentalRegulatorWelsh,
+                        expectedRegulatorWelsh,
                         recipient.FirstName,
                         recipient.LastName,
                         recipient.Email
@@ -365,7 +370,7 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
         string expectedTemplateId,
         string expectedCertOrStatement,
         string expectedCertOrStatementWelsh,
-        string expectedEnvironmentalRegulatorWelsh,
+        string expectedRegulatorWelsh,
         string expectedFirstName,
         string expectedLastName,
         string expectedEmail
@@ -392,10 +397,10 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
         if (personalisation.GetProperty("year").GetInt32() != 2026)
             return false;
 
-        if (personalisation.GetProperty("environmentalRegulator").GetString() != "Regulator")
+        if (personalisation.GetProperty("regulator").GetString() != "Regulator")
             return false;
 
-        if (personalisation.GetProperty("environmentalRegulator_cy").GetString() != expectedEnvironmentalRegulatorWelsh)
+        if (personalisation.GetProperty("regulator_cy").GetString() != expectedRegulatorWelsh)
             return false;
 
         if (personalisation.GetProperty("regulatorEmail").GetString() != "regulator@email.com")

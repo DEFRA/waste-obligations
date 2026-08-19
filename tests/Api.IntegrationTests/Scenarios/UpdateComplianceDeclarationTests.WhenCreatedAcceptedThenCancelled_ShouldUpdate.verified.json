@@ -62,7 +62,7 @@
       "action": "Accepted"
     },
     {
-      "reason": "RequestedToCancel",
+      "reason": "Producer requested to cancel",
       "user": {
         "id": "Guid_4",
         "email": "approved-person@email.com",

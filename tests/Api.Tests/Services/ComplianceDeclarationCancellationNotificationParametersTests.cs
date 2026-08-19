@@ -17,7 +17,7 @@ public class ComplianceDeclarationCancellationNotificationParametersTests
 
         result.Count.Should().Be(3);
         result["year"].Should().Be(complianceDeclaration.ObligationYear);
-        result["environmentalRegulator"].Should().Be(complianceDeclaration.Organisation.Regulator);
+        result["regulator"].Should().Be(complianceDeclaration.Organisation.Regulator);
         result["regulatorEmail"].Should().Be(complianceDeclaration.Organisation.RegulatorEmail);
     }
 
@@ -34,9 +34,9 @@ public class ComplianceDeclarationCancellationNotificationParametersTests
 
         result["certOrStatement"].Should().Be("certificate");
         result["certOrStatement_cy"].Should().Be("tystysgrif");
-        result["environmentalRegulator_cy"].Should().Be("Regulator");
+        result["regulator_cy"].Should().Be("Regulator");
         result["year"].Should().Be(complianceDeclaration.ObligationYear);
-        result["environmentalRegulator"].Should().Be(complianceDeclaration.Organisation.Regulator);
+        result["regulator"].Should().Be(complianceDeclaration.Organisation.Regulator);
         result["regulatorEmail"].Should().Be(complianceDeclaration.Organisation.RegulatorEmail);
     }
 
