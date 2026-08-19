@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace Defra.WasteObligations.Api.IntegrationTests;
+namespace Defra.WasteObligations.Testing;
 
 public static class AsyncWaiter
 {

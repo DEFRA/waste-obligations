@@ -35,7 +35,18 @@ public class ReadObligationsTests(ApiWebApplicationFactory factory, ITestOutputH
         );
 
         await VerifyJson(response).DontScrubGuids();
-        LatencyLogger.Messages.Should().ContainSingle(x => x.StartsWith("Read organisation obligations latency:"));
+        await AsyncWaiter.WaitForAsync(
+            () =>
+            {
+                LatencyLogger
+                    .Messages.Should()
+                    .ContainSingle(x => x.StartsWith("Read organisation obligations latency:"));
+
+                return Task.CompletedTask;
+            },
+            timeout: 5,
+            delay: TimeSpan.FromMilliseconds(25)
+        );
     }
 
     [Fact]
