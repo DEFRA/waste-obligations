@@ -2,11 +2,13 @@ using System.Globalization;
 using System.Net;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Utils.Http;
+using Defra.WasteObligations.Api.Utils.OAuth2;
 using Microsoft.AspNetCore.WebUtilities;
 
 namespace Defra.WasteObligations.Api.Services.PrnCommonBackend;
 
-public class PrnCommonBackendService(HttpClient httpClient) : IPrnCommonBackendService
+public class PrnCommonBackendService(HttpClient httpClient, IHttpContextAccessor? httpContextAccessor = null)
+    : IPrnCommonBackendService
 {
     private const string OrganisationHeaderName = "X-EPR-ORGANISATION";
 
@@ -16,21 +18,47 @@ public class PrnCommonBackendService(HttpClient httpClient) : IPrnCommonBackendS
         CancellationToken cancellationToken
     )
     {
-        var request = CreateOrganisationRequest(
-            HttpMethod.Get,
-            $"api/v1/prn/obligationcalculation/{year}",
-            organisationId
-        );
+        var latency = GetReadObligationsLatency();
+        var startingTimestamp = TimeProvider.System.GetTimestamp();
 
-        var response = await httpClient.SendAsync(request, cancellationToken);
-        if (response.StatusCode == HttpStatusCode.NotFound)
-            return [];
+        try
+        {
+            var request = CreateOrganisationRequest(
+                HttpMethod.Get,
+                $"api/v1/prn/obligationcalculation/{year}",
+                organisationId
+            );
+            if (latency is not null)
+            {
+                request.Options.Set(
+                    OAuth2Handler.TokenDurationCallbackKey,
+                    duration => latency.PrnTokenDurationMilliseconds = duration.TotalMilliseconds
+                );
+            }
 
-        response.EnsureSuccessStatusCode();
+            var response = await httpClient.SendAsync(request, cancellationToken);
+            if (response.StatusCode == HttpStatusCode.NotFound)
+                return [];
 
-        var obligations = await response.Content.ReadFromJsonAsync<Obligations?>(cancellationToken);
+            response.EnsureSuccessStatusCode();
 
-        return obligations?.ObligationData ?? [];
+            var obligations = await response.Content.ReadFromJsonAsync<Obligations?>(cancellationToken);
+
+            return obligations?.ObligationData ?? [];
+        }
+        finally
+        {
+            if (latency is not null)
+            {
+                latency.PrnCommonBackendDurationMilliseconds = TimeProvider
+                    .System.GetElapsedTime(startingTimestamp)
+                    .TotalMilliseconds;
+                latency.PrnObligationCalculationDurationMilliseconds = Math.Max(
+                    0,
+                    latency.PrnCommonBackendDurationMilliseconds - latency.PrnTokenDurationMilliseconds
+                );
+            }
+        }
     }
 
     public async Task<PrnData?> ReadPrn(Guid organisationId, string prnId, CancellationToken cancellationToken)
@@ -82,6 +110,18 @@ public class PrnCommonBackendService(HttpClient httpClient) : IPrnCommonBackendS
         request.Headers.Add(OrganisationHeaderName, organisationId.ToString("D"));
 
         return request;
+    }
+
+    private ReadObligationsLatency? GetReadObligationsLatency()
+    {
+        var httpContext = httpContextAccessor?.HttpContext;
+        if (
+            httpContext is null
+            || !httpContext.Items.TryGetValue(ReadObligationsLatency.HttpContextItemKey, out var value)
+        )
+            return null;
+
+        return value as ReadObligationsLatency;
     }
 
     public async Task<PrnStatusUpdateResult> UpdatePrnStatus(
