@@ -5,16 +5,20 @@ using Defra.WasteObligations.Api.Services.WasteOrganisations;
 using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Fakes;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Defra.WasteObligations.Api.Tests.Endpoints.Organisations.Obligations;
 
 public class ReadObligationsTests(ApiWebApplicationFactory factory, ITestOutputHelper outputHelper)
     : EndpointTestBase(factory, outputHelper)
 {
+    private RecordingLogger<ReadObligationsLatency> LatencyLogger { get; } = new();
+
     protected override void ConfigureTestServices(IServiceCollection services)
     {
         services.AddTransient<IWasteOrganisationsService>(_ => new FakeWasteOrganisationsService());
         services.AddTransient<IPrnCommonBackendService>(_ => new FakePrnCommonBackendService());
+        services.AddSingleton<ILogger<ReadObligationsLatency>>(LatencyLogger);
     }
 
     [Fact]
@@ -31,6 +35,7 @@ public class ReadObligationsTests(ApiWebApplicationFactory factory, ITestOutputH
         );
 
         await VerifyJson(response).DontScrubGuids();
+        LatencyLogger.Messages.Should().ContainSingle(x => x.StartsWith("Read organisation obligations latency:"));
     }
 
     [Fact]
@@ -47,6 +52,7 @@ public class ReadObligationsTests(ApiWebApplicationFactory factory, ITestOutputH
         );
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        LatencyLogger.Messages.Should().BeEmpty();
     }
 
     [Fact]
