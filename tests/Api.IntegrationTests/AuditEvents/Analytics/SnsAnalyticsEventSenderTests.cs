@@ -20,7 +20,10 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
         var client = CreateClient();
 
         var complianceDeclaration = await CreateComplianceDeclaration(client);
-        using var deserializedMessage = await ReceiveAnalyticsEventsQueueJsonMessage(sqsClient);
+        using var deserializedMessage = await ReceiveAnalyticsEventsQueueJsonMessage(
+            sqsClient,
+            MatchAnalyticsEvent(complianceDeclaration.Id, "insert", "submission.created")
+        );
         var root = deserializedMessage.RootElement;
 
         root.GetProperty("eventId").GetString().Should().NotBeNullOrWhiteSpace();
@@ -44,7 +47,10 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
         var client = CreateClient();
         client.DefaultRequestHeaders.Add(TraceHeaderName, TraceId);
         var complianceDeclaration = await CreateComplianceDeclaration(client);
-        await ReceiveAnalyticsEventsQueueJsonMessage(sqsClient);
+        await ReceiveAnalyticsEventsQueueJsonMessage(
+            sqsClient,
+            MatchAnalyticsEvent(complianceDeclaration.Id, "insert", "submission.created")
+        );
 
         var response = await client.PatchAsJsonAsync(
             Testing.Endpoints.Organisations.ComplianceDeclarations.Update(
@@ -56,7 +62,10 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
         );
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        using var deserializedMessage = await ReceiveAnalyticsEventsQueueJsonMessage(sqsClient);
+        using var deserializedMessage = await ReceiveAnalyticsEventsQueueJsonMessage(
+            sqsClient,
+            MatchAnalyticsEvent(complianceDeclaration.Id, "update", "submission.amended")
+        );
         var root = deserializedMessage.RootElement;
 
         root.GetProperty("entityId").GetString().Should().Be($"compliance_declaration_{complianceDeclaration.Id}");
@@ -75,7 +84,10 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
         using var sqsClient = CreateSqsClient();
         var client = CreateClient();
         var complianceDeclaration = await CreateComplianceDeclaration(client);
-        await ReceiveAnalyticsEventsQueueJsonMessage(sqsClient);
+        await ReceiveAnalyticsEventsQueueJsonMessage(
+            sqsClient,
+            MatchAnalyticsEvent(complianceDeclaration.Id, "insert", "submission.created")
+        );
 
         var response = await client.DeleteAsync(
             Testing.Endpoints.ComplianceDeclarations.Delete(complianceDeclaration.Id),
@@ -83,7 +95,10 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
         );
 
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
-        using var deserializedMessage = await ReceiveAnalyticsEventsQueueJsonMessage(sqsClient);
+        using var deserializedMessage = await ReceiveAnalyticsEventsQueueJsonMessage(
+            sqsClient,
+            MatchAnalyticsEvent(complianceDeclaration.Id, "delete", "submission.removed")
+        );
         var root = deserializedMessage.RootElement;
 
         root.GetProperty("entityId").GetString().Should().Be($"compliance_declaration_{complianceDeclaration.Id}");

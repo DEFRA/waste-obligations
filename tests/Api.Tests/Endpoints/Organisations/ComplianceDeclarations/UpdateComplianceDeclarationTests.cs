@@ -8,8 +8,8 @@ using Defra.WasteObligations.Api.Services.WasteOrganisations;
 using Defra.WasteObligations.Testing.Fakes;
 using Defra.WasteObligations.Testing.Fixtures.Dtos;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Time.Testing;
 using MongoDB.Bson;
+using NSubstitute;
 
 namespace Defra.WasteObligations.Api.Tests.Endpoints.Organisations.ComplianceDeclarations;
 
@@ -18,19 +18,18 @@ public class UpdateComplianceDeclarationTests : EndpointTestBase
     public UpdateComplianceDeclarationTests(ApiWebApplicationFactory factory, ITestOutputHelper outputHelper)
         : base(factory, outputHelper)
     {
-        TimeProvider = new FakeTimeProvider();
-        TimeProvider.SetUtcNow(new DateTimeOffset(2026, 4, 26, 14, 0, 0, TimeSpan.Zero));
+        ComplianceDeclarationService.UtcNow = () => new DateTimeOffset(2026, 4, 26, 14, 0, 0, TimeSpan.Zero);
     }
 
-    private FakeTimeProvider TimeProvider { get; }
     private FakeComplianceDeclarationService ComplianceDeclarationService { get; } = new();
     private FakeWasteOrganisationsService WasteOrganisationsService { get; } = new();
+    private IEmailService EmailService { get; } = Substitute.For<IEmailService>();
 
     protected override void ConfigureTestServices(IServiceCollection services)
     {
         services.AddTransient<IWasteOrganisationsService>(_ => WasteOrganisationsService);
         services.AddTransient<IComplianceDeclarationService>(_ => ComplianceDeclarationService);
-        services.AddTransient<TimeProvider>(_ => TimeProvider);
+        services.AddTransient<IEmailService>(_ => EmailService);
     }
 
     [Fact]
@@ -68,10 +67,83 @@ public class UpdateComplianceDeclarationTests : EndpointTestBase
     }
 
     [Fact]
+    public async Task Validation_WhenCancellingAndNotificationMissing_ShouldBeBadRequest()
+    {
+        var content = await RequestShouldBeBadRequest(
+            UpdateComplianceDeclarationRequestFixture
+                .Cancelled()
+                .With(x => x.Notification, (NotificationRequest?)null)
+                .Create()
+        );
+
+        await VerifyJson(content);
+    }
+
+    [Fact]
     public async Task Validation_WhenCancellingAndReasonIsMissing_ShouldBeBadRequest()
     {
         var content = await RequestShouldBeBadRequest(
             UpdateComplianceDeclarationRequestFixture.Cancelled().With(x => x.Reason, (string?)null).Create()
+        );
+
+        await VerifyJson(content);
+    }
+
+    [Fact]
+    public async Task Validation_WhenAccepted_WithoutNotification_ShouldBeOk()
+    {
+        var client = CreateClient(testUser: TestUser.WriteOnly);
+
+        var response = await client.PatchAsJsonAsync(
+            Testing.Endpoints.Organisations.ComplianceDeclarations.Update(
+                FakeWasteOrganisationsService.OrganisationId,
+                FakeComplianceDeclarationService.ComplianceDeclarationId.ToString()
+            ),
+            UpdateComplianceDeclarationRequestFixture.Accepted().Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task WhenAccepted_WithNotification_ShouldNotSendCancellationEmail()
+    {
+        var client = CreateClient(testUser: TestUser.WriteOnly);
+
+        var response = await client.PatchAsJsonAsync(
+            Testing.Endpoints.Organisations.ComplianceDeclarations.Update(
+                FakeWasteOrganisationsService.OrganisationId,
+                FakeComplianceDeclarationService.ComplianceDeclarationId.ToString()
+            ),
+            UpdateComplianceDeclarationRequestFixture
+                .Accepted()
+                .With(x => x.Notification, NotificationFixture.DirectProducerCancellation())
+                .Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        await EmailService
+            .DidNotReceive()
+            .SendCancelledEmail(
+                Arg.Any<Defra.WasteObligations.Api.Data.Entities.ComplianceDeclaration>(),
+                Arg.Any<Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation>(),
+                Arg.Any<string>(),
+                Arg.Any<IReadOnlyDictionary<string, string>>(),
+                Arg.Any<CancellationToken>()
+            );
+    }
+
+    [Fact]
+    public async Task Validation_WhenCancellingAndNotificationParametersEmpty_ShouldBeBadRequest()
+    {
+        var content = await RequestShouldBeBadRequest(
+            UpdateComplianceDeclarationRequestFixture
+                .Cancelled()
+                .With(x => x.Notification, NotificationFixture.WithParameters(new Dictionary<string, string>()))
+                .Create()
         );
 
         await VerifyJson(content);
@@ -211,6 +283,52 @@ public class UpdateComplianceDeclarationTests : EndpointTestBase
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         await VerifyJson(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+
+        await EmailService
+            .DidNotReceive()
+            .SendCancelledEmail(
+                Arg.Any<Defra.WasteObligations.Api.Data.Entities.ComplianceDeclaration>(),
+                Arg.Any<Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation>(),
+                Arg.Any<string>(),
+                Arg.Any<IReadOnlyDictionary<string, string>>(),
+                Arg.Any<CancellationToken>()
+            );
+    }
+
+    [Fact]
+    public async Task WhenCancelled_ShouldSendCancellationEmail()
+    {
+        var client = CreateClient(testUser: TestUser.WriteOnly);
+
+        var response = await client.PatchAsJsonAsync(
+            Testing.Endpoints.Organisations.ComplianceDeclarations.Update(
+                FakeWasteOrganisationsService.OrganisationId,
+                FakeComplianceDeclarationService.ComplianceDeclarationId.ToString()
+            ),
+            UpdateComplianceDeclarationRequestFixture.Cancelled().Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        await EmailService
+            .Received(1)
+            .SendCancelledEmail(
+                Arg.Any<Defra.WasteObligations.Api.Data.Entities.ComplianceDeclaration>(),
+                Arg.Any<Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation>(),
+                ComplianceDeclarationCancellationReasons.ProducerRequestedToCancel,
+                Arg.Is<IReadOnlyDictionary<string, string>>(x =>
+                    x.Count == NotificationFixture.DirectProducerCancellationParameters().Count
+                ),
+                Arg.Any<CancellationToken>()
+            );
+        await EmailService
+            .DidNotReceive()
+            .SendSubmittedEmail(
+                Arg.Any<Defra.WasteObligations.Api.Data.Entities.ComplianceDeclaration>(),
+                Arg.Any<Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation>(),
+                Arg.Any<CancellationToken>()
+            );
     }
 
     [Fact]
