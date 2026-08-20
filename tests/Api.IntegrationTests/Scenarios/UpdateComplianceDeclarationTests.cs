@@ -121,7 +121,7 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
         await VerifyJson(complianceDeclaration).ScrubTopLevelIdMember().DisableDateCounting();
         await AssertAnalyticsEventQueued(sqsClient, result.Id, Update, Amended);
 
-        await WaitForAsync(async () =>
+        await AsyncWaiter.WaitForAsync(async () =>
         {
             var entries = await WireMockContext.WireMockAdminApi.GetGovukNotifySendEmail();
 
@@ -188,7 +188,7 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        await WaitForAsync(async () =>
+        await AsyncWaiter.WaitForAsync(async () =>
         {
             var entries = await WireMockContext.WireMockAdminApi.GetGovukNotifySendEmail();
 
@@ -228,7 +228,7 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        await WaitForAsync(async () =>
+        await AsyncWaiter.WaitForAsync(async () =>
         {
             var entries = await WireMockContext.WireMockAdminApi.GetGovukNotifySendEmail();
 
@@ -273,7 +273,7 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        await WaitForAsync(async () =>
+        await AsyncWaiter.WaitForAsync(async () =>
         {
             var entries = await WireMockContext.WireMockAdminApi.GetGovukNotifySendEmail();
 
