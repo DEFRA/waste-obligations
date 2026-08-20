@@ -85,6 +85,9 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         return new AmazonSQSClient(credentials, config);
     }
 
+    protected static Task WaitForAsync(Func<Task> assertion, double? timeout = null, TimeSpan? delay = null) =>
+        AsyncWaiter.WaitForAsync(assertion, timeout, delay);
+
     protected static async Task DrainAnalyticsEventsQueue(IAmazonSQS sqsClient)
     {
         while (true)
