@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using System.Runtime.CompilerServices;
 using System.Security.Claims;
 using System.Text.Json;
 using Amazon.Runtime;
@@ -35,6 +36,9 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     public required IMongoCollection<AuditEventCounter> AuditEventCounters { get; set; }
     public required IMongoCollection<AuditEvent> AuditEvents { get; set; }
     public required IMongoCollection<AuditEventDispatchLease> AuditEventDispatchLeases { get; set; }
+
+    [ModuleInitializer]
+    public static void RegisterMongoConventions() => ServiceCollectionExtensions.RegisterConventions();
 
     public ValueTask DisposeAsync()
     {
@@ -256,9 +260,4 @@ public abstract class IntegrationTestBase : IAsyncLifetime
 
     private static async Task DeleteMany<T>(IMongoCollection<T> collection) =>
         await collection.DeleteManyAsync(FilterDefinition<T>.Empty, TestContext.Current.CancellationToken);
-
-    static IntegrationTestBase()
-    {
-        ServiceCollectionExtensions.RegisterConventions();
-    }
 }
