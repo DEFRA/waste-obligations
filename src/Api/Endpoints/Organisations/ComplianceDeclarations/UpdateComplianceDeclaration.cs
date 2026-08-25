@@ -68,7 +68,7 @@ public static class UpdateComplianceDeclaration
                     complianceDeclaration,
                     organisation,
                     request.Reason!,
-                    request.Notification!.Parameters,
+                    request.Notification?.Parameters,
                     cancellationToken
                 );
             }
