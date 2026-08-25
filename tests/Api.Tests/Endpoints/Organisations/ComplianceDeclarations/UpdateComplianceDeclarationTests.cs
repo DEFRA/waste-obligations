@@ -67,16 +67,33 @@ public class UpdateComplianceDeclarationTests : EndpointTestBase
     }
 
     [Fact]
-    public async Task Validation_WhenCancellingAndNotificationMissing_ShouldBeBadRequest()
+    public async Task WhenCancelled_WithoutNotification_ShouldSendCancellationEmail()
     {
-        var content = await RequestShouldBeBadRequest(
+        var client = CreateClient(testUser: TestUser.WriteOnly);
+
+        var response = await client.PatchAsJsonAsync(
+            Testing.Endpoints.Organisations.ComplianceDeclarations.Update(
+                FakeWasteOrganisationsService.OrganisationId,
+                FakeComplianceDeclarationService.ComplianceDeclarationId.ToString()
+            ),
             UpdateComplianceDeclarationRequestFixture
                 .Cancelled()
                 .With(x => x.Notification, (NotificationRequest?)null)
-                .Create()
+                .Create(),
+            TestContext.Current.CancellationToken
         );
 
-        await VerifyJson(content);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        await EmailService
+            .Received(1)
+            .SendCancelledEmail(
+                Arg.Any<Defra.WasteObligations.Api.Data.Entities.ComplianceDeclaration>(),
+                Arg.Any<Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation>(),
+                ComplianceDeclarationCancellationReasons.ProducerRequestedToCancel,
+                null,
+                Arg.Any<CancellationToken>()
+            );
     }
 
     [Fact]

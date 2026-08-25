@@ -28,18 +28,8 @@ public record UpdateComplianceDeclarationRequest : IValidatableObject
             );
         }
 
-        if (Status is not ComplianceDeclarationStatus.Cancelled)
+        if (Status is not ComplianceDeclarationStatus.Cancelled || Notification is null)
             yield break;
-
-        if (Notification is null)
-        {
-            yield return new ValidationResult(
-                "Notification is required when cancelling a compliance declaration.",
-                [nameof(Notification)]
-            );
-
-            yield break;
-        }
 
         if (Notification.Parameters is null || Notification.Parameters.Count == 0)
         {
