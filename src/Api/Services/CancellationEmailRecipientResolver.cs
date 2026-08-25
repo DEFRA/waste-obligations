@@ -102,11 +102,16 @@ public class CancellationEmailRecipientResolver(
         var primaryContact = organisationWithPersons?.Persons.FirstOrDefault(person =>
             string.Equals(person.ServiceRole, ApprovedPersonServiceRole, StringComparison.Ordinal)
         );
-        var email = primaryContact?.Email?.Trim();
 
+        if (primaryContact is null)
+        {
+            return null;
+        }
+
+        var email = primaryContact.Email?.Trim();
         if (
             string.IsNullOrWhiteSpace(email)
-            || string.IsNullOrWhiteSpace(primaryContact?.FirstName)
+            || string.IsNullOrWhiteSpace(primaryContact.FirstName)
             || string.IsNullOrWhiteSpace(primaryContact.LastName)
         )
         {
