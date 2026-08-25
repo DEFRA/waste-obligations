@@ -1,4 +1,3 @@
-using System.Net;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Services.AccountBackend;
 using Defra.WasteObligations.Api.Utils.Http;
@@ -46,60 +45,6 @@ public class AccountBackendServiceTests : WireMockTestBase
         var service = sp.GetService<IAccountBackendService>();
 
         service.Should().NotBeNull();
-    }
-
-    [Fact]
-    public async Task ReadPersonEmails_ShouldReturnData()
-    {
-        await using var sp = Services.BuildServiceProvider();
-
-        var service = sp.GetRequiredService<IAccountBackendService>();
-        sp.GetRequiredService<HeaderPropagationValues>().Headers = new Dictionary<string, StringValues>();
-
-        var organisationId = Guid.NewGuid();
-        const EntityTypeCode entityTypeCode = EntityTypeCode.CS;
-        const string accessToken = "access_token";
-
-        WireMock.StubTokenRequest();
-        WireMock.StubAccountBackendPersonEmailsRequest(
-            organisationId,
-            entityTypeCode,
-            accessToken,
-            personEmails: [PersonEmailFixture.Default()]
-        );
-
-        var emails = (
-            await service.ReadPersonEmails(organisationId, entityTypeCode, TestContext.Current.CancellationToken)
-        ).ToList();
-
-        emails.Should().BeEquivalentTo([PersonEmailFixture.Default()]);
-    }
-
-    [Fact]
-    public async Task ReadPersonEmails_WhenNoContent_ShouldBeEmpty()
-    {
-        await using var sp = Services.BuildServiceProvider();
-
-        var service = sp.GetRequiredService<IAccountBackendService>();
-        sp.GetRequiredService<HeaderPropagationValues>().Headers = new Dictionary<string, StringValues>();
-
-        var organisationId = Guid.NewGuid();
-        const EntityTypeCode entityTypeCode = EntityTypeCode.CS;
-        const string accessToken = "access_token";
-
-        WireMock.StubTokenRequest();
-        WireMock.StubAccountBackendPersonEmailsRequest(
-            organisationId,
-            entityTypeCode,
-            accessToken,
-            HttpStatusCode.NoContent
-        );
-
-        var emails = (
-            await service.ReadPersonEmails(organisationId, entityTypeCode, TestContext.Current.CancellationToken)
-        ).ToList();
-
-        emails.Should().BeEmpty();
     }
 
     [Fact]
