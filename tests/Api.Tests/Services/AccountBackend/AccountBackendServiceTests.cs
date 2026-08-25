@@ -101,4 +101,33 @@ public class AccountBackendServiceTests : WireMockTestBase
 
         emails.Should().BeEmpty();
     }
+
+    [Fact]
+    public async Task ReadOrganisationWithPersons_ShouldReturnData()
+    {
+        await using var sp = Services.BuildServiceProvider();
+
+        var service = sp.GetRequiredService<IAccountBackendService>();
+        sp.GetRequiredService<HeaderPropagationValues>().Headers = new Dictionary<string, StringValues>();
+
+        var organisationId = Guid.NewGuid();
+        const string accessToken = "access_token";
+
+        WireMock.StubTokenRequest();
+        WireMock.StubAccountBackendOrganisationWithPersonsRequest(
+            organisationId,
+            accessToken,
+            OrganisationWithPersonsFixture.CancellationRecipients()
+        );
+
+        var organisationWithPersons = await service.ReadOrganisationWithPersons(
+            organisationId,
+            TestContext.Current.CancellationToken
+        );
+
+        organisationWithPersons.Should().NotBeNull();
+        organisationWithPersons!
+            .Persons.Should()
+            .BeEquivalentTo(OrganisationWithPersonsFixture.CancellationRecipients().Persons);
+    }
 }

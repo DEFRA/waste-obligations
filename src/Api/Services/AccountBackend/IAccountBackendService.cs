@@ -7,4 +7,9 @@ public interface IAccountBackendService
         EntityTypeCode entityTypeCode,
         CancellationToken cancellationToken
     );
+
+    Task<OrganisationWithPersons?> ReadOrganisationWithPersons(
+        Guid organisationId,
+        CancellationToken cancellationToken
+    );
 }

@@ -113,4 +113,58 @@ public static class AccountBackendExtensions
         var status = await builder.BuildAndPostAsync(TestContext.Current.CancellationToken);
         status.Guid.Should().NotBeNull();
     }
+
+    public static async Task StubAccountBackendOrganisationWithPersonsRequest(
+        this IWireMockAdminApi wireMock,
+        Guid organisationId,
+        string? accessToken = null,
+        OrganisationWithPersons? organisationWithPersons = null
+    )
+    {
+        var builder = wireMock.GetMappingBuilder();
+
+        builder.Given(x =>
+            x.WithRequest(r =>
+                {
+                    r.UsingGet().WithPath($"/api/organisations/organisation-with-persons/{organisationId:D}");
+
+                    if (accessToken is not null)
+                        r.WithHeader("Authorization", $"Bearer {accessToken}");
+                })
+                .WithResponse(r =>
+                    r.WithStatusCode(HttpStatusCode.OK)
+                        .WithBodyAsJson(
+                            organisationWithPersons ?? OrganisationWithPersonsFixture.CancellationRecipients()
+                        )
+                )
+        );
+
+        var status = await builder.BuildAndPostAsync(TestContext.Current.CancellationToken);
+        status.Guid.Should().NotBeNull();
+    }
+
+    public static void StubAccountBackendOrganisationWithPersonsRequest(
+        this WireMockServer wireMock,
+        Guid organisationId,
+        string? accessToken = null,
+        OrganisationWithPersons? organisationWithPersons = null
+    )
+    {
+        var request = Request
+            .Create()
+            .UsingGet()
+            .WithPath($"/api/organisations/organisation-with-persons/{organisationId:D}");
+
+        if (accessToken is not null)
+            request = request.WithHeader("Authorization", $"Bearer {accessToken}");
+
+        wireMock
+            .Given(request)
+            .RespondWith(
+                Response
+                    .Create()
+                    .WithStatusCode(HttpStatusCode.OK)
+                    .WithBodyAsJson(organisationWithPersons ?? OrganisationWithPersonsFixture.CancellationRecipients())
+            );
+    }
 }

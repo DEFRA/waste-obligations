@@ -26,4 +26,25 @@ public class AccountBackendService(HttpClient httpClient) : IAccountBackendServi
 
         return await response.Content.ReadFromJsonAsync<IEnumerable<PersonEmail>>(cancellationToken) ?? [];
     }
+
+    public async Task<OrganisationWithPersons?> ReadOrganisationWithPersons(
+        Guid organisationId,
+        CancellationToken cancellationToken
+    )
+    {
+        var request = httpClient.CreateRequest(
+            HttpMethod.Get,
+            $"api/organisations/organisation-with-persons/{organisationId:D}"
+        );
+
+        var response = await httpClient.SendAsync(request, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<OrganisationWithPersons>(cancellationToken);
+    }
 }
