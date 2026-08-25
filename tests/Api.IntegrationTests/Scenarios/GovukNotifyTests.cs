@@ -57,12 +57,12 @@ public class GovukNotifyTests(ITestOutputHelper testOutputHelper) : IntegrationT
     [InlineData(GovukNotifyTemplateIds.ComplianceDeclarationCancellationProducerRequestedWelsh)]
     public async Task CancellationEmail_ShouldRenderPersonalisation(string templateId)
     {
-        const string obligationYearText = "2026";
         const string regulatorName = "Regulator";
         const string regulatorEmail = "regulator@email.com";
         const string firstName = "First";
         const string lastName = "Last";
         var complianceDeclaration = ComplianceDeclarationFixture.DirectProducer().Create();
+        var submissionDeadlineYearText = (complianceDeclaration.ObligationYear + 1).ToString();
         var callerParameters = NotificationFixture.DirectProducerCancellationParameters(regulatorName);
 
         var personalisation = ComplianceDeclarationCancellationNotificationParameters.Build(
@@ -76,7 +76,7 @@ public class GovukNotifyTests(ITestOutputHelper testOutputHelper) : IntegrationT
         if (preview is null)
             return;
 
-        preview.Value.Body.Should().Contain(obligationYearText);
+        preview.Value.Body.Should().Contain(submissionDeadlineYearText);
         preview.Value.Body.Should().Contain(regulatorName);
         preview.Value.Body.Should().Contain(regulatorEmail);
         (
