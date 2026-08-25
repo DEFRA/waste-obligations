@@ -7,6 +7,7 @@ using Defra.WasteObligations.Testing.Fixtures.AccountBackend;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
+using ComplianceDeclarationStatus = Defra.WasteObligations.Api.Data.Entities.ComplianceDeclarationStatus;
 using OrganisationFixture = Defra.WasteObligations.Testing.Fixtures.WasteOrganisations.OrganisationFixture;
 
 namespace Defra.WasteObligations.Api.Tests.Services;
@@ -102,5 +103,144 @@ public class CancellationEmailRecipientResolverTests
         recipient.Should().NotBeNull();
         recipient!.FirstName.Should().Be("Submitter");
         recipient.LastName.Should().Be("Name");
+    }
+
+    [Fact]
+    public void ResolveSubmitter_WhenSubmitterEmailMissing_ReturnsNull()
+    {
+        var complianceDeclaration = ComplianceDeclarationFixture
+            .DirectProducer(OrganisationFixture.OrganisationId)
+            .With(
+                x => x.Audit,
+                [
+                    new AuditEntry(nameof(ComplianceDeclarationStatus.Submitted))
+                    {
+                        User = new User
+                        {
+                            Id = "e72be574-8b5b-4836-af47-dd7e0c0d1d87",
+                            Email = "   ",
+                            Name = "Submitter Name",
+                        },
+                        Timestamp = new DateTime(2026, 4, 26, 14, 0, 0, DateTimeKind.Utc),
+                    },
+                ]
+            )
+            .Create();
+
+        CancellationEmailRecipientResolver
+            .ResolveSubmitter(complianceDeclaration, organisationWithPersons: null)
+            .Should()
+            .BeNull();
+    }
+
+    [Fact]
+    public void ResolveSubmitter_WhenPersonMatchesByEmail_ReturnsOrganisationNames()
+    {
+        var complianceDeclaration = ComplianceDeclarationFixture
+            .DirectProducer(OrganisationFixture.OrganisationId)
+            .Create();
+        var organisationWithPersons = new OrganisationWithPersons
+        {
+            Persons =
+            [
+                new OrganisationPerson
+                {
+                    FirstName = "Matched",
+                    LastName = "Submitter",
+                    Email = "submitter@email.com",
+                },
+            ],
+        };
+
+        var recipient = CancellationEmailRecipientResolver.ResolveSubmitter(
+            complianceDeclaration,
+            organisationWithPersons
+        );
+
+        recipient.Should().NotBeNull();
+        recipient!.FirstName.Should().Be("Matched");
+        recipient.LastName.Should().Be("Submitter");
+    }
+
+    [Fact]
+    public void ResolveSubmitter_WhenSubmitterNameIsSingleWord_UsesEmptyLastName()
+    {
+        var complianceDeclaration = ComplianceDeclarationFixture
+            .DirectProducer(OrganisationFixture.OrganisationId)
+            .With(
+                x => x.Audit,
+                [
+                    new AuditEntry(nameof(ComplianceDeclarationStatus.Submitted))
+                    {
+                        User = new User
+                        {
+                            Id = "e72be574-8b5b-4836-af47-dd7e0c0d1d87",
+                            Email = "single.name@email.com",
+                            Name = "Cher",
+                        },
+                        Timestamp = new DateTime(2026, 4, 26, 14, 0, 0, DateTimeKind.Utc),
+                    },
+                ]
+            )
+            .Create();
+
+        var recipient = CancellationEmailRecipientResolver.ResolveSubmitter(
+            complianceDeclaration,
+            organisationWithPersons: null
+        );
+
+        recipient.Should().NotBeNull();
+        recipient!.FirstName.Should().Be("Cher");
+        recipient.LastName.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ResolveSubmitter_WhenSubmitterNameIsBlank_UsesEmptyNames()
+    {
+        var complianceDeclaration = ComplianceDeclarationFixture
+            .DirectProducer(OrganisationFixture.OrganisationId)
+            .With(
+                x => x.Audit,
+                [
+                    new AuditEntry(nameof(ComplianceDeclarationStatus.Submitted))
+                    {
+                        User = new User
+                        {
+                            Id = "e72be574-8b5b-4836-af47-dd7e0c0d1d87",
+                            Email = "blank.name@email.com",
+                            Name = "   ",
+                        },
+                        Timestamp = new DateTime(2026, 4, 26, 14, 0, 0, DateTimeKind.Utc),
+                    },
+                ]
+            )
+            .Create();
+
+        var recipient = CancellationEmailRecipientResolver.ResolveSubmitter(
+            complianceDeclaration,
+            organisationWithPersons: null
+        );
+
+        recipient.Should().NotBeNull();
+        recipient!.FirstName.Should().BeEmpty();
+        recipient.LastName.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ResolvePrimaryContact_WhenApprovedPersonDetailsIncomplete_ReturnsNull()
+    {
+        var organisationWithPersons = new OrganisationWithPersons
+        {
+            Persons =
+            [
+                new OrganisationPerson
+                {
+                    Email = "approved-person@email.com",
+                    ServiceRole = CancellationEmailRecipientResolver.ApprovedPersonServiceRole,
+                },
+            ],
+        };
+
+        CancellationEmailRecipientResolver.ResolvePrimaryContact(organisationWithPersons).Should().BeNull();
     }
 }

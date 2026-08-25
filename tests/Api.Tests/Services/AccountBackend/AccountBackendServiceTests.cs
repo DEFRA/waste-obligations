@@ -1,3 +1,4 @@
+using System.Net;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Services.AccountBackend;
 using Defra.WasteObligations.Api.Utils.Http;
@@ -9,6 +10,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Primitives;
+using WireMock.RequestBuilders;
+using WireMock.ResponseBuilders;
 
 namespace Defra.WasteObligations.Api.Tests.Services.AccountBackend;
 
@@ -74,5 +77,35 @@ public class AccountBackendServiceTests : WireMockTestBase
         organisationWithPersons!
             .Persons.Should()
             .BeEquivalentTo(OrganisationWithPersonsFixture.CancellationRecipients().Persons);
+    }
+
+    [Fact]
+    public async Task ReadOrganisationWithPersons_WhenNotFound_ShouldReturnNull()
+    {
+        await using var sp = Services.BuildServiceProvider();
+
+        var service = sp.GetRequiredService<IAccountBackendService>();
+        sp.GetRequiredService<HeaderPropagationValues>().Headers = new Dictionary<string, StringValues>();
+
+        var organisationId = Guid.NewGuid();
+        const string accessToken = "access_token";
+
+        WireMock.StubTokenRequest();
+        WireMock
+            .Given(
+                Request
+                    .Create()
+                    .UsingGet()
+                    .WithPath($"/api/organisations/organisation-with-persons/{organisationId:D}")
+                    .WithHeader("Authorization", $"Bearer {accessToken}")
+            )
+            .RespondWith(Response.Create().WithStatusCode(HttpStatusCode.NotFound));
+
+        var organisationWithPersons = await service.ReadOrganisationWithPersons(
+            organisationId,
+            TestContext.Current.CancellationToken
+        );
+
+        organisationWithPersons.Should().BeNull();
     }
 }
