@@ -248,7 +248,7 @@ public class EmailServiceTests
                     && x.First().Personalisation.Count == 8
                     && (string)x.First().Personalisation["certOrStatement"] == "certificate"
                     && (string)x.First().Personalisation["certOrStatement_cy"] == "tystysgrif"
-                    && (int)x.First().Personalisation["year"] == complianceDeclaration.ObligationYear
+                    && (int)x.First().Personalisation["year"] == complianceDeclaration.ObligationYear + 1
                     && (string)x.First().Personalisation["regulator"] == complianceDeclaration.Organisation.Regulator
                     && (string)x.First().Personalisation["regulator_cy"] == complianceDeclaration.Organisation.Regulator
                     && (string)x.First().Personalisation["regulatorEmail"]

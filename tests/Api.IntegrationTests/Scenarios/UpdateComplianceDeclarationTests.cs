@@ -391,7 +391,7 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
         if (personalisation.GetProperty("certOrStatement_cy").GetString() != expectedCertOrStatementWelsh)
             return false;
 
-        if (personalisation.GetProperty("year").GetInt32() != 2026)
+        if (personalisation.GetProperty("year").GetInt32() != 2027)
             return false;
 
         if (personalisation.GetProperty("regulator").GetString() != "Regulator")
