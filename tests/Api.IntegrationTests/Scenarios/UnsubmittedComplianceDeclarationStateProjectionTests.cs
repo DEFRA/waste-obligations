@@ -59,7 +59,10 @@ public class UnsubmittedComplianceDeclarationStateProjectionTests : IntegrationT
             organisationId,
             BasicAuthCredential.ForClient(ClientIds.WasteOrganisations)
         );
-        await WireMockContext.WireMockAdminApi.StubTokenRequest(clientId: ClientIds.AccountBackend);
+        await WireMockContext.WireMockAdminApi.StubTokenRequest(
+            expiryInSeconds: 60,
+            clientId: ClientIds.AccountBackend
+        );
         await WireMockContext.WireMockAdminApi.StubAccountBackendOrganisationWithPersonsRequest(
             organisationId,
             OAuth2Extensions.AccessToken
@@ -89,7 +92,11 @@ public class UnsubmittedComplianceDeclarationStateProjectionTests : IntegrationT
         cancelResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         var cancelledSearch = await Search(client);
         cancelledSearch.Total.Should().Be(1);
-        cancelledSearch.UnsubmittedComplianceDeclarations.Should().ContainSingle().Which.OrganisationId.Should().Be(organisationId);
+        cancelledSearch
+            .UnsubmittedComplianceDeclarations.Should()
+            .ContainSingle()
+            .Which.OrganisationId.Should()
+            .Be(organisationId);
         var reviewState = await ComplianceDeclarationReviewStates
             .Find(x =>
                 x.OrganisationId == organisationId
@@ -100,7 +107,7 @@ public class UnsubmittedComplianceDeclarationStateProjectionTests : IntegrationT
         reviewState.SubmittedOrAcceptedCount.Should().Be(0);
     }
 
-    private async Task BackfillReviewState()
+    private static async Task BackfillReviewState()
     {
         var dbContext = new MongoDbContext(
             GetMongoDatabase(),

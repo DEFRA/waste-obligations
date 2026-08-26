@@ -74,12 +74,10 @@ public class RefreshOrganisationEligibilityFromDownstreamServicesTests : Integra
             .ToListAsync(TestContext.Current.CancellationToken);
         rows.Should().HaveCount(3);
         rows.Should().OnlyContain(x => x.Id != ObjectId.Empty);
-        rows
-            .Where(x => x.OrganisationId == firstOrganisationId)
+        rows.Where(x => x.OrganisationId == firstOrganisationId)
             .Should()
             .OnlyContain(x => x.ReferenceNumber == "100001");
-        rows
-            .Where(x => x.OrganisationId == secondOrganisationId)
+        rows.Where(x => x.OrganisationId == secondOrganisationId)
             .Should()
             .ContainSingle()
             .Which.ReferenceNumber.Should()
@@ -112,14 +110,14 @@ public class RefreshOrganisationEligibilityFromDownstreamServicesTests : Integra
 
         response.Should().NotBeNull();
         response!.Total.Should().Be(2);
-        response.UnsubmittedComplianceDeclarations.Select(x => x.OrganisationId).Should().Equal(
-            firstOrganisationId,
-            secondOrganisationId
-        );
-        response.UnsubmittedComplianceDeclarations.Select(x => x.OrganisationReferenceNumber).Should().Equal(
-            "100001",
-            "100002"
-        );
+        response
+            .UnsubmittedComplianceDeclarations.Select(x => x.OrganisationId)
+            .Should()
+            .Equal(firstOrganisationId, secondOrganisationId);
+        response
+            .UnsubmittedComplianceDeclarations.Select(x => x.OrganisationReferenceNumber)
+            .Should()
+            .Equal("100001", "100002");
     }
 
     private static ServiceProvider CreateServiceProvider()
