@@ -8,7 +8,7 @@ namespace Defra.WasteObligations.Api.Services.OrganisationEligibility;
 
 public class OrganisationReferenceCacheService(
     IDbContext dbContext,
-    IAccountBackendService accountBackendService,
+    IOrganisationReferenceSearchService organisationReferenceSearchService,
     IOptions<OrganisationEligibilityOptions> options,
     TimeProvider timeProvider
 )
@@ -82,7 +82,7 @@ public class OrganisationReferenceCacheService(
         {
             try
             {
-                var response = await accountBackendService.SearchOrganisationsByExternalIds(
+                var response = await organisationReferenceSearchService.SearchOrganisationsByExternalIds(
                     batch.Select(x => x.OrganisationId).ToArray(),
                     cancellationToken
                 );
@@ -131,7 +131,7 @@ public class OrganisationReferenceCacheService(
 
             try
             {
-                var response = await accountBackendService.SearchOrganisationsByCompaniesHouseNumbers(
+                var response = await organisationReferenceSearchService.SearchOrganisationsByCompaniesHouseNumbers(
                     companiesHouseNumbers,
                     cancellationToken
                 );

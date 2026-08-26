@@ -155,14 +155,14 @@ public class RefreshOrganisationEligibilityFromDownstreamServicesTests : Integra
         );
         var cacheService = new OrganisationReferenceCacheService(
             dbContext,
-            serviceProvider.GetRequiredService<IAccountBackendService>(),
+            serviceProvider.GetRequiredService<IOrganisationReferenceSearchService>(),
             Options.Create(new OrganisationEligibilityOptions { AccountReferenceNumberBatchSize = 10 }),
             TimeProvider.System
         );
 
         return new OrganisationEligibilityRefreshService(
             dbContext,
-            serviceProvider.GetRequiredService<IWasteOrganisationsService>(),
+            serviceProvider.GetRequiredService<IOrganisationEligibilitySource>(),
             cacheService,
             TimeProvider.System
         );

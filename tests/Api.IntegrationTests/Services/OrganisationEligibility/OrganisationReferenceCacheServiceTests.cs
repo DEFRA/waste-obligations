@@ -15,13 +15,14 @@ namespace Defra.WasteObligations.Api.IntegrationTests.Services.OrganisationEligi
 public class OrganisationReferenceCacheServiceTests : IntegrationTestBase
 {
     private readonly FakeTimeProvider _timeProvider = new(new DateTimeOffset(2026, 8, 26, 12, 0, 0, TimeSpan.Zero));
-    private IAccountBackendService AccountBackendService { get; } = Substitute.For<IAccountBackendService>();
+    private IOrganisationReferenceSearchService OrganisationReferenceSearchService { get; } =
+        Substitute.For<IOrganisationReferenceSearchService>();
 
     [Fact]
     public async Task SynchroniseAndResolve_WhenNewDirectProducer_ShouldResolveAndDeduplicateYears()
     {
         var organisationId = Guid.NewGuid();
-        AccountBackendService
+        OrganisationReferenceSearchService
             .SearchOrganisationsByExternalIds(
                 Arg.Is<IReadOnlyCollection<Guid>>(x => x.SequenceEqual(new[] { organisationId })),
                 Arg.Any<CancellationToken>()
@@ -77,7 +78,7 @@ public class OrganisationReferenceCacheServiceTests : IntegrationTestBase
     {
         var firstOrganisationId = Guid.NewGuid();
         var secondOrganisationId = Guid.NewGuid();
-        AccountBackendService
+        OrganisationReferenceSearchService
             .SearchOrganisationsByExternalIds(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
             .Returns(
                 new OrganisationsByExternalIdsResponse
@@ -119,7 +120,7 @@ public class OrganisationReferenceCacheServiceTests : IntegrationTestBase
     public async Task SynchroniseAndResolve_WhenSchemeHasMultipleMatchingAccountOrganisations_ShouldMarkAmbiguous()
     {
         var organisationId = Guid.NewGuid();
-        AccountBackendService
+        OrganisationReferenceSearchService
             .SearchOrganisationsByCompaniesHouseNumbers(
                 Arg.Is<IReadOnlyCollection<string>>(x => x.SequenceEqual(new[] { "12345678" })),
                 Arg.Any<CancellationToken>()
@@ -185,7 +186,7 @@ public class OrganisationReferenceCacheServiceTests : IntegrationTestBase
         );
 
         result.Single().ReferenceNumber.Should().Be("051829");
-        await AccountBackendService
+        await OrganisationReferenceSearchService
             .DidNotReceive()
             .SearchOrganisationsByExternalIds(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>());
     }
@@ -202,7 +203,7 @@ public class OrganisationReferenceCacheServiceTests : IntegrationTestBase
         );
 
         result.Single().ResolutionState.Should().Be(OrganisationReferenceNumberResolutionState.AwaitingLookupKey);
-        await AccountBackendService
+        await OrganisationReferenceSearchService
             .DidNotReceive()
             .SearchOrganisationsByCompaniesHouseNumbers(
                 Arg.Any<IReadOnlyCollection<string>>(),
@@ -217,7 +218,7 @@ public class OrganisationReferenceCacheServiceTests : IntegrationTestBase
                 Options.Create(new MongoDbOptions()),
                 Substitute.For<Microsoft.Extensions.Logging.ILogger<MongoDbContext>>()
             ),
-            AccountBackendService,
+            OrganisationReferenceSearchService,
             Options.Create(new OrganisationEligibilityOptions { AccountReferenceNumberBatchSize = 10 }),
             _timeProvider
         );

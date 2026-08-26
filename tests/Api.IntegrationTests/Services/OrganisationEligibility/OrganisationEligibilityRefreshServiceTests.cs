@@ -21,9 +21,10 @@ namespace Defra.WasteObligations.Api.IntegrationTests.Services.OrganisationEligi
 public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
 {
     private readonly FakeTimeProvider _timeProvider = new(new DateTimeOffset(2026, 8, 26, 12, 0, 0, TimeSpan.Zero));
-    private IAccountBackendService AccountBackendService { get; } = Substitute.For<IAccountBackendService>();
-    private IWasteOrganisationsService WasteOrganisationsService { get; } =
-        Substitute.For<IWasteOrganisationsService>();
+    private IOrganisationReferenceSearchService OrganisationReferenceSearchService { get; } =
+        Substitute.For<IOrganisationReferenceSearchService>();
+    private IOrganisationEligibilitySource OrganisationEligibilitySource { get; } =
+        Substitute.For<IOrganisationEligibilitySource>();
 
     [Fact]
     public async Task Refresh_WhenNoActiveSnapshot_ShouldPromoteResolvedRows()
@@ -55,7 +56,7 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
     {
         var firstOrganisationId = Guid.NewGuid();
         var secondOrganisationId = Guid.NewGuid();
-        WasteOrganisationsService
+        OrganisationEligibilitySource
             .Search(Arg.Any<CancellationToken>())
             .Returns(
                 new OrganisationSearch
@@ -67,7 +68,7 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
                     ],
                 }
             );
-        AccountBackendService
+        OrganisationReferenceSearchService
             .SearchOrganisationsByExternalIds(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
             .Returns(
                 new OrganisationsByExternalIdsResponse
@@ -126,7 +127,7 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
             .Find(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId)
             .SingleAsync(TestContext.Current.CancellationToken);
         snapshot.LastVerifiedAt.Should().Be(_timeProvider.GetUtcNow().UtcDateTime);
-        await AccountBackendService
+        await OrganisationReferenceSearchService
             .Received(1)
             .SearchOrganisationsByExternalIds(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>());
     }
@@ -159,7 +160,7 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
             .SingleAsync(TestContext.Current.CancellationToken);
         activeRow.Name.Should().Be("Changed organisation name");
         activeRow.ReferenceNumber.Should().Be("051829");
-        await AccountBackendService
+        await OrganisationReferenceSearchService
             .Received(1)
             .SearchOrganisationsByExternalIds(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>());
     }
@@ -174,21 +175,21 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
         var options = Options.Create(new OrganisationEligibilityOptions { AccountReferenceNumberBatchSize = 10 });
         var cacheService = new OrganisationReferenceCacheService(
             dbContext,
-            AccountBackendService,
+            OrganisationReferenceSearchService,
             options,
             _timeProvider
         );
 
         return new OrganisationEligibilityRefreshService(
             dbContext,
-            WasteOrganisationsService,
+            OrganisationEligibilitySource,
             cacheService,
             _timeProvider
         );
     }
 
     private void ArrangeSource(Guid organisationId, string name = "Example organisation") =>
-        WasteOrganisationsService
+        OrganisationEligibilitySource
             .Search(Arg.Any<CancellationToken>())
             .Returns(new OrganisationSearch { Organisations = [CreateSourceOrganisation(organisationId, name)] });
 
@@ -210,7 +211,7 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
         };
 
     private void ArrangeDirectProducerReference(Guid organisationId, string referenceNumber) =>
-        AccountBackendService
+        OrganisationReferenceSearchService
             .SearchOrganisationsByExternalIds(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
             .Returns(
                 new OrganisationsByExternalIdsResponse

@@ -17,7 +17,7 @@ public static class ServiceCollectionExtensions
         services.AddOAuth2Client<AccountBackendOptions>(name);
         services.AddOptions<HttpStandardResilienceOptions>(name).BindConfiguration(name);
 
-        services
+        var requestClient = services
             .AddHttpClient<IAccountBackendService, AccountBackendService>()
             .AddHttpMessageHandler(sp => sp.GetRequiredKeyedService<OAuth2Handler>(name))
             .ConfigurePrimaryHttpMessageHandler<ProxyHttpMessageHandler>()
@@ -27,8 +27,21 @@ public static class ServiceCollectionExtensions
                     sp.GetRequiredService<IOptions<AccountBackendOptions>>().Value.Configure(httpClient);
                     httpClient.ConfigureForResiliencePipeline(addResiliencePipeline);
                 }
+            );
+
+        requestClient.AddHeaderPropagation().AddResiliencePipeline(addResiliencePipeline, name);
+
+        services
+            .AddHttpClient<IOrganisationReferenceSearchService, AccountBackendService>()
+            .AddHttpMessageHandler(sp => sp.GetRequiredKeyedService<OAuth2Handler>(name))
+            .ConfigurePrimaryHttpMessageHandler<ProxyHttpMessageHandler>()
+            .ConfigureHttpClient(
+                (sp, httpClient) =>
+                {
+                    sp.GetRequiredService<IOptions<AccountBackendOptions>>().Value.Configure(httpClient);
+                    httpClient.ConfigureForResiliencePipeline(addResiliencePipeline);
+                }
             )
-            .AddHeaderPropagation()
             .AddResiliencePipeline(addResiliencePipeline, name);
 
         return services;

@@ -7,14 +7,14 @@ namespace Defra.WasteObligations.Api.Services.OrganisationEligibility;
 
 public class OrganisationEligibilityRefreshService(
     IDbContext dbContext,
-    IWasteOrganisationsService wasteOrganisationsService,
+    IOrganisationEligibilitySource organisationEligibilitySource,
     OrganisationReferenceCacheService organisationReferenceCacheService,
     TimeProvider timeProvider
 ) : IOrganisationEligibilityRefreshService
 {
     public async Task<OrganisationEligibilityRefreshResult> Refresh(CancellationToken cancellationToken)
     {
-        var source = await wasteOrganisationsService.Search(cancellationToken);
+        var source = await organisationEligibilitySource.Search(cancellationToken);
         var utcNow = timeProvider.GetUtcNow().UtcDateTime;
         var generation = Guid.NewGuid().ToString("N");
         var sourceRows = Mappers.ToEligibilityRows(source.Organisations, generation, utcNow);

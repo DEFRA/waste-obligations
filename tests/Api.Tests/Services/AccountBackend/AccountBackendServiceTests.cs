@@ -8,7 +8,6 @@ using Defra.WasteObligations.Testing.Fixtures.AccountBackend;
 using Microsoft.AspNetCore.HeaderPropagation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Primitives;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
@@ -37,10 +36,10 @@ public class AccountBackendServiceTests : WireMockTestBase
         };
 
         Services = [];
+        Services.AddSingleton(new HeaderPropagationValues { Headers = new Dictionary<string, StringValues>() });
         Services.AddHeaderPropagation(options => options.Headers.Add(TraceHeaderName));
         Services.AddAccountBackendService();
         Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(config).Build());
-        Services.TryAddSingleton<HeaderPropagationValues>();
         Services.AddTransient<ProxyHttpMessageHandler>();
     }
 
@@ -106,6 +105,30 @@ public class AccountBackendServiceTests : WireMockTestBase
             .RequestMessage;
         request.Should().NotBeNull();
         request!.Headers.Should().ContainKey(TraceHeaderName).WhoseValue.Should().Contain(TraceId);
+    }
+
+    [Fact]
+    public async Task OrganisationReferenceSearch_ShouldNotPropagateTraceHeader()
+    {
+        await using var sp = Services.BuildServiceProvider();
+
+        var service = sp.GetRequiredService<IOrganisationReferenceSearchService>();
+        var organisationId = Guid.NewGuid();
+        sp.GetRequiredService<HeaderPropagationValues>().Headers = new Dictionary<string, StringValues>
+        {
+            [TraceHeaderName] = TraceId,
+        };
+
+        WireMock.StubTokenRequest();
+        WireMock.StubAccountBackendOrganisationsByExternalIdsRequest();
+
+        await service.SearchOrganisationsByExternalIds([organisationId], TestContext.Current.CancellationToken);
+
+        var request = WireMock
+            .LogEntries.Single(x => x.RequestMessage?.Path == "/api/organisations/organisations-by-externalIds")
+            .RequestMessage;
+        request.Should().NotBeNull();
+        request!.Headers.Should().NotContainKey(TraceHeaderName);
     }
 
     [Fact]

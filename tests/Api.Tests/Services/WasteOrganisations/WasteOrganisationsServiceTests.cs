@@ -7,7 +7,6 @@ using Defra.WasteObligations.Testing.Fixtures.WasteOrganisations;
 using Microsoft.AspNetCore.HeaderPropagation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Primitives;
 
 namespace Defra.WasteObligations.Api.Tests.Services.WasteOrganisations;
@@ -32,10 +31,10 @@ public class WasteOrganisationsServiceTests : WireMockTestBase
         };
 
         Services = [];
+        Services.AddSingleton(new HeaderPropagationValues { Headers = new Dictionary<string, StringValues>() });
         Services.AddHeaderPropagation(options => options.Headers.Add(TraceHeaderName));
         Services.AddWasteOrganisationsService();
         Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(config).Build());
-        Services.TryAddSingleton<HeaderPropagationValues>();
     }
 
     [Fact]
@@ -91,6 +90,26 @@ public class WasteOrganisationsServiceTests : WireMockTestBase
             .RequestMessage;
         request.Should().NotBeNull();
         request!.Headers.Should().ContainKey(TraceHeaderName).WhoseValue.Should().Contain(TraceId);
+    }
+
+    [Fact]
+    public async Task OrganisationEligibilitySource_ShouldNotPropagateTraceHeader()
+    {
+        await using var sp = Services.BuildServiceProvider();
+
+        var service = sp.GetRequiredService<IOrganisationEligibilitySource>();
+        sp.GetRequiredService<HeaderPropagationValues>().Headers = new Dictionary<string, StringValues>
+        {
+            [TraceHeaderName] = TraceId,
+        };
+
+        WireMock.StubWasteOrganisationsSearchRequest(basicAuthToken: BasicAuthCredential.Default);
+
+        await service.Search(TestContext.Current.CancellationToken);
+
+        var request = WireMock.LogEntries.Single(x => x.RequestMessage?.Path == "/organisations").RequestMessage;
+        request.Should().NotBeNull();
+        request!.Headers.Should().NotContainKey(TraceHeaderName);
     }
 
     [Fact]
