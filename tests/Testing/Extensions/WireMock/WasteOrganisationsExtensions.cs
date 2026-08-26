@@ -38,6 +38,35 @@ public static class WasteOrganisationsExtensions
             );
     }
 
+    public static async Task StubWasteOrganisationsSearchRequest(
+        this IWireMockAdminApi wireMock,
+        string? basicAuthToken = null,
+        OrganisationSearch? organisationSearch = null
+    )
+    {
+        var builder = wireMock.GetMappingBuilder();
+
+        builder.Given(x =>
+            x.WithRequest(r =>
+                {
+                    r.UsingGet().WithPath("/organisations");
+
+                    if (basicAuthToken is not null)
+                        r.WithHeader("Authorization", $"Basic {basicAuthToken}");
+                })
+                .WithResponse(r =>
+                    r.WithStatusCode(HttpStatusCode.OK)
+                        .WithBodyAsJson(
+                            organisationSearch
+                                ?? new OrganisationSearch { Organisations = [OrganisationFixture.Default().Create()] }
+                        )
+                )
+        );
+
+        var status = await builder.BuildAndPostAsync(TestContext.Current.CancellationToken);
+        status.Guid.Should().NotBeNull();
+    }
+
     public static void StubWasteOrganisationsOrganisationRequest(
         this WireMockServer wireMock,
         Guid organisationId,

@@ -33,6 +33,32 @@ public static class AccountBackendExtensions
             );
     }
 
+    public static async Task StubAccountBackendOrganisationsByExternalIdsRequest(
+        this IWireMockAdminApi wireMock,
+        string? accessToken = null,
+        OrganisationsByExternalIdsResponse? response = null
+    )
+    {
+        var builder = wireMock.GetMappingBuilder();
+
+        builder.Given(x =>
+            x.WithRequest(r =>
+                {
+                    r.UsingPost().WithPath("/api/organisations/organisations-by-externalIds");
+
+                    if (accessToken is not null)
+                        r.WithHeader("Authorization", $"Bearer {accessToken}");
+                })
+                .WithResponse(r =>
+                    r.WithStatusCode(HttpStatusCode.OK)
+                        .WithBodyAsJson(response ?? new OrganisationsByExternalIdsResponse())
+                )
+        );
+
+        var status = await builder.BuildAndPostAsync(TestContext.Current.CancellationToken);
+        status.Guid.Should().NotBeNull();
+    }
+
     public static void StubAccountBackendOrganisationsByCompaniesHouseNumbersRequest(
         this WireMockServer wireMock,
         string? accessToken = null,
