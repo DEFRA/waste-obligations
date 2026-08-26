@@ -2,9 +2,8 @@ namespace Defra.WasteObligations.Api.Services.AccountBackend;
 
 public interface IAccountBackendService
 {
-    Task<IEnumerable<PersonEmail>> ReadPersonEmails(
+    Task<OrganisationWithPersons?> ReadOrganisationWithPersons(
         Guid organisationId,
-        EntityTypeCode entityTypeCode,
         CancellationToken cancellationToken
     );
 }

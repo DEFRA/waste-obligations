@@ -4,27 +4,21 @@ namespace Defra.WasteObligations.Testing.Fixtures.AccountBackend;
 
 public static class PersonEmailFixture
 {
-    public static PersonEmail Default() =>
+    public static PersonEmail Submitter() =>
         new()
         {
-            FirstName = "First",
-            LastName = "Last",
-            Email = "first.last@example.com",
+            FirstName = "Submitter",
+            LastName = "Name",
+            Email = "submitter@email.com",
         };
 
-    public static PersonEmail[] CancellationRecipients() =>
-        [
-            new()
-            {
-                FirstName = "Approved",
-                LastName = "Person",
-                Email = "approved-person@email.com",
-            },
-            new()
-            {
-                FirstName = "Primary",
-                LastName = "Contact",
-                Email = "primary.contact@email.com",
-            },
-        ];
+    public static PersonEmail PrimaryContact() =>
+        new()
+        {
+            FirstName = "Approved",
+            LastName = "Person",
+            Email = "approved-person@email.com",
+        };
+
+    public static PersonEmail[] CancellationRecipients() => [Submitter(), PrimaryContact()];
 }

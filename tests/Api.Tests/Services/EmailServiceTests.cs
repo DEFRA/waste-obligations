@@ -1,5 +1,6 @@
 using AutoFixture;
 using AwesomeAssertions;
+using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.AccountBackend;
 using Defra.WasteObligations.Api.Services.GovukNotify;
@@ -18,19 +19,20 @@ namespace Defra.WasteObligations.Api.Tests.Services;
 public class EmailServiceTests
 {
     private IGovukNotifyService GovukNotifyService { get; } = Substitute.For<IGovukNotifyService>();
-    private IAccountBackendService AccountBackendService { get; } = Substitute.For<IAccountBackendService>();
+    private ICancellationEmailRecipientResolver CancellationEmailRecipientResolver { get; } =
+        Substitute.For<ICancellationEmailRecipientResolver>();
     private IEmailMetrics EmailMetrics { get; } = Substitute.For<IEmailMetrics>();
     private EmailService Subject { get; }
 
     public EmailServiceTests()
     {
-        AccountBackendService
-            .ReadPersonEmails(Arg.Any<Guid>(), Arg.Any<EntityTypeCode>(), Arg.Any<CancellationToken>())
-            .Returns([PersonEmailFixture.Default()]);
+        CancellationEmailRecipientResolver
+            .ResolveAsync(Arg.Any<ComplianceDeclaration>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns([PersonEmailFixture.Submitter()]);
 
         Subject = new EmailService(
             GovukNotifyService,
-            AccountBackendService,
+            CancellationEmailRecipientResolver,
             EmailMetrics,
             NullLogger<EmailService>.Instance
         );
@@ -242,23 +244,23 @@ public class EmailServiceTests
                 expectedTemplate,
                 Arg.Is<IEnumerable<(string Email, Dictionary<string, object> Personalisation)>>(x =>
                     x.Count() == 1
-                    && x.First().Email == PersonEmailFixture.Default().Email
+                    && x.First().Email == PersonEmailFixture.Submitter().Email
                     && x.First().Personalisation.Count == 8
                     && (string)x.First().Personalisation["certOrStatement"] == "certificate"
                     && (string)x.First().Personalisation["certOrStatement_cy"] == "tystysgrif"
-                    && (int)x.First().Personalisation["year"] == complianceDeclaration.ObligationYear
+                    && (int)x.First().Personalisation["year"] == complianceDeclaration.ObligationYear + 1
                     && (string)x.First().Personalisation["regulator"] == complianceDeclaration.Organisation.Regulator
                     && (string)x.First().Personalisation["regulator_cy"] == complianceDeclaration.Organisation.Regulator
                     && (string)x.First().Personalisation["regulatorEmail"]
                         == complianceDeclaration.Organisation.RegulatorEmail
-                    && (string)x.First().Personalisation["firstName"] == PersonEmailFixture.Default().FirstName
-                    && (string)x.First().Personalisation["lastName"] == PersonEmailFixture.Default().LastName
+                    && (string)x.First().Personalisation["firstName"] == PersonEmailFixture.Submitter().FirstName
+                    && (string)x.First().Personalisation["lastName"] == PersonEmailFixture.Submitter().LastName
                 ),
                 "en"
             );
-        await AccountBackendService
+        await CancellationEmailRecipientResolver
             .Received(1)
-            .ReadPersonEmails(OrganisationFixture.OrganisationId, EntityTypeCode.DR, Arg.Any<CancellationToken>());
+            .ResolveAsync(complianceDeclaration, OrganisationFixture.OrganisationId, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -287,9 +289,9 @@ public class EmailServiceTests
                 ),
                 Arg.Any<string>()
             );
-        await AccountBackendService
+        await CancellationEmailRecipientResolver
             .Received(1)
-            .ReadPersonEmails(OrganisationFixture.OrganisationId, EntityTypeCode.CS, Arg.Any<CancellationToken>());
+            .ResolveAsync(complianceDeclaration, OrganisationFixture.OrganisationId, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -403,8 +405,8 @@ public class EmailServiceTests
     [Fact]
     public async Task SendCancelledEmail_WhenNoRecipients_ShouldNotCallGovukNotify()
     {
-        AccountBackendService
-            .ReadPersonEmails(Arg.Any<Guid>(), Arg.Any<EntityTypeCode>(), Arg.Any<CancellationToken>())
+        CancellationEmailRecipientResolver
+            .ResolveAsync(Arg.Any<ComplianceDeclaration>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns([]);
 
         await Subject.SendCancelledEmail(

@@ -5,25 +5,24 @@ namespace Defra.WasteObligations.Api.Services.AccountBackend;
 
 public class AccountBackendService(HttpClient httpClient) : IAccountBackendService
 {
-    public async Task<IEnumerable<PersonEmail>> ReadPersonEmails(
+    public async Task<OrganisationWithPersons?> ReadOrganisationWithPersons(
         Guid organisationId,
-        EntityTypeCode entityTypeCode,
         CancellationToken cancellationToken
     )
     {
         var request = httpClient.CreateRequest(
             HttpMethod.Get,
-            $"api/organisations/person-emails?organisationId={organisationId:D}&entityTypeCode={entityTypeCode}"
+            $"api/organisations/organisation-with-persons/{organisationId:D}"
         );
 
         var response = await httpClient.SendAsync(request, cancellationToken);
-        if (response.StatusCode == HttpStatusCode.NoContent)
+        if (response.StatusCode == HttpStatusCode.NotFound)
         {
-            return [];
+            return null;
         }
 
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadFromJsonAsync<IEnumerable<PersonEmail>>(cancellationToken) ?? [];
+        return await response.Content.ReadFromJsonAsync<OrganisationWithPersons>(cancellationToken);
     }
 }

@@ -10,6 +10,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Primitives;
+using WireMock.RequestBuilders;
+using WireMock.ResponseBuilders;
 
 namespace Defra.WasteObligations.Api.Tests.Services.AccountBackend;
 
@@ -49,7 +51,7 @@ public class AccountBackendServiceTests : WireMockTestBase
     }
 
     [Fact]
-    public async Task ReadPersonEmails_ShouldReturnData()
+    public async Task ReadOrganisationWithPersons_ShouldReturnData()
     {
         await using var sp = Services.BuildServiceProvider();
 
@@ -57,26 +59,28 @@ public class AccountBackendServiceTests : WireMockTestBase
         sp.GetRequiredService<HeaderPropagationValues>().Headers = new Dictionary<string, StringValues>();
 
         var organisationId = Guid.NewGuid();
-        const EntityTypeCode entityTypeCode = EntityTypeCode.CS;
         const string accessToken = "access_token";
 
         WireMock.StubTokenRequest();
-        WireMock.StubAccountBackendPersonEmailsRequest(
+        WireMock.StubAccountBackendOrganisationWithPersonsRequest(
             organisationId,
-            entityTypeCode,
             accessToken,
-            personEmails: [PersonEmailFixture.Default()]
+            OrganisationWithPersonsFixture.CancellationRecipients()
         );
 
-        var emails = (
-            await service.ReadPersonEmails(organisationId, entityTypeCode, TestContext.Current.CancellationToken)
-        ).ToList();
+        var organisationWithPersons = await service.ReadOrganisationWithPersons(
+            organisationId,
+            TestContext.Current.CancellationToken
+        );
 
-        emails.Should().BeEquivalentTo([PersonEmailFixture.Default()]);
+        organisationWithPersons.Should().NotBeNull();
+        organisationWithPersons!
+            .Persons.Should()
+            .BeEquivalentTo(OrganisationWithPersonsFixture.CancellationRecipients().Persons);
     }
 
     [Fact]
-    public async Task ReadPersonEmails_WhenNoContent_ShouldBeEmpty()
+    public async Task ReadOrganisationWithPersons_WhenNotFound_ShouldReturnNull()
     {
         await using var sp = Services.BuildServiceProvider();
 
@@ -84,21 +88,24 @@ public class AccountBackendServiceTests : WireMockTestBase
         sp.GetRequiredService<HeaderPropagationValues>().Headers = new Dictionary<string, StringValues>();
 
         var organisationId = Guid.NewGuid();
-        const EntityTypeCode entityTypeCode = EntityTypeCode.CS;
         const string accessToken = "access_token";
 
         WireMock.StubTokenRequest();
-        WireMock.StubAccountBackendPersonEmailsRequest(
+        WireMock
+            .Given(
+                Request
+                    .Create()
+                    .UsingGet()
+                    .WithPath($"/api/organisations/organisation-with-persons/{organisationId:D}")
+                    .WithHeader("Authorization", $"Bearer {accessToken}")
+            )
+            .RespondWith(Response.Create().WithStatusCode(HttpStatusCode.NotFound));
+
+        var organisationWithPersons = await service.ReadOrganisationWithPersons(
             organisationId,
-            entityTypeCode,
-            accessToken,
-            HttpStatusCode.NoContent
+            TestContext.Current.CancellationToken
         );
 
-        var emails = (
-            await service.ReadPersonEmails(organisationId, entityTypeCode, TestContext.Current.CancellationToken)
-        ).ToList();
-
-        emails.Should().BeEmpty();
+        organisationWithPersons.Should().BeNull();
     }
 }

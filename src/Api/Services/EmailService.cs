@@ -1,5 +1,4 @@
 using Defra.WasteObligations.Api.Data.Entities;
-using Defra.WasteObligations.Api.Services.AccountBackend;
 using Defra.WasteObligations.Api.Services.GovukNotify;
 using Defra.WasteObligations.Api.Utils.Metrics;
 using BusinessCountry = Defra.WasteObligations.Api.Services.WasteOrganisations.BusinessCountry;
@@ -10,7 +9,7 @@ namespace Defra.WasteObligations.Api.Services;
 
 public class EmailService(
     IGovukNotifyService govukNotifyService,
-    IAccountBackendService accountBackendService,
+    ICancellationEmailRecipientResolver cancellationEmailRecipientResolver,
     IEmailMetrics emailMetrics,
     ILogger<EmailService> logger
 ) : IEmailService
@@ -104,13 +103,12 @@ public class EmailService(
 
         try
         {
-            var personEmails = await accountBackendService.ReadPersonEmails(
+            var recipients = await cancellationEmailRecipientResolver.ResolveAsync(
+                complianceDeclaration,
                 organisation.Id,
-                GetEntityTypeCode(complianceDeclaration.Organisation.RegistrationType),
                 cancellationToken
             );
-            var recipients = personEmails.DistinctBy(x => x.Email).ToArray();
-            if (recipients.Length == 0)
+            if (recipients.Count == 0)
             {
                 logger.LogWarning(
                     "Cancellation email was not sent because no recipient email addresses were returned for organisation {OrganisationId}",
@@ -123,7 +121,7 @@ public class EmailService(
             logger.LogInformation(
                 "Sending cancellation email for reason {Reason} to {RecipientCount} recipient email addresses",
                 reason,
-                recipients.Length
+                recipients.Count
             );
 
             var basePersonalisation = ComplianceDeclarationCancellationNotificationParameters.Build(
@@ -165,11 +163,4 @@ public class EmailService(
             );
         }
     }
-
-    private static EntityTypeCode GetEntityTypeCode(RegistrationType registrationType) =>
-        registrationType switch
-        {
-            RegistrationType.ComplianceScheme => EntityTypeCode.CS,
-            _ => EntityTypeCode.DR,
-        };
 }

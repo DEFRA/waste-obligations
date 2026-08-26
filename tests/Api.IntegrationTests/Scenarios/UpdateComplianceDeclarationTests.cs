@@ -86,7 +86,7 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
     {
         var organisationId = Guid.NewGuid();
         using var sqsClient = CreateSqsClient();
-        await StubCancellationDependencies(organisationId, directProducer: true, welshOrganisation: false);
+        await StubCancellationDependencies(organisationId, welshOrganisation: false);
 
         var client = CreateClient();
 
@@ -162,7 +162,7 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
     public async Task WhenCancelled_ShouldSendEmailForReason(string reason, string expectedTemplateId)
     {
         var organisationId = Guid.NewGuid();
-        await StubCancellationDependencies(organisationId, directProducer: true, welshOrganisation: false);
+        await StubCancellationDependencies(organisationId, welshOrganisation: false);
 
         var client = CreateClient();
 
@@ -200,7 +200,7 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
     public async Task WhenComplianceSchemeCancelled_ShouldSendStatementCancellationEmails()
     {
         var organisationId = Guid.NewGuid();
-        await StubCancellationDependencies(organisationId, directProducer: false, welshOrganisation: false);
+        await StubCancellationDependencies(organisationId, welshOrganisation: false);
 
         var client = CreateClient();
 
@@ -245,7 +245,7 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
     public async Task WhenWelshOrganisationCancelled_ShouldSendWelshCancellationEmail()
     {
         var organisationId = Guid.NewGuid();
-        await StubCancellationDependencies(organisationId, directProducer: true, welshOrganisation: true);
+        await StubCancellationDependencies(organisationId, welshOrganisation: true);
 
         var client = CreateClient();
 
@@ -286,7 +286,7 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
         });
     }
 
-    private async Task StubCancellationDependencies(Guid organisationId, bool directProducer, bool welshOrganisation)
+    private async Task StubCancellationDependencies(Guid organisationId, bool welshOrganisation)
     {
         if (welshOrganisation)
         {
@@ -311,10 +311,7 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
             expiryInSeconds: 60,
             clientId: ClientIds.AccountBackend
         );
-        await WireMockContext.WireMockAdminApi.StubAccountBackendPersonEmailsRequest(
-            organisationId,
-            directProducer ? EntityTypeCode.DR : EntityTypeCode.CS
-        );
+        await WireMockContext.WireMockAdminApi.StubAccountBackendOrganisationWithPersonsRequest(organisationId);
     }
 
     private static void AssertCancelledEmailsSent(
@@ -394,7 +391,7 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
         if (personalisation.GetProperty("certOrStatement_cy").GetString() != expectedCertOrStatementWelsh)
             return false;
 
-        if (personalisation.GetProperty("year").GetInt32() != 2026)
+        if (personalisation.GetProperty("year").GetInt32() != 2027)
             return false;
 
         if (personalisation.GetProperty("regulator").GetString() != "Regulator")
