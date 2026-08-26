@@ -5,11 +5,8 @@ using Defra.WasteObligations.Api.Utils.Http;
 using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Extensions.WireMock;
 using Defra.WasteObligations.Testing.Fixtures.AccountBackend;
-using Microsoft.AspNetCore.HeaderPropagation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Primitives;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
 
@@ -36,7 +33,6 @@ public class AccountBackendServiceTests : WireMockTestBase
         Services = [];
         Services.AddAccountBackendService();
         Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(config).Build());
-        Services.TryAddSingleton<HeaderPropagationValues>();
         Services.AddTransient<ProxyHttpMessageHandler>();
     }
 
@@ -56,7 +52,6 @@ public class AccountBackendServiceTests : WireMockTestBase
         await using var sp = Services.BuildServiceProvider();
 
         var service = sp.GetRequiredService<IAccountBackendService>();
-        sp.GetRequiredService<HeaderPropagationValues>().Headers = new Dictionary<string, StringValues>();
 
         var organisationId = Guid.NewGuid();
         const string accessToken = "access_token";
@@ -85,7 +80,6 @@ public class AccountBackendServiceTests : WireMockTestBase
         await using var sp = Services.BuildServiceProvider();
 
         var service = sp.GetRequiredService<IAccountBackendService>();
-        sp.GetRequiredService<HeaderPropagationValues>().Headers = new Dictionary<string, StringValues>();
 
         var externalIds = new[] { Guid.NewGuid(), Guid.NewGuid() };
         const string accessToken = "access_token";
@@ -118,7 +112,6 @@ public class AccountBackendServiceTests : WireMockTestBase
         await using var sp = Services.BuildServiceProvider();
 
         var service = sp.GetRequiredService<IAccountBackendService>();
-        sp.GetRequiredService<HeaderPropagationValues>().Headers = new Dictionary<string, StringValues>();
 
         string[] companiesHouseNumbers = ["12345678", "87654321"];
         const string accessToken = "access_token";
@@ -158,7 +151,6 @@ public class AccountBackendServiceTests : WireMockTestBase
         await using var sp = Services.BuildServiceProvider();
 
         var service = sp.GetRequiredService<IAccountBackendService>();
-        sp.GetRequiredService<HeaderPropagationValues>().Headers = new Dictionary<string, StringValues>();
 
         var organisationId = Guid.NewGuid();
         const string accessToken = "access_token";
