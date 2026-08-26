@@ -66,6 +66,10 @@ try
     builder.Services.AddSingleton<IEntityJsonSchemaProvider, EmbeddedEntityJsonSchemaProvider>();
     builder.Services.AddTransient<IComplianceDeclarationService, ComplianceDeclarationService>();
     builder.Services.AddTransient<ComplianceDeclarationReviewStateService>();
+    builder.Services.AddTransient<
+        IComplianceDeclarationReviewStateBackfillService,
+        ComplianceDeclarationReviewStateBackfillService
+    >();
     builder.Services.AddTransient<ICancellationEmailRecipientResolver, CancellationEmailRecipientResolver>();
     builder.Services.AddTransient<IEmailService, EmailService>();
 
