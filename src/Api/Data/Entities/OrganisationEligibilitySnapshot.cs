@@ -9,7 +9,7 @@ public record OrganisationEligibilitySnapshot
 
     public required string Id { get; init; } = SnapshotId;
     public string? ActiveGeneration { get; init; }
-    public string? ActiveSourceFingerprint { get; init; }
+    public string? ActiveContentFingerprint { get; init; }
     public int ActiveRowCount { get; init; }
 
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
