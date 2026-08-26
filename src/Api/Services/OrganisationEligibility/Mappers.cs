@@ -54,7 +54,10 @@ public static class Mappers
                         TradingName = organisation.TradingName,
                         CompaniesHouseNumber = organisation.CompaniesHouseNumber,
                         ReferenceNumber = null,
-                        ReferenceNumberResolutionState = OrganisationReferenceNumberResolutionState.Pending,
+                        ReferenceNumberResolutionState = InitialReferenceNumberResolutionState(
+                            registrationType.Value,
+                            organisation.CompaniesHouseNumber
+                        ),
                         SourceFingerprint = CalculateSourceFingerprint(
                             organisation,
                             registration.RegistrationYear,
@@ -90,6 +93,14 @@ public static class Mappers
                 $"Unsupported Waste Organisations registration status '{sourceRegistrationStatus}'"
             ),
         };
+
+    private static OrganisationReferenceNumberResolutionState InitialReferenceNumberResolutionState(
+        RegistrationType registrationType,
+        string? companiesHouseNumber
+    ) =>
+        registrationType == RegistrationType.ComplianceScheme && string.IsNullOrWhiteSpace(companiesHouseNumber)
+            ? OrganisationReferenceNumberResolutionState.AwaitingLookupKey
+            : OrganisationReferenceNumberResolutionState.Pending;
 
     private static string CalculateSourceFingerprint(
         Organisation organisation,

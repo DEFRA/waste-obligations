@@ -179,6 +179,28 @@ public class MappersTests
         act.Should().Throw<InvalidOperationException>().WithMessage("*WITHDRAWN*");
     }
 
+    [Fact]
+    public void ToEligibilityRows_WhenComplianceSchemeHasNoCompaniesHouseNumber_ShouldAwaitLookupKey()
+    {
+        var organisation = CreateOrganisation(
+            Guid.NewGuid(),
+            [
+                CreateRegistration(
+                    WasteOrganisationsRegistrationType.ComplianceScheme,
+                    WasteOrganisationsRegistrationStatus.Registered,
+                    2026
+                ),
+            ]
+        ) with
+        {
+            CompaniesHouseNumber = null,
+        };
+
+        var row = Mappers.ToEligibilityRows([organisation], "g1", s_refreshedAt).Single();
+
+        row.ReferenceNumberResolutionState.Should().Be(OrganisationReferenceNumberResolutionState.AwaitingLookupKey);
+    }
+
     private static Organisation CreateOrganisation(Guid organisationId, Registration[] registrations) =>
         new()
         {

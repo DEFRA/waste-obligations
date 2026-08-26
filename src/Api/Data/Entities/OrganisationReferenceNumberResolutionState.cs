@@ -7,4 +7,5 @@ public enum OrganisationReferenceNumberResolutionState
     NotFound,
     Failed,
     Ambiguous,
+    AwaitingLookupKey,
 }
