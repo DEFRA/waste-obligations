@@ -59,7 +59,7 @@ try
     builder.Services.AddPrnCommonBackendService();
     builder.Services.AddAccountBackendService();
     builder.Services.AddWasteOrganisationsService();
-    builder.Services.AddOrganisationEligibility();
+    builder.Services.AddOrganisationEligibility(!integrationTest && !openApiBuild);
     builder.Services.AddGovukNotify();
     builder.Services.AddAuditEvents(builder.Configuration, !integrationTest && !openApiBuild);
     builder.Services.AddConsumers(builder.Configuration, !integrationTest && !openApiBuild);
