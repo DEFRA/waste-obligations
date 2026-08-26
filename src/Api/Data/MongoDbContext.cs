@@ -18,6 +18,12 @@ public class MongoDbContext(
     public IMongoCollection<ComplianceDeclaration> ComplianceDeclarations { get; } =
         database.GetCollection<ComplianceDeclaration>(nameof(ComplianceDeclaration));
 
+    public IMongoCollection<OrganisationEligibility> OrganisationEligibilities { get; } =
+        database.GetCollection<OrganisationEligibility>(nameof(OrganisationEligibility));
+
+    public IMongoCollection<OrganisationEligibilitySnapshot> OrganisationEligibilitySnapshots { get; } =
+        database.GetCollection<OrganisationEligibilitySnapshot>(nameof(OrganisationEligibilitySnapshot));
+
     public async Task<TResult> ExecuteTransaction<TResult>(
         Func<IClientSessionHandle, CancellationToken, Task<TResult>> callback,
         string transactionName,

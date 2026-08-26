@@ -6,6 +6,8 @@ namespace Defra.WasteObligations.Api.Data;
 public interface IDbContext
 {
     IMongoCollection<ComplianceDeclaration> ComplianceDeclarations { get; }
+    IMongoCollection<OrganisationEligibility> OrganisationEligibilities { get; }
+    IMongoCollection<OrganisationEligibilitySnapshot> OrganisationEligibilitySnapshots { get; }
 
     Task<TResult> ExecuteTransaction<TResult>(
         Func<IClientSessionHandle, CancellationToken, Task<TResult>> callback,
