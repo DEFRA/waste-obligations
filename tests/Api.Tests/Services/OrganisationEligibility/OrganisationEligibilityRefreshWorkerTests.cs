@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.OrganisationEligibility;
 using Defra.WasteObligations.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,6 +17,7 @@ public class OrganisationEligibilityRefreshWorkerTests
         var leaseService = Substitute.For<IOrganisationEligibilityRefreshLeaseService>();
         leaseService.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
         var refreshService = Substitute.For<IOrganisationEligibilityRefreshService>();
+        var backfillService = CreateBackfillService();
         var refreshed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         refreshService
             .Refresh(Arg.Any<CancellationToken>())
@@ -32,7 +34,7 @@ public class OrganisationEligibilityRefreshWorkerTests
                     }
                 );
             });
-        var subject = CreateSubject(leaseService, refreshService);
+        var subject = CreateSubject(leaseService, refreshService, backfillService);
 
         await subject.StartAsync(TestContext.Current.CancellationToken);
         await refreshed.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
@@ -40,6 +42,7 @@ public class OrganisationEligibilityRefreshWorkerTests
 
         await leaseService.Received(1).TryAcquire(TimeSpan.FromSeconds(300), Arg.Any<CancellationToken>());
         await refreshService.Received(1).Refresh(Arg.Any<CancellationToken>());
+        await backfillService.Received(1).Backfill(Arg.Any<CancellationToken>());
         await leaseService.Received(1).Release(CancellationToken.None);
     }
 
@@ -114,14 +117,17 @@ public class OrganisationEligibilityRefreshWorkerTests
     private static OrganisationEligibilityRefreshWorker CreateSubject(
         IOrganisationEligibilityRefreshLeaseService leaseService,
         IOrganisationEligibilityRefreshService refreshService,
+        IComplianceDeclarationReviewStateBackfillService? backfillService = null,
         bool refreshPollingEnabled = true,
         int refreshLeaseRenewalIntervalSeconds = 60,
         ILogger<OrganisationEligibilityRefreshWorker>? logger = null
     )
     {
         var services = new ServiceCollection();
+        backfillService ??= CreateBackfillService();
         services.AddScoped(_ => leaseService);
         services.AddScoped(_ => refreshService);
+        services.AddScoped(_ => backfillService);
         var serviceProvider = services.BuildServiceProvider();
 
         return new OrganisationEligibilityRefreshWorker(
@@ -137,5 +143,19 @@ public class OrganisationEligibilityRefreshWorkerTests
             ),
             logger ?? Substitute.For<ILogger<OrganisationEligibilityRefreshWorker>>()
         );
+    }
+
+    private static IComplianceDeclarationReviewStateBackfillService CreateBackfillService()
+    {
+        var backfillService = Substitute.For<IComplianceDeclarationReviewStateBackfillService>();
+        backfillService
+            .Backfill(Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(
+                    new ComplianceDeclarationReviewStateBackfillResult { AlreadyComplete = true, StateRowCount = 0 }
+                )
+            );
+
+        return backfillService;
     }
 }

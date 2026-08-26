@@ -1,3 +1,4 @@
+using Defra.WasteObligations.Api.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -44,6 +45,8 @@ public class OrganisationEligibilityRefreshWorker(
         using var scope = serviceScopeFactory.CreateScope();
         var leaseService = scope.ServiceProvider.GetRequiredService<IOrganisationEligibilityRefreshLeaseService>();
         var refreshService = scope.ServiceProvider.GetRequiredService<IOrganisationEligibilityRefreshService>();
+        var reviewStateBackfillService =
+            scope.ServiceProvider.GetRequiredService<IComplianceDeclarationReviewStateBackfillService>();
         var leaseDuration = TimeSpan.FromSeconds(options.Value.RefreshLeaseDurationSeconds);
 
         if (!await leaseService.TryAcquire(leaseDuration, stoppingToken))
@@ -63,6 +66,7 @@ public class OrganisationEligibilityRefreshWorker(
 
         try
         {
+            await BackfillReviewState(reviewStateBackfillService, refreshCancellationTokenSource.Token);
             var result = await refreshService.Refresh(refreshCancellationTokenSource.Token);
             logger.LogInformation(
                 "Organisation eligibility refresh {Outcome} with {RowCount} rows",
@@ -120,6 +124,28 @@ public class OrganisationEligibilityRefreshWorker(
 
             await refreshCancellationTokenSource.CancelAsync();
             return;
+        }
+    }
+
+    private async Task BackfillReviewState(
+        IComplianceDeclarationReviewStateBackfillService reviewStateBackfillService,
+        CancellationToken cancellationToken
+    )
+    {
+        try
+        {
+            var result = await reviewStateBackfillService.Backfill(cancellationToken);
+            if (!result.AlreadyComplete)
+            {
+                logger.LogInformation(
+                    "Compliance declaration review state backfill completed with {StateRowCount} rows",
+                    result.StateRowCount
+                );
+            }
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogError(exception, "Compliance declaration review state backfill failed");
         }
     }
 
