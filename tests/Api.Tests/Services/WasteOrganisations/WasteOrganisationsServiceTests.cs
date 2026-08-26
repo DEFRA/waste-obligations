@@ -4,13 +4,19 @@ using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Authentication;
 using Defra.WasteObligations.Testing.Extensions.WireMock;
 using Defra.WasteObligations.Testing.Fixtures.WasteOrganisations;
+using Microsoft.AspNetCore.HeaderPropagation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Primitives;
 
 namespace Defra.WasteObligations.Api.Tests.Services.WasteOrganisations;
 
 public class WasteOrganisationsServiceTests : WireMockTestBase
 {
+    private const string TraceHeaderName = "x-cdp-request-id";
+    private const string TraceId = "trace-id";
+
     private ServiceCollection Services { get; }
 
     public WasteOrganisationsServiceTests(WireMockContext context)
@@ -26,8 +32,10 @@ public class WasteOrganisationsServiceTests : WireMockTestBase
         };
 
         Services = [];
+        Services.AddHeaderPropagation(options => options.Headers.Add(TraceHeaderName));
         Services.AddWasteOrganisationsService();
         Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(config).Build());
+        Services.TryAddSingleton<HeaderPropagationValues>();
     }
 
     [Fact]
@@ -58,6 +66,31 @@ public class WasteOrganisationsServiceTests : WireMockTestBase
         );
 
         organisation.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Read_ShouldPropagateTraceHeader()
+    {
+        await using var sp = Services.BuildServiceProvider();
+
+        var service = sp.GetRequiredService<IWasteOrganisationsService>();
+        sp.GetRequiredService<HeaderPropagationValues>().Headers = new Dictionary<string, StringValues>
+        {
+            [TraceHeaderName] = TraceId,
+        };
+
+        WireMock.StubWasteOrganisationsOrganisationRequest(
+            OrganisationFixture.OrganisationId,
+            basicAuthToken: BasicAuthCredential.Default
+        );
+
+        await service.Read(OrganisationFixture.OrganisationId, TestContext.Current.CancellationToken);
+
+        var request = WireMock
+            .LogEntries.Single(x => x.RequestMessage?.Path == $"/organisations/{OrganisationFixture.OrganisationId:D}")
+            .RequestMessage;
+        request.Should().NotBeNull();
+        request!.Headers.Should().ContainKey(TraceHeaderName).WhoseValue.Should().Contain(TraceId);
     }
 
     [Fact]

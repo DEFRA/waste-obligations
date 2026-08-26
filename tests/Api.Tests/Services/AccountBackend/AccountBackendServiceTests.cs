@@ -5,8 +5,11 @@ using Defra.WasteObligations.Api.Utils.Http;
 using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Extensions.WireMock;
 using Defra.WasteObligations.Testing.Fixtures.AccountBackend;
+using Microsoft.AspNetCore.HeaderPropagation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Primitives;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
 
@@ -14,6 +17,9 @@ namespace Defra.WasteObligations.Api.Tests.Services.AccountBackend;
 
 public class AccountBackendServiceTests : WireMockTestBase
 {
+    private const string TraceHeaderName = "x-cdp-request-id";
+    private const string TraceId = "trace-id";
+
     private ServiceCollection Services { get; }
 
     public AccountBackendServiceTests(WireMockContext context)
@@ -31,8 +37,10 @@ public class AccountBackendServiceTests : WireMockTestBase
         };
 
         Services = [];
+        Services.AddHeaderPropagation(options => options.Headers.Add(TraceHeaderName));
         Services.AddAccountBackendService();
         Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(config).Build());
+        Services.TryAddSingleton<HeaderPropagationValues>();
         Services.AddTransient<ProxyHttpMessageHandler>();
     }
 
@@ -72,6 +80,32 @@ public class AccountBackendServiceTests : WireMockTestBase
         organisationWithPersons!
             .Persons.Should()
             .BeEquivalentTo(OrganisationWithPersonsFixture.CancellationRecipients().Persons);
+    }
+
+    [Fact]
+    public async Task ReadOrganisationWithPersons_ShouldPropagateTraceHeader()
+    {
+        await using var sp = Services.BuildServiceProvider();
+
+        var service = sp.GetRequiredService<IAccountBackendService>();
+        var organisationId = Guid.NewGuid();
+        sp.GetRequiredService<HeaderPropagationValues>().Headers = new Dictionary<string, StringValues>
+        {
+            [TraceHeaderName] = TraceId,
+        };
+
+        WireMock.StubTokenRequest();
+        WireMock.StubAccountBackendOrganisationWithPersonsRequest(organisationId);
+
+        await service.ReadOrganisationWithPersons(organisationId, TestContext.Current.CancellationToken);
+
+        var request = WireMock
+            .LogEntries.Single(x =>
+                x.RequestMessage?.Path == $"/api/organisations/organisation-with-persons/{organisationId:D}"
+            )
+            .RequestMessage;
+        request.Should().NotBeNull();
+        request!.Headers.Should().ContainKey(TraceHeaderName).WhoseValue.Should().Contain(TraceId);
     }
 
     [Fact]
