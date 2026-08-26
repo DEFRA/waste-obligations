@@ -6,7 +6,7 @@ namespace Defra.WasteObligations.Api.Data.Entities;
 [BsonIgnoreExtraElements]
 public record OrganisationReferenceCache
 {
-    public ObjectId Id { get; init; }
+    public ObjectId Id { get; init; } = ObjectId.GenerateNewId();
 
     [BsonGuidRepresentation(GuidRepresentation.Standard)]
     public Guid OrganisationId { get; init; }

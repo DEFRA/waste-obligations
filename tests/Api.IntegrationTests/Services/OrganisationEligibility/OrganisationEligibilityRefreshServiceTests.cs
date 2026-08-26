@@ -6,6 +6,7 @@ using Defra.WasteObligations.Api.Services.OrganisationEligibility;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
+using MongoDB.Bson;
 using MongoDB.Driver;
 using NSubstitute;
 using Organisation = Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation;
@@ -47,6 +48,56 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
             .SingleAsync(TestContext.Current.CancellationToken);
         row.ReferenceNumber.Should().Be("051829");
         row.ReferenceNumberResolutionState.Should().Be(OrganisationReferenceNumberResolutionState.Resolved);
+    }
+
+    [Fact]
+    public async Task Refresh_WhenMultipleOrganisationsAreNew_ShouldPromoteEveryRow()
+    {
+        var firstOrganisationId = Guid.NewGuid();
+        var secondOrganisationId = Guid.NewGuid();
+        WasteOrganisationsService
+            .Search(Arg.Any<CancellationToken>())
+            .Returns(
+                new OrganisationSearch
+                {
+                    Organisations =
+                    [
+                        CreateSourceOrganisation(firstOrganisationId, "First organisation"),
+                        CreateSourceOrganisation(secondOrganisationId, "Second organisation"),
+                    ],
+                }
+            );
+        AccountBackendService
+            .SearchOrganisationsByExternalIds(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
+            .Returns(
+                new OrganisationsByExternalIdsResponse
+                {
+                    Organisations =
+                    [
+                        new AccountOrganisation
+                        {
+                            ExternalId = firstOrganisationId.ToString("D"),
+                            ReferenceNumber = "051829",
+                        },
+                        new AccountOrganisation
+                        {
+                            ExternalId = secondOrganisationId.ToString("D"),
+                            ReferenceNumber = "051830",
+                        },
+                    ],
+                }
+            );
+        var subject = CreateSubject();
+
+        var result = await subject.Refresh(TestContext.Current.CancellationToken);
+
+        result.Outcome.Should().Be(OrganisationEligibilityRefreshOutcome.Promoted);
+        result.RowCount.Should().Be(2);
+        var rows = await OrganisationEligibilities
+            .Find(Builders<OrganisationEligibilityEntity>.Filter.Empty)
+            .ToListAsync(TestContext.Current.CancellationToken);
+        rows.Should().HaveCount(2);
+        rows.Should().OnlyContain(x => x.Id != ObjectId.Empty);
     }
 
     [Fact]
@@ -139,29 +190,24 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
     private void ArrangeSource(Guid organisationId, string name = "Example organisation") =>
         WasteOrganisationsService
             .Search(Arg.Any<CancellationToken>())
-            .Returns(
-                new OrganisationSearch
+            .Returns(new OrganisationSearch { Organisations = [CreateSourceOrganisation(organisationId, name)] });
+
+    private static Organisation CreateSourceOrganisation(Guid organisationId, string name) =>
+        new()
+        {
+            Id = organisationId,
+            Name = name,
+            Address = new WasteOrganisationsAddress(),
+            Registrations =
+            [
+                new Registration
                 {
-                    Organisations =
-                    [
-                        new Organisation
-                        {
-                            Id = organisationId,
-                            Name = name,
-                            Address = new WasteOrganisationsAddress(),
-                            Registrations =
-                            [
-                                new Registration
-                                {
-                                    Type = WasteOrganisationsRegistrationType.LargeProducer,
-                                    Status = WasteOrganisationsRegistrationStatus.Registered,
-                                    RegistrationYear = 2026,
-                                },
-                            ],
-                        },
-                    ],
-                }
-            );
+                    Type = WasteOrganisationsRegistrationType.LargeProducer,
+                    Status = WasteOrganisationsRegistrationStatus.Registered,
+                    RegistrationYear = 2026,
+                },
+            ],
+        };
 
     private void ArrangeDirectProducerReference(Guid organisationId, string referenceNumber) =>
         AccountBackendService

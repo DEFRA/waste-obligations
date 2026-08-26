@@ -5,6 +5,7 @@ using Defra.WasteObligations.Api.Services.AccountBackend;
 using Defra.WasteObligations.Api.Services.OrganisationEligibility;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
+using MongoDB.Bson;
 using MongoDB.Driver;
 using NSubstitute;
 using OrganisationEligibilityEntity = Defra.WasteObligations.Api.Data.Entities.OrganisationEligibility;
@@ -69,6 +70,49 @@ public class OrganisationReferenceCacheServiceTests : IntegrationTestBase
             .Find(x => x.OrganisationId == organisationId)
             .SingleAsync(TestContext.Current.CancellationToken);
         cache.ReferenceNumber.Should().Be("051829");
+    }
+
+    [Fact]
+    public async Task SynchroniseAndResolve_WhenMultipleNewOrganisations_ShouldPersistEachCache()
+    {
+        var firstOrganisationId = Guid.NewGuid();
+        var secondOrganisationId = Guid.NewGuid();
+        AccountBackendService
+            .SearchOrganisationsByExternalIds(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
+            .Returns(
+                new OrganisationsByExternalIdsResponse
+                {
+                    Organisations =
+                    [
+                        new AccountOrganisation
+                        {
+                            ExternalId = firstOrganisationId.ToString("D"),
+                            ReferenceNumber = "051829",
+                        },
+                        new AccountOrganisation
+                        {
+                            ExternalId = secondOrganisationId.ToString("D"),
+                            ReferenceNumber = "051830",
+                        },
+                    ],
+                }
+            );
+        var subject = CreateSubject();
+
+        var result = await subject.SynchroniseAndResolve(
+            [
+                CreateEligibilityRow(firstOrganisationId, RegistrationType.DirectProducer, 2026),
+                CreateEligibilityRow(secondOrganisationId, RegistrationType.DirectProducer, 2026),
+            ],
+            TestContext.Current.CancellationToken
+        );
+
+        result.Should().HaveCount(2);
+        var caches = await OrganisationReferenceCaches
+            .Find(Builders<OrganisationReferenceCache>.Filter.Empty)
+            .ToListAsync(TestContext.Current.CancellationToken);
+        caches.Should().HaveCount(2);
+        caches.Should().OnlyContain(x => x.Id != ObjectId.Empty);
     }
 
     [Fact]

@@ -6,7 +6,7 @@ namespace Defra.WasteObligations.Api.Data.Entities;
 [BsonIgnoreExtraElements]
 public record OrganisationEligibility
 {
-    public ObjectId Id { get; init; }
+    public ObjectId Id { get; init; } = ObjectId.GenerateNewId();
     public required string Generation { get; init; }
 
     [BsonGuidRepresentation(GuidRepresentation.Standard)]
