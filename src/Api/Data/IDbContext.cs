@@ -10,7 +10,6 @@ public interface IDbContext
     IMongoCollection<ComplianceDeclarationReviewStateSnapshot> ComplianceDeclarationReviewStateSnapshots { get; }
     IMongoCollection<OrganisationEligibility> OrganisationEligibilities { get; }
     IMongoCollection<OrganisationEligibilitySnapshot> OrganisationEligibilitySnapshots { get; }
-    IMongoCollection<OrganisationEligibilityRefreshLease> OrganisationEligibilityRefreshLeases { get; }
     IMongoCollection<OrganisationReferenceCache> OrganisationReferenceCaches { get; }
 
     Task<TResult> ExecuteTransaction<TResult>(

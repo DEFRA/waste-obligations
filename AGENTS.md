@@ -30,6 +30,7 @@
 - Work backwards through tests to assess changes
 - Preserve existing observable behaviour when adding a new execution path. Do not remove or weaken shared integration features, such as correlation-header propagation, merely to support a background process.
 - When a background process needs different integration-client behaviour, add an explicitly named or typed background client for that purpose and keep the request-path client unchanged. Add regression tests that exercise the real HTTP handler pipeline to prove both the retained request behaviour and the deliberate background-client behaviour.
+- Store a background-worker lease in a private operational Mongo collection with the established leading-underscore, snake-case convention (for example `_audit_event_dispatch_lease`). Access that collection directly from the lease service through `IMongoDatabase`; do not add process-coordination collections to `IDbContext` or `MongoDbContext`.
 - In tests, prefer the fixtures in the Testing support project for repeated valid entity, DTO, and service response shapes; direct instantiation is fine for intentionally malformed/null payloads or small one-off values where a fixture would add noise
 - Fixture location should follow the `tests/Testing/Fixtures` folder taxonomy: DTO fixtures in `Dtos`, entity fixtures in `Entities`, and service integration response fixtures in folders named for that integration
 - Attempt to mask use of ToString where possible

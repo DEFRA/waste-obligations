@@ -230,7 +230,7 @@ Names below are provisional. New collection names, indexes, schema files, migrat
 }
 ```
 
-The delivery adds purpose-specific persistence for eligibility rows, declaration-review state, snapshot metadata, the organisation-obligation summary, and its hydration work. The first three support the main inferred-list query; snapshot metadata is control data. The Account reference cache and the obligation-hydration work queue are internal work/provenance stores, not request-time joins. The refresh and hydration workers use distinct process documents in the existing operational lease collection.
+The delivery adds purpose-specific persistence for eligibility rows, declaration-review state, snapshot metadata, the organisation-obligation summary, and its hydration work. The first three support the main inferred-list query; snapshot metadata is control data. The Account reference cache and the obligation-hydration work queue are internal work/provenance stores, not request-time joins. Each refresh or hydration worker uses its own private operational lease collection, accessed by its lease service rather than the query-data `IDbContext`.
 
 ### 1. Organisation eligibility snapshot
 
@@ -363,7 +363,7 @@ This is safe because the stated business invariant is that a reference number ne
 
 #### Reference-resolution worker
 
-Run a separate interval worker using the existing `AuditEventLeaseService` lifecycle: atomic acquire-or-skip, renewal while a batch is being processed, owner-only release, and expiry recovery. It needs a distinct process document, for example `compliance-organisation-reference-resolution`, in the feature's lease collection. This lets it run independently of the 30-minute Waste Organisations poll and prevents multiple hosts from sending the same batch to Account.
+Run a separate interval worker using the existing `AuditEventLeaseService` lifecycle: atomic acquire-or-skip, renewal while a batch is being processed, owner-only release, and expiry recovery. It needs its own private operational lease collection and a distinct lease ID, for example `organisation-reference-resolution`. This lets it run independently of the 30-minute Waste Organisations poll and prevents multiple hosts from sending the same batch to Account.
 
 Each run selects a bounded number of due `Pending`, retryable `NotFound`, or `Failed` cache entries and groups them by lookup mode:
 
@@ -465,7 +465,7 @@ Persisting material-level obligations is not required for this list. The totals,
 
 #### Hydration lifecycle
 
-The obligation hydrator is a second interval worker using the existing `AuditEventLeaseService` lifecycle, with its own process name such as `compliance-organisation-obligation-hydration`. Its lease is independent of the organisation-refresh and Account-reference leases. It acquires-or-skips, renews before/while a bounded batch is processed, and writes an atomic upsert of the summary and work outcome. A failed lease renewal cancels the remainder of that batch; another host can resume it after expiry.
+The obligation hydrator is a second interval worker using the existing `AuditEventLeaseService` lifecycle, with its own private operational lease collection and lease ID such as `organisation-obligation-hydration`. Its lease is independent of the organisation-refresh and Account-reference leases. It acquires-or-skips, renews before/while a bounded batch is processed, and writes an atomic upsert of the summary and work outcome. A failed lease renewal cancels the remainder of that batch; another host can resume it after expiry.
 
 On a changed organisation generation, restrict all obligation work to `obligationYear = currentComplianceYear`:
 
@@ -555,21 +555,21 @@ Waste Organisations offers neither paging nor a change cursor for this query. Th
 
 ### Cross-host refresh lease
 
-Follow the existing recurring-worker lease pattern in `AuditEventLeaseService` / `AnalyticsAuditEventProcessor`, rather than the startup-only `MongoMigrationService` pattern. The audit-event lease has the required lifecycle for deployed multi-host workers: an instance-specific owner ID, expiry, atomic acquire-or-skip, renewal while processing, and owner-only release.
+Follow the existing recurring-worker lease lifecycle in `AuditEventLeaseService` / `AnalyticsAuditEventProcessor`, rather than the startup-only `MongoMigrationService` pattern. The audit-event lease has the required lifecycle for deployed multi-host workers: an instance-specific owner ID, expiry, atomic acquire-or-skip, renewal while processing, and owner-only release.
 
-The organisation worker should use its own process name and lease collection; it must not reuse the audit-dispatch process name or couple the refresh to audit-event data. Proposed values:
+The organisation worker owns its private operational collection directly through its lease service; it must not reuse the audit-dispatch process name, couple the refresh to audit-event data, or add the lease collection to the query-data `IDbContext`. Values:
 
 ```text
-processName: compliance-eligibility-refresh
-collection:  _compliance_eligibility_refresh_lease
-document _id: compliance-eligibility-refresh
+leaseId:      organisation-eligibility-refresh
+collection:   _organisation_eligibility_refresh_lease
+document _id: organisation-eligibility-refresh
 ```
 
 The lease document follows the existing shape:
 
 ```json
 {
-  "_id": "compliance-eligibility-refresh",
+  "_id": "organisation-eligibility-refresh",
   "owner": "{machine-name}-{instance-guid}",
   "expiresAt": "2026-08-26T08:20:00Z",
   "createdAt": "2026-08-26T08:15:00Z",

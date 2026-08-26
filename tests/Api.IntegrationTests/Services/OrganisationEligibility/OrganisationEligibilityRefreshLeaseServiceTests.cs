@@ -1,11 +1,8 @@
 using AwesomeAssertions;
-using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.OrganisationEligibility;
-using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using MongoDB.Driver;
-using NSubstitute;
 
 namespace Defra.WasteObligations.Api.IntegrationTests.Services.OrganisationEligibility;
 
@@ -101,12 +98,8 @@ public class OrganisationEligibilityRefreshLeaseServiceTests : IntegrationTestBa
 
     private static OrganisationEligibilityRefreshLeaseService CreateSubject(TimeProvider timeProvider) =>
         new(
-            new MongoDbContext(
-                GetMongoDatabase(),
-                Options.Create(new MongoDbOptions()),
-                Substitute.For<Microsoft.Extensions.Logging.ILogger<MongoDbContext>>()
-            ),
+            GetMongoDatabase(),
             timeProvider,
-            Substitute.For<Microsoft.Extensions.Logging.ILogger<OrganisationEligibilityRefreshLeaseService>>()
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<OrganisationEligibilityRefreshLeaseService>.Instance
         );
 }

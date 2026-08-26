@@ -69,7 +69,9 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         OrganisationReferenceCaches = GetMongoCollection<OrganisationReferenceCache>();
         OrganisationEligibilities = GetMongoCollection<OrganisationEligibility>();
         OrganisationEligibilitySnapshots = GetMongoCollection<OrganisationEligibilitySnapshot>();
-        OrganisationEligibilityRefreshLeases = GetMongoCollection<OrganisationEligibilityRefreshLease>();
+        OrganisationEligibilityRefreshLeases = GetMongoCollection<OrganisationEligibilityRefreshLease>(
+            OrganisationEligibilityRefreshLease.CollectionName
+        );
 
         await DeleteMany(ComplianceDeclarations);
         await DeleteMany(ComplianceDeclarationReviewStates);

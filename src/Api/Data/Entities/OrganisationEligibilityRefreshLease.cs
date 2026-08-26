@@ -5,6 +5,7 @@ namespace Defra.WasteObligations.Api.Data.Entities;
 [BsonIgnoreExtraElements]
 public record OrganisationEligibilityRefreshLease
 {
+    public const string CollectionName = "_organisation_eligibility_refresh_lease";
     public const string LeaseId = "organisation-eligibility-refresh";
 
     [BsonId]

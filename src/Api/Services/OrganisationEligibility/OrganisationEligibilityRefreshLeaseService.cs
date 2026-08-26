@@ -6,7 +6,7 @@ using MongoDB.Driver;
 namespace Defra.WasteObligations.Api.Services.OrganisationEligibility;
 
 public class OrganisationEligibilityRefreshLeaseService(
-    IDbContext dbContext,
+    IMongoDatabase database,
     TimeProvider timeProvider,
     ILogger<OrganisationEligibilityRefreshLeaseService> logger
 ) : IOrganisationEligibilityRefreshLeaseService
@@ -14,6 +14,8 @@ public class OrganisationEligibilityRefreshLeaseService(
     private const string OwnerField = "owner";
 
     private readonly string _instanceId = $"{Environment.MachineName}-{Guid.NewGuid():N}";
+    private readonly IMongoCollection<OrganisationEligibilityRefreshLease> _leases =
+        database.GetCollection<OrganisationEligibilityRefreshLease>(OrganisationEligibilityRefreshLease.CollectionName);
 
     public async Task<bool> TryAcquire(TimeSpan leaseDuration, CancellationToken cancellationToken)
     {
@@ -40,7 +42,7 @@ public class OrganisationEligibilityRefreshLeaseService(
 
         try
         {
-            await dbContext.OrganisationEligibilityRefreshLeases.FindOneAndUpdateAsync(
+            await _leases.FindOneAndUpdateAsync(
                 filter,
                 update,
                 new FindOneAndUpdateOptions<OrganisationEligibilityRefreshLease>
@@ -84,11 +86,7 @@ public class OrganisationEligibilityRefreshLeaseService(
             .Update.Set(x => x.ExpiresAt, leaseExpiresAt)
             .Set(x => x.UpdatedAt, utcNow);
 
-        var result = await dbContext.OrganisationEligibilityRefreshLeases.UpdateOneAsync(
-            filter,
-            update,
-            cancellationToken: cancellationToken
-        );
+        var result = await _leases.UpdateOneAsync(filter, update, cancellationToken: cancellationToken);
 
         if (result.MatchedCount != 1)
             return false;
@@ -116,11 +114,7 @@ public class OrganisationEligibilityRefreshLeaseService(
             .Set(x => x.LastReleasedAt, utcNow)
             .Unset(OwnerField);
 
-        var result = await dbContext.OrganisationEligibilityRefreshLeases.UpdateOneAsync(
-            filter,
-            update,
-            cancellationToken: cancellationToken
-        );
+        var result = await _leases.UpdateOneAsync(filter, update, cancellationToken: cancellationToken);
 
         if (result.ModifiedCount == 1)
         {
