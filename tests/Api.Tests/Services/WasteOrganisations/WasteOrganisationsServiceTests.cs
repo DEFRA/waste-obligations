@@ -74,4 +74,19 @@ public class WasteOrganisationsServiceTests : WireMockTestBase
 
         result.Should().BeNull();
     }
+
+    [Fact]
+    public async Task Search_ShouldReturnUnfilteredOrganisationData()
+    {
+        await using var sp = Services.BuildServiceProvider();
+
+        var service = sp.GetRequiredService<IWasteOrganisationsService>();
+        sp.GetRequiredService<HeaderPropagationValues>().Headers = new Dictionary<string, StringValues>();
+        WireMock.StubWasteOrganisationsSearchRequest(basicAuthToken: BasicAuthCredential.Default);
+
+        var result = await service.Search(TestContext.Current.CancellationToken);
+
+        result.Organisations.Should().ContainSingle();
+        result.Organisations[0].Registrations.Should().NotBeEmpty();
+    }
 }

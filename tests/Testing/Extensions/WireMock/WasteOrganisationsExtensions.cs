@@ -8,11 +8,36 @@ using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
 using WireMock.Server;
 using Organisation = Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation;
+using OrganisationSearch = Defra.WasteObligations.Api.Services.WasteOrganisations.OrganisationSearch;
 
 namespace Defra.WasteObligations.Testing.Extensions.WireMock;
 
 public static class WasteOrganisationsExtensions
 {
+    public static void StubWasteOrganisationsSearchRequest(
+        this WireMockServer wireMock,
+        string? basicAuthToken = null,
+        OrganisationSearch? organisationSearch = null
+    )
+    {
+        var request = Request.Create().UsingGet().WithPath("/organisations");
+
+        if (basicAuthToken is not null)
+            request = request.WithHeader("Authorization", $"Basic {basicAuthToken}");
+
+        wireMock
+            .Given(request)
+            .RespondWith(
+                Response
+                    .Create()
+                    .WithStatusCode(HttpStatusCode.OK)
+                    .WithBodyAsJson(
+                        organisationSearch
+                            ?? new OrganisationSearch { Organisations = [OrganisationFixture.Default().Create()] }
+                    )
+            );
+    }
+
     public static void StubWasteOrganisationsOrganisationRequest(
         this WireMockServer wireMock,
         Guid organisationId,
