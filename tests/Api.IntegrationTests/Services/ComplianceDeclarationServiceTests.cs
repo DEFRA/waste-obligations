@@ -90,7 +90,54 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         auditEvent.After.Should().NotBeNull();
         auditEvent.After!["_id"].Should().Be(initial.Id);
         auditEvent.After["version"].Should().Be(1);
+        var reviewState = await FindReviewState(initial);
+        reviewState.SubmittedOrAcceptedCount.Should().Be(1);
         ComplianceDeclarationMetrics.Received(1).Created();
+    }
+
+    [Fact]
+    public async Task RefreshReviewState_ShouldCountSubmittedAndAcceptedButNotCancelled()
+    {
+        var organisation = OrganisationFixture.DirectProducer().Create();
+        var cancelled = await Subject.Create(
+            ComplianceDeclarationFixture
+                .Default()
+                .With(x => x.Organisation, organisation)
+                .With(x => x.Status, ComplianceDeclarationStatus.Cancelled)
+                .Create(),
+            TestContext.Current.CancellationToken
+        );
+        var accepted = await Subject.Create(
+            ComplianceDeclarationFixture
+                .Default()
+                .With(x => x.Organisation, organisation)
+                .With(x => x.Status, ComplianceDeclarationStatus.Accepted)
+                .Create(),
+            TestContext.Current.CancellationToken
+        );
+        var submitted = await Subject.Create(
+            ComplianceDeclarationFixture
+                .Default()
+                .With(x => x.Organisation, organisation)
+                .With(x => x.Status, ComplianceDeclarationStatus.Submitted)
+                .Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        var reviewState = await FindReviewState(cancelled);
+        reviewState.SubmittedOrAcceptedCount.Should().Be(2);
+
+        await Subject.Update(
+            submitted,
+            submitted with
+            {
+                Status = ComplianceDeclarationStatus.Cancelled,
+            },
+            TestContext.Current.CancellationToken
+        );
+
+        reviewState = await FindReviewState(accepted);
+        reviewState.SubmittedOrAcceptedCount.Should().Be(1);
     }
 
     [Fact]
@@ -299,6 +346,8 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         auditEvents[1].TraceId.Should().Be(TraceId);
         auditEvents[1].Before.Should().NotBeNull();
         auditEvents[1].After.Should().BeNull();
+        var reviewState = await FindReviewState(initial);
+        reviewState.SubmittedOrAcceptedCount.Should().Be(0);
         ComplianceDeclarationMetrics.Received(1).Deleted();
     }
 
@@ -416,6 +465,10 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         auditEvents[1].After.Should().NotBeNull();
         auditEvents[1].After!["version"].Should().Be(2);
         auditEvents[1].After!["obligationYear"].Should().Be(2027);
+        var previousReviewState = await FindReviewState(initial);
+        previousReviewState.SubmittedOrAcceptedCount.Should().Be(0);
+        var updatedReviewState = await FindReviewState(retrieved);
+        updatedReviewState.SubmittedOrAcceptedCount.Should().Be(1);
         ComplianceDeclarationMetrics.Received(1).Updated(retrieved.Status);
     }
 
@@ -1144,6 +1197,15 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
 
     private static MongoDbContext CreateDbContext(IMongoDatabase database) =>
         new(database, Options.Create(new MongoDbOptions()), Substitute.For<ILogger<MongoDbContext>>());
+
+    private async Task<ComplianceDeclarationReviewState> FindReviewState(ComplianceDeclaration declaration) =>
+        await ComplianceDeclarationReviewStates
+            .Find(x =>
+                x.OrganisationId == declaration.Organisation.Id
+                && x.ObligationYear == declaration.ObligationYear
+                && x.RegistrationType == declaration.Organisation.RegistrationType
+            )
+            .SingleAsync(TestContext.Current.CancellationToken);
 
     private static object? ToPlainDocument(BsonDocument? document)
     {

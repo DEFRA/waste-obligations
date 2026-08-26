@@ -15,11 +15,14 @@ public class ComplianceDeclarationService(
     TimeProvider timeProvider,
     IAuditEventService auditEventService,
     IComplianceDeclarationMetrics complianceDeclarationMetrics,
-    TraceIdReader traceIdReader
+    TraceIdReader traceIdReader,
+    ComplianceDeclarationReviewStateService? complianceDeclarationReviewStateService = null
 ) : IComplianceDeclarationService
 {
     private const string Actor = "service:waste-obligations";
     private const string ComplianceDeclarationEntity = "compliance_declaration";
+    private readonly ComplianceDeclarationReviewStateService _complianceDeclarationReviewStateService =
+        complianceDeclarationReviewStateService ?? new ComplianceDeclarationReviewStateService(dbContext);
 
     public async Task<ComplianceDeclaration> Create(
         ComplianceDeclaration complianceDeclaration,
@@ -36,6 +39,13 @@ public class ComplianceDeclarationService(
                     transactionSession,
                     complianceDeclaration,
                     cancellationToken: transactionCancellationToken
+                );
+
+                await _complianceDeclarationReviewStateService.Refresh(
+                    transactionSession,
+                    [complianceDeclaration],
+                    utcNow,
+                    transactionCancellationToken
                 );
 
                 await auditEventService.RecordEvent(
@@ -131,6 +141,13 @@ public class ComplianceDeclarationService(
                     throw new ConcurrencyException(
                         $"Concurrency issue on delete, compliance declaration with id '{current.Id}' was not deleted"
                     );
+
+                await _complianceDeclarationReviewStateService.Refresh(
+                    transactionSession,
+                    [current],
+                    timeProvider.GetUtcNowWithoutMicroseconds(),
+                    transactionCancellationToken
+                );
 
                 var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
                 await auditEventService.RecordEvent(
@@ -246,6 +263,13 @@ public class ComplianceDeclarationService(
                     throw new ConcurrencyException(
                         $"Concurrency issue on write, compliance declaration with id '{current.Id}' was not updated"
                     );
+
+                await _complianceDeclarationReviewStateService.Refresh(
+                    transactionSession,
+                    [current, updated],
+                    updated.Updated,
+                    transactionCancellationToken
+                );
 
                 await auditEventService.RecordEvent(
                     transactionSession,
