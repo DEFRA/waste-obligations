@@ -77,22 +77,19 @@ public class CancellationEmailRecipientResolver(
             || string.Equals(person.Email, email, StringComparison.OrdinalIgnoreCase)
         );
 
-        if (matchedPerson is { FirstName: not null, LastName: not null })
+        if (
+            matchedPerson is null
+            || string.IsNullOrWhiteSpace(matchedPerson.FirstName)
+            || string.IsNullOrWhiteSpace(matchedPerson.LastName)
+        )
         {
-            return new PersonEmail
-            {
-                FirstName = matchedPerson.FirstName,
-                LastName = matchedPerson.LastName,
-                Email = email,
-            };
+            return null;
         }
-
-        var (firstName, lastName) = SplitName(submitter?.Name);
 
         return new PersonEmail
         {
-            FirstName = firstName,
-            LastName = lastName,
+            FirstName = matchedPerson.FirstName,
+            LastName = matchedPerson.LastName,
             Email = email,
         };
     }
@@ -123,23 +120,6 @@ public class CancellationEmailRecipientResolver(
             FirstName = primaryContact.FirstName,
             LastName = primaryContact.LastName,
             Email = email,
-        };
-    }
-
-    internal static (string FirstName, string LastName) SplitName(string? name)
-    {
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            return (string.Empty, string.Empty);
-        }
-
-        var parts = name.Trim().Split(' ', 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-        return parts.Length switch
-        {
-            0 => (string.Empty, string.Empty),
-            1 => (parts[0], string.Empty),
-            _ => (parts[0], parts[1]),
         };
     }
 }
