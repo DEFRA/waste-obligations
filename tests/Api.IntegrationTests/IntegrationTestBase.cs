@@ -33,6 +33,8 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     public required WireMockContext WireMockContext;
 
     public required IMongoCollection<ComplianceDeclaration> ComplianceDeclarations { get; set; }
+    public required IMongoCollection<ComplianceDeclarationReviewState> ComplianceDeclarationReviewStates { get; set; }
+    public required IMongoCollection<ComplianceDeclarationReviewStateSnapshot> ComplianceDeclarationReviewStateSnapshots { get; set; }
     public required IMongoCollection<AuditEventCounter> AuditEventCounters { get; set; }
     public required IMongoCollection<AuditEvent> AuditEvents { get; set; }
     public required IMongoCollection<AuditEventDispatchLease> AuditEventDispatchLeases { get; set; }
@@ -57,6 +59,8 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         await WireMockContext.InitializeAsync();
 
         ComplianceDeclarations = GetMongoCollection<ComplianceDeclaration>();
+        ComplianceDeclarationReviewStates = GetMongoCollection<ComplianceDeclarationReviewState>();
+        ComplianceDeclarationReviewStateSnapshots = GetMongoCollection<ComplianceDeclarationReviewStateSnapshot>();
         AuditEventCounters = GetMongoCollection<AuditEventCounter>(AuditEventDbContext.AuditEventCounterCollectionName);
         AuditEvents = GetMongoCollection<AuditEvent>();
         AuditEventDispatchLeases = GetMongoCollection<AuditEventDispatchLease>(
@@ -68,6 +72,8 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         OrganisationEligibilityRefreshLeases = GetMongoCollection<OrganisationEligibilityRefreshLease>();
 
         await DeleteMany(ComplianceDeclarations);
+        await DeleteMany(ComplianceDeclarationReviewStates);
+        await DeleteMany(ComplianceDeclarationReviewStateSnapshots);
         await DeleteMany(AuditEventCounters);
         await DeleteMany(AuditEvents);
         await DeleteMany(AuditEventDispatchLeases);

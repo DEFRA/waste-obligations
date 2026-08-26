@@ -36,6 +36,8 @@ public class MongoMigrationServiceTests : IntegrationTestBase
     private const string OrganisationReferenceCacheOrganisationRegistrationTypeIndexName =
         "OrganisationId_RegistrationType";
     private const string OrganisationReferenceCacheDueWorkIndexName = "ResolutionState_NextAttemptAt";
+    private const string ComplianceDeclarationReviewStateOrganisationYearRegistrationTypeIndexName =
+        "OrganisationId_ObligationYear_RegistrationType";
 
     [Fact]
     public async Task Start_ShouldCreateIndex()
@@ -53,6 +55,7 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         await new AuditEventIndexesMigration().DownAsync(context);
         await new OrganisationEligibilityIndexes().DownAsync(context);
         await new OrganisationReferenceCacheIndexes().DownAsync(context);
+        await new ComplianceDeclarationReviewStateIndexes().DownAsync(context);
 
         await subject.StartAsync(TestContext.Current.CancellationToken);
 
@@ -70,6 +73,11 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         var organisationReferenceCacheIndexes = await (
             await database
                 .GetCollection<OrganisationReferenceCache>(nameof(OrganisationReferenceCache))
+                .Indexes.ListAsync(TestContext.Current.CancellationToken)
+        ).ToListAsync(TestContext.Current.CancellationToken);
+        var complianceDeclarationReviewStateIndexes = await (
+            await database
+                .GetCollection<ComplianceDeclarationReviewState>(nameof(ComplianceDeclarationReviewState))
                 .Indexes.ListAsync(TestContext.Current.CancellationToken)
         ).ToListAsync(TestContext.Current.CancellationToken);
         var sequenceKeys = new BsonDocument("sequence", 1);
@@ -129,6 +137,16 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             .Should()
             .Contain(x =>
                 IsIndex(x, OrganisationReferenceCacheDueWorkIndexName, OrganisationReferenceCacheDueWorkIndexKeys())
+            );
+        complianceDeclarationReviewStateIndexes
+            .Should()
+            .Contain(x =>
+                IsIndex(
+                    x,
+                    ComplianceDeclarationReviewStateOrganisationYearRegistrationTypeIndexName,
+                    ComplianceDeclarationReviewStateOrganisationYearRegistrationTypeIndexKeys(),
+                    unique: true
+                )
             );
     }
 
@@ -299,6 +317,48 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             .Should()
             .NotContain(x => x.GetValue("name") == OrganisationReferenceCacheOrganisationRegistrationTypeIndexName);
         indexes.Should().NotContain(x => x.GetValue("name") == OrganisationReferenceCacheDueWorkIndexName);
+
+        await subject.UpAsync(context);
+    }
+
+    [Fact]
+    public async Task ComplianceDeclarationReviewStateIndexes_ShouldCreateAndDropIndexes()
+    {
+        var database = GetMongoDatabase();
+        var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
+        var subject = new ComplianceDeclarationReviewStateIndexes();
+        var collection = database.GetCollection<ComplianceDeclarationReviewState>(
+            nameof(ComplianceDeclarationReviewState)
+        );
+        await subject.DownAsync(context);
+
+        await subject.UpAsync(context);
+
+        var indexes = await (await collection.Indexes.ListAsync(TestContext.Current.CancellationToken)).ToListAsync(
+            TestContext.Current.CancellationToken
+        );
+        indexes
+            .Should()
+            .Contain(x =>
+                IsIndex(
+                    x,
+                    ComplianceDeclarationReviewStateOrganisationYearRegistrationTypeIndexName,
+                    ComplianceDeclarationReviewStateOrganisationYearRegistrationTypeIndexKeys(),
+                    unique: true
+                )
+            );
+
+        await subject.DownAsync(context);
+        await subject.DownAsync(context);
+        indexes = await (await collection.Indexes.ListAsync(TestContext.Current.CancellationToken)).ToListAsync(
+            TestContext.Current.CancellationToken
+        );
+
+        indexes
+            .Should()
+            .NotContain(x =>
+                x.GetValue("name") == ComplianceDeclarationReviewStateOrganisationYearRegistrationTypeIndexName
+            );
 
         await subject.UpAsync(context);
     }
@@ -862,6 +922,14 @@ public class MongoMigrationServiceTests : IntegrationTestBase
                 .Ascending(x => x.NextAttemptAt)
         );
 
+    private static BsonDocument ComplianceDeclarationReviewStateOrganisationYearRegistrationTypeIndexKeys() =>
+        RenderIndexKeys(
+            Builders<ComplianceDeclarationReviewState>
+                .IndexKeys.Ascending(x => x.OrganisationId)
+                .Ascending(x => x.ObligationYear)
+                .Ascending(x => x.RegistrationType)
+        );
+
     private BsonDocument RenderIndexKeys(IndexKeysDefinition<ComplianceDeclaration> keys) =>
         keys.Render(
             new RenderArgs<ComplianceDeclaration>(
@@ -890,6 +958,18 @@ public class MongoMigrationServiceTests : IntegrationTestBase
                     .DocumentSerializer,
                 GetMongoDatabase()
                     .GetCollection<OrganisationReferenceCache>(nameof(OrganisationReferenceCache))
+                    .Settings.SerializerRegistry
+            )
+        );
+
+    private static BsonDocument RenderIndexKeys(IndexKeysDefinition<ComplianceDeclarationReviewState> keys) =>
+        keys.Render(
+            new RenderArgs<ComplianceDeclarationReviewState>(
+                GetMongoDatabase()
+                    .GetCollection<ComplianceDeclarationReviewState>(nameof(ComplianceDeclarationReviewState))
+                    .DocumentSerializer,
+                GetMongoDatabase()
+                    .GetCollection<ComplianceDeclarationReviewState>(nameof(ComplianceDeclarationReviewState))
                     .Settings.SerializerRegistry
             )
         );

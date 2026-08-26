@@ -18,6 +18,14 @@ public class MongoDbContext(
     public IMongoCollection<ComplianceDeclaration> ComplianceDeclarations { get; } =
         database.GetCollection<ComplianceDeclaration>(nameof(ComplianceDeclaration));
 
+    public IMongoCollection<ComplianceDeclarationReviewState> ComplianceDeclarationReviewStates { get; } =
+        database.GetCollection<ComplianceDeclarationReviewState>(nameof(ComplianceDeclarationReviewState));
+
+    public IMongoCollection<ComplianceDeclarationReviewStateSnapshot> ComplianceDeclarationReviewStateSnapshots { get; } =
+        database.GetCollection<ComplianceDeclarationReviewStateSnapshot>(
+            nameof(ComplianceDeclarationReviewStateSnapshot)
+        );
+
     public IMongoCollection<OrganisationEligibility> OrganisationEligibilities { get; } =
         database.GetCollection<OrganisationEligibility>(nameof(OrganisationEligibility));
 
