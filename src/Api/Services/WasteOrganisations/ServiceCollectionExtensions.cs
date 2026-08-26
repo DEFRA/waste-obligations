@@ -25,7 +25,6 @@ public static class ServiceCollectionExtensions
                     httpClient.ConfigureForResiliencePipeline(addResiliencePipeline);
                 }
             )
-            .AddHeaderPropagation()
             .AddResiliencePipeline(addResiliencePipeline, name);
 
         return services;

@@ -4,11 +4,8 @@ using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Authentication;
 using Defra.WasteObligations.Testing.Extensions.WireMock;
 using Defra.WasteObligations.Testing.Fixtures.WasteOrganisations;
-using Microsoft.AspNetCore.HeaderPropagation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Primitives;
 
 namespace Defra.WasteObligations.Api.Tests.Services.WasteOrganisations;
 
@@ -31,7 +28,6 @@ public class WasteOrganisationsServiceTests : WireMockTestBase
         Services = [];
         Services.AddWasteOrganisationsService();
         Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(config).Build());
-        Services.TryAddSingleton<HeaderPropagationValues>();
     }
 
     [Fact]
@@ -50,7 +46,6 @@ public class WasteOrganisationsServiceTests : WireMockTestBase
         await using var sp = Services.BuildServiceProvider();
 
         var service = sp.GetRequiredService<IWasteOrganisationsService>();
-        sp.GetRequiredService<HeaderPropagationValues>().Headers = new Dictionary<string, StringValues>();
 
         WireMock.StubWasteOrganisationsOrganisationRequest(
             OrganisationFixture.OrganisationId,
@@ -81,7 +76,6 @@ public class WasteOrganisationsServiceTests : WireMockTestBase
         await using var sp = Services.BuildServiceProvider();
 
         var service = sp.GetRequiredService<IWasteOrganisationsService>();
-        sp.GetRequiredService<HeaderPropagationValues>().Headers = new Dictionary<string, StringValues>();
         WireMock.StubWasteOrganisationsSearchRequest(basicAuthToken: BasicAuthCredential.Default);
 
         var result = await service.Search(TestContext.Current.CancellationToken);
