@@ -968,6 +968,141 @@
           }
         }
       }
+    },
+    "/compliance-declarations/unsubmitted": {
+      "get": {
+        "tags": [
+          "Search"
+        ],
+        "summary": "Search unsubmitted compliance declarations",
+        "description": "Returns eligible organisations without a submitted or accepted compliance declaration",
+        "operationId": "SearchUnsubmittedComplianceDeclarations",
+        "parameters": [
+          {
+            "name": "obligationYear",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "maximum": 2050,
+              "minimum": 2023,
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "registrationType",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Only OrganisationName[asc] or OrganisationName[desc] is currently supported",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (1-based), defaults to 1 if not specified",
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "Number of items per page, defaults to 20 if not specified, max of 100",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnsubmittedComplianceDeclarationsPaged"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1731,6 +1866,92 @@
           "ComplianceScheme",
           null
         ]
+      },
+      "UnsubmittedComplianceDeclaration": {
+        "required": [
+          "organisationName",
+          "organisationReferenceNumber",
+          "obligationDataState"
+        ],
+        "type": "object",
+        "properties": {
+          "organisationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "registrationType": {
+            "$ref": "#/components/schemas/RegistrationType"
+          },
+          "organisationName": {
+            "type": "string"
+          },
+          "organisationReferenceNumber": {
+            "type": "string"
+          },
+          "recyclingObligationsMet": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "obligationCoveragePercentage": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "obligationDataState": {
+            "type": "string"
+          },
+          "obligationsAsOf": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "UnsubmittedComplianceDeclarationsPaged": {
+        "type": "object",
+        "properties": {
+          "unsubmittedComplianceDeclarations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UnsubmittedComplianceDeclaration"
+            }
+          },
+          "total": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "page": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "pageSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "eligibilityAsOf": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
       },
       "UpdateComplianceDeclarationRequest": {
         "required": [
