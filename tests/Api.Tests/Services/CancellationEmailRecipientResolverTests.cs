@@ -72,7 +72,7 @@ public class CancellationEmailRecipientResolverTests
     {
         AccountBackendService
             .ReadOrganisationWithPersons(OrganisationFixture.OrganisationId, Arg.Any<CancellationToken>())
-            .Returns(new OrganisationWithPersons());
+            .Returns(OrganisationWithPersonsFixture.SubmitterOnly());
 
         var complianceDeclaration = ComplianceDeclarationFixture
             .DirectProducer(OrganisationFixture.OrganisationId)
@@ -89,20 +89,16 @@ public class CancellationEmailRecipientResolverTests
     }
 
     [Fact]
-    public void ResolveSubmitter_SplitsDisplayNameWhenPersonIsNotOnOrganisation()
+    public void ResolveSubmitter_WhenPersonIsNotOnOrganisation_ReturnsNull()
     {
         var complianceDeclaration = ComplianceDeclarationFixture
             .DirectProducer(OrganisationFixture.OrganisationId)
             .Create();
 
-        var recipient = CancellationEmailRecipientResolver.ResolveSubmitter(
-            complianceDeclaration,
-            organisationWithPersons: null
-        );
-
-        recipient.Should().NotBeNull();
-        recipient!.FirstName.Should().Be("Submitter");
-        recipient.LastName.Should().Be("Name");
+        CancellationEmailRecipientResolver
+            .ResolveSubmitter(complianceDeclaration, organisationWithPersons: null)
+            .Should()
+            .BeNull();
     }
 
     [Fact]
@@ -163,67 +159,20 @@ public class CancellationEmailRecipientResolverTests
     }
 
     [Fact]
-    public void ResolveSubmitter_WhenSubmitterNameIsSingleWord_UsesEmptyLastName()
+    public void ResolveSubmitter_WhenMatchedPersonDetailsIncomplete_ReturnsNull()
     {
         var complianceDeclaration = ComplianceDeclarationFixture
             .DirectProducer(OrganisationFixture.OrganisationId)
-            .With(
-                x => x.Audit,
-                [
-                    new AuditEntry(nameof(ComplianceDeclarationStatus.Submitted))
-                    {
-                        User = new User
-                        {
-                            Id = "e72be574-8b5b-4836-af47-dd7e0c0d1d87",
-                            Email = "single.name@email.com",
-                            Name = "Cher",
-                        },
-                        Timestamp = new DateTime(2026, 4, 26, 14, 0, 0, DateTimeKind.Utc),
-                    },
-                ]
-            )
             .Create();
+        var organisationWithPersons = new OrganisationWithPersons
+        {
+            Persons = [new OrganisationPerson { Email = "submitter@email.com" }],
+        };
 
-        var recipient = CancellationEmailRecipientResolver.ResolveSubmitter(
-            complianceDeclaration,
-            organisationWithPersons: null
-        );
-
-        recipient.Should().NotBeNull();
-        recipient!.FirstName.Should().Be("Cher");
-        recipient.LastName.Should().BeEmpty();
-    }
-
-    [Fact]
-    public void ResolveSubmitter_WhenSubmitterNameIsBlank_UsesEmptyNames()
-    {
-        var complianceDeclaration = ComplianceDeclarationFixture
-            .DirectProducer(OrganisationFixture.OrganisationId)
-            .With(
-                x => x.Audit,
-                [
-                    new AuditEntry(nameof(ComplianceDeclarationStatus.Submitted))
-                    {
-                        User = new User
-                        {
-                            Id = "e72be574-8b5b-4836-af47-dd7e0c0d1d87",
-                            Email = "blank.name@email.com",
-                            Name = "   ",
-                        },
-                        Timestamp = new DateTime(2026, 4, 26, 14, 0, 0, DateTimeKind.Utc),
-                    },
-                ]
-            )
-            .Create();
-
-        var recipient = CancellationEmailRecipientResolver.ResolveSubmitter(
-            complianceDeclaration,
-            organisationWithPersons: null
-        );
-
-        recipient.Should().NotBeNull();
-        recipient!.FirstName.Should().BeEmpty();
-        recipient.LastName.Should().BeEmpty();
+        CancellationEmailRecipientResolver
+            .ResolveSubmitter(complianceDeclaration, organisationWithPersons)
+            .Should()
+            .BeNull();
     }
 
     [Fact]

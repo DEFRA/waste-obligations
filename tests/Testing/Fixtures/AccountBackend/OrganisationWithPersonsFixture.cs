@@ -12,6 +12,14 @@ public static class OrganisationWithPersonsFixture
             [
                 new OrganisationPerson
                 {
+                    UserId = Guid.Parse("e72be574-8b5b-4836-af47-dd7e0c0d1d87"),
+                    FirstName = "Submitter",
+                    LastName = "Name",
+                    Email = "submitter@email.com",
+                    ServiceRole = "Delegated Person",
+                },
+                new OrganisationPerson
+                {
                     FirstName = "Approved",
                     LastName = "Person",
                     Email = "approved-person@email.com",
@@ -22,6 +30,22 @@ public static class OrganisationWithPersonsFixture
                     FirstName = "Primary",
                     LastName = "Contact",
                     Email = "primary.contact@email.com",
+                    ServiceRole = "Delegated Person",
+                },
+            ],
+        };
+
+    public static OrganisationWithPersons SubmitterOnly() =>
+        new()
+        {
+            Persons =
+            [
+                new OrganisationPerson
+                {
+                    UserId = Guid.Parse("e72be574-8b5b-4836-af47-dd7e0c0d1d87"),
+                    FirstName = "Submitter",
+                    LastName = "Name",
+                    Email = "submitter@email.com",
                     ServiceRole = "Delegated Person",
                 },
             ],
