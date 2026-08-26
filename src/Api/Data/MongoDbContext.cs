@@ -24,6 +24,9 @@ public class MongoDbContext(
     public IMongoCollection<OrganisationEligibilitySnapshot> OrganisationEligibilitySnapshots { get; } =
         database.GetCollection<OrganisationEligibilitySnapshot>(nameof(OrganisationEligibilitySnapshot));
 
+    public IMongoCollection<OrganisationEligibilityRefreshLease> OrganisationEligibilityRefreshLeases { get; } =
+        database.GetCollection<OrganisationEligibilityRefreshLease>(nameof(OrganisationEligibilityRefreshLease));
+
     public IMongoCollection<OrganisationReferenceCache> OrganisationReferenceCaches { get; } =
         database.GetCollection<OrganisationReferenceCache>(nameof(OrganisationReferenceCache));
 

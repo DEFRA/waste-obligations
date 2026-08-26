@@ -39,6 +39,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     public required IMongoCollection<OrganisationReferenceCache> OrganisationReferenceCaches { get; set; }
     public required IMongoCollection<OrganisationEligibility> OrganisationEligibilities { get; set; }
     public required IMongoCollection<OrganisationEligibilitySnapshot> OrganisationEligibilitySnapshots { get; set; }
+    public required IMongoCollection<OrganisationEligibilityRefreshLease> OrganisationEligibilityRefreshLeases { get; set; }
 
     [ModuleInitializer]
     public static void RegisterMongoConventions() => ServiceCollectionExtensions.RegisterConventions();
@@ -64,6 +65,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         OrganisationReferenceCaches = GetMongoCollection<OrganisationReferenceCache>();
         OrganisationEligibilities = GetMongoCollection<OrganisationEligibility>();
         OrganisationEligibilitySnapshots = GetMongoCollection<OrganisationEligibilitySnapshot>();
+        OrganisationEligibilityRefreshLeases = GetMongoCollection<OrganisationEligibilityRefreshLease>();
 
         await DeleteMany(ComplianceDeclarations);
         await DeleteMany(AuditEventCounters);
@@ -72,6 +74,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         await DeleteMany(OrganisationReferenceCaches);
         await DeleteMany(OrganisationEligibilities);
         await DeleteMany(OrganisationEligibilitySnapshots);
+        await DeleteMany(OrganisationEligibilityRefreshLeases);
 
         using var sqsClient = CreateSqsClient();
         await DrainAnalyticsEventsQueue(sqsClient);

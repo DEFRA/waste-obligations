@@ -9,6 +9,10 @@ public static class ServiceCollectionExtensions
             .BindConfiguration(OrganisationEligibilityOptions.SectionName);
         services.AddTransient<OrganisationReferenceCacheService>();
         services.AddTransient<IOrganisationEligibilityRefreshService, OrganisationEligibilityRefreshService>();
+        services.AddTransient<
+            IOrganisationEligibilityRefreshLeaseService,
+            OrganisationEligibilityRefreshLeaseService
+        >();
 
         return services;
     }
