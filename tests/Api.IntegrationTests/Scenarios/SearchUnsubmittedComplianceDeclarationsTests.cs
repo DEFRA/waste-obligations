@@ -93,7 +93,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task Search_WhenReadinessIsIncomplete_ShouldReturnServiceUnavailable()
+    public async Task Search_WhenActiveGenerationIsMissing_ShouldReturnAnEmptyPage()
     {
         var client = CreateClient();
 
@@ -106,12 +106,20 @@ public class SearchUnsubmittedComplianceDeclarationsTests : IntegrationTestBase
             TestContext.Current.CancellationToken
         );
 
-        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<UnsubmittedOrganisationsPaged>(
+            TestContext.Current.CancellationToken
+        );
+
+        result.Should().NotBeNull();
+        result.Total.Should().Be(0);
+        result.UnsubmittedOrganisations.Should().BeEmpty();
     }
 
     [Fact]
-    public async Task Search_WhenEligibilityGenerationIsStale_ShouldReturnServiceUnavailable()
+    public async Task Search_WhenEligibilityGenerationIsStale_ShouldReturnItsLastActiveGeneration()
     {
+        var organisationId = Guid.NewGuid();
         await OrganisationEligibilitySnapshots.InsertOneAsync(
             new OrganisationEligibilitySnapshot
             {
@@ -122,6 +130,10 @@ public class SearchUnsubmittedComplianceDeclarationsTests : IntegrationTestBase
                 ActiveGenerationPromotedAt = DateTime.UtcNow.AddHours(-3),
                 LastVerifiedAt = DateTime.UtcNow.AddHours(-3),
             },
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        await OrganisationEligibilities.InsertOneAsync(
+            Eligibility(organisationId, "stale-generation", "Alpha Packaging", "100001"),
             cancellationToken: TestContext.Current.CancellationToken
         );
         var client = CreateClient();
@@ -135,7 +147,14 @@ public class SearchUnsubmittedComplianceDeclarationsTests : IntegrationTestBase
             TestContext.Current.CancellationToken
         );
 
-        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<UnsubmittedOrganisationsPaged>(
+            TestContext.Current.CancellationToken
+        );
+
+        result.Should().NotBeNull();
+        result.Total.Should().Be(1);
+        result.UnsubmittedOrganisations.Should().ContainSingle().Which.OrganisationId.Should().Be(organisationId);
     }
 
     private static OrganisationEligibility Eligibility(

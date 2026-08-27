@@ -217,38 +217,6 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
             );
     }
 
-    [Fact]
-    public async Task WhenEligibilityDataIsUnavailable_ShouldBeServiceUnavailable()
-    {
-        UnsubmittedOrganisationsService
-            .Search(
-                Arg.Any<int>(),
-                Arg.Any<EntityRegistrationType>(),
-                Arg.Any<IReadOnlyCollection<ComplianceDeclarationSort>>(),
-                Arg.Any<int>(),
-                Arg.Any<int>(),
-                Arg.Any<CancellationToken>()
-            )
-            .Returns(
-                Task.FromException<UnsubmittedOrganisationSearchResult>(
-                    new UnsubmittedOrganisationsUnavailableException("Organisation eligibility data is unavailable")
-                )
-            );
-        var client = CreateClient(testUser: TestUser.ReadOnly);
-
-        var response = await client.GetAsync(
-            Testing.Endpoints.ComplianceDeclarations.Unsubmitted(
-                EndpointQuery
-                    .New.Where(EndpointFilter.ObligationYear(2026))
-                    .Where(EndpointFilter.RegistrationType("DirectProducer"))
-            ),
-            TestContext.Current.CancellationToken
-        );
-
-        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
-        await VerifyJson(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-    }
-
     private async Task<string> RequestShouldBeBadRequest(EndpointQuery query)
     {
         var client = CreateClient(testUser: TestUser.ReadOnly);

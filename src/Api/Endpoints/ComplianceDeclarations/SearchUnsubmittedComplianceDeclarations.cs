@@ -21,7 +21,6 @@ public static class SearchUnsubmittedComplianceDeclarations
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
-            .ProducesProblem(StatusCodes.Status503ServiceUnavailable)
             .ProducesProblem(StatusCodes.Status500InternalServerError)
             .RequireAuthorization(PolicyNames.Read);
     }
@@ -38,41 +37,34 @@ public static class SearchUnsubmittedComplianceDeclarations
             return Results.BadRequest("Only OrganisationName sorting is currently supported");
         }
 
-        try
-        {
-            var page = request.EffectivePage;
-            var pageSize = request.EffectivePageSize;
-            var result = await service.Search(
-                request.ObligationYear!.Value,
-                request.ParsedRegistrationType(),
-                sort,
-                page,
-                pageSize,
-                cancellationToken
-            );
+        var page = request.EffectivePage;
+        var pageSize = request.EffectivePageSize;
+        var result = await service.Search(
+            request.ObligationYear!.Value,
+            request.ParsedRegistrationType(),
+            sort,
+            page,
+            pageSize,
+            cancellationToken
+        );
 
-            return Results.Ok(
-                new UnsubmittedOrganisationsPaged
+        return Results.Ok(
+            new UnsubmittedOrganisationsPaged
+            {
+                UnsubmittedOrganisations = result.Rows.Select(x => new UnsubmittedOrganisation
                 {
-                    UnsubmittedOrganisations = result.Rows.Select(x => new UnsubmittedOrganisation
-                    {
-                        OrganisationId = x.OrganisationId,
-                        RegistrationType = x.RegistrationType.ToDto(),
-                        OrganisationName = x.Name,
-                        OrganisationReferenceNumber = x.ReferenceNumber,
-                        ObligationCoveragePercentage = 0,
-                        ObligationDataState = "Pending",
-                    }),
-                    Total = result.Total,
-                    Page = page,
-                    PageSize = pageSize,
-                }
-            );
-        }
-        catch (UnsubmittedOrganisationsUnavailableException exception)
-        {
-            return Results.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: exception.Message);
-        }
+                    OrganisationId = x.OrganisationId,
+                    RegistrationType = x.RegistrationType.ToDto(),
+                    OrganisationName = x.Name,
+                    OrganisationReferenceNumber = x.ReferenceNumber,
+                    ObligationCoveragePercentage = 0,
+                    ObligationDataState = "Pending",
+                }),
+                Total = result.Total,
+                Page = page,
+                PageSize = pageSize,
+            }
+        );
     }
 
     private static RegistrationType ToDto(this Data.Entities.RegistrationType registrationType) =>

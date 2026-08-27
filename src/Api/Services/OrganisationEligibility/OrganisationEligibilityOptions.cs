@@ -8,8 +8,8 @@ public record OrganisationEligibilityOptions
 
     public bool RefreshPollingEnabled { get; init; } = true;
 
-    [Range(1, 1440)]
-    public int RefreshPollIntervalMinutes { get; init; } = 30;
+    [Range(1, 86400)]
+    public int RefreshPollIntervalSeconds { get; init; } = 1800;
 
     [Range(2, 3600)]
     public int RefreshLeaseDurationSeconds { get; init; } = 300;

@@ -810,7 +810,7 @@ ComplianceEligibilityRefresh
   Enabled
   RefreshMode                    // AllYears initially; PerYear only after a load decision
   ObligationYears                // used only by PerYear mode
-  PollingIntervalMinutes         // interval between attempted poll starts; 30 minutes initially proposed
+  PollingIntervalSeconds         // interval between attempted poll starts; 1800 seconds initially proposed
   StartupJitterMaximumSeconds    // avoids every newly deployed host attempting at exactly the same moment
   RequestTimeout
   LeaseDuration
@@ -842,7 +842,7 @@ ComplianceObligationHydration
   LeaseRenewalInterval
 ```
 
-The job should emit success/failure, `NoChange`/`Promoted` outcome, duration, source count, rows written, last-verified age, and lease outcome. The query endpoint must expose or log its last-verified age and should fail closed with `503` once `MaximumAllowedStaleness` is exceeded; returning a definitive empty/complete list from an expired snapshot is misleading.
+The job should emit success/failure, `NoChange`/`Promoted` outcome, duration, source count, rows written, last-verified age, and lease outcome. When an active generation is older than `MaximumAllowedStaleness`, the query endpoint logs an error for platform alerting but continues to return that last known generation. If no active generation exists, it logs an error and returns an empty page because no correct result can be derived.
 
 ### Freshness and worst-case staleness
 
@@ -904,11 +904,11 @@ Source input change to locally hydrated percentage <= T + H + J
 
 With the recommended 30-minute interval, a change that occurs just after an organisation's read is normally visible within about 30 minutes plus bounded queue/HTTP time. This is not a claim of real-time PRN-state tracking; it is a controlled staleness window. If a future durable PRN-state event is adopted, the targeted path becomes `E + H`; that is outside this initial design. `lastSuccessfulReadAt` says only when Waste Obligations read the calculation endpoint. The current response does not expose a daily-calculation run ID/timestamp, so it cannot prove exactly which daily calculation run was observed.
 
-The first equation is a successful-operation *cadence bound*, not an unconditional service SLA. The code has no global upper limit for `I`: it processes updates sequentially and the volume is unbounded. Repeated Azure Function failures, Common Data delay, missed timer executions, failed Waste Organisations writes, prolonged lease recovery, or a failed local refresh make the true worst case unbounded until the fault is repaired. Measure `I` and `R` at production cardinality, alert before their expected limits, and use `MaximumAllowedStaleness` to return `503` rather than a definitive stale answer after a locally agreed failure window.
+The first equation is a successful-operation *cadence bound*, not an unconditional service SLA. The code has no global upper limit for `I`: it processes updates sequentially and the volume is unbounded. Repeated Azure Function failures, Common Data delay, missed timer executions, failed Waste Organisations writes, prolonged lease recovery, or a failed local refresh make the true worst case unbounded until the fault is repaired. Measure `I` and `R` at production cardinality, and alert when `MaximumAllowedStaleness` is exceeded while the endpoint returns the last active generation.
 
 For the multi-host worker specifically, a host crash immediately after a lease renewal can add up to `LeaseDuration + P + R + J` before another healthy host promotes a replacement generation. Set the lease duration well below `P`, renew it frequently, and alert on lease-renewal failure so this is a recovery path rather than normal operation.
 
-`MaximumAllowedStaleness` guards only the age of the last successful **local** Waste Obligations source verification (`lastVerifiedAt`), including a no-change poll. It cannot prove that Synapse/Common Data is current, because the Waste Organisations interface currently supplies neither an integration-run completion timestamp nor a source watermark. The endpoint's `eligibilityAsOf` field must therefore mean `lastVerifiedAt`/local verification time, not "as of Synapse". A true enforceable end-to-end freshness SLA requires the upstream flow to publish a successful-run watermark or event; that is outside this first pull-based phase.
+`MaximumAllowedStaleness` is an alert threshold for the age of the last successful **local** Waste Obligations source verification (`lastVerifiedAt`), including a no-change poll. It cannot prove that Synapse/Common Data is current, because the Waste Organisations interface currently supplies neither an integration-run completion timestamp nor a source watermark. The endpoint does not expose a source timestamp, avoiding a misleading claim that its rows are current as of Synapse. A true enforceable end-to-end freshness SLA requires the upstream flow to publish a successful-run watermark or event; that is outside this first pull-based phase.
 
 ## Unsubmitted query interface
 

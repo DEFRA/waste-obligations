@@ -353,7 +353,7 @@ public class OrganisationEligibilityRefreshWorkerTests
                 new OrganisationEligibilityOptions
                 {
                     RefreshPollingEnabled = refreshPollingEnabled,
-                    RefreshPollIntervalMinutes = 60,
+                    RefreshPollIntervalSeconds = 3600,
                     RefreshLeaseDurationSeconds = 300,
                     RefreshLeaseRenewalIntervalSeconds = refreshLeaseRenewalIntervalSeconds,
                 }
@@ -398,7 +398,7 @@ public class OrganisationEligibilityRefreshWorkerTests
                 new OrganisationEligibilityOptions
                 {
                     RefreshPollingEnabled = refreshPollingEnabled,
-                    RefreshPollIntervalMinutes = 60,
+                    RefreshPollIntervalSeconds = 3600,
                     RefreshLeaseDurationSeconds = 300,
                     RefreshLeaseRenewalIntervalSeconds = refreshLeaseRenewalIntervalSeconds,
                 }

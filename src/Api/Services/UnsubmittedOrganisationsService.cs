@@ -1,6 +1,7 @@
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.OrganisationEligibility;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
@@ -12,7 +13,8 @@ namespace Defra.WasteObligations.Api.Services;
 public class UnsubmittedOrganisationsService(
     IDbContext dbContext,
     IOptions<OrganisationEligibilityOptions> options,
-    TimeProvider timeProvider
+    TimeProvider timeProvider,
+    ILogger<UnsubmittedOrganisationsService> logger
 ) : IUnsubmittedOrganisationsService
 {
     public async Task<UnsubmittedOrganisationSearchResult> Search(
@@ -27,31 +29,27 @@ public class UnsubmittedOrganisationsService(
         var snapshot = await dbContext
             .OrganisationEligibilitySnapshots.Find(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId)
             .SingleOrDefaultAsync(cancellationToken);
-        if (
-            snapshot?.ActiveGeneration is null
-            || snapshot.LastVerifiedAt is null
-            || timeProvider.GetUtcNow().UtcDateTime - snapshot.LastVerifiedAt > options.Value.MaximumAllowedStaleness
-        )
+        if (snapshot?.ActiveGeneration is not { } activeGeneration)
         {
-            throw new UnsubmittedOrganisationsUnavailableException(
-                "Organisation eligibility data is unavailable or stale"
-            );
+            logger.LogError("Unsubmitted organisation query has no active organisation generation");
+
+            return new UnsubmittedOrganisationSearchResult { Rows = [], Total = 0 };
         }
 
-        var reviewStateSnapshot = await dbContext
-            .ComplianceDeclarationReviewStateSnapshots.Find(x =>
-                x.Id == ComplianceDeclarationReviewStateSnapshot.SnapshotId
-            )
-            .SingleOrDefaultAsync(cancellationToken);
-        if (reviewStateSnapshot?.BackfillCompletedAt is null)
+        if (
+            snapshot.LastVerifiedAt is null
+            || timeProvider.GetUtcNow().UtcDateTime - snapshot.LastVerifiedAt.Value
+                > options.Value.MaximumAllowedStaleness
+        )
         {
-            throw new UnsubmittedOrganisationsUnavailableException(
-                "Compliance declaration review state has not been backfilled"
+            logger.LogError(
+                "Unsubmitted organisation query is using an organisation generation last verified at {LastVerifiedAt}",
+                snapshot.LastVerifiedAt
             );
         }
 
         var eligible = Builders<OrganisationEligibilityEntity>.Filter.And(
-            Builders<OrganisationEligibilityEntity>.Filter.Eq(x => x.Generation, snapshot.ActiveGeneration),
+            Builders<OrganisationEligibilityEntity>.Filter.Eq(x => x.Generation, activeGeneration),
             Builders<OrganisationEligibilityEntity>.Filter.Eq(x => x.ObligationYear, obligationYear),
             Builders<OrganisationEligibilityEntity>.Filter.Eq(x => x.RegistrationType, registrationType),
             Builders<OrganisationEligibilityEntity>.Filter.Eq(
@@ -61,9 +59,7 @@ public class UnsubmittedOrganisationsService(
             Builders<OrganisationEligibilityEntity>.Filter.Eq(
                 x => x.ReferenceNumberResolutionState,
                 OrganisationReferenceNumberResolutionState.Resolved
-            ),
-            Builders<OrganisationEligibilityEntity>.Filter.Ne(x => x.ReferenceNumber, null),
-            Builders<OrganisationEligibilityEntity>.Filter.Ne(x => x.ReferenceNumber, "")
+            )
         );
         var sortDefinition = BuildSort(sort);
         var result = await dbContext

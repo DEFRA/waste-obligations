@@ -150,5 +150,5 @@ public class OrganisationEligibilityRefreshWorker(
     }
 
     private Task Delay(CancellationToken cancellationToken) =>
-        Task.Delay(TimeSpan.FromMinutes(options.Value.RefreshPollIntervalMinutes), cancellationToken);
+        Task.Delay(TimeSpan.FromSeconds(options.Value.RefreshPollIntervalSeconds), cancellationToken);
 }

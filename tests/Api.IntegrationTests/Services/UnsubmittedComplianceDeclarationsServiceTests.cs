@@ -3,6 +3,8 @@ using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.OrganisationEligibility;
+using Defra.WasteObligations.Testing;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
@@ -94,27 +96,40 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task Search_WhenEligibilityDataIsUnavailableOrStale_ShouldThrow()
+    public async Task Search_WhenNoActiveGeneration_ShouldReturnAnEmptyPageAndLogAnError()
     {
-        var subject = CreateSubject();
+        var logger = new RecordingLogger<UnsubmittedOrganisationsService>();
+        var subject = CreateSubject(logger);
 
-        var unavailable = () =>
-            subject.Search(
-                2026,
-                RegistrationType.DirectProducer,
-                [],
-                page: 1,
-                pageSize: 20,
-                TestContext.Current.CancellationToken
+        var result = await subject.Search(
+            2026,
+            RegistrationType.DirectProducer,
+            [],
+            page: 1,
+            pageSize: 20,
+            TestContext.Current.CancellationToken
+        );
+
+        result.Rows.Should().BeEmpty();
+        result.Total.Should().Be(0);
+        logger
+            .Entries.Should()
+            .ContainSingle(x =>
+                x.Level == LogLevel.Error
+                && x.Message == "Unsubmitted organisation query has no active organisation generation"
             );
+    }
 
-        await unavailable.Should().ThrowAsync<UnsubmittedOrganisationsUnavailableException>();
-
+    [Fact]
+    public async Task Search_WhenActiveGenerationIsStale_ShouldReturnItsDataAndLogAnError()
+    {
+        const string generation = "stale-generation";
+        var organisationId = Guid.NewGuid();
         await OrganisationEligibilitySnapshots.InsertOneAsync(
             new OrganisationEligibilitySnapshot
             {
                 Id = OrganisationEligibilitySnapshot.SnapshotId,
-                ActiveGeneration = "stale-generation",
+                ActiveGeneration = generation,
                 ActiveContentFingerprint = "fingerprint",
                 ActiveRowCount = 1,
                 ActiveGenerationPromotedAt = _timeProvider.GetUtcNow().UtcDateTime.AddHours(-3),
@@ -122,41 +137,35 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
             },
             cancellationToken: TestContext.Current.CancellationToken
         );
-
-        await unavailable.Should().ThrowAsync<UnsubmittedOrganisationsUnavailableException>();
-    }
-
-    [Fact]
-    public async Task Search_WhenReviewStateBackfillHasNotCompleted_ShouldThrow()
-    {
-        await OrganisationEligibilitySnapshots.InsertOneAsync(
-            new OrganisationEligibilitySnapshot
-            {
-                Id = OrganisationEligibilitySnapshot.SnapshotId,
-                ActiveGeneration = "generation",
-                ActiveContentFingerprint = "fingerprint",
-                ActiveRowCount = 1,
-                ActiveGenerationPromotedAt = _timeProvider.GetUtcNow().UtcDateTime,
-                LastVerifiedAt = _timeProvider.GetUtcNow().UtcDateTime,
-            },
+        await OrganisationEligibilities.InsertOneAsync(
+            Eligibility(organisationId, generation, "Alpha Packaging", "100001"),
             cancellationToken: TestContext.Current.CancellationToken
         );
-        var subject = CreateSubject();
+        var logger = new RecordingLogger<UnsubmittedOrganisationsService>();
+        var subject = CreateSubject(logger);
 
-        var act = () =>
-            subject.Search(
-                2026,
-                RegistrationType.DirectProducer,
-                [],
-                page: 1,
-                pageSize: 20,
-                TestContext.Current.CancellationToken
+        var result = await subject.Search(
+            2026,
+            RegistrationType.DirectProducer,
+            [],
+            page: 1,
+            pageSize: 20,
+            TestContext.Current.CancellationToken
+        );
+
+        result.Total.Should().Be(1);
+        result.Rows.Should().ContainSingle().Which.OrganisationId.Should().Be(organisationId);
+        logger
+            .Entries.Should()
+            .ContainSingle(x =>
+                x.Level == LogLevel.Error
+                && x.Message.StartsWith(
+                    "Unsubmitted organisation query is using an organisation generation last verified at"
+                )
             );
-
-        await act.Should().ThrowAsync<UnsubmittedOrganisationsUnavailableException>();
     }
 
-    private UnsubmittedOrganisationsService CreateSubject() =>
+    private UnsubmittedOrganisationsService CreateSubject(ILogger<UnsubmittedOrganisationsService>? logger = null) =>
         new(
             new MongoDbContext(
                 GetMongoDatabase(),
@@ -164,7 +173,8 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
                 NullLogger<MongoDbContext>.Instance
             ),
             Options.Create(new OrganisationEligibilityOptions { MaximumAllowedStaleness = TimeSpan.FromHours(2) }),
-            _timeProvider
+            _timeProvider,
+            logger ?? NullLogger<UnsubmittedOrganisationsService>.Instance
         );
 
     private async Task SetReadySnapshot(string generation)
