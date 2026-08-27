@@ -6,7 +6,7 @@ using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
-using OrganisationEligibilityEntity = Defra.WasteObligations.Api.Data.Entities.OrganisationEligibility;
+using OrganisationComplianceDeclarationEligibilityEntity = Defra.WasteObligations.Api.Data.Entities.OrganisationComplianceDeclarationEligibility;
 
 namespace Defra.WasteObligations.Api.Services;
 
@@ -48,22 +48,28 @@ public class UnsubmittedOrganisationsService(
             );
         }
 
-        var eligible = Builders<OrganisationEligibilityEntity>.Filter.And(
-            Builders<OrganisationEligibilityEntity>.Filter.Eq(x => x.Generation, activeGeneration),
-            Builders<OrganisationEligibilityEntity>.Filter.Eq(x => x.ObligationYear, obligationYear),
-            Builders<OrganisationEligibilityEntity>.Filter.Eq(x => x.RegistrationType, registrationType),
-            Builders<OrganisationEligibilityEntity>.Filter.Eq(
+        var eligible = Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.And(
+            Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Eq(x => x.Generation, activeGeneration),
+            Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Eq(
+                x => x.ObligationYear,
+                obligationYear
+            ),
+            Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Eq(
+                x => x.RegistrationType,
+                registrationType
+            ),
+            Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Eq(
                 x => x.RegistrationStatus,
                 OrganisationRegistrationStatus.Registered
             ),
-            Builders<OrganisationEligibilityEntity>.Filter.Eq(
+            Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Eq(
                 x => x.ReferenceNumberResolutionState,
                 OrganisationReferenceNumberResolutionState.Resolved
             )
         );
         var sortDefinition = BuildSort(sort);
         var result = await dbContext
-            .OrganisationEligibilities.Aggregate()
+            .OrganisationComplianceDeclarationEligibilities.Aggregate()
             .Match(eligible)
             .AppendStage<BsonDocument>(ReviewStateLookup())
             .AppendStage<BsonDocument>(UnsubmittedMatch())

@@ -5,7 +5,7 @@ using MigrationVersion = AdaskoTheBeAsT.MongoDbMigrations.Abstractions.Version;
 
 namespace Defra.WasteObligations.Api.Data.Migrations;
 
-[MigrationCollection(nameof(OrganisationEligibility), MigrationDirection.Both)]
+[MigrationCollection(nameof(OrganisationComplianceDeclarationEligibility), MigrationDirection.Both)]
 public class OrganisationEligibilityIndexes : MongoMigration
 {
     private const string QueryIndexName =
@@ -21,7 +21,7 @@ public class OrganisationEligibilityIndexes : MongoMigration
         await CreateIndex(
             context,
             QueryIndexName,
-            Builders<OrganisationEligibility>
+            Builders<OrganisationComplianceDeclarationEligibility>
                 .IndexKeys.Ascending(x => x.Generation)
                 .Ascending(x => x.ObligationYear)
                 .Ascending(x => x.RegistrationType)
@@ -33,7 +33,7 @@ public class OrganisationEligibilityIndexes : MongoMigration
         await CreateIndex(
             context,
             GenerationRowIndexName,
-            Builders<OrganisationEligibility>
+            Builders<OrganisationComplianceDeclarationEligibility>
                 .IndexKeys.Ascending(x => x.Generation)
                 .Ascending(x => x.OrganisationId)
                 .Ascending(x => x.ObligationYear)
@@ -44,7 +44,7 @@ public class OrganisationEligibilityIndexes : MongoMigration
 
     public override async Task DownAsync(MigrationContext context)
     {
-        await DropIndex<OrganisationEligibility>(context, QueryIndexName);
-        await DropIndex<OrganisationEligibility>(context, GenerationRowIndexName);
+        await DropIndex<OrganisationComplianceDeclarationEligibility>(context, QueryIndexName);
+        await DropIndex<OrganisationComplianceDeclarationEligibility>(context, GenerationRowIndexName);
     }
 }

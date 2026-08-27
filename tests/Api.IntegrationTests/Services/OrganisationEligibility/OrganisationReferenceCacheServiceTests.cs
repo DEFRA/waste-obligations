@@ -8,7 +8,7 @@ using Microsoft.Extensions.Time.Testing;
 using MongoDB.Bson;
 using MongoDB.Driver;
 using NSubstitute;
-using OrganisationEligibilityEntity = Defra.WasteObligations.Api.Data.Entities.OrganisationEligibility;
+using OrganisationComplianceDeclarationEligibilityEntity = Defra.WasteObligations.Api.Data.Entities.OrganisationComplianceDeclarationEligibility;
 
 namespace Defra.WasteObligations.Api.IntegrationTests.Services.OrganisationEligibility;
 
@@ -411,7 +411,7 @@ public class OrganisationReferenceCacheServiceTests : IntegrationTestBase
             _timeProvider
         );
 
-    private static OrganisationEligibilityEntity CreateEligibilityRow(
+    private static OrganisationComplianceDeclarationEligibilityEntity CreateEligibilityRow(
         Guid organisationId,
         RegistrationType registrationType,
         int obligationYear,

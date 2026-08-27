@@ -37,7 +37,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests : IntegrationTestBase
             },
             cancellationToken: TestContext.Current.CancellationToken
         );
-        await OrganisationEligibilities.InsertManyAsync(
+        await OrganisationComplianceDeclarationEligibilities.InsertManyAsync(
             [
                 Eligibility(includedOrganisationId, generation, "Alpha Packaging", "100001"),
                 Eligibility(secondIncludedOrganisationId, generation, "Zeta Packaging", "100004"),
@@ -132,7 +132,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests : IntegrationTestBase
             },
             cancellationToken: TestContext.Current.CancellationToken
         );
-        await OrganisationEligibilities.InsertOneAsync(
+        await OrganisationComplianceDeclarationEligibilities.InsertOneAsync(
             Eligibility(organisationId, "stale-generation", "Alpha Packaging", "100001"),
             cancellationToken: TestContext.Current.CancellationToken
         );
@@ -157,7 +157,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests : IntegrationTestBase
         result.UnsubmittedOrganisations.Should().ContainSingle().Which.OrganisationId.Should().Be(organisationId);
     }
 
-    private static OrganisationEligibility Eligibility(
+    private static OrganisationComplianceDeclarationEligibility Eligibility(
         Guid organisationId,
         string generation,
         string name,

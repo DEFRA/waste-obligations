@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using Organisation = Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation;
-using OrganisationEligibilityEntity = Defra.WasteObligations.Api.Data.Entities.OrganisationEligibility;
+using OrganisationComplianceDeclarationEligibilityEntity = Defra.WasteObligations.Api.Data.Entities.OrganisationComplianceDeclarationEligibility;
 using OrganisationReferenceNumberResolutionState = Defra.WasteObligations.Api.Data.Entities.OrganisationReferenceNumberResolutionState;
 using OrganisationRegistrationStatus = Defra.WasteObligations.Api.Data.Entities.OrganisationRegistrationStatus;
 using RegistrationType = Defra.WasteObligations.Api.Data.Entities.RegistrationType;
@@ -13,7 +13,7 @@ namespace Defra.WasteObligations.Api.Services.OrganisationEligibility;
 
 public static class Mappers
 {
-    public static IReadOnlyList<OrganisationEligibilityEntity> ToEligibilityRows(
+    public static IReadOnlyList<OrganisationComplianceDeclarationEligibilityEntity> ToEligibilityRows(
         IEnumerable<Organisation> organisations,
         string generation,
         DateTimeOffset refreshedAt
@@ -21,7 +21,7 @@ public static class Mappers
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(generation);
 
-        var rows = new List<OrganisationEligibilityEntity>();
+        var rows = new List<OrganisationComplianceDeclarationEligibilityEntity>();
         var keys = new HashSet<(Guid OrganisationId, int ObligationYear, RegistrationType RegistrationType)>();
 
         foreach (var organisation in organisations)
@@ -43,7 +43,7 @@ public static class Mappers
 
                 var registrationStatus = ToRegistrationStatus(registration.Status);
                 rows.Add(
-                    new OrganisationEligibilityEntity
+                    new OrganisationComplianceDeclarationEligibilityEntity
                     {
                         Generation = generation,
                         OrganisationId = organisation.Id,

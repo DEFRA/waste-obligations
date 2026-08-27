@@ -1,7 +1,7 @@
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.OrganisationEligibility;
-using OrganisationEligibilityEntity = Defra.WasteObligations.Api.Data.Entities.OrganisationEligibility;
+using OrganisationComplianceDeclarationEligibilityEntity = Defra.WasteObligations.Api.Data.Entities.OrganisationComplianceDeclarationEligibility;
 
 namespace Defra.WasteObligations.Api.Tests.Services.OrganisationEligibility;
 
@@ -82,7 +82,7 @@ public class OrganisationEligibilitySnapshotContentBuilderTests
             .Be(OrganisationReferenceNumberResolutionState.Pending);
     }
 
-    private static OrganisationEligibilityEntity CreateRow(
+    private static OrganisationComplianceDeclarationEligibilityEntity CreateRow(
         Guid organisationId,
         RegistrationType registrationType = RegistrationType.DirectProducer
     ) =>
@@ -99,7 +99,7 @@ public class OrganisationEligibilitySnapshotContentBuilderTests
         };
 
     private static OrganisationReferenceCache CreateCache(
-        OrganisationEligibilityEntity row,
+        OrganisationComplianceDeclarationEligibilityEntity row,
         OrganisationReferenceNumberResolutionState state,
         string? referenceNumber
     ) =>

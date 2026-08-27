@@ -26,8 +26,10 @@ public class MongoDbContext(
             nameof(ComplianceDeclarationReviewStateSnapshot)
         );
 
-    public IMongoCollection<OrganisationEligibility> OrganisationEligibilities { get; } =
-        database.GetCollection<OrganisationEligibility>(nameof(OrganisationEligibility));
+    public IMongoCollection<OrganisationComplianceDeclarationEligibility> OrganisationComplianceDeclarationEligibilities { get; } =
+        database.GetCollection<OrganisationComplianceDeclarationEligibility>(
+            nameof(OrganisationComplianceDeclarationEligibility)
+        );
 
     public IMongoCollection<OrganisationEligibilitySnapshot> OrganisationEligibilitySnapshots { get; } =
         database.GetCollection<OrganisationEligibilitySnapshot>(nameof(OrganisationEligibilitySnapshot));

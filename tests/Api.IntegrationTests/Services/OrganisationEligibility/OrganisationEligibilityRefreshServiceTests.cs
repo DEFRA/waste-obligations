@@ -11,7 +11,7 @@ using MongoDB.Bson;
 using MongoDB.Driver;
 using NSubstitute;
 using Organisation = Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation;
-using OrganisationEligibilityEntity = Defra.WasteObligations.Api.Data.Entities.OrganisationEligibility;
+using OrganisationComplianceDeclarationEligibilityEntity = Defra.WasteObligations.Api.Data.Entities.OrganisationComplianceDeclarationEligibility;
 using Registration = Defra.WasteObligations.Api.Services.WasteOrganisations.Registration;
 using WasteOrganisationsAddress = Defra.WasteObligations.Api.Services.WasteOrganisations.Address;
 using WasteOrganisationsRegistrationStatus = Defra.WasteObligations.Api.Services.WasteOrganisations.RegistrationStatus;
@@ -45,7 +45,7 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
             .SingleAsync(TestContext.Current.CancellationToken);
         snapshot.ActiveGeneration.Should().Be(result.ActiveGeneration);
         snapshot.ActiveContentFingerprint.Should().Be(result.ContentFingerprint);
-        var row = await OrganisationEligibilities
+        var row = await OrganisationComplianceDeclarationEligibilities
             .Find(x => x.Generation == result.ActiveGeneration)
             .SingleAsync(TestContext.Current.CancellationToken);
         row.ReferenceNumber.Should().Be("051829");
@@ -112,8 +112,8 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
 
         result.Outcome.Should().Be(OrganisationEligibilityRefreshOutcome.Promoted);
         result.RowCount.Should().Be(2);
-        var rows = await OrganisationEligibilities
-            .Find(Builders<OrganisationEligibilityEntity>.Filter.Empty)
+        var rows = await OrganisationComplianceDeclarationEligibilities
+            .Find(Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Empty)
             .ToListAsync(TestContext.Current.CancellationToken);
         rows.Should().HaveCount(2);
         rows.Should().OnlyContain(x => x.Id != ObjectId.Empty);
@@ -134,8 +134,8 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
         refreshed.Outcome.Should().Be(OrganisationEligibilityRefreshOutcome.Unchanged);
         refreshed.ActiveGeneration.Should().Be(initial.ActiveGeneration);
         (
-            await OrganisationEligibilities.CountDocumentsAsync(
-                Builders<OrganisationEligibilityEntity>.Filter.Empty,
+            await OrganisationComplianceDeclarationEligibilities.CountDocumentsAsync(
+                Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Empty,
                 cancellationToken: TestContext.Current.CancellationToken
             )
         )
@@ -166,14 +166,14 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
         refreshed.Outcome.Should().Be(OrganisationEligibilityRefreshOutcome.Promoted);
         refreshed.ActiveGeneration.Should().NotBe(initial.ActiveGeneration);
         (
-            await OrganisationEligibilities.CountDocumentsAsync(
-                Builders<OrganisationEligibilityEntity>.Filter.Empty,
+            await OrganisationComplianceDeclarationEligibilities.CountDocumentsAsync(
+                Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Empty,
                 cancellationToken: TestContext.Current.CancellationToken
             )
         )
             .Should()
             .Be(2);
-        var activeRow = await OrganisationEligibilities
+        var activeRow = await OrganisationComplianceDeclarationEligibilities
             .Find(x => x.Generation == refreshed.ActiveGeneration)
             .SingleAsync(TestContext.Current.CancellationToken);
         activeRow.Name.Should().Be("Changed organisation name");

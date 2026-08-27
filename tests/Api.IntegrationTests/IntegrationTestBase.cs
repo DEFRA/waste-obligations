@@ -39,7 +39,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     public required IMongoCollection<AuditEvent> AuditEvents { get; set; }
     public required IMongoCollection<AuditEventDispatchLease> AuditEventDispatchLeases { get; set; }
     public required IMongoCollection<OrganisationReferenceCache> OrganisationReferenceCaches { get; set; }
-    public required IMongoCollection<OrganisationEligibility> OrganisationEligibilities { get; set; }
+    public required IMongoCollection<OrganisationComplianceDeclarationEligibility> OrganisationComplianceDeclarationEligibilities { get; set; }
     public required IMongoCollection<OrganisationEligibilitySnapshot> OrganisationEligibilitySnapshots { get; set; }
     public required IMongoCollection<OrganisationEligibilityRefreshLease> OrganisationEligibilityRefreshLeases { get; set; }
 
@@ -67,7 +67,8 @@ public abstract class IntegrationTestBase : IAsyncLifetime
             AuditEventDbContext.AuditEventDispatchLeaseCollectionName
         );
         OrganisationReferenceCaches = GetMongoCollection<OrganisationReferenceCache>();
-        OrganisationEligibilities = GetMongoCollection<OrganisationEligibility>();
+        OrganisationComplianceDeclarationEligibilities =
+            GetMongoCollection<OrganisationComplianceDeclarationEligibility>();
         OrganisationEligibilitySnapshots = GetMongoCollection<OrganisationEligibilitySnapshot>();
         OrganisationEligibilityRefreshLeases = GetMongoCollection<OrganisationEligibilityRefreshLease>(
             OrganisationEligibilityRefreshLease.CollectionName
@@ -80,7 +81,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         await DeleteMany(AuditEvents);
         await DeleteMany(AuditEventDispatchLeases);
         await DeleteMany(OrganisationReferenceCaches);
-        await DeleteMany(OrganisationEligibilities);
+        await DeleteMany(OrganisationComplianceDeclarationEligibilities);
         await DeleteMany(OrganisationEligibilitySnapshots);
         await DeleteMany(OrganisationEligibilityRefreshLeases);
 

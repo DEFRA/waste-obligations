@@ -69,7 +69,7 @@ public class RefreshOrganisationEligibilityFromDownstreamServicesTests : Integra
 
         refresh.Outcome.Should().Be(OrganisationEligibilityRefreshOutcome.Promoted);
         refresh.RowCount.Should().Be(3);
-        var rows = await OrganisationEligibilities
+        var rows = await OrganisationComplianceDeclarationEligibilities
             .Find(x => x.Generation == refresh.ActiveGeneration)
             .ToListAsync(TestContext.Current.CancellationToken);
         rows.Should().HaveCount(3);

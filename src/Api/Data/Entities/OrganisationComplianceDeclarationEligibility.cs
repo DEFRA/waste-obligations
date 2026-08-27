@@ -4,7 +4,7 @@ using MongoDB.Bson.Serialization.Attributes;
 namespace Defra.WasteObligations.Api.Data.Entities;
 
 [BsonIgnoreExtraElements]
-public record OrganisationEligibility
+public record OrganisationComplianceDeclarationEligibility
 {
     public ObjectId Id { get; init; } = ObjectId.GenerateNewId();
     public required string Generation { get; init; }

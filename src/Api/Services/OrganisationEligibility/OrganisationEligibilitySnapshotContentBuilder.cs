@@ -8,7 +8,7 @@ namespace Defra.WasteObligations.Api.Services.OrganisationEligibility;
 public static class OrganisationEligibilitySnapshotContentBuilder
 {
     public static OrganisationEligibilitySnapshotContent Create(
-        IReadOnlyCollection<Data.Entities.OrganisationEligibility> sourceRows,
+        IReadOnlyCollection<Data.Entities.OrganisationComplianceDeclarationEligibility> sourceRows,
         IReadOnlyCollection<OrganisationReferenceCache> referenceCaches
     )
     {
@@ -33,8 +33,8 @@ public static class OrganisationEligibilitySnapshotContentBuilder
         return new OrganisationEligibilitySnapshotContent { Rows = rows, Fingerprint = CalculateFingerprint(rows) };
     }
 
-    private static Data.Entities.OrganisationEligibility Materialise(
-        Data.Entities.OrganisationEligibility sourceRow,
+    private static Data.Entities.OrganisationComplianceDeclarationEligibility Materialise(
+        Data.Entities.OrganisationComplianceDeclarationEligibility sourceRow,
         OrganisationReferenceCache? referenceCache
     )
     {
@@ -54,7 +54,7 @@ public static class OrganisationEligibilitySnapshotContentBuilder
         };
     }
 
-    private static string CalculateFingerprint(Data.Entities.OrganisationEligibility[] rows)
+    private static string CalculateFingerprint(Data.Entities.OrganisationComplianceDeclarationEligibility[] rows)
     {
         var content = new StringBuilder("organisation-eligibility-content-v1");
         Append(content, rows.Length.ToString(CultureInfo.InvariantCulture));

@@ -8,7 +8,7 @@ public interface IDbContext
     IMongoCollection<ComplianceDeclaration> ComplianceDeclarations { get; }
     IMongoCollection<ComplianceDeclarationReviewState> ComplianceDeclarationReviewStates { get; }
     IMongoCollection<ComplianceDeclarationReviewStateSnapshot> ComplianceDeclarationReviewStateSnapshots { get; }
-    IMongoCollection<OrganisationEligibility> OrganisationEligibilities { get; }
+    IMongoCollection<OrganisationComplianceDeclarationEligibility> OrganisationComplianceDeclarationEligibilities { get; }
     IMongoCollection<OrganisationEligibilitySnapshot> OrganisationEligibilitySnapshots { get; }
     IMongoCollection<OrganisationReferenceCache> OrganisationReferenceCaches { get; }
 

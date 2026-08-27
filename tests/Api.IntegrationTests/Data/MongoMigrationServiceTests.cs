@@ -67,7 +67,9 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         ).ToListAsync(TestContext.Current.CancellationToken);
         var organisationEligibilityIndexes = await (
             await database
-                .GetCollection<OrganisationEligibility>(nameof(OrganisationEligibility))
+                .GetCollection<OrganisationComplianceDeclarationEligibility>(
+                    nameof(OrganisationComplianceDeclarationEligibility)
+                )
                 .Indexes.ListAsync(TestContext.Current.CancellationToken)
         ).ToListAsync(TestContext.Current.CancellationToken);
         var organisationReferenceCacheIndexes = await (
@@ -243,7 +245,9 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         var database = GetMongoDatabase();
         var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
         var subject = new OrganisationEligibilityIndexes();
-        var collection = database.GetCollection<OrganisationEligibility>(nameof(OrganisationEligibility));
+        var collection = database.GetCollection<OrganisationComplianceDeclarationEligibility>(
+            nameof(OrganisationComplianceDeclarationEligibility)
+        );
         await subject.DownAsync(context);
 
         await subject.UpAsync(context);
@@ -889,7 +893,7 @@ public class MongoMigrationServiceTests : IntegrationTestBase
 
     private static BsonDocument OrganisationEligibilityQueryIndexKeys() =>
         RenderIndexKeys(
-            Builders<OrganisationEligibility>
+            Builders<OrganisationComplianceDeclarationEligibility>
                 .IndexKeys.Ascending(x => x.Generation)
                 .Ascending(x => x.ObligationYear)
                 .Ascending(x => x.RegistrationType)
@@ -901,7 +905,7 @@ public class MongoMigrationServiceTests : IntegrationTestBase
 
     private static BsonDocument OrganisationEligibilityGenerationRowIndexKeys() =>
         RenderIndexKeys(
-            Builders<OrganisationEligibility>
+            Builders<OrganisationComplianceDeclarationEligibility>
                 .IndexKeys.Ascending(x => x.Generation)
                 .Ascending(x => x.OrganisationId)
                 .Ascending(x => x.ObligationYear)
@@ -938,14 +942,20 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             )
         );
 
-    private static BsonDocument RenderIndexKeys(IndexKeysDefinition<OrganisationEligibility> keys) =>
+    private static BsonDocument RenderIndexKeys(
+        IndexKeysDefinition<OrganisationComplianceDeclarationEligibility> keys
+    ) =>
         keys.Render(
-            new RenderArgs<OrganisationEligibility>(
+            new RenderArgs<OrganisationComplianceDeclarationEligibility>(
                 GetMongoDatabase()
-                    .GetCollection<OrganisationEligibility>(nameof(OrganisationEligibility))
+                    .GetCollection<OrganisationComplianceDeclarationEligibility>(
+                        nameof(OrganisationComplianceDeclarationEligibility)
+                    )
                     .DocumentSerializer,
                 GetMongoDatabase()
-                    .GetCollection<OrganisationEligibility>(nameof(OrganisationEligibility))
+                    .GetCollection<OrganisationComplianceDeclarationEligibility>(
+                        nameof(OrganisationComplianceDeclarationEligibility)
+                    )
                     .Settings.SerializerRegistry
             )
         );

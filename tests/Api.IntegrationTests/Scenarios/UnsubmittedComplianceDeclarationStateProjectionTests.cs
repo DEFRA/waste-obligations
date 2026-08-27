@@ -38,8 +38,8 @@ public class UnsubmittedComplianceDeclarationStateProjectionTests : IntegrationT
             },
             cancellationToken: TestContext.Current.CancellationToken
         );
-        await OrganisationEligibilities.InsertOneAsync(
-            new OrganisationEligibility
+        await OrganisationComplianceDeclarationEligibilities.InsertOneAsync(
+            new OrganisationComplianceDeclarationEligibility
             {
                 Generation = generation,
                 OrganisationId = organisationId,

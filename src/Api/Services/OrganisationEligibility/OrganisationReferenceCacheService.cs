@@ -14,7 +14,7 @@ public class OrganisationReferenceCacheService(
 )
 {
     public async Task<IReadOnlyList<OrganisationReferenceCache>> SynchroniseAndResolve(
-        IReadOnlyCollection<Data.Entities.OrganisationEligibility> eligibilityRows,
+        IReadOnlyCollection<Data.Entities.OrganisationComplianceDeclarationEligibility> eligibilityRows,
         CancellationToken cancellationToken
     )
     {
@@ -310,7 +310,9 @@ public class OrganisationReferenceCacheService(
                 or OrganisationReferenceNumberResolutionState.Failed
         && cache.NextAttemptAt <= utcNow;
 
-    private static Source[] CreateSources(IReadOnlyCollection<Data.Entities.OrganisationEligibility> eligibilityRows) =>
+    private static Source[] CreateSources(
+        IReadOnlyCollection<Data.Entities.OrganisationComplianceDeclarationEligibility> eligibilityRows
+    ) =>
         eligibilityRows
             .GroupBy(x => new CacheKey(x.OrganisationId, x.RegistrationType))
             .Select(group =>

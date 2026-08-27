@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
-using OrganisationEligibilityEntity = Defra.WasteObligations.Api.Data.Entities.OrganisationEligibility;
+using OrganisationComplianceDeclarationEligibilityEntity = Defra.WasteObligations.Api.Data.Entities.OrganisationComplianceDeclarationEligibility;
 
 namespace Defra.WasteObligations.Api.IntegrationTests.Services;
 
@@ -24,7 +24,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
         var beta = Guid.NewGuid();
         var submitted = Guid.NewGuid();
         await SetReadySnapshot(generation);
-        await OrganisationEligibilities.InsertManyAsync(
+        await OrganisationComplianceDeclarationEligibilities.InsertManyAsync(
             [
                 Eligibility(alpha, generation, "Alpha Packaging", "100001"),
                 Eligibility(beta, generation, "Beta Packaging", "100002"),
@@ -137,7 +137,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
             },
             cancellationToken: TestContext.Current.CancellationToken
         );
-        await OrganisationEligibilities.InsertOneAsync(
+        await OrganisationComplianceDeclarationEligibilities.InsertOneAsync(
             Eligibility(organisationId, generation, "Alpha Packaging", "100001"),
             cancellationToken: TestContext.Current.CancellationToken
         );
@@ -202,7 +202,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
         );
     }
 
-    private static OrganisationEligibilityEntity Eligibility(
+    private static OrganisationComplianceDeclarationEligibilityEntity Eligibility(
         Guid organisationId,
         string generation,
         string name,

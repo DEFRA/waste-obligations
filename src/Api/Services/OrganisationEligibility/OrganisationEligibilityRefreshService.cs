@@ -47,8 +47,11 @@ public class OrganisationEligibilityRefreshService(
             };
         }
 
-        await dbContext.OrganisationEligibilities.InsertManyAsync(content.Rows, cancellationToken: cancellationToken);
-        var writtenRowCount = await dbContext.OrganisationEligibilities.CountDocumentsAsync(
+        await dbContext.OrganisationComplianceDeclarationEligibilities.InsertManyAsync(
+            content.Rows,
+            cancellationToken: cancellationToken
+        );
+        var writtenRowCount = await dbContext.OrganisationComplianceDeclarationEligibilities.CountDocumentsAsync(
             x => x.Generation == generation,
             cancellationToken: cancellationToken
         );
