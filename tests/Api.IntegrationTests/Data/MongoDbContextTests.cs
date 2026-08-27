@@ -1,6 +1,7 @@
 using System.Net;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
+using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Testing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -180,6 +181,19 @@ public class MongoDbContextTests
 
         invocationCount.Should().Be(1);
         logger.Entries.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void OrganisationObligationCollections_ShouldUseTheirEntityCollectionNames()
+    {
+        var subject = CreateSubject(new RecordingLogger<MongoDbContext>(), 1);
+
+        subject
+            .OrganisationObligationSummaries.CollectionNamespace.CollectionName.Should()
+            .Be(nameof(OrganisationObligationSummary));
+        subject
+            .OrganisationObligationHydrationWork.CollectionNamespace.CollectionName.Should()
+            .Be(nameof(OrganisationObligationHydrationWork));
     }
 
     private MongoDbContext CreateSubject(
