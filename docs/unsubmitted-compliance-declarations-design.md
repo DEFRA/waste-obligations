@@ -2,9 +2,7 @@
 
 ## Status and scope
 
-**Status:** partially implemented. The pushed implementation delivers the local organisation-eligibility snapshot, Account-reference materialisation and retry, the declaration-review-state projection/backfill/reconciliation, and `GET /compliance-declarations/unsubmitted`. `Unsubmitted` remains an inferred review state rather than a compliance-declaration status.
-
-The current endpoint performs the active-generation/declaration-state anti-join locally, accepts `obligationYear`, `registrationType`, page/page-size, and `OrganisationName` ordering, and returns the safe default obligation values (`0` / `null` / `Pending`). It deliberately has no request-time Account or PRN calculation calls. Generic search, response freshness/coverage metadata, current-year enforcement, and organisation-obligation-summary hydration remain planned work described below.
+**Status:** in implementation. The local eligibility snapshot, Account-reference materialisation, declaration-review-state projection, and unsubmitted query endpoint are implemented. Organisation-obligation summary hydration remains to be implemented. `Unsubmitted` remains an inferred review state rather than a compliance-declaration status.
 
 The proposed delivery is a local, refreshable copy of the Waste Organisations eligibility data in Waste Obligations, a local declaration-presence projection maintained as declarations change, and a separately refreshed organisation-obligation summary. Together they support a server-side query for the **Not submitted** review tab and CSV download.
 
