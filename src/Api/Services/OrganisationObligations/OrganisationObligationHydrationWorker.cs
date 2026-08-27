@@ -23,9 +23,11 @@ public class OrganisationObligationHydrationWorker(
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            var hydratedCount = 0;
+
             try
             {
-                await Hydrate(stoppingToken);
+                hydratedCount = await Hydrate(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -36,11 +38,14 @@ public class OrganisationObligationHydrationWorker(
                 logger.LogError(exception, "Organisation obligation hydration failed");
             }
 
+            if (hydratedCount >= options.Value.BatchSize)
+                continue;
+
             await Task.Delay(TimeSpan.FromSeconds(options.Value.PollIntervalSeconds), stoppingToken);
         }
     }
 
-    private async Task Hydrate(CancellationToken stoppingToken)
+    private async Task<int> Hydrate(CancellationToken stoppingToken)
     {
         using var scope = serviceScopeFactory.CreateScope();
         var leaseService = scope.ServiceProvider.GetRequiredService<IOrganisationObligationHydrationLeaseService>();
@@ -51,7 +56,7 @@ public class OrganisationObligationHydrationWorker(
         if (!await leaseService.TryAcquire(leaseDuration, stoppingToken))
         {
             logger.LogInformation("Organisation obligation hydration skipped because another instance holds the lease");
-            return;
+            return 0;
         }
 
         using var hydrationCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
@@ -63,13 +68,12 @@ public class OrganisationObligationHydrationWorker(
             renewalCancellationTokenSource.Token
         );
 
+        var hydratedCount = 0;
+
         try
         {
             var obligationYear = currentComplianceYearProvider.GetCurrentComplianceYear();
-            var hydratedCount = await hydrationService.HydrateDue(
-                obligationYear,
-                hydrationCancellationTokenSource.Token
-            );
+            hydratedCount = await hydrationService.HydrateDue(obligationYear, hydrationCancellationTokenSource.Token);
             logger.LogInformation(
                 "Organisation obligation hydration processed {HydratedCount} work items for obligation year {ObligationYear}",
                 hydratedCount,
@@ -97,6 +101,8 @@ public class OrganisationObligationHydrationWorker(
 
             await leaseService.Release(CancellationToken.None);
         }
+
+        return hydratedCount;
     }
 
     private async Task RenewLease(

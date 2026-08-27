@@ -54,6 +54,35 @@ public class OrganisationObligationHydrationWorkerTests
         await leaseService.DidNotReceive().Release(Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task Start_WhenABatchIsFull_ShouldImmediatelyTryAnotherBatch()
+    {
+        var leaseService = Substitute.For<IOrganisationObligationHydrationLeaseService>();
+        leaseService.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
+        var hydrationService = Substitute.For<IOrganisationObligationHydrationService>();
+        var currentComplianceYearProvider = Substitute.For<ICurrentComplianceYearProvider>();
+        currentComplianceYearProvider.GetCurrentComplianceYear().Returns(2026);
+        var secondBatchStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var callCount = 0;
+        hydrationService
+            .HydrateDue(2026, Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                callCount++;
+                if (callCount == 2)
+                    secondBatchStarted.TrySetResult();
+
+                return Task.FromResult(callCount == 1 ? 10 : 0);
+            });
+        var subject = CreateSubject(leaseService, hydrationService, currentComplianceYearProvider);
+
+        await subject.StartAsync(TestContext.Current.CancellationToken);
+        await secondBatchStarted.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await subject.StopAsync(TestContext.Current.CancellationToken);
+
+        await hydrationService.Received(2).HydrateDue(2026, Arg.Any<CancellationToken>());
+    }
+
     private static OrganisationObligationHydrationWorker CreateSubject(
         IOrganisationObligationHydrationLeaseService leaseService,
         IOrganisationObligationHydrationService hydrationService,

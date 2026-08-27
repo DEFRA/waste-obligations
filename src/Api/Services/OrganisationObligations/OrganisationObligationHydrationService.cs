@@ -11,6 +11,7 @@ namespace Defra.WasteObligations.Api.Services.OrganisationObligations;
 public class OrganisationObligationHydrationService(
     IDbContext dbContext,
     IOrganisationObligationSource obligationSource,
+    IOrganisationObligationRequestPacer requestPacer,
     IOptions<OrganisationObligationHydrationOptions> options,
     TimeProvider timeProvider
 ) : IOrganisationObligationHydrationService
@@ -148,6 +149,7 @@ public class OrganisationObligationHydrationService(
     {
         try
         {
+            await requestPacer.Wait(cancellationToken);
             var obligations = await obligationSource.ReadObligations(
                 work.OrganisationId,
                 work.ObligationYear,

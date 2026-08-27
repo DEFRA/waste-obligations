@@ -249,6 +249,10 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
         return new OrganisationObligationHydrationService(
             dbContext,
             ObligationSource,
+            new OrganisationObligationRequestPacer(
+                Options.Create(new OrganisationObligationHydrationOptions()),
+                _timeProvider
+            ),
             Options.Create(new OrganisationObligationHydrationOptions()),
             _timeProvider
         );

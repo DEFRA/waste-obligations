@@ -22,6 +22,13 @@ public class ServiceCollectionExtensionsTests
                 descriptor.ServiceType == typeof(IHostedService)
                 && descriptor.ImplementationType == typeof(OrganisationObligationHydrationWorker)
             );
+        services
+            .Should()
+            .Contain(descriptor =>
+                descriptor.ServiceType == typeof(IOrganisationObligationRequestPacer)
+                && descriptor.ImplementationType == typeof(OrganisationObligationRequestPacer)
+                && descriptor.Lifetime == ServiceLifetime.Singleton
+            );
     }
 
     [Fact]
@@ -36,6 +43,7 @@ public class ServiceCollectionExtensionsTests
                     ["OrganisationObligationHydration:RefreshInterval"] = "00:30:00",
                     ["OrganisationObligationHydration:InitialRetryDelay"] = "00:01:00",
                     ["OrganisationObligationHydration:MaximumRetryDelay"] = "00:30:00",
+                    ["OrganisationObligationHydration:MaxDownstreamRequestsPerMinute"] = "20",
                 }
             )
             .Build();
@@ -47,6 +55,7 @@ public class ServiceCollectionExtensionsTests
         var options = serviceProvider.GetRequiredService<IOptions<OrganisationObligationHydrationOptions>>();
 
         options.Value.LeaseRenewalIntervalSeconds.Should().Be(30);
+        options.Value.MaxDownstreamRequestsPerMinute.Should().Be(20);
         services.Should().NotContain(descriptor => descriptor.ServiceType == typeof(IHostedService));
     }
 }

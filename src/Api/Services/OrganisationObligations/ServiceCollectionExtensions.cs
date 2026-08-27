@@ -26,6 +26,7 @@ public static class ServiceCollectionExtensions
             IOrganisationObligationHydrationLeaseService,
             OrganisationObligationHydrationLeaseService
         >();
+        services.AddSingleton<IOrganisationObligationRequestPacer, OrganisationObligationRequestPacer>();
         services.AddTransient<IOrganisationObligationHydrationService, OrganisationObligationHydrationService>();
 
         if (addWorker)
