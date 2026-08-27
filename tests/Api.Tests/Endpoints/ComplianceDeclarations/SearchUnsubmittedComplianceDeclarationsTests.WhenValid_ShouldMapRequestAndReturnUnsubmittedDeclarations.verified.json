@@ -5,10 +5,8 @@
       "registrationType": "DirectProducer",
       "organisationName": "Alpha Packaging",
       "organisationReferenceNumber": "100001",
-      "recyclingObligationsMet": null,
-      "obligationCoveragePercentage": 0,
-      "obligationDataState": "Pending",
-      "obligationsAsOf": null
+      "recyclingObligationsMet": true,
+      "obligationCoveragePercentage": 80
     }
   ],
   "total": 6,

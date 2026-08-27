@@ -62,6 +62,24 @@ public class SearchUnsubmittedComplianceDeclarationsTests : IntegrationTestBase
             },
             cancellationToken: TestContext.Current.CancellationToken
         );
+        await OrganisationObligationSummaries.InsertOneAsync(
+            new OrganisationObligationSummary
+            {
+                OrganisationId = secondIncludedOrganisationId,
+                ObligationYear = 2026,
+                ObligationCount = 1,
+                TotalAcceptedTonnage = 4,
+                TotalObligatedTonnage = 5,
+                RecyclingObligationsMet = true,
+                ObligationCoveragePercentage = 80,
+                SourceFingerprint = "fingerprint",
+                LastSuccessfulReadAt = verifiedAt,
+                LastAttemptedAt = verifiedAt,
+                NextRefreshAt = verifiedAt.AddMinutes(30),
+                RefreshState = OrganisationObligationRefreshState.Ready,
+            },
+            cancellationToken: TestContext.Current.CancellationToken
+        );
         var client = CreateClient();
 
         var response = await client.GetAsync(
@@ -89,9 +107,8 @@ public class SearchUnsubmittedComplianceDeclarationsTests : IntegrationTestBase
         var row = result.UnsubmittedOrganisations.Single();
         row.OrganisationId.Should().Be(secondIncludedOrganisationId);
         row.OrganisationReferenceNumber.Should().Be("100004");
-        row.ObligationCoveragePercentage.Should().Be(0);
-        row.RecyclingObligationsMet.Should().BeNull();
-        row.ObligationDataState.Should().Be("Pending");
+        row.ObligationCoveragePercentage.Should().Be(80);
+        row.RecyclingObligationsMet.Should().BeTrue();
         await VerifyJson(responseBody);
     }
 

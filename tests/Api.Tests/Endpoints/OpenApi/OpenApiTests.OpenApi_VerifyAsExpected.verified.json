@@ -1870,8 +1870,7 @@
       "UnsubmittedOrganisation": {
         "required": [
           "organisationName",
-          "organisationReferenceNumber",
-          "obligationDataState"
+          "organisationReferenceNumber"
         ],
         "type": "object",
         "properties": {
@@ -1901,16 +1900,6 @@
               "string"
             ],
             "format": "double"
-          },
-          "obligationDataState": {
-            "type": "string"
-          },
-          "obligationsAsOf": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "date-time"
           }
         }
       },

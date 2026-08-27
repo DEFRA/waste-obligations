@@ -1,39 +1,39 @@
 namespace Defra.WasteObligations.Api.Services;
 
-public class CurrentComplianceYearProvider(TimeProvider timeProvider) : ICurrentComplianceYearProvider
+public class CurrentObligationYearProvider(TimeProvider timeProvider) : ICurrentObligationYearProvider
 {
     private static readonly TimeZoneInfo UnitedKingdomTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Europe/London");
 
-    public int GetCurrentComplianceYear()
+    public int GetCurrentObligationYear()
     {
         var utcNow = timeProvider.GetUtcNow();
         var localNow = TimeZoneInfo.ConvertTime(utcNow, UnitedKingdomTimeZone);
 
-        return GetCurrentComplianceYear(localNow);
+        return GetCurrentObligationYear(localNow);
     }
 
-    public ComplianceYearHandover GetHandover(TimeSpan outgoingYearGracePeriod)
+    public ObligationYearHandover GetHandover(TimeSpan outgoingYearGracePeriod)
     {
         var utcNow = timeProvider.GetUtcNow();
         var localNow = TimeZoneInfo.ConvertTime(utcNow, UnitedKingdomTimeZone);
-        var currentComplianceYear = GetCurrentComplianceYear(localNow);
+        var currentObligationYear = GetCurrentObligationYear(localNow);
 
         if (localNow.Month is 1)
-            return new ComplianceYearHandover(currentComplianceYear, IncomingComplianceYear: currentComplianceYear + 1);
+            return new ObligationYearHandover(currentObligationYear, IncomingObligationYear: currentObligationYear + 1);
 
         var cutover = new DateTimeOffset(localNow.Year, 2, 1, 0, 0, 0, localNow.Offset);
         if (localNow >= cutover && localNow < cutover.Add(outgoingYearGracePeriod))
         {
-            return new ComplianceYearHandover(
-                currentComplianceYear,
-                OutgoingComplianceYear: currentComplianceYear - 1,
+            return new ObligationYearHandover(
+                currentObligationYear,
+                OutgoingObligationYear: currentObligationYear - 1,
                 OutgoingYearCutoverAt: cutover.UtcDateTime
             );
         }
 
-        return new ComplianceYearHandover(currentComplianceYear);
+        return new ObligationYearHandover(currentObligationYear);
     }
 
-    private static int GetCurrentComplianceYear(DateTimeOffset localNow) =>
+    private static int GetCurrentObligationYear(DateTimeOffset localNow) =>
         localNow.Month is 1 ? localNow.Year - 1 : localNow.Year;
 }

@@ -11,14 +11,14 @@ namespace Defra.WasteObligations.Api.Tests.Services.OrganisationObligations;
 public class OrganisationObligationHydrationWorkerTests
 {
     [Fact]
-    public async Task Start_WhenLeaseIsAcquired_ShouldHydrateCurrentComplianceYearAndReleaseLease()
+    public async Task Start_WhenLeaseIsAcquired_ShouldHydrateCurrentObligationYearAndReleaseLease()
     {
         var leaseService = Substitute.For<IOrganisationObligationHydrationLeaseService>();
         leaseService.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
         var hydrationService = Substitute.For<IOrganisationObligationHydrationService>();
         hydrationService.HydrateDue(2026, Arg.Any<CancellationToken>()).Returns(3);
-        var currentComplianceYearProvider = Substitute.For<ICurrentComplianceYearProvider>();
-        currentComplianceYearProvider.GetHandover(Arg.Any<TimeSpan>()).Returns(new ComplianceYearHandover(2026));
+        var currentObligationYearProvider = Substitute.For<ICurrentObligationYearProvider>();
+        currentObligationYearProvider.GetHandover(Arg.Any<TimeSpan>()).Returns(new ObligationYearHandover(2026));
         var hydrated = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         hydrationService
             .HydrateDue(2026, Arg.Any<CancellationToken>())
@@ -27,7 +27,7 @@ public class OrganisationObligationHydrationWorkerTests
                 hydrated.TrySetResult();
                 return Task.FromResult(3);
             });
-        var subject = CreateSubject(leaseService, hydrationService, currentComplianceYearProvider);
+        var subject = CreateSubject(leaseService, hydrationService, currentObligationYearProvider);
 
         await subject.StartAsync(TestContext.Current.CancellationToken);
         await hydrated.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
@@ -44,7 +44,7 @@ public class OrganisationObligationHydrationWorkerTests
         var leaseService = Substitute.For<IOrganisationObligationHydrationLeaseService>();
         leaseService.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(false);
         var hydrationService = Substitute.For<IOrganisationObligationHydrationService>();
-        var subject = CreateSubject(leaseService, hydrationService, Substitute.For<ICurrentComplianceYearProvider>());
+        var subject = CreateSubject(leaseService, hydrationService, Substitute.For<ICurrentObligationYearProvider>());
 
         await subject.StartAsync(TestContext.Current.CancellationToken);
         await Task.Delay(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
@@ -60,8 +60,8 @@ public class OrganisationObligationHydrationWorkerTests
         var leaseService = Substitute.For<IOrganisationObligationHydrationLeaseService>();
         leaseService.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
         var hydrationService = Substitute.For<IOrganisationObligationHydrationService>();
-        var currentComplianceYearProvider = Substitute.For<ICurrentComplianceYearProvider>();
-        currentComplianceYearProvider.GetHandover(Arg.Any<TimeSpan>()).Returns(new ComplianceYearHandover(2026));
+        var currentObligationYearProvider = Substitute.For<ICurrentObligationYearProvider>();
+        currentObligationYearProvider.GetHandover(Arg.Any<TimeSpan>()).Returns(new ObligationYearHandover(2026));
         var secondBatchStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var callCount = 0;
         hydrationService
@@ -74,7 +74,7 @@ public class OrganisationObligationHydrationWorkerTests
 
                 return Task.FromResult(callCount == 1 ? 10 : 0);
             });
-        var subject = CreateSubject(leaseService, hydrationService, currentComplianceYearProvider);
+        var subject = CreateSubject(leaseService, hydrationService, currentObligationYearProvider);
 
         await subject.StartAsync(TestContext.Current.CancellationToken);
         await secondBatchStarted.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
@@ -99,11 +99,11 @@ public class OrganisationObligationHydrationWorkerTests
 
                 return Task.FromResult(0);
             });
-        var currentComplianceYearProvider = Substitute.For<ICurrentComplianceYearProvider>();
-        currentComplianceYearProvider
+        var currentObligationYearProvider = Substitute.For<ICurrentObligationYearProvider>();
+        currentObligationYearProvider
             .GetHandover(Arg.Any<TimeSpan>())
-            .Returns(new ComplianceYearHandover(2026, IncomingComplianceYear: 2027));
-        var subject = CreateSubject(leaseService, hydrationService, currentComplianceYearProvider);
+            .Returns(new ObligationYearHandover(2026, IncomingObligationYear: 2027));
+        var subject = CreateSubject(leaseService, hydrationService, currentObligationYearProvider);
 
         await subject.StartAsync(TestContext.Current.CancellationToken);
         await incomingYearHydrated.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
@@ -147,11 +147,11 @@ public class OrganisationObligationHydrationWorkerTests
 
                 return Task.FromResult(0);
             });
-        var currentComplianceYearProvider = Substitute.For<ICurrentComplianceYearProvider>();
-        currentComplianceYearProvider
+        var currentObligationYearProvider = Substitute.For<ICurrentObligationYearProvider>();
+        currentObligationYearProvider
             .GetHandover(Arg.Any<TimeSpan>())
-            .Returns(new ComplianceYearHandover(2027, OutgoingComplianceYear: 2026, OutgoingYearCutoverAt: cutover));
-        var subject = CreateSubject(leaseService, hydrationService, currentComplianceYearProvider);
+            .Returns(new ObligationYearHandover(2027, OutgoingObligationYear: 2026, OutgoingYearCutoverAt: cutover));
+        var subject = CreateSubject(leaseService, hydrationService, currentObligationYearProvider);
 
         await subject.StartAsync(TestContext.Current.CancellationToken);
         await currentYearHydrated.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
@@ -163,13 +163,13 @@ public class OrganisationObligationHydrationWorkerTests
     private static OrganisationObligationHydrationWorker CreateSubject(
         IOrganisationObligationHydrationLeaseService leaseService,
         IOrganisationObligationHydrationService hydrationService,
-        ICurrentComplianceYearProvider currentComplianceYearProvider
+        ICurrentObligationYearProvider currentObligationYearProvider
     )
     {
         var services = new ServiceCollection();
         services.AddScoped(_ => leaseService);
         services.AddScoped(_ => hydrationService);
-        services.AddScoped(_ => currentComplianceYearProvider);
+        services.AddScoped(_ => currentObligationYearProvider);
         var serviceProvider = services.BuildServiceProvider();
 
         return new OrganisationObligationHydrationWorker(

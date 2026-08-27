@@ -2,9 +2,9 @@
   "unsubmittedOrganisations": [
     {
       "organisationId": "Guid_1",
-      "registrationType": "ComplianceScheme",
-      "organisationName": "Bravo Scheme",
-      "organisationReferenceNumber": "200001",
+      "registrationType": "DirectProducer",
+      "organisationName": "Historic Packaging",
+      "organisationReferenceNumber": "100003",
       "recyclingObligationsMet": null,
       "obligationCoveragePercentage": 0
     }

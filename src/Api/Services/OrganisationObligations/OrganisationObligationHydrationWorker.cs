@@ -50,7 +50,7 @@ public class OrganisationObligationHydrationWorker(
         using var scope = serviceScopeFactory.CreateScope();
         var leaseService = scope.ServiceProvider.GetRequiredService<IOrganisationObligationHydrationLeaseService>();
         var hydrationService = scope.ServiceProvider.GetRequiredService<IOrganisationObligationHydrationService>();
-        var currentComplianceYearProvider = scope.ServiceProvider.GetRequiredService<ICurrentComplianceYearProvider>();
+        var currentObligationYearProvider = scope.ServiceProvider.GetRequiredService<ICurrentObligationYearProvider>();
         var leaseDuration = TimeSpan.FromSeconds(options.Value.LeaseDurationSeconds);
 
         if (!await leaseService.TryAcquire(leaseDuration, stoppingToken))
@@ -72,12 +72,12 @@ public class OrganisationObligationHydrationWorker(
 
         try
         {
-            var handover = currentComplianceYearProvider.GetHandover(options.Value.OutgoingYearGracePeriod);
+            var handover = currentObligationYearProvider.GetHandover(options.Value.OutgoingYearGracePeriod);
             hydratedCount = await Hydrate(hydrationService, handover, hydrationCancellationTokenSource.Token);
             logger.LogInformation(
                 "Organisation obligation hydration processed {HydratedCount} work items for current obligation year {ObligationYear}",
                 hydratedCount,
-                handover.CurrentComplianceYear
+                handover.CurrentObligationYear
             );
         }
         catch (OperationCanceledException exception)
@@ -107,37 +107,37 @@ public class OrganisationObligationHydrationWorker(
 
     private async Task<int> Hydrate(
         IOrganisationObligationHydrationService hydrationService,
-        ComplianceYearHandover handover,
+        ObligationYearHandover handover,
         CancellationToken cancellationToken
     )
     {
         if (
-            handover.OutgoingComplianceYear is { } outgoingComplianceYear
+            handover.OutgoingObligationYear is { } outgoingObligationYear
             && handover.OutgoingYearCutoverAt is { } outgoingYearCutoverAt
         )
         {
             await hydrationService.EnqueueReconciliation(
-                outgoingComplianceYear,
+                outgoingObligationYear,
                 outgoingYearCutoverAt,
                 cancellationToken
             );
-            var outgoingHydratedCount = await hydrationService.HydrateDue(outgoingComplianceYear, cancellationToken);
+            var outgoingHydratedCount = await hydrationService.HydrateDue(outgoingObligationYear, cancellationToken);
             if (outgoingHydratedCount >= options.Value.BatchSize)
                 return outgoingHydratedCount;
 
             var currentHydratedCount = await hydrationService.HydrateDue(
-                handover.CurrentComplianceYear,
+                handover.CurrentObligationYear,
                 cancellationToken
             );
 
             return outgoingHydratedCount + currentHydratedCount;
         }
 
-        var hydratedCount = await hydrationService.HydrateDue(handover.CurrentComplianceYear, cancellationToken);
-        if (hydratedCount > 0 || handover.IncomingComplianceYear is not { } incomingComplianceYear)
+        var hydratedCount = await hydrationService.HydrateDue(handover.CurrentObligationYear, cancellationToken);
+        if (hydratedCount > 0 || handover.IncomingObligationYear is not { } incomingObligationYear)
             return hydratedCount;
 
-        var incomingHydratedCount = await hydrationService.HydrateDue(incomingComplianceYear, cancellationToken);
+        var incomingHydratedCount = await hydrationService.HydrateDue(incomingObligationYear, cancellationToken);
 
         return hydratedCount + incomingHydratedCount;
     }

@@ -2,7 +2,6 @@ using System.Text.RegularExpressions;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.OrganisationEligibility;
-using Defra.WasteObligations.Api.Services.OrganisationObligations;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
@@ -15,7 +14,6 @@ namespace Defra.WasteObligations.Api.Services;
 public class UnsubmittedOrganisationsService(
     IDbContext dbContext,
     IOptions<OrganisationEligibilityOptions> options,
-    IOptions<OrganisationObligationHydrationOptions> hydrationOptions,
     TimeProvider timeProvider,
     ILogger<UnsubmittedOrganisationsService> logger
 ) : IUnsubmittedOrganisationsService
@@ -222,38 +220,20 @@ public class UnsubmittedOrganisationsService(
             )
             .ToListAsync(cancellationToken);
         var summariesByOrganisationId = summaries.ToDictionary(x => x.OrganisationId);
-        var utcNow = timeProvider.GetUtcNow().UtcDateTime;
-
         return rows.Select(row =>
             {
                 if (!summariesByOrganisationId.TryGetValue(row.OrganisationId, out var summary))
                 {
-                    return row with { ObligationCoveragePercentage = 0, ObligationDataState = "Pending" };
+                    return row with { ObligationCoveragePercentage = 0 };
                 }
 
                 return row with
                 {
                     RecyclingObligationsMet = summary.RecyclingObligationsMet,
                     ObligationCoveragePercentage = summary.ObligationCoveragePercentage ?? 0,
-                    ObligationDataState = ObligationDataState(summary, utcNow),
-                    ObligationsAsOf = summary.LastSuccessfulReadAt,
                 };
             })
             .ToList();
-    }
-
-    private string ObligationDataState(OrganisationObligationSummary summary, DateTime utcNow)
-    {
-        if (summary.RefreshState == OrganisationObligationRefreshState.Failed)
-            return "Failed";
-
-        if (
-            summary.LastSuccessfulReadAt is not null
-            && utcNow - summary.LastSuccessfulReadAt > hydrationOptions.Value.MaximumSummaryStaleness
-        )
-            return "Stale";
-
-        return summary.RefreshState == OrganisationObligationRefreshState.Ready ? "Ready" : "Pending";
     }
 
     private static UnsubmittedOrganisationSearchResult EmptyResult() => new() { Rows = [], Total = 0 };

@@ -166,16 +166,15 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task Search_WhenObligationSummariesHaveDifferentFreshnessStates_ShouldReturnTheirLastKnownMetrics()
+    public async Task Search_WhenObligationSummariesHaveDifferentRefreshStates_ShouldReturnTheirLastKnownMetrics()
     {
         const string generation = "generation";
         var readyOrganisationId = Guid.NewGuid();
         var failedOrganisationId = Guid.NewGuid();
         var staleOrganisationId = Guid.NewGuid();
-        var summaryStaleness = TimeSpan.FromHours(2);
-        var readyAsOf = _timeProvider.GetUtcNow().Subtract(summaryStaleness).UtcDateTime;
+        var readyAsOf = _timeProvider.GetUtcNow().UtcDateTime;
         var failedAsOf = _timeProvider.GetUtcNow().AddMinutes(-30).UtcDateTime;
-        var staleAsOf = _timeProvider.GetUtcNow().Subtract(summaryStaleness).AddSeconds(-1).UtcDateTime;
+        var staleAsOf = _timeProvider.GetUtcNow().AddHours(-3).UtcDateTime;
         await SetReadySnapshot(generation);
         await OrganisationComplianceDeclarationEligibilities.InsertManyAsync(
             [
@@ -227,16 +226,10 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
         var rows = result.Rows.ToDictionary(x => x.OrganisationId);
         rows[readyOrganisationId].RecyclingObligationsMet.Should().BeTrue();
         rows[readyOrganisationId].ObligationCoveragePercentage.Should().Be(80);
-        rows[readyOrganisationId].ObligationDataState.Should().Be("Ready");
-        rows[readyOrganisationId].ObligationsAsOf.Should().Be(readyAsOf);
         rows[failedOrganisationId].RecyclingObligationsMet.Should().BeFalse();
         rows[failedOrganisationId].ObligationCoveragePercentage.Should().Be(40);
-        rows[failedOrganisationId].ObligationDataState.Should().Be("Failed");
-        rows[failedOrganisationId].ObligationsAsOf.Should().Be(failedAsOf);
         rows[staleOrganisationId].RecyclingObligationsMet.Should().BeTrue();
         rows[staleOrganisationId].ObligationCoveragePercentage.Should().Be(60);
-        rows[staleOrganisationId].ObligationDataState.Should().Be("Stale");
-        rows[staleOrganisationId].ObligationsAsOf.Should().Be(staleAsOf);
     }
 
     [Fact]
@@ -328,7 +321,6 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
                 NullLogger<MongoDbContext>.Instance
             ),
             Options.Create(new OrganisationEligibilityOptions { MaximumAllowedStaleness = TimeSpan.FromHours(2) }),
-            Options.Create(new OrganisationObligationHydrationOptions()),
             _timeProvider,
             logger ?? NullLogger<UnsubmittedOrganisationsService>.Instance
         );

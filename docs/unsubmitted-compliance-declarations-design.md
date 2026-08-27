@@ -17,21 +17,21 @@ Account reference resolution is a prerequisite for an individual organisation to
 - The initial public query route is `GET /compliance-declarations/unsubmitted`.
 - The new local review projection will track `LARGE_PRODUCER` as `DirectProducer` and `COMPLIANCE_SCHEME` as `ComplianceScheme`.
 
-## Current compliance year
+## Current obligation year
 
-Current-obligation hydration is deliberately limited to the **current compliance year**. The compliance year runs from 1 February to 31 January, so calculate it from the business date in the UK time zone:
+Current-obligation hydration is deliberately limited to the **current obligation year**. The obligation year runs from 1 February to 31 January, so calculate it from the business date in the UK time zone:
 
 ```text
-currentComplianceYear = localDate.Month == January
+currentObligationYear = localDate.Month == January
   ? localDate.Year - 1
   : localDate.Year
 ```
 
-For example, every day from 1 to 31 January 2027 has current compliance year `2026`; 1 February 2027 changes it to `2027`. Implement this behind one tested domain service using an injected `TimeProvider` and an explicit `Europe/London` business time zone, never the host-local clock. The value must be calculated once per worker run and supplied to its queries, so a run cannot straddle the February boundary with two interpretations.
+For example, every day from 1 to 31 January 2027 has current obligation year `2026`; 1 February 2027 changes it to `2027`. Implement this behind one tested domain service using an injected `TimeProvider` and an explicit `Europe/London` business time zone, never the host-local clock. The value must be calculated once per worker run and supplied to its queries, so a run cannot straddle the February boundary with two interpretations.
 
-Eligibility data continues to be loaded for all years, because it is the source needed to identify registrations/status transitions. The rolling obligation-hydration worker operates **only** for `currentComplianceYear`, except for the explicit January/February handover below; it must not call the downstream organisation-obligation calculation endpoint for arbitrary historic or future years. Summary hydration is non-blocking: it enriches rows already eligible from the snapshot and declaration state.
+Eligibility data continues to be loaded for all years, because it is the source needed to identify registrations/status transitions. The rolling obligation-hydration worker operates **only** for `currentObligationYear`, except for the explicit January/February handover below; it must not call the downstream organisation-obligation calculation endpoint for arbitrary historic or future years. Summary hydration is non-blocking: it enriches rows already eligible from the snapshot and declaration state.
 
-This makes a full percentage-met response contract incompatible with historical unsubmitted requests: no fresh historic summary is maintained. The initial endpoint should therefore require its `obligationYear` to equal `currentComplianceYear` and return `400` for any other year. If historical unsubmitted lists are required later, they need their own explicit policy (for example a separate on-demand/export process, clearly non-current values, or additional historical hydration); they must not silently start the current-year poller for arbitrary years.
+The endpoint permits historic and future obligation-year queries against the active eligibility and declaration-state projections. Those queries do not start historic/future polling: where a stored summary does not exist, the response returns `recyclingObligationsMet: null` and `obligationCoveragePercentage: 0`; where a retained summary exists, it returns its last calculated values. Any historical-summary retention or export policy remains separate work.
 
 ### January/February year handover
 
@@ -469,9 +469,9 @@ Persisting material-level obligations is not required for this list. The totals,
 
 The obligation hydrator is a second interval worker using the existing `AuditEventLeaseService` lifecycle, with its own private operational lease collection and lease ID such as `organisation-obligation-hydration`. Its lease is independent of the organisation-refresh and Account-reference leases. It acquires-or-skips, renews before/while a bounded batch is processed, and writes an atomic upsert of the summary and work outcome. A failed lease renewal cancels the remainder of that batch; another host can resume it after expiry.
 
-On a changed organisation generation, restrict all obligation work to `obligationYear = currentComplianceYear`:
+On a changed organisation generation, restrict all obligation work to `obligationYear = currentObligationYear`:
 
-1. Identify active rows for the current compliance year that are `REGISTERED`, have a resolved reference, and have no current-enough `{ organisationId, obligationYear }` summary. Deduplicate to work keys and enqueue them with `NewEligible` priority.
+1. Identify active rows for the current obligation year that are `REGISTERED`, have a resolved reference, and have no current-enough `{ organisationId, obligationYear }` summary. Deduplicate to work keys and enqueue them with `NewEligible` priority.
    Before selecting due work, remove current-year work keys that no longer satisfy those active-generation conditions. This prevents a cancellation or an unresolved reference in a later generation from continuing to generate PRN calculation calls.
 2. Reuse an existing summary for source-identical rows until its `nextRefreshAt` is due. A reference becoming resolved can enqueue the existing organisation/year without changing the PRN key.
 3. The obligation worker selects a bounded due batch, calls `IPrnCommonBackendService.ReadObligations` for each key with deliberately low, configurable concurrency, maps the result, calculates the summary, and upserts it. A result with an unchanged `sourceFingerprint` updates freshness timestamps but need not rewrite the metric fields.
@@ -491,15 +491,15 @@ Do not wait for this work as part of an organisation-generation promotion. The r
 
 Organisation-obligation hydration is not an eligibility or endpoint-availability condition. A candidate belongs in the view solely because it has a registered eligibility row, a resolved reference number, and no Submitted/Accepted declaration. The endpoint must behave as follows:
 
-- no `OrganisationObligationSummary` yet: return `obligationCoveragePercentage: 0`, `recyclingObligationsMet: null`, `obligationDataState: "Pending"`, and `obligationsAsOf: null`;
-- current `Ready` summary: return its calculated percentage/status and its `lastSuccessfulReadAt`;
-- failed or stale summary: return its most recently calculated percentage/status when one exists, otherwise the same `0`/`null` default, together with `obligationDataState: "Failed"` or `"Stale"` for observability.
+- no `OrganisationObligationSummary` yet: return `obligationCoveragePercentage: 0` and `recyclingObligationsMet: null`;
+- current `Ready` summary: return its calculated percentage and recycling-obligations result;
+- failed or stale summary: return its most recently calculated percentage and recycling-obligations result when one exists, otherwise the same `0`/`null` default.
 
-The frontend can initially display the percentage as `0%`, as required. `obligationDataState` is additive metadata for monitoring or a later UI improvement; it does not change the displayed membership or require a warning in the first delivery. The worker's freshness window produces alerts and retry work, not `503` responses. The endpoint still fails closed for a stale **eligibility** snapshot, because that can make organisations disappear or appear incorrectly; a missing obligation summary cannot.
+The frontend can initially display the percentage as `0%`, as required. Operational freshness/state and the successful-read timestamp are not part of this public contract; a future administration endpoint can expose them for support and alerts. The worker's freshness window produces alerts and retry work, not `503` responses. The endpoint still fails closed for a stale **eligibility** snapshot, because that can make organisations disappear or appear incorrectly; a missing obligation summary cannot.
 
 #### Empty-system bootstrap example: approximately 500 organisations
 
-Assume an initially empty Waste Obligations deployment and `K = 500` distinct active organisation keys for the **current compliance year** after the source response is expanded. Assume each has one relevant registration and every required Account reference can be resolved. An organisation may have review rows for other years in the eligibility generation, but those rows do not create current-obligation work or downstream calls.
+Assume an initially empty Waste Obligations deployment and `K = 500` distinct active organisation keys for the **current obligation year** after the source response is expanded. Assume each has one relevant registration and every required Account reference can be resolved. An organisation may have review rows for other years in the eligibility generation, but those rows do not create current-obligation work or downstream calls.
 
 | Stage | External requests | Volume for this example | When it happens |
 | --- | --- | ---: | --- |
@@ -522,7 +522,7 @@ The initial external-request total is therefore:
 
 There is no initial scan of `GET /compliance-declarations`, no request to `epr-prn-integration-function`, and no request-time Account/current-obligation call from the unsubmitted endpoint. Declaration state is already local to Waste Obligations and is backfilled from Mongo.
 
-`g1` can be promoted once source rows and Account outcomes are recorded. `GET /compliance-declarations/unsubmitted` can then return its eligible unsubmitted organisations immediately, without waiting for the 500 organisation-obligation calculation calls. Until an individual summary is hydrated, that row returns percentage met `0`, recycling-obligations status `null`, and `obligationDataState: "Pending"`. It is still entirely served from local Mongo.
+`g1` can be promoted once source rows and Account outcomes are recorded. `GET /compliance-declarations/unsubmitted` can then return its eligible unsubmitted organisations immediately, without waiting for the 500 organisation-obligation calculation calls. Until an individual summary is hydrated, that row returns percentage met `0` and recycling-obligations status `null`. It is still entirely served from local Mongo.
 
 The organisation-obligation calculation endpoint has no batch operation. With the initial shared cap of 20 requests per minute, the 500-key bootstrap takes at least 25 minutes, before downstream latency, timeout, throttling, and Mongo-upsert time are considered. Low concurrency bounds short bursts; the paced rate limit bounds the aggregate request volume. Do not publish a bootstrap time SLA before production-like load testing.
 
@@ -560,7 +560,7 @@ If product later requires server-side percentage sorting, choose one of these ex
 | Denormalise the metric into a final `UnsubmittedOrganisationProjection` row | The summary worker updates the one matching active organisation/year/type row when the PRN result changes; a compound index can then support percentage ordering. Requires per-row versioning and a clear writer/consistency rule. | Preferred if percentage sorting becomes a real requirement. |
 | Call PRN after pagination | Cheap only for display. It produces incorrect global order and CSV disagreement. | Never use for a sortable field. |
 
-The first endpoint can therefore return `recyclingObligationsMet`, `obligationCoveragePercentage`, and `obligationsAsOf` without expanding the agreed `sort` set. Regulation 43 remains `null` for an unsubmitted scheme because it is declaration content, not PRN content.
+The first endpoint can therefore return `recyclingObligationsMet` and `obligationCoveragePercentage` without expanding the agreed `sort` set. Regulation 43 remains `null` for an unsubmitted scheme because it is declaration content, not PRN content.
 
 ## Refresh design
 
@@ -802,7 +802,7 @@ The event handling rules are:
 
 1. An organisation-registration event upserts only its corresponding rows. It creates `Pending` reference work when no resolved reference is known; a `REGISTERED` row becomes queryable only after the reference condition is also resolved.
 2. An Account reference-assignment event first upserts the resolution cache. If the related organisation row already exists, it updates that one row to `Resolved` in the same local transaction as the consumer checkpoint/inbox record. If the Account event arrives first, the cache waits and the later organisation event hydrates the row.
-3. **Future only:** a PRN-status event may enqueue only its affected `{ organisationId, obligationYear }` obligation-summary key when its year equals `currentComplianceYear`. The worker calls the canonical organisation-obligation calculation endpoint and recomputes the summary; it does not recreate the calculation from the event. This is not an initial dependency and must not be approximated by polling individual PRNs.
+3. **Future only:** a PRN-status event may enqueue only its affected `{ organisationId, obligationYear }` obligation-summary key when its year equals `currentObligationYear`. The worker calls the canonical organisation-obligation calculation endpoint and recomputes the summary; it does not recreate the calculation from the event. This is not an initial dependency and must not be approximated by polling individual PRNs.
 4. A daily obligation-calculation-run-completed event, containing at least the compliance year and durable run ID/watermark, may later be recorded against summaries to prove which calculation run was observed. The initial rolling poll does not depend on it or create a separate daily burst.
 5. A cancellation, deletion, or registration-status event updates only the row concerned; it is immediately excluded when no longer `REGISTERED`.
 6. Each consumer stores an inbox/checkpoint and rejects duplicate event IDs. Per-source monotonic version or sequence checks are required because Account, organisation, and any future PRN events can be delayed, replayed, or arrive out of order.
@@ -949,7 +949,7 @@ The endpoint accepts only these query parameters in this first design:
 
 | Parameter | Initial rule |
 | --- | --- |
-| `obligationYear` | Required integer and must equal the calculated `currentComplianceYear`. Return `400` for a historic or future year: this endpoint's metric contract is maintained only for the current compliance year. |
+| `obligationYear` | Required integer within the existing supported obligation-year range. Historic and future values query the local eligibility and declaration-state projections; they do not cause downstream obligation polling. |
 | `registrationType` | Required single value: `DirectProducer` or `ComplianceScheme`. It identifies the review tab; it is not a comma-separated multi-type search in this first endpoint. |
 | `search` | Optional generic organisation search, limited to 100 characters. It follows the current declaration search pattern: escaped, case-insensitive contains matching across raw fields available in this projection. An empty or whitespace-only term is treated as no search filter. |
 | `page` | Optional 1-based page number; default `1`. |
@@ -960,12 +960,12 @@ It does not accept `status` because status is an internal input to the inference
 
 Required endpoint behaviour:
 
-- `obligationYear` and review `registrationType` are required, and `obligationYear` must equal `currentComplianceYear`;
+- `obligationYear` and review `registrationType` are required;
 - page-number pagination follows the existing 1–100 page-size convention;
 - the active eligibility snapshot is selected for the requested year; if it is older than `MaximumAllowedStaleness`, log the condition and continue to serve the last complete active generation;
 - a candidate is returned only when it has a `REGISTERED` eligibility row with a resolved non-empty reference number and its `unsubmittedExclusionCount` is zero or absent;
 - a missing, pending, or stale organisation-obligation summary never excludes an otherwise eligible candidate and never makes a current-obligation calculation request in the handler; return the last successful value when one exists, otherwise the zero/default metric described below;
-- return `total`, `page`, `pageSize`, and per-row obligation-summary `asOf` times;
+- return `total`, `page`, and `pageSize`;
 - use a deterministic final tie-breaker of `organisationId`.
 
 The initial response contains the eligibility fields plus the locally hydrated organisation-obligation summary:
@@ -979,9 +979,7 @@ The initial response contains the eligibility fields plus the locally hydrated o
       "organisationName": "...",
       "organisationReferenceNumber": "518293",
       "recyclingObligationsMet": null,
-      "obligationCoveragePercentage": 0,
-      "obligationDataState": "Pending",
-      "obligationsAsOf": null
+      "obligationCoveragePercentage": 0
     }
   ],
   "total": 0,
@@ -990,7 +988,7 @@ The initial response contains the eligibility fields plus the locally hydrated o
 }
 ```
 
-`obligationCoveragePercentage: 0` is the safe initial display value, rather than evidence that the organisation has met zero percent of a known obligation. `obligationDataState` makes that distinction available to a client or support investigation: `Pending` has no successful read yet, `Ready` has a current summary, `Stale` exposes its last successful summary outside the target refresh window, and `Failed` has no successful read after a recoverable failure. The page may contain a mixture of these states. `recyclingObligationsMet` remains `null` until an actual summary is available.
+`obligationCoveragePercentage: 0` is the safe initial display value, rather than evidence that the organisation has met zero percent of a known obligation. The public response intentionally does not expose a data-state or successful-read timestamp. `recyclingObligationsMet` remains `null` until an actual summary is available. A future administration endpoint can distinguish Pending, Ready, Stale, and Failed summaries and provide their timestamps/counts.
 
 ### Future operational insight endpoint
 
@@ -1094,7 +1092,7 @@ Promotion enqueues the distinct active organisation/year keys for obligation hyd
 }
 ```
 
-Immediately after `g1` is promoted, Acme can be returned with `obligationCoveragePercentage: 0`, `recyclingObligationsMet: null`, and `obligationDataState: Pending`; the obligation worker is independent of eligibility and progressively replaces that default with the calculated summary. Thereafter the organisation-obligation summary changes independently: a PRN status change for Acme is observed at its next scheduled organisation-obligation refresh and updates this one document; it does not create `g2`.
+Immediately after `g1` is promoted, Acme can be returned with `obligationCoveragePercentage: 0` and `recyclingObligationsMet: null`; the obligation worker is independent of eligibility and progressively replaces that default with the calculated summary. Thereafter the organisation-obligation summary changes independently: a PRN status change for Acme is observed at its next scheduled organisation-obligation refresh and updates this one document; it does not create `g2`.
 
 The declaration-presence projection is separate. Suppose Beta already has a submitted declaration:
 
@@ -1163,7 +1161,7 @@ The present Not submitted table has organisation name, organisation reference nu
 | --- | --- | --- |
 | Organisation name | Store and sort raw `name`, with `organisationId` as tie-breaker. | Matches current declaration approach; deterministic but not an explicit locale-aware order. |
 | Organisation reference number | A resolved Account value is materialised into the generation and is required for a row to appear; it can participate in generic search. | Do not enable server sorting until an explicit sort contract and dedicated index are agreed. |
-| Recycling obligations / percentage met | Locally hydrated from `OrganisationObligationSummary`; before a first successful read the endpoint returns `null` / `0` with `obligationDataState=Pending`, and a stale/failed refresh retains the last successful value when available. The CSV reads the same local values. | Do not enable sort in the first endpoint. If needed, use a final denormalised read model or measure a full aggregate lookup/sort. |
+| Recycling obligations / percentage met | Locally hydrated from `OrganisationObligationSummary`; before a first successful read the endpoint returns `null` / `0`, and a stale/failed refresh retains the last successful value when available. The CSV reads the same local values. | Do not enable sort in the first endpoint. If needed, use a final denormalised read model or measure a full aggregate lookup/sort. |
 | Regulation 43 | No declaration exists for an unsubmitted row. | Return `null`/no data; it is not an eligibility attribute. |
 | Date submitted | Not applicable. | Do not expose for this result. |
 
@@ -1190,6 +1188,6 @@ The organisation-obligation summary is deliberately outside the organisation sna
 6. Can Account provide and support an explicit maximum batch size and concurrency expectation for both lookup endpoints?
 7. Is there a guaranteed single active `isComplianceScheme=true` Account organisation for a Companies House number? If not, who owns resolving an ambiguous match?
 8. What reference-coverage policy applies: must initial bootstrap reach 100% before the endpoint is available, and should later unresolved new rows cause `503`, a visible exclusion warning, or both?
-9. Resolved: `obligationDataState` is part of the public response so clients can distinguish a safe zero/default from a ready, failed, or stale summary.
+9. Side requirement: a future administration endpoint should expose organisation-obligation state and successful-read timestamps/counts for operational insight. The public list contract exposes only usable obligation metrics.
 10. Can PRN provide an at-least-once status/calculation-change event (or cursor) with recipient `organisationId`, obligation year, event ID, per-key version, and a replay/bootstrap watermark?
 11. If events replace polling, which source/version/offset guarantees are available for the bootstrap watermark, organisation registrations, Account reference assignment, and PRN changes?

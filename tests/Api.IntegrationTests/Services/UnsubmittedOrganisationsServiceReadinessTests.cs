@@ -3,7 +3,6 @@ using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.OrganisationEligibility;
-using Defra.WasteObligations.Api.Services.OrganisationObligations;
 using Defra.WasteObligations.Testing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -61,7 +60,6 @@ public class UnsubmittedOrganisationsServiceReadinessTests : IntegrationTestBase
                 Microsoft.Extensions.Logging.Abstractions.NullLogger<MongoDbContext>.Instance
             ),
             Options.Create(new OrganisationEligibilityOptions { MaximumAllowedStaleness = TimeSpan.FromHours(2) }),
-            Options.Create(new OrganisationObligationHydrationOptions()),
             _timeProvider,
             logger
         );

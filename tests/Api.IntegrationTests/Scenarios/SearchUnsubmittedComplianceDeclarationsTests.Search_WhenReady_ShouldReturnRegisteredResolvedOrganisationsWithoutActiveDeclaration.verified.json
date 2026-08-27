@@ -5,10 +5,8 @@
       "registrationType": "DirectProducer",
       "organisationName": "Zeta Packaging",
       "organisationReferenceNumber": "100004",
-      "recyclingObligationsMet": null,
-      "obligationCoveragePercentage": 0,
-      "obligationDataState": "Pending",
-      "obligationsAsOf": null
+      "recyclingObligationsMet": true,
+      "obligationCoveragePercentage": 80
     }
   ],
   "total": 2,

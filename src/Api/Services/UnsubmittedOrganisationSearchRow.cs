@@ -17,6 +17,4 @@ public record UnsubmittedOrganisationSearchRow
     public required string ReferenceNumber { get; init; }
     public bool? RecyclingObligationsMet { get; init; }
     public decimal ObligationCoveragePercentage { get; init; }
-    public string ObligationDataState { get; init; } = "Pending";
-    public DateTime? ObligationsAsOf { get; init; }
 }

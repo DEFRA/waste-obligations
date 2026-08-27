@@ -21,10 +21,4 @@ public record UnsubmittedOrganisation
 
     [JsonPropertyName("obligationCoveragePercentage")]
     public decimal ObligationCoveragePercentage { get; init; }
-
-    [JsonPropertyName("obligationDataState")]
-    public required string ObligationDataState { get; init; }
-
-    [JsonPropertyName("obligationsAsOf")]
-    public DateTimeOffset? ObligationsAsOf { get; init; }
 }

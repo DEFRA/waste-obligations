@@ -28,7 +28,6 @@ public static class SearchUnsubmittedComplianceDeclarations
     private static async Task<IResult> Handle(
         [AsParameters] UnsubmittedComplianceDeclarationsRequest request,
         [FromServices] IUnsubmittedOrganisationsService service,
-        [FromServices] ICurrentComplianceYearProvider currentComplianceYearProvider,
         CancellationToken cancellationToken
     )
     {
@@ -38,15 +37,10 @@ public static class SearchUnsubmittedComplianceDeclarations
             return Results.BadRequest("Only OrganisationName sorting is currently supported");
         }
 
-        if (request.ObligationYear!.Value != currentComplianceYearProvider.GetCurrentComplianceYear())
-        {
-            return Results.BadRequest("Only the current compliance year is supported");
-        }
-
         var page = request.EffectivePage;
         var pageSize = request.EffectivePageSize;
         var result = await service.Search(
-            request.ObligationYear!.Value,
+            request.ObligationYear.GetValueOrDefault(),
             request.ParsedRegistrationType(),
             request.Search,
             sort,
@@ -66,8 +60,6 @@ public static class SearchUnsubmittedComplianceDeclarations
                     OrganisationReferenceNumber = x.ReferenceNumber,
                     RecyclingObligationsMet = x.RecyclingObligationsMet,
                     ObligationCoveragePercentage = x.ObligationCoveragePercentage,
-                    ObligationDataState = x.ObligationDataState,
-                    ObligationsAsOf = x.ObligationsAsOf,
                 }),
                 Total = result.Total,
                 Page = page,

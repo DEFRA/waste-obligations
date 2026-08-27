@@ -51,6 +51,8 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
                             RegistrationType = EntityRegistrationType.DirectProducer,
                             Name = "Alpha Packaging",
                             ReferenceNumber = "100001",
+                            RecyclingObligationsMet = true,
+                            ObligationCoveragePercentage = 80,
                         },
                     ],
                     Total = 6,
@@ -235,29 +237,59 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
     }
 
     [Fact]
-    public async Task WhenObligationYearIsNotCurrent_ShouldBeBadRequestWithoutSearching()
+    public async Task WhenObligationYearIsHistoric_ShouldSearchAndReturnResponse()
     {
+        const int obligationYear = 2025;
+        var organisationId = Guid.Parse("c3321717-35ee-4016-a63d-9a0b7c5b27f9");
+        UnsubmittedOrganisationsService
+            .Search(
+                obligationYear,
+                EntityRegistrationType.DirectProducer,
+                null,
+                Arg.Is<IReadOnlyCollection<ComplianceDeclarationSort>>(x => x.Count == 0),
+                page: 1,
+                pageSize: 20,
+                cancellationToken: Arg.Any<CancellationToken>()
+            )
+            .Returns(
+                new UnsubmittedOrganisationSearchResult
+                {
+                    Rows =
+                    [
+                        new UnsubmittedOrganisationSearchRow
+                        {
+                            OrganisationId = organisationId,
+                            ObligationYear = obligationYear,
+                            RegistrationType = EntityRegistrationType.DirectProducer,
+                            Name = "Historic Packaging",
+                            ReferenceNumber = "100003",
+                        },
+                    ],
+                    Total = 1,
+                }
+            );
         var client = CreateClient(testUser: TestUser.ReadOnly);
 
         var response = await client.GetAsync(
             Testing.Endpoints.ComplianceDeclarations.Unsubmitted(
                 EndpointQuery
-                    .New.Where(EndpointFilter.ObligationYear(2025))
+                    .New.Where(EndpointFilter.ObligationYear(obligationYear))
                     .Where(EndpointFilter.RegistrationType("DirectProducer"))
             ),
             TestContext.Current.CancellationToken
         );
 
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        await VerifyJson(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         await UnsubmittedOrganisationsService
-            .DidNotReceive()
+            .Received(1)
             .Search(
-                Arg.Any<int>(),
-                Arg.Any<EntityRegistrationType>(),
-                Arg.Any<string?>(),
-                Arg.Any<IReadOnlyCollection<ComplianceDeclarationSort>>(),
-                Arg.Any<int>(),
-                Arg.Any<int>(),
+                obligationYear,
+                EntityRegistrationType.DirectProducer,
+                null,
+                Arg.Is<IReadOnlyCollection<ComplianceDeclarationSort>>(x => x.Count == 0),
+                page: 1,
+                pageSize: 20,
                 Arg.Any<CancellationToken>()
             );
     }
