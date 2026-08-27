@@ -1,9 +1,11 @@
+using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.OrganisationEligibility;
 using Defra.WasteObligations.Testing;
+using Defra.WasteObligations.Testing.Fixtures.Entities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -208,19 +210,13 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
         string name,
         string? referenceNumber
     ) =>
-        new()
-        {
-            Generation = generation,
-            OrganisationId = organisationId,
-            ObligationYear = 2026,
-            RegistrationType = RegistrationType.DirectProducer,
-            RegistrationStatus = OrganisationRegistrationStatus.Registered,
-            Name = name,
-            ReferenceNumber = referenceNumber,
-            ReferenceNumberResolutionState = OrganisationReferenceNumberResolutionState.Resolved,
-            SourceFingerprint = name,
-            RefreshedAt = DateTime.UtcNow,
-        };
+        OrganisationComplianceDeclarationEligibilityFixture
+            .Default(organisationId)
+            .With(x => x.Generation, generation)
+            .With(x => x.Name, name)
+            .With(x => x.ReferenceNumber, referenceNumber)
+            .With(x => x.SourceFingerprint, name)
+            .Create();
 
     private static ComplianceDeclarationReviewState ReviewState(Guid organisationId, int unsubmittedExclusionCount) =>
         new()

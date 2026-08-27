@@ -1,8 +1,10 @@
+using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.AccountBackend;
 using Defra.WasteObligations.Api.Services.OrganisationEligibility;
+using Defra.WasteObligations.Testing.Fixtures.Entities;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using MongoDB.Bson;
@@ -417,16 +419,13 @@ public class OrganisationReferenceCacheServiceTests : IntegrationTestBase
         int obligationYear,
         string? companiesHouseNumber = "12345678"
     ) =>
-        new()
-        {
-            Generation = "g1",
-            OrganisationId = organisationId,
-            ObligationYear = obligationYear,
-            RegistrationType = registrationType,
-            RegistrationStatus = OrganisationRegistrationStatus.Registered,
-            Name = "Example organisation",
-            CompaniesHouseNumber = companiesHouseNumber,
-            ReferenceNumberResolutionState = OrganisationReferenceNumberResolutionState.Pending,
-            SourceFingerprint = "source-fingerprint",
-        };
+        OrganisationComplianceDeclarationEligibilityFixture
+            .Default(organisationId)
+            .With(x => x.Generation, "g1")
+            .With(x => x.ObligationYear, obligationYear)
+            .With(x => x.RegistrationType, registrationType)
+            .With(x => x.CompaniesHouseNumber, companiesHouseNumber)
+            .Without(x => x.ReferenceNumber)
+            .With(x => x.ReferenceNumberResolutionState, OrganisationReferenceNumberResolutionState.Pending)
+            .Create();
 }

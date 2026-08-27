@@ -1,9 +1,11 @@
 using System.Net;
 using System.Net.Http.Json;
+using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.Testing;
+using Defra.WasteObligations.Testing.Fixtures.Entities;
 
 namespace Defra.WasteObligations.Api.IntegrationTests.Scenarios;
 
@@ -163,17 +165,11 @@ public class SearchUnsubmittedComplianceDeclarationsTests : IntegrationTestBase
         string name,
         string referenceNumber
     ) =>
-        new()
-        {
-            Generation = generation,
-            OrganisationId = organisationId,
-            ObligationYear = 2026,
-            RegistrationType = Defra.WasteObligations.Api.Data.Entities.RegistrationType.DirectProducer,
-            RegistrationStatus = OrganisationRegistrationStatus.Registered,
-            Name = name,
-            ReferenceNumber = referenceNumber,
-            ReferenceNumberResolutionState = OrganisationReferenceNumberResolutionState.Resolved,
-            SourceFingerprint = name,
-            RefreshedAt = DateTime.UtcNow,
-        };
+        OrganisationComplianceDeclarationEligibilityFixture
+            .Default(organisationId)
+            .With(x => x.Generation, generation)
+            .With(x => x.Name, name)
+            .With(x => x.ReferenceNumber, referenceNumber)
+            .With(x => x.SourceFingerprint, name)
+            .Create();
 }

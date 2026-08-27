@@ -1,6 +1,8 @@
+using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.OrganisationEligibility;
+using Defra.WasteObligations.Testing.Fixtures.Entities;
 using OrganisationComplianceDeclarationEligibilityEntity = Defra.WasteObligations.Api.Data.Entities.OrganisationComplianceDeclarationEligibility;
 
 namespace Defra.WasteObligations.Api.Tests.Services.OrganisationEligibility;
@@ -86,17 +88,14 @@ public class OrganisationEligibilitySnapshotContentBuilderTests
         Guid organisationId,
         RegistrationType registrationType = RegistrationType.DirectProducer
     ) =>
-        new()
-        {
-            Generation = "g1",
-            OrganisationId = organisationId,
-            ObligationYear = 2026,
-            RegistrationType = registrationType,
-            RegistrationStatus = OrganisationRegistrationStatus.Registered,
-            Name = "Example organisation",
-            ReferenceNumberResolutionState = OrganisationReferenceNumberResolutionState.Pending,
-            SourceFingerprint = $"source-{organisationId:D}",
-        };
+        OrganisationComplianceDeclarationEligibilityFixture
+            .Default(organisationId)
+            .With(x => x.Generation, "g1")
+            .With(x => x.RegistrationType, registrationType)
+            .Without(x => x.ReferenceNumber)
+            .With(x => x.ReferenceNumberResolutionState, OrganisationReferenceNumberResolutionState.Pending)
+            .With(x => x.SourceFingerprint, $"source-{organisationId:D}")
+            .Create();
 
     private static OrganisationReferenceCache CreateCache(
         OrganisationComplianceDeclarationEligibilityEntity row,
