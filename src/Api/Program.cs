@@ -65,7 +65,7 @@ try
     builder.Services.AddConsumers(builder.Configuration, !integrationTest && !openApiBuild);
     builder.Services.AddSingleton<IEntityJsonSchemaProvider, EmbeddedEntityJsonSchemaProvider>();
     builder.Services.AddTransient<IComplianceDeclarationService, ComplianceDeclarationService>();
-    builder.Services.AddTransient<ComplianceDeclarationReviewStateService>();
+    builder.Services.AddTransient<IComplianceDeclarationReviewStateService, ComplianceDeclarationReviewStateService>();
     builder.Services.AddTransient<
         IComplianceDeclarationReviewStateBackfillService,
         ComplianceDeclarationReviewStateBackfillService

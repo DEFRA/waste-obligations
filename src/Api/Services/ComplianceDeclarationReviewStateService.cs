@@ -4,7 +4,7 @@ using MongoDB.Driver;
 
 namespace Defra.WasteObligations.Api.Services;
 
-public class ComplianceDeclarationReviewStateService(IDbContext dbContext)
+public class ComplianceDeclarationReviewStateService(IDbContext dbContext) : IComplianceDeclarationReviewStateService
 {
     public async Task Refresh(
         IClientSessionHandle transactionSession,
@@ -13,7 +13,7 @@ public class ComplianceDeclarationReviewStateService(IDbContext dbContext)
         CancellationToken cancellationToken
     )
     {
-        var keys = declarations.Select(ReviewStateKey.From).Distinct();
+        var keys = declarations.Select(ComplianceDeclarationReviewStateKey.From).Distinct();
 
         foreach (var key in keys)
         {
@@ -49,11 +49,5 @@ public class ComplianceDeclarationReviewStateService(IDbContext dbContext)
                 cancellationToken: cancellationToken
             );
         }
-    }
-
-    private sealed record ReviewStateKey(Guid OrganisationId, int ObligationYear, RegistrationType RegistrationType)
-    {
-        public static ReviewStateKey From(ComplianceDeclaration declaration) =>
-            new(declaration.Organisation.Id, declaration.ObligationYear, declaration.Organisation.RegistrationType);
     }
 }

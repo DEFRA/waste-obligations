@@ -7,9 +7,3 @@ public record OrganisationEligibilityRefreshResult
     public required int RowCount { get; init; }
     public required string ContentFingerprint { get; init; }
 }
-
-public enum OrganisationEligibilityRefreshOutcome
-{
-    Promoted,
-    Unchanged,
-}

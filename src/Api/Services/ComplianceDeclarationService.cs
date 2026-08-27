@@ -16,13 +16,11 @@ public class ComplianceDeclarationService(
     IAuditEventService auditEventService,
     IComplianceDeclarationMetrics complianceDeclarationMetrics,
     TraceIdReader traceIdReader,
-    ComplianceDeclarationReviewStateService? complianceDeclarationReviewStateService = null
+    IComplianceDeclarationReviewStateService complianceDeclarationReviewStateService
 ) : IComplianceDeclarationService
 {
     private const string Actor = "service:waste-obligations";
     private const string ComplianceDeclarationEntity = "compliance_declaration";
-    private readonly ComplianceDeclarationReviewStateService _complianceDeclarationReviewStateService =
-        complianceDeclarationReviewStateService ?? new ComplianceDeclarationReviewStateService(dbContext);
 
     public async Task<ComplianceDeclaration> Create(
         ComplianceDeclaration complianceDeclaration,
@@ -41,7 +39,7 @@ public class ComplianceDeclarationService(
                     cancellationToken: transactionCancellationToken
                 );
 
-                await _complianceDeclarationReviewStateService.Refresh(
+                await complianceDeclarationReviewStateService.Refresh(
                     transactionSession,
                     [complianceDeclaration],
                     utcNow,
@@ -142,7 +140,7 @@ public class ComplianceDeclarationService(
                         $"Concurrency issue on delete, compliance declaration with id '{current.Id}' was not deleted"
                     );
 
-                await _complianceDeclarationReviewStateService.Refresh(
+                await complianceDeclarationReviewStateService.Refresh(
                     transactionSession,
                     [current],
                     timeProvider.GetUtcNowWithoutMicroseconds(),
@@ -264,7 +262,7 @@ public class ComplianceDeclarationService(
                         $"Concurrency issue on write, compliance declaration with id '{current.Id}' was not updated"
                     );
 
-                await _complianceDeclarationReviewStateService.Refresh(
+                await complianceDeclarationReviewStateService.Refresh(
                     transactionSession,
                     [current, updated],
                     updated.Updated,

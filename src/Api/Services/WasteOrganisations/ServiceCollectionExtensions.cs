@@ -16,7 +16,7 @@ public static class ServiceCollectionExtensions
         services.AddOptions<WasteOrganisationsOptions>().BindConfiguration(name).ValidateDataAnnotations();
         services.AddOptions<HttpStandardResilienceOptions>(name).BindConfiguration(name);
 
-        var requestClient = services
+        services
             .AddHttpClient<IWasteOrganisationsService, WasteOrganisationsService>()
             .ConfigureHttpClient(
                 (sp, httpClient) =>
@@ -24,9 +24,9 @@ public static class ServiceCollectionExtensions
                     sp.GetRequiredService<IOptions<WasteOrganisationsOptions>>().Value.Configure(httpClient);
                     httpClient.ConfigureForResiliencePipeline(addResiliencePipeline);
                 }
-            );
-
-        requestClient.AddHeaderPropagation().AddResiliencePipeline(addResiliencePipeline, name);
+            )
+            .AddHeaderPropagation()
+            .AddResiliencePipeline(addResiliencePipeline, name);
 
         services
             .AddHttpClient<IOrganisationEligibilitySource, WasteOrganisationsService>()

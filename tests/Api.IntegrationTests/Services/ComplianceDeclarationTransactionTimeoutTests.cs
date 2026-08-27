@@ -42,12 +42,13 @@ public class ComplianceDeclarationTransactionTimeoutTests : IAsyncLifetime
     {
         var complianceDeclarationMetrics = Substitute.For<IComplianceDeclarationMetrics>();
         var mongoDbLogger = new RecordingLogger<MongoDbContext>();
+        var dbContext = new MongoDbContext(
+            _database,
+            Options.Create(new MongoDbOptions { TransactionTimeoutSeconds = 1 }),
+            mongoDbLogger
+        );
         var subject = new ComplianceDeclarationService(
-            new MongoDbContext(
-                _database,
-                Options.Create(new MongoDbOptions { TransactionTimeoutSeconds = 1 }),
-                mongoDbLogger
-            ),
+            dbContext,
             Substitute.For<ILogger<ComplianceDeclarationService>>(),
             TimeProvider.System,
             new WaitingAuditEventService(),
@@ -55,7 +56,8 @@ public class ComplianceDeclarationTransactionTimeoutTests : IAsyncLifetime
             new TraceIdReader(
                 new HeaderPropagationValues(),
                 Options.Create(new TraceHeader { Name = "x-cdp-request-id" })
-            )
+            ),
+            new ComplianceDeclarationReviewStateService(dbContext)
         );
         var complianceDeclaration = ComplianceDeclarationFixture.Default().Create();
         var act = async () => await subject.Create(complianceDeclaration, TestContext.Current.CancellationToken);
