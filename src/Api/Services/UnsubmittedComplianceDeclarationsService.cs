@@ -189,7 +189,7 @@ public class UnsubmittedComplianceDeclarationsService(
         };
     }
 
-    private static IReadOnlyList<UnsubmittedComplianceDeclarationSearchRow> ReadRows(BsonDocument document) =>
+    private static List<UnsubmittedComplianceDeclarationSearchRow> ReadRows(BsonDocument document) =>
         document["rows"]
             .AsBsonArray.Select(x =>
                 BsonSerializer.Deserialize<UnsubmittedComplianceDeclarationSearchRow>(x.AsBsonDocument)

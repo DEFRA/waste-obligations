@@ -60,10 +60,10 @@ public static class OrganisationEligibilitySnapshotContentBuilder
         };
     }
 
-    private static string CalculateFingerprint(IReadOnlyCollection<Data.Entities.OrganisationEligibility> rows)
+    private static string CalculateFingerprint(Data.Entities.OrganisationEligibility[] rows)
     {
         var content = new StringBuilder("organisation-eligibility-content-v1");
-        Append(content, rows.Count.ToString(CultureInfo.InvariantCulture));
+        Append(content, rows.Length.ToString(CultureInfo.InvariantCulture));
 
         foreach (var row in rows)
         {

@@ -164,7 +164,11 @@ public class OrganisationReferenceCacheService(
         }
     }
 
-    private SynchronisedCache Synchronise(Source source, OrganisationReferenceCache? existingCache, DateTime utcNow)
+    private static SynchronisedCache Synchronise(
+        Source source,
+        OrganisationReferenceCache? existingCache,
+        DateTime utcNow
+    )
     {
         if (existingCache is null)
         {
@@ -228,17 +232,17 @@ public class OrganisationReferenceCacheService(
 
     private OrganisationReferenceCache Resolve(
         OrganisationReferenceCache cache,
-        IReadOnlyCollection<AccountOrganisation> matches,
+        AccountOrganisation[] matches,
         DateTime utcNow
     ) =>
-        matches.Count switch
+        matches.Length switch
         {
             0 => NotFound(cache, utcNow),
             1 => Resolved(cache, matches.Single(), utcNow),
             _ => Ambiguous(cache, utcNow),
         };
 
-    private OrganisationReferenceCache Resolved(
+    private static OrganisationReferenceCache Resolved(
         OrganisationReferenceCache cache,
         AccountOrganisation accountOrganisation,
         DateTime utcNow
@@ -275,7 +279,7 @@ public class OrganisationReferenceCacheService(
             LastFailure = null,
         };
 
-    private OrganisationReferenceCache Ambiguous(OrganisationReferenceCache cache, DateTime utcNow) =>
+    private static OrganisationReferenceCache Ambiguous(OrganisationReferenceCache cache, DateTime utcNow) =>
         cache with
         {
             ReferenceNumber = null,

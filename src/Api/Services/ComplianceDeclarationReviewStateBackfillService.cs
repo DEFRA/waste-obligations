@@ -9,6 +9,7 @@ public class ComplianceDeclarationReviewStateBackfillService(IDbContext dbContex
     : IComplianceDeclarationReviewStateBackfillService
 {
     private const int BatchSize = 500;
+    private const string IfNull = "$ifNull";
 
     public async Task<ComplianceDeclarationReviewStateBackfillResult> Backfill(CancellationToken cancellationToken)
     {
@@ -78,7 +79,7 @@ public class ComplianceDeclarationReviewStateBackfillService(IDbContext dbContex
             "$lt",
             new BsonArray
             {
-                new BsonDocument("$ifNull", new BsonArray { "$updatedAt", DateTime.MinValue }),
+                new BsonDocument(IfNull, new BsonArray { "$updatedAt", DateTime.MinValue }),
                 backfillStartedAt,
             }
         );
@@ -90,7 +91,7 @@ public class ComplianceDeclarationReviewStateBackfillService(IDbContext dbContex
                     new BsonDocument
                     {
                         ["organisationId"] = new BsonDocument(
-                            "$ifNull",
+                            IfNull,
                             new BsonArray
                             {
                                 "$organisationId",
@@ -98,11 +99,11 @@ public class ComplianceDeclarationReviewStateBackfillService(IDbContext dbContex
                             }
                         ),
                         ["obligationYear"] = new BsonDocument(
-                            "$ifNull",
+                            IfNull,
                             new BsonArray { "$obligationYear", state.Key.ObligationYear }
                         ),
                         ["registrationType"] = new BsonDocument(
-                            "$ifNull",
+                            IfNull,
                             new BsonArray { "$registrationType", state.Key.RegistrationType.ToString() }
                         ),
                         ["unsubmittedExclusionCount"] = new BsonDocument(

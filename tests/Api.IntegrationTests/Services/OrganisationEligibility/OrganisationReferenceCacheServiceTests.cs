@@ -120,9 +120,10 @@ public class OrganisationReferenceCacheServiceTests : IntegrationTestBase
     public async Task SynchroniseAndResolve_WhenSchemeHasMultipleMatchingAccountOrganisations_ShouldMarkAmbiguous()
     {
         var organisationId = Guid.NewGuid();
+        var companiesHouseNumbers = new[] { "12345678" };
         OrganisationReferenceSearchService
             .SearchOrganisationsByCompaniesHouseNumbers(
-                Arg.Is<IReadOnlyCollection<string>>(x => x.SequenceEqual(new[] { "12345678" })),
+                Arg.Is<IReadOnlyCollection<string>>(x => x.SequenceEqual(companiesHouseNumbers)),
                 Arg.Any<CancellationToken>()
             )
             .Returns(
@@ -316,6 +317,7 @@ public class OrganisationReferenceCacheServiceTests : IntegrationTestBase
     public async Task SynchroniseAndResolve_WhenSchemeGainsCompaniesHouseNumber_ShouldResolveItsReference()
     {
         var organisationId = Guid.NewGuid();
+        var companiesHouseNumbers = new[] { "12345678" };
         await OrganisationReferenceCaches.InsertOneAsync(
             new OrganisationReferenceCache
             {
@@ -330,7 +332,7 @@ public class OrganisationReferenceCacheServiceTests : IntegrationTestBase
         );
         OrganisationReferenceSearchService
             .SearchOrganisationsByCompaniesHouseNumbers(
-                Arg.Is<IReadOnlyCollection<string>>(x => x.SequenceEqual(new[] { "12345678" })),
+                Arg.Is<IReadOnlyCollection<string>>(x => x.SequenceEqual(companiesHouseNumbers)),
                 Arg.Any<CancellationToken>()
             )
             .Returns(

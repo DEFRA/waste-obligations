@@ -146,7 +146,7 @@ public class RefreshOrganisationEligibilityFromDownstreamServicesTests : Integra
         return services.BuildServiceProvider();
     }
 
-    private OrganisationEligibilityRefreshService CreateSubject(IServiceProvider serviceProvider)
+    private static OrganisationEligibilityRefreshService CreateSubject(IServiceProvider serviceProvider)
     {
         var dbContext = new MongoDbContext(
             GetMongoDatabase(),
