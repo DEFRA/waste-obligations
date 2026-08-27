@@ -474,7 +474,7 @@ On a changed organisation generation, restrict all obligation work to `obligatio
 3. The obligation worker selects a bounded due batch, calls `IPrnCommonBackendService.ReadObligations` for each key with deliberately low, configurable concurrency, maps the result, calculates the summary, and upserts it. A result with an unchanged `sourceFingerprint` updates freshness timestamps but need not rewrite the metric fields.
 4. A transient PRN failure records `Failed` and uses capped exponential back-off. It does not alter declaration presence or organisation eligibility. A successful empty response is `Ready`, not a failure.
 5. Schedule every `Ready` current-year summary for its next read at `lastSuccessfulReadAt + RefreshInterval`. Do **not** wait for, or poll for, a PRN-state signal. A change in either source input is picked up at that organisation's next scheduled read.
-6. Spread the due times deterministically over each interval, for example by using a stable hash of `{ organisationId, obligationYear }` as a slot within the interval. For `K = 500` and a 30-minute interval this makes about 17 calls due each minute, rather than a 500-call burst at one clock time. The worker claims small due batches under its lease and uses a conservative downstream concurrency/rate limit.
+6. Spread the due times deterministically over each interval, for example by using a stable hash of `{ organisationId, obligationYear }` as a slot within the interval. For the initial assumption of `K = 500` and a 30-minute interval this makes about 17 calls due each minute, rather than a 500-call burst at one clock time. The worker claims small due batches under its lease and uses a shared, paced limit of 20 downstream requests per minute with low concurrency (initially two requests). New-organisation reads and retries consume the same limit; the limit must not be bypassed by a separate retry path.
 7. Do **not** poll individual PRNs or poll a PRN-change feed in this implementation. There is no suitable PRN-state trigger today, and such polling would create unacceptable volume. A PRN state change and a daily `ObligationCalculation` change are both reflected no later than the next rolling organisation-obligation read, subject to retry/failure handling.
 8. Retain a low-frequency full current-year `Reconciliation` sweep only as repair for failed work or projection drift. It is not an additional near-real-time polling mechanism.
 
@@ -519,7 +519,7 @@ There is no initial scan of `GET /compliance-declarations`, no request to `epr-p
 
 `g1` can be promoted once source rows and Account outcomes are recorded. `GET /compliance-declarations/unsubmitted` can then return its eligible unsubmitted organisations immediately, without waiting for the 500 organisation-obligation calculation calls. Until an individual summary is hydrated, that row returns percentage met `0`, recycling-obligations status `null`, and `obligationDataState: "Pending"`. It is still entirely served from local Mongo.
 
-The organisation-obligation calculation endpoint has no batch operation, so initial duration is determined by configured downstream concurrency rather than request count alone. With maximum concurrency `C`, the worker needs at least `ceil(500 / C)` request waves. For example, `C = 10` means 50 waves and `C = 20` means 25 waves. The measured downstream latency, timeout, throttling policy, and Mongo-upsert time determine the actual bootstrap duration; do not publish a time SLA before load testing. The worker should be signalled immediately when `g1` is promoted and continue draining due work under its lease, rather than wait for the next periodic stale-sweep tick.
+The organisation-obligation calculation endpoint has no batch operation. With the initial shared cap of 20 requests per minute, the 500-key bootstrap takes at least 25 minutes, before downstream latency, timeout, throttling, and Mongo-upsert time are considered. Low concurrency bounds short bursts; the paced rate limit bounds the aggregate request volume. Do not publish a bootstrap time SLA before production-like load testing. The worker should be signalled immediately when `g1` is promoted and continue draining due work under its lease, rather than wait for the next periodic stale-sweep tick.
 
 The recommended initial `RefreshInterval` is **30 minutes**. It is a balanced starting point for roughly 500 organisations: every organisation's current obligations are at most about 30 minutes plus queue/retry delay behind either a PRN state change or the daily obligation-calculation update, while the normal downstream rate stays low and even.
 
@@ -529,9 +529,15 @@ The recommended initial `RefreshInterval` is **30 minutes**. It is a balanced st
 | **30 minutes** | **500 every 30 minutes** | **17/minute (0.28 req/s)** | **24,000/day** | **Recommended initial window.** |
 | 60 minutes | 500 every 60 minutes | 8–9/minute (0.14 req/s) | 12,000/day | Lower load, but too stale for a user-driven accept/reject outcome. |
 
-Use a short worker wake-up/lease-attempt interval (for example one minute) only to claim due, new-organisation, or retry work. It does not cause downstream reads when no work is due. For the recommended interval, spread the 500 calls across the 30-minute window, process at a conservative configured concurrency (initially, for example, five), and apply a client-side rate limit. This is a controlled average of 17 calls per minute, not a 500-call burst. Confirm the concurrency and rate limit with a production-like load test and the PRN backend owners before fixing the values.
+Use a short worker wake-up/lease-attempt interval (for example one minute) only to claim due, new-organisation, or retry work. It does not cause downstream reads when no work is due. For the recommended interval, spread the 500 calls across the 30-minute window, process at low configured concurrency (initially two), and enforce a shared, paced 20-requests-per-minute client-side rate limit. This is a controlled average of 17 calls per minute, not a 500-call burst. The cap leaves about 3 requests per minute of normal headroom for retries and newly eligible organisations. Confirm the downstream behaviour with a production-like load test and the PRN backend owners.
 
 A new eligible organisation gets one immediate calculation read. A source-only change such as a name change reuses the current summary and adds none. A declaration submission/cancellation updates local declaration state immediately and adds none. The trade-off is explicit: this does **not** make PRN status live; a status change is normally visible at the organisation's next 30-minute read. If a future durable PRN-state event becomes available, it can enqueue one affected organisation/year calculation read, but it is not part of this initial design and does not justify polling for PRN changes now.
+
+#### Future consideration: weighted refresh frequency
+
+The initial policy intentionally gives every current-year organisation the same 30-minute target. If the active population grows beyond the assumed 500 keys, do not increase the global request cap or silently lengthen every organisation's refresh interval without an explicit capacity and business decision. For example, 1,000 keys require an average 33 requests per minute and 2,000 keys require 67 requests per minute to retain a 30-minute target; at the initial 20-per-minute cap they cannot do so.
+
+A future policy may assign a longer normal refresh interval to lower-impact organisations while retaining a global cap. It should be based on agreed local inputs, such as the registration type and the annual obligated tonnage from the last successful summary, rather than a guess based on organisation type alone. The business must define the bucket thresholds, maximum staleness per bucket, bootstrap treatment before a first successful read, reclassification rules, fairness/starvation guarantees, and how the policy is exposed in monitoring. Until that work is agreed, every organisation uses the same interval and a state-changing retry continues to use the shared capped quota.
 
 #### Serving, CSV, and future metric sorting
 
@@ -833,9 +839,9 @@ ComplianceObligationHydration
   RefreshIntervalMinutes         // 30 initially recommended; polls each current-year organisation's calculated obligations
   MaximumSummaryStaleness        // refresh interval plus tolerated queue/retry/recovery margin; alert/retry threshold, not endpoint gate
   WorkerWakeIntervalMinutes      // short interval to acquire the lease and drain newly due/retry work
-  MaxDownstreamRequestsPerMinute // 20 initial proposal; exceeds the ~17/minute steady need without allowing bursts
+  MaxDownstreamRequestsPerMinute // 20 initial setting for 500 organisations refreshed every 30 minutes; shared and paced across new, scheduled, and retry work
   BatchSize
-  MaxConcurrency
+  MaxConcurrency                // 2 initially; bounds short downstream bursts independently of the rate cap
   RequestTimeout
   RetryBackoff
   LeaseDuration
