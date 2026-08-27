@@ -20,6 +20,9 @@ namespace Defra.WasteObligations.Api.Tests.Services.PrnCommonBackend;
 
 public class PrnCommonBackendServiceTests : WireMockTestBase
 {
+    private const string TraceHeaderName = "x-cdp-request-id";
+    private const string TraceId = "trace-id";
+
     private ServiceCollection Services { get; }
 
     public PrnCommonBackendServiceTests(WireMockContext context)
@@ -38,6 +41,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
 
         Services = [];
         Services.AddHttpContextAccessor();
+        Services.AddHeaderPropagation(options => options.Headers.Add(TraceHeaderName));
         Services.AddPrnCommonBackendService();
         Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(config).Build());
         Services.TryAddSingleton<HeaderPropagationValues>();
@@ -50,6 +54,16 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
         await using var sp = Services.BuildServiceProvider();
 
         var service = sp.GetService<IPrnCommonBackendService>();
+
+        service.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task OrganisationObligationSource_ShouldNotBeNull()
+    {
+        await using var sp = Services.BuildServiceProvider();
+
+        var service = sp.GetService<IOrganisationObligationSource>();
 
         service.Should().NotBeNull();
     }
@@ -83,6 +97,54 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
         latency.PrnTokenDurationMilliseconds.Should().BeGreaterThan(0);
         latency.PrnObligationCalculationDurationMilliseconds.Should().BeGreaterThan(0);
         latency.PrnCommonBackendDurationMilliseconds.Should().BeGreaterThan(latency.PrnTokenDurationMilliseconds);
+    }
+
+    [Fact]
+    public async Task ReadObligations_ShouldPropagateTraceHeader()
+    {
+        await using var sp = Services.BuildServiceProvider();
+
+        var service = sp.GetRequiredService<IPrnCommonBackendService>();
+        sp.GetRequiredService<HeaderPropagationValues>().Headers = new Dictionary<string, StringValues>
+        {
+            [TraceHeaderName] = TraceId,
+        };
+        const int year = 2026;
+
+        WireMock.StubTokenRequest();
+        WireMock.StubPrnCommonBackendObligationsRequest(year, ObligationFixture.OrganisationId.ToString("D"));
+
+        await service.ReadObligations(ObligationFixture.OrganisationId, year, TestContext.Current.CancellationToken);
+
+        var request = WireMock
+            .LogEntries.Single(x => x.RequestMessage?.Path == $"/api/v1/prn/obligationcalculation/{year}")
+            .RequestMessage;
+        request.Should().NotBeNull();
+        request!.Headers.Should().ContainKey(TraceHeaderName).WhoseValue.Should().Contain(TraceId);
+    }
+
+    [Fact]
+    public async Task OrganisationObligationSource_ShouldNotPropagateTraceHeader()
+    {
+        await using var sp = Services.BuildServiceProvider();
+
+        var service = sp.GetRequiredService<IOrganisationObligationSource>();
+        sp.GetRequiredService<HeaderPropagationValues>().Headers = new Dictionary<string, StringValues>
+        {
+            [TraceHeaderName] = TraceId,
+        };
+        const int year = 2026;
+
+        WireMock.StubTokenRequest();
+        WireMock.StubPrnCommonBackendObligationsRequest(year, ObligationFixture.OrganisationId.ToString("D"));
+
+        await service.ReadObligations(ObligationFixture.OrganisationId, year, TestContext.Current.CancellationToken);
+
+        var request = WireMock
+            .LogEntries.Single(x => x.RequestMessage?.Path == $"/api/v1/prn/obligationcalculation/{year}")
+            .RequestMessage;
+        request.Should().NotBeNull();
+        request!.Headers.Should().NotContainKey(TraceHeaderName);
     }
 
     [Fact]
