@@ -166,6 +166,80 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Search_WhenObligationSummariesHaveDifferentFreshnessStates_ShouldReturnTheirLastKnownMetrics()
+    {
+        const string generation = "generation";
+        var readyOrganisationId = Guid.NewGuid();
+        var failedOrganisationId = Guid.NewGuid();
+        var staleOrganisationId = Guid.NewGuid();
+        var summaryStaleness = TimeSpan.FromHours(2);
+        var readyAsOf = _timeProvider.GetUtcNow().Subtract(summaryStaleness).UtcDateTime;
+        var failedAsOf = _timeProvider.GetUtcNow().AddMinutes(-30).UtcDateTime;
+        var staleAsOf = _timeProvider.GetUtcNow().Subtract(summaryStaleness).AddSeconds(-1).UtcDateTime;
+        await SetReadySnapshot(generation);
+        await OrganisationComplianceDeclarationEligibilities.InsertManyAsync(
+            [
+                Eligibility(readyOrganisationId, generation, "Ready Packaging", "100001"),
+                Eligibility(failedOrganisationId, generation, "Failed Packaging", "100002"),
+                Eligibility(staleOrganisationId, generation, "Stale Packaging", "100003"),
+            ],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        await OrganisationObligationSummaries.InsertManyAsync(
+            [
+                Summary(
+                    readyOrganisationId,
+                    OrganisationObligationRefreshState.Ready,
+                    readyAsOf,
+                    recyclingObligationsMet: true,
+                    obligationCoveragePercentage: 80
+                ),
+                Summary(
+                    failedOrganisationId,
+                    OrganisationObligationRefreshState.Failed,
+                    failedAsOf,
+                    recyclingObligationsMet: false,
+                    obligationCoveragePercentage: 40
+                ),
+                Summary(
+                    staleOrganisationId,
+                    OrganisationObligationRefreshState.Ready,
+                    staleAsOf,
+                    recyclingObligationsMet: true,
+                    obligationCoveragePercentage: 60
+                ),
+            ],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        var subject = CreateSubject();
+
+        var result = await subject.Search(
+            2026,
+            RegistrationType.DirectProducer,
+            null,
+            [],
+            page: 1,
+            pageSize: 20,
+            TestContext.Current.CancellationToken
+        );
+
+        result.Total.Should().Be(3);
+        var rows = result.Rows.ToDictionary(x => x.OrganisationId);
+        rows[readyOrganisationId].RecyclingObligationsMet.Should().BeTrue();
+        rows[readyOrganisationId].ObligationCoveragePercentage.Should().Be(80);
+        rows[readyOrganisationId].ObligationDataState.Should().Be("Ready");
+        rows[readyOrganisationId].ObligationsAsOf.Should().Be(readyAsOf);
+        rows[failedOrganisationId].RecyclingObligationsMet.Should().BeFalse();
+        rows[failedOrganisationId].ObligationCoveragePercentage.Should().Be(40);
+        rows[failedOrganisationId].ObligationDataState.Should().Be("Failed");
+        rows[failedOrganisationId].ObligationsAsOf.Should().Be(failedAsOf);
+        rows[staleOrganisationId].RecyclingObligationsMet.Should().BeTrue();
+        rows[staleOrganisationId].ObligationCoveragePercentage.Should().Be(60);
+        rows[staleOrganisationId].ObligationDataState.Should().Be("Stale");
+        rows[staleOrganisationId].ObligationsAsOf.Should().Be(staleAsOf);
+    }
+
+    [Fact]
     public async Task Search_WhenNoActiveGeneration_ShouldReturnAnEmptyPageAndLogAnError()
     {
         var logger = new RecordingLogger<UnsubmittedOrganisationsService>();
@@ -308,5 +382,28 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
             RegistrationType = RegistrationType.DirectProducer,
             UnsubmittedExclusionCount = unsubmittedExclusionCount,
             UpdatedAt = DateTime.UtcNow,
+        };
+
+    private OrganisationObligationSummary Summary(
+        Guid organisationId,
+        OrganisationObligationRefreshState refreshState,
+        DateTime lastSuccessfulReadAt,
+        bool recyclingObligationsMet,
+        decimal obligationCoveragePercentage
+    ) =>
+        new()
+        {
+            OrganisationId = organisationId,
+            ObligationYear = 2026,
+            ObligationCount = 1,
+            TotalAcceptedTonnage = 4,
+            TotalObligatedTonnage = 5,
+            RecyclingObligationsMet = recyclingObligationsMet,
+            ObligationCoveragePercentage = obligationCoveragePercentage,
+            SourceFingerprint = "summary-fingerprint",
+            LastSuccessfulReadAt = lastSuccessfulReadAt,
+            LastAttemptedAt = _timeProvider.GetUtcNow().UtcDateTime,
+            NextRefreshAt = _timeProvider.GetUtcNow().UtcDateTime,
+            RefreshState = refreshState,
         };
 }

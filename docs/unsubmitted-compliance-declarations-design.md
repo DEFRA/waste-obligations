@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-**Status:** implementation in progress. The local eligibility snapshot, Account-reference materialisation, declaration-review-state projection, unsubmitted query endpoint with generic search, and organisation-obligation summary hydration/polling are implemented in this branch. `Unsubmitted` remains an inferred review state rather than a compliance-declaration status.
+**Status:** the initial server-side delivery is implemented in this branch: the local eligibility snapshot, Account-reference materialisation, declaration-review-state projection, unsubmitted query endpoint with generic search, and organisation-obligation summary hydration/polling. The later event-driven and operational-insight sections remain future design considerations. `Unsubmitted` remains an inferred review state rather than a compliance-declaration status.
 
 The proposed delivery is a local, refreshable copy of the Waste Organisations eligibility data in Waste Obligations, a local declaration-presence projection maintained as declarations change, and a separately refreshed organisation-obligation summary. Together they support a server-side query for the **Not submitted** review tab and CSV download.
 
@@ -949,7 +949,7 @@ The endpoint accepts only these query parameters in this first design:
 | --- | --- |
 | `obligationYear` | Required integer and must equal the calculated `currentComplianceYear`. Return `400` for a historic or future year: this endpoint's metric contract is maintained only for the current compliance year. |
 | `registrationType` | Required single value: `DirectProducer` or `ComplianceScheme`. It identifies the review tab; it is not a comma-separated multi-type search in this first endpoint. |
-| `search` | Optional generic organisation search. It follows the current declaration search pattern: escaped, case-insensitive contains matching across raw fields available in this projection; require a bounded non-empty term (initial proposal: 2–100 characters). |
+| `search` | Optional generic organisation search, limited to 100 characters. It follows the current declaration search pattern: escaped, case-insensitive contains matching across raw fields available in this projection. An empty or whitespace-only term is treated as no search filter. |
 | `page` | Optional 1-based page number; default `1`. |
 | `pageSize` | Optional; default `20`, range `1`–`100`, matching declaration search. |
 | `sort` | Optional and uses the existing `Field[asc|desc]` syntax. Its field allow-list is deliberately **TBD**. Until fields are agreed, use a deterministic default of raw organisation name then organisation ID. |
@@ -1018,7 +1018,7 @@ For an unsubmitted query with a term, apply the work in this order:
 
 The generic search filter comes before the declaration-state lookup, so a narrow term reduces downstream state lookups. However, contains regex has to inspect every base candidate `C` permitted by steps 1–2; total-count semantics mean it cannot stop once the visible page is full. Its normal operation is therefore `O(C)` candidate inspection, followed by sorting the matching subset and only then the declaration-state lookups. This is the same fundamental limitation as current declaration search, but `C` for unsubmitted organisations may be substantially larger and needs production-cardinality load tests.
 
-The eligibility compound index is `{ generation, obligationYear, reviewType, registrationStatus, referenceResolutionState, name, organisationId }`. It narrows the base candidate set and supports raw-name candidate ordering. It cannot make an unanchored search regex seekable. Do not add a speculative name/trading-name/reference-number index for this contains predicate; it adds write/storage cost without solving the scan. Enforce a minimum/maximum term length, escape it as a literal regex, debounce the frontend request, set server-side query timeouts, and measure `C`, scan duration, and result count.
+The eligibility compound index is `{ generation, obligationYear, reviewType, registrationStatus, referenceResolutionState, name, organisationId }`. It narrows the base candidate set and supports raw-name candidate ordering. It cannot make an unanchored search regex seekable. Do not add a speculative name/trading-name/reference-number index for this contains predicate; it adds write/storage cost without solving the scan. Request validation enforces the 100-character maximum; escape the term as a literal regex, debounce the frontend request, set server-side query timeouts, and measure `C`, scan duration, and result count.
 
 Any future improvement to generic search is deliberately a separate design decision for the wider system. An ordinary Mongo `$in` query is fast only for exact stored values; it cannot retain arbitrary partial contains behaviour. Prefix/token search, n-gram indexing, or a dedicated search capability each change the data/UX/operational trade-off and should be evaluated only if measurements show this current-style query is inadequate.
 
@@ -1188,6 +1188,6 @@ The organisation-obligation summary is deliberately outside the organisation sna
 6. Can Account provide and support an explicit maximum batch size and concurrency expectation for both lookup endpoints?
 7. Is there a guaranteed single active `isComplianceScheme=true` Account organisation for a Companies House number? If not, who owns resolving an ambiguous match?
 8. What reference-coverage policy applies: must initial bootstrap reach 100% before the endpoint is available, and should later unresolved new rows cause `503`, a visible exclusion warning, or both?
-9. Should `obligationDataState` be part of the public response from the first release, or retained internally while the frontend simply renders the safe zero/default value?
+9. Resolved: `obligationDataState` is part of the public response so clients can distinguish a safe zero/default from a ready, failed, or stale summary.
 10. Can PRN provide an at-least-once status/calculation-change event (or cursor) with recipient `organisationId`, obligation year, event ID, per-key version, and a replay/bootstrap watermark?
 11. If events replace polling, which source/version/offset guarantees are available for the bootstrap watermark, organisation registrations, Account reference assignment, and PRN changes?
