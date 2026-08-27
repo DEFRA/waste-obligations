@@ -46,9 +46,9 @@ public static class OrganisationObligationSummaryMapper
         };
     }
 
-    private static bool? CalculateRecyclingObligationsMet(IReadOnlyCollection<PrnObligation> obligations)
+    private static bool? CalculateRecyclingObligationsMet(PrnObligation[] obligations)
     {
-        if (obligations.Count == 0 || obligations.All(x => x.Status == ObligationStatus.NoDataYet))
+        if (obligations.Length == 0 || obligations.All(x => x.Status == ObligationStatus.NoDataYet))
             return null;
 
         return !obligations.Any(x => x.Status == ObligationStatus.NotMet);

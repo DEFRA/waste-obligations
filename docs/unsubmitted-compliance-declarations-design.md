@@ -467,7 +467,7 @@ Persisting material-level obligations is not required for this list. The totals,
 
 #### Hydration lifecycle
 
-The obligation hydrator is a second interval worker using the existing `AuditEventLeaseService` lifecycle, with its own private operational lease collection and lease ID such as `organisation-obligation-hydration`. Its lease is independent of the organisation-refresh and Account-reference leases. It acquires-or-skips, renews before/while a bounded batch is processed, and writes an atomic upsert of the summary and work outcome. A failed lease renewal cancels the remainder of that batch; another host can resume it after expiry.
+The obligation hydrator is a second interval worker using the existing `AuditEventLeaseService` lifecycle, with its own private operational lease collection and lease ID such as `organisation-obligation-hydration`. Its lease is independent of the organisation-refresh and Account-reference leases. It acquires-or-skips, renews before/while a bounded batch is processed, and writes an atomic upsert of the summary and work outcome. A failed lease renewal cancels the remainder of that batch; another host can resume it after expiry. It uses the dedicated `IOrganisationObligationSource` integration client: the OAuth and resilience configuration is shared with the request client, but it intentionally does not propagate request-scoped trace headers from an inbound API request.
 
 On a changed organisation generation, restrict all obligation work to `obligationYear = currentObligationYear`:
 

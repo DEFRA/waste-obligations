@@ -17,7 +17,7 @@ public static class ServiceCollectionExtensions
         services.AddOAuth2Client<PrnCommonBackendOptions>(name);
         services.AddOptions<HttpStandardResilienceOptions>(name).BindConfiguration(name);
 
-        var requestClient = services
+        services
             .AddHttpClient<IPrnCommonBackendService, PrnCommonBackendService>()
             .AddHttpMessageHandler(sp => sp.GetRequiredKeyedService<OAuth2Handler>(name))
             .ConfigurePrimaryHttpMessageHandler<ProxyHttpMessageHandler>()
@@ -27,9 +27,9 @@ public static class ServiceCollectionExtensions
                     sp.GetRequiredService<IOptions<PrnCommonBackendOptions>>().Value.Configure(httpClient);
                     httpClient.ConfigureForResiliencePipeline(addResiliencePipeline);
                 }
-            );
-
-        requestClient.AddHeaderPropagation().AddResiliencePipeline(addResiliencePipeline, name);
+            )
+            .AddHeaderPropagation()
+            .AddResiliencePipeline(addResiliencePipeline, name);
 
         services
             .AddHttpClient<IOrganisationObligationSource, PrnCommonBackendService>()
