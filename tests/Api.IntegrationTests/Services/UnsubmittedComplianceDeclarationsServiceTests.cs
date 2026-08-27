@@ -39,10 +39,7 @@ public class UnsubmittedComplianceDeclarationsServiceTests : IntegrationTestBase
             cancellationToken: TestContext.Current.CancellationToken
         );
         await ComplianceDeclarationReviewStates.InsertManyAsync(
-            [
-                ReviewState(beta, 0),
-                ReviewState(submitted, 1),
-            ],
+            [ReviewState(beta, 0), ReviewState(submitted, 1)],
             cancellationToken: TestContext.Current.CancellationToken
         );
         var subject = CreateSubject();
@@ -50,7 +47,13 @@ public class UnsubmittedComplianceDeclarationsServiceTests : IntegrationTestBase
         var descending = await subject.Search(
             2026,
             RegistrationType.DirectProducer,
-            [new ComplianceDeclarationSort { Field = ComplianceDeclarationSortField.OrganisationName, Direction = ComplianceDeclarationSortDirection.Descending }],
+            [
+                new ComplianceDeclarationSort
+                {
+                    Field = ComplianceDeclarationSortField.OrganisationName,
+                    Direction = ComplianceDeclarationSortDirection.Descending,
+                },
+            ],
             page: 1,
             pageSize: 1,
             TestContext.Current.CancellationToken
@@ -96,14 +99,15 @@ public class UnsubmittedComplianceDeclarationsServiceTests : IntegrationTestBase
     {
         var subject = CreateSubject();
 
-        var unavailable = () => subject.Search(
-            2026,
-            RegistrationType.DirectProducer,
-            [],
-            page: 1,
-            pageSize: 20,
-            TestContext.Current.CancellationToken
-        );
+        var unavailable = () =>
+            subject.Search(
+                2026,
+                RegistrationType.DirectProducer,
+                [],
+                page: 1,
+                pageSize: 20,
+                TestContext.Current.CancellationToken
+            );
 
         await unavailable.Should().ThrowAsync<UnsubmittedComplianceDeclarationsUnavailableException>();
 
@@ -140,14 +144,15 @@ public class UnsubmittedComplianceDeclarationsServiceTests : IntegrationTestBase
         );
         var subject = CreateSubject();
 
-        var act = () => subject.Search(
-            2026,
-            RegistrationType.DirectProducer,
-            [],
-            page: 1,
-            pageSize: 20,
-            TestContext.Current.CancellationToken
-        );
+        var act = () =>
+            subject.Search(
+                2026,
+                RegistrationType.DirectProducer,
+                [],
+                page: 1,
+                pageSize: 20,
+                TestContext.Current.CancellationToken
+            );
 
         await act.Should().ThrowAsync<UnsubmittedComplianceDeclarationsUnavailableException>();
     }
