@@ -483,6 +483,8 @@ On a changed organisation generation, restrict all obligation work to `obligatio
 
 At the 1 February UK-time boundary, the worker applies the dual-year handover described above: it has already pre-warmed the new current year, continues the previous year for its post-cutover grace, then stops scheduled work for that outgoing year. Previous-year summaries may be retained under a normal operational retention policy for diagnostics, but cannot make the current-year endpoint serve a historical request.
 
+**Side requirement — hydration-work retention.** The unique `{ organisationId, obligationYear }` work key prevents repeated polling and retries from creating duplicate work: there is one work record per organisation/year, and two years are active only during handover. The current implementation stops processing the outgoing year's work after the grace period but does not yet remove those old work records. Before long-term historical operation, add a bounded cleanup or expiry policy for obsolete hydration work. Retention of previous-year summaries is a separate diagnostic-data decision.
+
 Do not wait for this work as part of an organisation-generation promotion. The reference is a stable identity value and a hard membership condition; the current-obligation percentage is a volatile display metric. If a PRN status change rewrote the complete eligibility generation, it would cost `O(M)` eligibility writes and repeatedly invalidate otherwise unchanged organisation data. The selected split instead costs one organisation-obligation calculation read and one summary upsert per affected organisation/year, while the organisation generation remains unchanged.
 
 #### Non-blocking obligation enrichment
