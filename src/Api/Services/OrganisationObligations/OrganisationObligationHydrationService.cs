@@ -60,6 +60,44 @@ public class OrganisationObligationHydrationService(
         return processedCount;
     }
 
+    public async Task<int> EnqueueReconciliation(
+        int obligationYear,
+        DateTime reconciliationSince,
+        CancellationToken cancellationToken
+    )
+    {
+        var organisationIds = await GetEligibleOrganisationIds(obligationYear, cancellationToken);
+        if (organisationIds.Length == 0)
+            return 0;
+
+        var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
+        var filter = Builders<OrganisationObligationHydrationWork>.Filter.And(
+            Builders<OrganisationObligationHydrationWork>.Filter.Eq(x => x.ObligationYear, obligationYear),
+            Builders<OrganisationObligationHydrationWork>.Filter.In(x => x.OrganisationId, organisationIds),
+            Builders<OrganisationObligationHydrationWork>.Filter.Eq(
+                x => x.Priority,
+                OrganisationObligationHydrationPriority.ScheduledRefresh
+            ),
+            Builders<OrganisationObligationHydrationWork>.Filter.Or(
+                Builders<OrganisationObligationHydrationWork>.Filter.Eq(x => x.LastSuccessfulReadAt, null),
+                Builders<OrganisationObligationHydrationWork>.Filter.Lt(
+                    x => x.LastSuccessfulReadAt,
+                    reconciliationSince
+                )
+            )
+        );
+        var update = Builders<OrganisationObligationHydrationWork>
+            .Update.Set(x => x.Priority, OrganisationObligationHydrationPriority.Reconciliation)
+            .Set(x => x.NextAttemptAt, utcNow);
+        var result = await dbContext.OrganisationObligationHydrationWork.UpdateManyAsync(
+            filter,
+            update,
+            cancellationToken: cancellationToken
+        );
+
+        return (int)result.ModifiedCount;
+    }
+
     private async Task<Guid[]> GetEligibleOrganisationIds(int obligationYear, CancellationToken cancellationToken)
     {
         var snapshot = await dbContext

@@ -49,6 +49,8 @@ Let `T` be the normal refresh interval and `H` the measured due-work/request com
 
 For 500 organisations in both years, a 20-requests-per-minute cap lets the 500 outgoing catch-up reads complete in roughly 25 minutes. It cannot also make every incoming value current in that same window, but it does not need to: membership and display remain available with the default percentage. After the outgoing grace completes, return to normal one-year rolling work. This avoids a temporary rate increase to 40 requests per minute solely to pre-warm a non-blocking metric.
 
+The implementation uses a configurable one-hour `OutgoingYearGracePeriod`: the 30-minute normal refresh interval, up to 25 minutes for the assumed 500-key catch-up at the shared 20-per-minute cap, and a five-minute allowance. During January it attempts incoming-year hydration only when the current-year batch has no due work. During the grace period it marks active outgoing summaries that have not had a successful post-cutover read as `Reconciliation` work, processes that year first, then uses remaining capacity for the new current year. Retries retain their back-off rather than being repeatedly requeued by reconciliation.
+
 ## Current frontend behaviour
 
 The frontend route is `GET /certificates-of-compliance`. It has three tabs: `pending`, `accepted`, and `not-submitted`; each is separately selected for either `direct-producers` or `compliance-schemes`. `COMPLIANCE_YEAR` is currently configured as `2026`.

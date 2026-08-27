@@ -126,6 +126,47 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task EnqueueReconciliation_ShouldMakePreCutoverScheduledWorkDue()
+    {
+        var organisationId = Guid.NewGuid();
+        var readBeforeCutover = _timeProvider.GetUtcNow().AddMinutes(-2).UtcDateTime;
+        var cutover = _timeProvider.GetUtcNow().AddMinutes(-1).UtcDateTime;
+        var readAfterCutoverOrganisationId = Guid.NewGuid();
+        await InsertActiveSnapshot();
+        await InsertEligibility(organisationId, RegistrationType.DirectProducer);
+        await InsertEligibility(readAfterCutoverOrganisationId, RegistrationType.DirectProducer);
+        await InsertWork(
+            organisationId,
+            nextAttemptAt: _timeProvider.GetUtcNow().AddHours(1).UtcDateTime,
+            lastSuccessfulReadAt: readBeforeCutover
+        );
+        await InsertWork(
+            readAfterCutoverOrganisationId,
+            nextAttemptAt: _timeProvider.GetUtcNow().AddHours(1).UtcDateTime,
+            lastSuccessfulReadAt: _timeProvider.GetUtcNow().UtcDateTime
+        );
+        var subject = CreateSubject();
+
+        var enqueuedCount = await subject.EnqueueReconciliation(
+            ObligationYear,
+            cutover,
+            TestContext.Current.CancellationToken
+        );
+
+        enqueuedCount.Should().Be(1);
+        var reconciledWork = await OrganisationObligationHydrationWork
+            .Find(x => x.OrganisationId == organisationId)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        reconciledWork.Priority.Should().Be(OrganisationObligationHydrationPriority.Reconciliation);
+        reconciledWork.NextAttemptAt.Should().Be(_timeProvider.GetUtcNow().UtcDateTime);
+        var recentWork = await OrganisationObligationHydrationWork
+            .Find(x => x.OrganisationId == readAfterCutoverOrganisationId)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        recentWork.Priority.Should().Be(OrganisationObligationHydrationPriority.ScheduledRefresh);
+        recentWork.NextAttemptAt.Should().Be(_timeProvider.GetUtcNow().AddHours(1).UtcDateTime);
+    }
+
+    [Fact]
     public async Task HydrateDue_WhenSourceSucceeds_ShouldPersistReadySummaryAndScheduleRefresh()
     {
         var organisationId = Guid.NewGuid();
@@ -320,15 +361,20 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
             cancellationToken: TestContext.Current.CancellationToken
         );
 
-    private Task InsertWork(Guid organisationId) =>
+    private Task InsertWork(
+        Guid organisationId,
+        DateTime? nextAttemptAt = null,
+        DateTime? lastSuccessfulReadAt = null
+    ) =>
         OrganisationObligationHydrationWork.InsertOneAsync(
             new OrganisationObligationHydrationWork
             {
                 OrganisationId = organisationId,
                 ObligationYear = ObligationYear,
                 Priority = OrganisationObligationHydrationPriority.ScheduledRefresh,
-                NextAttemptAt = _timeProvider.GetUtcNow().UtcDateTime,
+                NextAttemptAt = nextAttemptAt ?? _timeProvider.GetUtcNow().UtcDateTime,
                 RequestedAt = _timeProvider.GetUtcNow().UtcDateTime,
+                LastSuccessfulReadAt = lastSuccessfulReadAt,
             },
             cancellationToken: TestContext.Current.CancellationToken
         );

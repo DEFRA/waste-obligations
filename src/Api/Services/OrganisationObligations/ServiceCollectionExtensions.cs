@@ -18,7 +18,8 @@ public static class ServiceCollectionExtensions
                     options.LeaseRenewalIntervalSeconds < options.LeaseDurationSeconds
                     && options.RefreshInterval > TimeSpan.Zero
                     && options.InitialRetryDelay > TimeSpan.Zero
-                    && options.MaximumRetryDelay >= options.InitialRetryDelay,
+                    && options.MaximumRetryDelay >= options.InitialRetryDelay
+                    && options.OutgoingYearGracePeriod > TimeSpan.Zero,
                 "Organisation obligation hydration interval configuration is invalid"
             )
             .ValidateOnStart();

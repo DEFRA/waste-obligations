@@ -21,4 +21,52 @@ public class CurrentComplianceYearProviderTests
 
         result.Should().Be(expected);
     }
+
+    [Fact]
+    public void GetHandover_DuringJanuary_ShouldIncludeTheIncomingComplianceYear()
+    {
+        var timeProvider = new FakeTimeProvider(
+            DateTimeOffset.Parse("2027-01-15T12:00:00+00:00", CultureInfo.InvariantCulture)
+        );
+        var subject = new CurrentComplianceYearProvider(timeProvider);
+
+        var result = subject.GetHandover(TimeSpan.FromHours(1));
+
+        result.CurrentComplianceYear.Should().Be(2026);
+        result.IncomingComplianceYear.Should().Be(2027);
+        result.OutgoingComplianceYear.Should().BeNull();
+        result.OutgoingYearCutoverAt.Should().BeNull();
+    }
+
+    [Fact]
+    public void GetHandover_DuringOutgoingYearGrace_ShouldIncludeTheOutgoingComplianceYear()
+    {
+        var timeProvider = new FakeTimeProvider(
+            DateTimeOffset.Parse("2027-02-01T00:30:00+00:00", CultureInfo.InvariantCulture)
+        );
+        var subject = new CurrentComplianceYearProvider(timeProvider);
+
+        var result = subject.GetHandover(TimeSpan.FromHours(1));
+
+        result.CurrentComplianceYear.Should().Be(2027);
+        result.IncomingComplianceYear.Should().BeNull();
+        result.OutgoingComplianceYear.Should().Be(2026);
+        result.OutgoingYearCutoverAt.Should().Be(new DateTime(2027, 2, 1, 0, 0, 0, DateTimeKind.Utc));
+    }
+
+    [Fact]
+    public void GetHandover_AfterOutgoingYearGrace_ShouldOnlyIncludeTheCurrentComplianceYear()
+    {
+        var timeProvider = new FakeTimeProvider(
+            DateTimeOffset.Parse("2027-02-01T01:00:00+00:00", CultureInfo.InvariantCulture)
+        );
+        var subject = new CurrentComplianceYearProvider(timeProvider);
+
+        var result = subject.GetHandover(TimeSpan.FromHours(1));
+
+        result.CurrentComplianceYear.Should().Be(2027);
+        result.IncomingComplianceYear.Should().BeNull();
+        result.OutgoingComplianceYear.Should().BeNull();
+        result.OutgoingYearCutoverAt.Should().BeNull();
+    }
 }
