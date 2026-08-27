@@ -122,6 +122,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests : IntegrationTestBase
     public async Task Search_WhenEligibilityGenerationIsStale_ShouldReturnItsLastActiveGeneration()
     {
         var organisationId = Guid.NewGuid();
+        var verifiedAt = DateTime.UtcNow.AddHours(-3);
         await OrganisationEligibilitySnapshots.InsertOneAsync(
             new OrganisationEligibilitySnapshot
             {
@@ -129,8 +130,16 @@ public class SearchUnsubmittedComplianceDeclarationsTests : IntegrationTestBase
                 ActiveGeneration = "stale-generation",
                 ActiveContentFingerprint = "fingerprint",
                 ActiveRowCount = 1,
-                ActiveGenerationPromotedAt = DateTime.UtcNow.AddHours(-3),
-                LastVerifiedAt = DateTime.UtcNow.AddHours(-3),
+                ActiveGenerationPromotedAt = verifiedAt,
+                LastVerifiedAt = verifiedAt,
+            },
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        await ComplianceDeclarationReviewStateSnapshots.InsertOneAsync(
+            new ComplianceDeclarationReviewStateSnapshot
+            {
+                Id = ComplianceDeclarationReviewStateSnapshot.SnapshotId,
+                BackfillCompletedAt = verifiedAt,
             },
             cancellationToken: TestContext.Current.CancellationToken
         );

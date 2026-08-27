@@ -154,7 +154,8 @@ public class RefreshOrganisationEligibilityFromDownstreamServicesTests : Integra
             dbContext,
             serviceProvider.GetRequiredService<IOrganisationReferenceSearchService>(),
             Options.Create(new OrganisationEligibilityOptions { AccountReferenceNumberBatchSize = 10 }),
-            TimeProvider.System
+            TimeProvider.System,
+            NullLogger<OrganisationReferenceCacheService>.Instance
         );
 
         return new OrganisationEligibilityRefreshService(

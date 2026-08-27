@@ -33,7 +33,19 @@ public class UnsubmittedOrganisationsService(
         {
             logger.LogError("Unsubmitted organisation query has no active organisation generation");
 
-            return new UnsubmittedOrganisationSearchResult { Rows = [], Total = 0 };
+            return EmptyResult();
+        }
+
+        var reviewStateSnapshot = await dbContext
+            .ComplianceDeclarationReviewStateSnapshots.Find(x =>
+                x.Id == ComplianceDeclarationReviewStateSnapshot.SnapshotId
+            )
+            .SingleOrDefaultAsync(cancellationToken);
+        if (reviewStateSnapshot?.BackfillCompletedAt is null)
+        {
+            logger.LogError("Unsubmitted organisation query has no completed declaration review state backfill");
+
+            return EmptyResult();
         }
 
         if (
@@ -177,6 +189,8 @@ public class UnsubmittedOrganisationsService(
         document["rows"]
             .AsBsonArray.Select(x => BsonSerializer.Deserialize<UnsubmittedOrganisationSearchRow>(x.AsBsonDocument))
             .ToList();
+
+    private static UnsubmittedOrganisationSearchResult EmptyResult() => new() { Rows = [], Total = 0 };
 
     private static int ReadTotal(BsonDocument document)
     {

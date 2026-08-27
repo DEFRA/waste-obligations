@@ -410,7 +410,8 @@ public class OrganisationReferenceCacheServiceTests : IntegrationTestBase
             ),
             OrganisationReferenceSearchService,
             Options.Create(new OrganisationEligibilityOptions { AccountReferenceNumberBatchSize = 10 }),
-            _timeProvider
+            _timeProvider,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<OrganisationReferenceCacheService>.Instance
         );
 
     private static OrganisationComplianceDeclarationEligibilityEntity CreateEligibilityRow(

@@ -195,7 +195,8 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
             dbContext,
             OrganisationReferenceSearchService,
             options,
-            _timeProvider
+            _timeProvider,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<OrganisationReferenceCacheService>.Instance
         );
 
         return new OrganisationEligibilityRefreshService(

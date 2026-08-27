@@ -10,7 +10,8 @@ public class OrganisationReferenceCacheService(
     IDbContext dbContext,
     IOrganisationReferenceSearchService organisationReferenceSearchService,
     IOptions<OrganisationEligibilityOptions> options,
-    TimeProvider timeProvider
+    TimeProvider timeProvider,
+    ILogger<OrganisationReferenceCacheService> logger
 )
 {
     public async Task<IReadOnlyList<OrganisationReferenceCache>> SynchroniseAndResolve(
@@ -164,11 +165,7 @@ public class OrganisationReferenceCacheService(
         }
     }
 
-    private static SynchronisedCache Synchronise(
-        Source source,
-        OrganisationReferenceCache? existingCache,
-        DateTime utcNow
-    )
+    private SynchronisedCache Synchronise(Source source, OrganisationReferenceCache? existingCache, DateTime utcNow)
     {
         if (existingCache is null)
         {
@@ -204,12 +201,34 @@ public class OrganisationReferenceCacheService(
 
         if (existingCache.ResolutionState == OrganisationReferenceNumberResolutionState.Resolved)
         {
+            var lookupKeyChanged =
+                existingCache.LookupMode != source.LookupMode
+                || (
+                    source.LookupMode == OrganisationReferenceLookupMode.CompaniesHouseNumber
+                    && !string.Equals(
+                        existingCache.CompaniesHouseNumber,
+                        source.CompaniesHouseNumber,
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                );
+            if (lookupKeyChanged)
+            {
+                logger.LogError(
+                    "Organisation reference cache lookup key changed after resolution for organisation {OrganisationId} and registration type {RegistrationType}. The existing reference number will be retained",
+                    source.Key.OrganisationId,
+                    source.Key.RegistrationType
+                );
+            }
+
             return new SynchronisedCache(
                 existingCache with
                 {
                     LookupMode = source.LookupMode,
                     CompaniesHouseNumber = source.CompaniesHouseNumber,
                     LastSeenAt = utcNow,
+                    LastFailure = lookupKeyChanged
+                        ? "The source lookup key changed after the reference number was resolved"
+                        : existingCache.LastFailure,
                 },
                 true
             );

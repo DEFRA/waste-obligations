@@ -127,6 +127,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
     {
         const string generation = "stale-generation";
         var organisationId = Guid.NewGuid();
+        var verifiedAt = _timeProvider.GetUtcNow().UtcDateTime.AddHours(-3);
         await OrganisationEligibilitySnapshots.InsertOneAsync(
             new OrganisationEligibilitySnapshot
             {
@@ -134,8 +135,16 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
                 ActiveGeneration = generation,
                 ActiveContentFingerprint = "fingerprint",
                 ActiveRowCount = 1,
-                ActiveGenerationPromotedAt = _timeProvider.GetUtcNow().UtcDateTime.AddHours(-3),
-                LastVerifiedAt = _timeProvider.GetUtcNow().UtcDateTime.AddHours(-3),
+                ActiveGenerationPromotedAt = verifiedAt,
+                LastVerifiedAt = verifiedAt,
+            },
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        await ComplianceDeclarationReviewStateSnapshots.InsertOneAsync(
+            new ComplianceDeclarationReviewStateSnapshot
+            {
+                Id = ComplianceDeclarationReviewStateSnapshot.SnapshotId,
+                BackfillCompletedAt = verifiedAt,
             },
             cancellationToken: TestContext.Current.CancellationToken
         );
