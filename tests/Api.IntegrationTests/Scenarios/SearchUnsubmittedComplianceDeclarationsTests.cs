@@ -62,7 +62,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests : IntegrationTestBase
         );
         var client = CreateClient();
 
-        var response = await client.GetFromJsonAsync<UnsubmittedComplianceDeclarationsPaged>(
+        var response = await client.GetAsync(
             Testing.Endpoints.ComplianceDeclarations.Unsubmitted(
                 EndpointQuery
                     .New.Where(EndpointFilter.ObligationYear(2026))
@@ -73,17 +73,23 @@ public class SearchUnsubmittedComplianceDeclarationsTests : IntegrationTestBase
             TestContext.Current.CancellationToken
         );
 
-        response.Should().NotBeNull();
-        response!.Total.Should().Be(2);
-        response.Page.Should().Be(1);
-        response.PageSize.Should().Be(1);
-        response.UnsubmittedComplianceDeclarations.Should().ContainSingle();
-        var row = response.UnsubmittedComplianceDeclarations.Single();
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var responseBody = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var result = await response.Content.ReadFromJsonAsync<UnsubmittedComplianceDeclarationsPaged>(
+            TestContext.Current.CancellationToken
+        );
+        result.Should().NotBeNull();
+        result.Total.Should().Be(2);
+        result.Page.Should().Be(1);
+        result.PageSize.Should().Be(1);
+        result.UnsubmittedComplianceDeclarations.Should().ContainSingle();
+        var row = result.UnsubmittedComplianceDeclarations.Single();
         row.OrganisationId.Should().Be(secondIncludedOrganisationId);
         row.OrganisationReferenceNumber.Should().Be("100004");
         row.ObligationCoveragePercentage.Should().Be(0);
         row.RecyclingObligationsMet.Should().BeNull();
         row.ObligationDataState.Should().Be("Pending");
+        await VerifyJson(responseBody);
     }
 
     [Fact]

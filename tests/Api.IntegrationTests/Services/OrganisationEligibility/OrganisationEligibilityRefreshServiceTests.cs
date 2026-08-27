@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
@@ -49,6 +50,23 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
             .SingleAsync(TestContext.Current.CancellationToken);
         row.ReferenceNumber.Should().Be("051829");
         row.ReferenceNumberResolutionState.Should().Be(OrganisationReferenceNumberResolutionState.Resolved);
+        var persistedProjection = JsonSerializer.Serialize(
+            new
+            {
+                Snapshot = snapshot with
+                {
+                    ActiveGeneration = "{Generated}",
+                    ActiveContentFingerprint = "{Calculated}",
+                },
+                Row = row with
+                {
+                    Generation = "{Generated}",
+                    SourceFingerprint = "{Calculated}",
+                },
+            },
+            JsonSerializerOptions.Web
+        );
+        await VerifyJson(persistedProjection).ScrubMembers("id");
     }
 
     [Fact]

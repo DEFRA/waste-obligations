@@ -1,0 +1,18 @@
+{
+  "unsubmittedComplianceDeclarations": [
+    {
+      "organisationId": "Guid_1",
+      "registrationType": "DirectProducer",
+      "organisationName": "Zeta Packaging",
+      "organisationReferenceNumber": "100004",
+      "recyclingObligationsMet": null,
+      "obligationCoveragePercentage": 0,
+      "obligationDataState": "Pending",
+      "obligationsAsOf": null
+    }
+  ],
+  "total": 2,
+  "page": 1,
+  "pageSize": 1,
+  "eligibilityAsOf": "DateTimeOffset_1"
+}

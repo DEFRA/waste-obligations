@@ -1,0 +1,18 @@
+{
+  "unsubmittedComplianceDeclarations": [
+    {
+      "organisationId": "Guid_1",
+      "registrationType": "DirectProducer",
+      "organisationName": "Alpha Packaging",
+      "organisationReferenceNumber": "100001",
+      "recyclingObligationsMet": null,
+      "obligationCoveragePercentage": 0,
+      "obligationDataState": "Pending",
+      "obligationsAsOf": null
+    }
+  ],
+  "total": 6,
+  "page": 2,
+  "pageSize": 5,
+  "eligibilityAsOf": "DateTimeOffset_1"
+}

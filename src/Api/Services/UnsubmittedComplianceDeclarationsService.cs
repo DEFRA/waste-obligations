@@ -10,11 +10,23 @@ using OrganisationEligibilityEntity = Defra.WasteObligations.Api.Data.Entities.O
 
 namespace Defra.WasteObligations.Api.Services;
 
+public interface IUnsubmittedComplianceDeclarationsService
+{
+    Task<UnsubmittedComplianceDeclarationsSearchResult> Search(
+        int obligationYear,
+        RegistrationType registrationType,
+        IReadOnlyCollection<ComplianceDeclarationSort> sort,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken
+    );
+}
+
 public class UnsubmittedComplianceDeclarationsService(
     IDbContext dbContext,
     IOptions<OrganisationEligibilityOptions> options,
     TimeProvider timeProvider
-)
+) : IUnsubmittedComplianceDeclarationsService
 {
     public async Task<UnsubmittedComplianceDeclarationsSearchResult> Search(
         int obligationYear,

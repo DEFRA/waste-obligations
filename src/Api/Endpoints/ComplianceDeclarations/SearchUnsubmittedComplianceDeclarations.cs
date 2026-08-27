@@ -28,7 +28,7 @@ public static class SearchUnsubmittedComplianceDeclarations
 
     private static async Task<IResult> Handle(
         [AsParameters] UnsubmittedComplianceDeclarationsRequest request,
-        [FromServices] UnsubmittedComplianceDeclarationsService service,
+        [FromServices] IUnsubmittedComplianceDeclarationsService service,
         CancellationToken cancellationToken
     )
     {

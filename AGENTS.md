@@ -26,6 +26,7 @@
 ## Change iterations
 - Integration clients should return their integration response models rather than public API DTOs; map to API DTOs in the consuming endpoint or application service
 - Before adding an endpoint, request DTO, validation rule, serialisation converter, or OpenAPI customisation, compare the nearest existing implementation. If the change needs a one-off pattern or would alter an established request, validation, error-response, or documentation convention, pause and ask the user before introducing it.
+- For every endpoint added or materially changed, add in-process endpoint tests through the API `WebApplicationFactory`. Cover the successful response and practical deliberate error branches, and use `VerifyJson` snapshots for JSON response bodies so field names, nesting, nullable/default values, and problem-details shapes remain contract-tested. Keep Docker integration tests focused on real cross-process wiring; they must not be the only coverage of an endpoint's response contract.
 - When changing entity or DTO types, follow the persisted entity and schema change workflow below, then inspect fixtures in tests and assess changes needed
 - Work backwards through tests to assess changes
 - Preserve existing observable behaviour when adding a new execution path. Do not remove or weaken shared integration features, such as correlation-header propagation, merely to support a background process.

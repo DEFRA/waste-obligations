@@ -1,0 +1,18 @@
+{
+  "unsubmittedComplianceDeclarations": [
+    {
+      "organisationId": "Guid_1",
+      "registrationType": "ComplianceScheme",
+      "organisationName": "Bravo Scheme",
+      "organisationReferenceNumber": "200001",
+      "recyclingObligationsMet": null,
+      "obligationCoveragePercentage": 0,
+      "obligationDataState": "Pending",
+      "obligationsAsOf": null
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "pageSize": 20,
+  "eligibilityAsOf": "DateTimeOffset_1"
+}
