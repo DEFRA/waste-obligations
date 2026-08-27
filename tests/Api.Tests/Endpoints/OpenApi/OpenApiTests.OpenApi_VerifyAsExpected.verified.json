@@ -1002,6 +1002,16 @@
             }
           },
           {
+            "name": "search",
+            "in": "query",
+            "description": "Case-insensitive partial match on organisation name, trading name or reference number",
+            "schema": {
+              "maxLength": 100,
+              "minLength": 0,
+              "type": "string"
+            }
+          },
+          {
             "name": "sort",
             "in": "query",
             "description": "Only OrganisationName[asc] or OrganisationName[desc] is currently supported",

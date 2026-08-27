@@ -36,6 +36,7 @@ public class UnsubmittedOrganisationsServiceReadinessTests : IntegrationTestBase
         var result = await subject.Search(
             2026,
             RegistrationType.DirectProducer,
+            null,
             [],
             page: 1,
             pageSize: 20,

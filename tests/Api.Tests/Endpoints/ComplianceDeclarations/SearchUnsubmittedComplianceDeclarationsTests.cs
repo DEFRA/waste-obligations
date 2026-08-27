@@ -30,6 +30,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
             .Search(
                 2026,
                 EntityRegistrationType.DirectProducer,
+                "alpha",
                 Arg.Is<IReadOnlyCollection<ComplianceDeclarationSort>>(x =>
                     x.Single().Field == ComplianceDeclarationSortField.OrganisationName
                     && x.Single().Direction == ComplianceDeclarationSortDirection.Descending
@@ -62,6 +63,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
                 EndpointQuery
                     .New.Where(EndpointFilter.ObligationYear(2026))
                     .Where(EndpointFilter.RegistrationType("DirectProducer"))
+                    .Where(EndpointFilter.Search("alpha"))
                     .Where(EndpointFilter.Sort("OrganisationName[desc]"))
                     .Where(EndpointFilter.Page(2))
                     .Where(EndpointFilter.PageSize(5))
@@ -81,6 +83,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
             .Search(
                 2026,
                 EntityRegistrationType.ComplianceScheme,
+                null,
                 Arg.Is<IReadOnlyCollection<ComplianceDeclarationSort>>(x => x.Count == 0),
                 page: 1,
                 pageSize: 20,
@@ -157,6 +160,19 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
         await VerifyJson(content);
     }
 
+    [Fact]
+    public async Task Validation_WhenSearchIsTooLong_ShouldBeBadRequest()
+    {
+        var content = await RequestShouldBeBadRequest(
+            EndpointQuery
+                .New.Where(EndpointFilter.ObligationYear(2026))
+                .Where(EndpointFilter.RegistrationType("DirectProducer"))
+                .Where(EndpointFilter.Search(new string('a', 101)))
+        );
+
+        await VerifyJson(content);
+    }
+
     [Theory]
     [InlineData("Unknown[asc]")]
     [InlineData("OrganisationName[ascending]")]
@@ -210,6 +226,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
             .Search(
                 Arg.Any<int>(),
                 Arg.Any<EntityRegistrationType>(),
+                Arg.Any<string?>(),
                 Arg.Any<IReadOnlyCollection<ComplianceDeclarationSort>>(),
                 Arg.Any<int>(),
                 Arg.Any<int>(),
@@ -237,6 +254,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
             .Search(
                 Arg.Any<int>(),
                 Arg.Any<EntityRegistrationType>(),
+                Arg.Any<string?>(),
                 Arg.Any<IReadOnlyCollection<ComplianceDeclarationSort>>(),
                 Arg.Any<int>(),
                 Arg.Any<int>(),

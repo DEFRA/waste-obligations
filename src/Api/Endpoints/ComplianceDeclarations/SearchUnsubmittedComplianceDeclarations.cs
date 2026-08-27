@@ -48,6 +48,7 @@ public static class SearchUnsubmittedComplianceDeclarations
         var result = await service.Search(
             request.ObligationYear!.Value,
             request.ParsedRegistrationType(),
+            request.Search,
             sort,
             page,
             pageSize,

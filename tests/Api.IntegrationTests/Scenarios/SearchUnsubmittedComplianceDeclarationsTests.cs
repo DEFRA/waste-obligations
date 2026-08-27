@@ -69,6 +69,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests : IntegrationTestBase
                 EndpointQuery
                     .New.Where(EndpointFilter.ObligationYear(2026))
                     .Where(EndpointFilter.RegistrationType("DirectProducer"))
+                    .Where(EndpointFilter.Search("pack"))
                     .Where(EndpointFilter.Sort("OrganisationName[desc]"))
                     .Where(EndpointFilter.PageSize(1))
             ),

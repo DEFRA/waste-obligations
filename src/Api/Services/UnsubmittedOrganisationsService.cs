@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.OrganisationEligibility;
@@ -22,6 +23,7 @@ public class UnsubmittedOrganisationsService(
     public async Task<UnsubmittedOrganisationSearchResult> Search(
         int obligationYear,
         RegistrationType registrationType,
+        string? search,
         IReadOnlyCollection<ComplianceDeclarationSort> sort,
         int page,
         int pageSize,
@@ -81,6 +83,19 @@ public class UnsubmittedOrganisationsService(
                 OrganisationReferenceNumberResolutionState.Resolved
             )
         );
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var pattern = new BsonRegularExpression(Regex.Escape(search.Trim()), "i");
+            eligible &= Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Or(
+                Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Regex(x => x.Name, pattern),
+                Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Regex(x => x.TradingName, pattern),
+                Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Regex(
+                    x => x.ReferenceNumber,
+                    pattern
+                )
+            );
+        }
+
         var sortDefinition = BuildSort(sort);
         var result = await dbContext
             .OrganisationComplianceDeclarationEligibilities.Aggregate()

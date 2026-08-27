@@ -8,6 +8,7 @@ public interface IUnsubmittedOrganisationsService
     Task<UnsubmittedOrganisationSearchResult> Search(
         int obligationYear,
         RegistrationType registrationType,
+        string? search,
         IReadOnlyCollection<ComplianceDeclarationSort> sort,
         int page,
         int pageSize,

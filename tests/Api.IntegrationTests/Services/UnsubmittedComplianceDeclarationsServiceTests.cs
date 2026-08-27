@@ -52,6 +52,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
         var descending = await subject.Search(
             2026,
             RegistrationType.DirectProducer,
+            null,
             [
                 new ComplianceDeclarationSort
                 {
@@ -66,6 +67,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
         var ascendingSecondPage = await subject.Search(
             2026,
             RegistrationType.DirectProducer,
+            null,
             [],
             page: 2,
             pageSize: 1,
@@ -88,6 +90,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
         var result = await subject.Search(
             2026,
             RegistrationType.DirectProducer,
+            null,
             [],
             page: 1,
             pageSize: 20,
@@ -99,6 +102,70 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Search_WhenSearchMatchesNameTradingNameOrReference_ShouldReturnCaseInsensitivePartialMatches()
+    {
+        const string generation = "generation";
+        var nameMatchOrganisationId = Guid.NewGuid();
+        var tradingNameMatchOrganisationId = Guid.NewGuid();
+        var referenceMatchOrganisationId = Guid.NewGuid();
+        await SetReadySnapshot(generation);
+        await OrganisationComplianceDeclarationEligibilities.InsertManyAsync(
+            [
+                Eligibility(nameMatchOrganisationId, generation, "Alpha Packaging", "100001"),
+                Eligibility(
+                    tradingNameMatchOrganisationId,
+                    generation,
+                    "Bravo Scheme",
+                    "100002",
+                    tradingName: "Northern Operator"
+                ),
+                Eligibility(referenceMatchOrganisationId, generation, "Charlie Recycling", "100003"),
+            ],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        var subject = CreateSubject();
+
+        var nameResult = await subject.Search(
+            2026,
+            RegistrationType.DirectProducer,
+            "PHA PAC",
+            [],
+            page: 1,
+            pageSize: 20,
+            TestContext.Current.CancellationToken
+        );
+        var tradingNameResult = await subject.Search(
+            2026,
+            RegistrationType.DirectProducer,
+            "operator",
+            [],
+            page: 1,
+            pageSize: 20,
+            TestContext.Current.CancellationToken
+        );
+        var referenceResult = await subject.Search(
+            2026,
+            RegistrationType.DirectProducer,
+            "0003",
+            [],
+            page: 1,
+            pageSize: 20,
+            TestContext.Current.CancellationToken
+        );
+
+        nameResult.Total.Should().Be(1);
+        nameResult.Rows.Should().ContainSingle().Which.OrganisationId.Should().Be(nameMatchOrganisationId);
+        tradingNameResult.Total.Should().Be(1);
+        tradingNameResult
+            .Rows.Should()
+            .ContainSingle()
+            .Which.OrganisationId.Should()
+            .Be(tradingNameMatchOrganisationId);
+        referenceResult.Total.Should().Be(1);
+        referenceResult.Rows.Should().ContainSingle().Which.OrganisationId.Should().Be(referenceMatchOrganisationId);
+    }
+
+    [Fact]
     public async Task Search_WhenNoActiveGeneration_ShouldReturnAnEmptyPageAndLogAnError()
     {
         var logger = new RecordingLogger<UnsubmittedOrganisationsService>();
@@ -107,6 +174,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
         var result = await subject.Search(
             2026,
             RegistrationType.DirectProducer,
+            null,
             [],
             page: 1,
             pageSize: 20,
@@ -159,6 +227,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
         var result = await subject.Search(
             2026,
             RegistrationType.DirectProducer,
+            null,
             [],
             page: 1,
             pageSize: 20,
@@ -219,12 +288,14 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
         Guid organisationId,
         string generation,
         string name,
-        string? referenceNumber
+        string? referenceNumber,
+        string? tradingName = null
     ) =>
         OrganisationComplianceDeclarationEligibilityFixture
             .Default(organisationId)
             .With(x => x.Generation, generation)
             .With(x => x.Name, name)
+            .With(x => x.TradingName, tradingName)
             .With(x => x.ReferenceNumber, referenceNumber)
             .With(x => x.SourceFingerprint, name)
             .Create();
