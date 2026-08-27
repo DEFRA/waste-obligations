@@ -28,4 +28,6 @@ public record OrganisationObligationHydrationOptions
     public TimeSpan InitialRetryDelay { get; init; } = TimeSpan.FromMinutes(1);
 
     public TimeSpan MaximumRetryDelay { get; init; } = TimeSpan.FromMinutes(30);
+
+    public TimeSpan MaximumSummaryStaleness { get; init; } = TimeSpan.FromHours(2);
 }

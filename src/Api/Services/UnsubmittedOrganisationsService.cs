@@ -1,6 +1,7 @@
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.OrganisationEligibility;
+using Defra.WasteObligations.Api.Services.OrganisationObligations;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
@@ -13,6 +14,7 @@ namespace Defra.WasteObligations.Api.Services;
 public class UnsubmittedOrganisationsService(
     IDbContext dbContext,
     IOptions<OrganisationEligibilityOptions> options,
+    IOptions<OrganisationObligationHydrationOptions> hydrationOptions,
     TimeProvider timeProvider,
     ILogger<UnsubmittedOrganisationsService> logger
 ) : IUnsubmittedOrganisationsService
@@ -88,7 +90,7 @@ public class UnsubmittedOrganisationsService(
             .AppendStage<BsonDocument>(Project())
             .AppendStage<BsonDocument>(Facet(sortDefinition, page, pageSize))
             .SingleOrDefaultAsync(cancellationToken);
-        var rows = result is null ? [] : ReadRows(result);
+        var rows = result is null ? [] : await EnrichRows(ReadRows(result), obligationYear, cancellationToken);
         var total = result is null ? 0 : ReadTotal(result);
 
         return new UnsubmittedOrganisationSearchResult { Rows = rows, Total = total };
@@ -189,6 +191,55 @@ public class UnsubmittedOrganisationsService(
         document["rows"]
             .AsBsonArray.Select(x => BsonSerializer.Deserialize<UnsubmittedOrganisationSearchRow>(x.AsBsonDocument))
             .ToList();
+
+    private async Task<List<UnsubmittedOrganisationSearchRow>> EnrichRows(
+        List<UnsubmittedOrganisationSearchRow> rows,
+        int obligationYear,
+        CancellationToken cancellationToken
+    )
+    {
+        if (rows.Count == 0)
+            return rows;
+
+        var summaries = await dbContext
+            .OrganisationObligationSummaries.Find(x =>
+                x.ObligationYear == obligationYear && rows.Select(row => row.OrganisationId).Contains(x.OrganisationId)
+            )
+            .ToListAsync(cancellationToken);
+        var summariesByOrganisationId = summaries.ToDictionary(x => x.OrganisationId);
+        var utcNow = timeProvider.GetUtcNow().UtcDateTime;
+
+        return rows.Select(row =>
+            {
+                if (!summariesByOrganisationId.TryGetValue(row.OrganisationId, out var summary))
+                {
+                    return row with { ObligationCoveragePercentage = 0, ObligationDataState = "Pending" };
+                }
+
+                return row with
+                {
+                    RecyclingObligationsMet = summary.RecyclingObligationsMet,
+                    ObligationCoveragePercentage = summary.ObligationCoveragePercentage ?? 0,
+                    ObligationDataState = ObligationDataState(summary, utcNow),
+                    ObligationsAsOf = summary.LastSuccessfulReadAt,
+                };
+            })
+            .ToList();
+    }
+
+    private string ObligationDataState(OrganisationObligationSummary summary, DateTime utcNow)
+    {
+        if (summary.RefreshState == OrganisationObligationRefreshState.Failed)
+            return "Failed";
+
+        if (
+            summary.LastSuccessfulReadAt is not null
+            && utcNow - summary.LastSuccessfulReadAt > hydrationOptions.Value.MaximumSummaryStaleness
+        )
+            return "Stale";
+
+        return summary.RefreshState == OrganisationObligationRefreshState.Ready ? "Ready" : "Pending";
+    }
 
     private static UnsubmittedOrganisationSearchResult EmptyResult() => new() { Rows = [], Total = 0 };
 

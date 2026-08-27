@@ -217,6 +217,33 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
             );
     }
 
+    [Fact]
+    public async Task WhenObligationYearIsNotCurrent_ShouldBeBadRequestWithoutSearching()
+    {
+        var client = CreateClient(testUser: TestUser.ReadOnly);
+
+        var response = await client.GetAsync(
+            Testing.Endpoints.ComplianceDeclarations.Unsubmitted(
+                EndpointQuery
+                    .New.Where(EndpointFilter.ObligationYear(2025))
+                    .Where(EndpointFilter.RegistrationType("DirectProducer"))
+            ),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        await UnsubmittedOrganisationsService
+            .DidNotReceive()
+            .Search(
+                Arg.Any<int>(),
+                Arg.Any<EntityRegistrationType>(),
+                Arg.Any<IReadOnlyCollection<ComplianceDeclarationSort>>(),
+                Arg.Any<int>(),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>()
+            );
+    }
+
     private async Task<string> RequestShouldBeBadRequest(EndpointQuery query)
     {
         var client = CreateClient(testUser: TestUser.ReadOnly);
