@@ -6,6 +6,17 @@ public record OrganisationObligationHydrationOptions
 {
     public const string SectionName = "OrganisationObligationHydration";
 
+    public bool PollingEnabled { get; init; } = true;
+
+    [Range(1, 86400)]
+    public int PollIntervalSeconds { get; init; } = 60;
+
+    [Range(2, 3600)]
+    public int LeaseDurationSeconds { get; init; } = 300;
+
+    [Range(1, 300)]
+    public int LeaseRenewalIntervalSeconds { get; init; } = 60;
+
     [Range(1, 100)]
     public int BatchSize { get; init; } = 10;
 
