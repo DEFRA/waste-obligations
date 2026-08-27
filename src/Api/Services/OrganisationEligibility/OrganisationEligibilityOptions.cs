@@ -27,4 +27,6 @@ public record OrganisationEligibilityOptions
     public int AccountReferenceNumberBatchSize { get; init; } = 100;
 
     public TimeSpan ReferenceNumberRetryDelay { get; init; } = TimeSpan.FromHours(6);
+
+    public TimeSpan AmbiguousReferenceNumberRetryDelay { get; init; } = TimeSpan.FromHours(24);
 }

@@ -298,7 +298,7 @@ public class OrganisationReferenceCacheService(
             LastFailure = null,
         };
 
-    private static OrganisationReferenceCache Ambiguous(OrganisationReferenceCache cache, DateTime utcNow) =>
+    private OrganisationReferenceCache Ambiguous(OrganisationReferenceCache cache, DateTime utcNow) =>
         cache with
         {
             ReferenceNumber = null,
@@ -306,7 +306,7 @@ public class OrganisationReferenceCacheService(
             ResolvedAccountExternalId = null,
             ResolvedUsingCompaniesHouseNumber = null,
             LastAttemptedAt = utcNow,
-            NextAttemptAt = null,
+            NextAttemptAt = utcNow.Add(options.Value.AmbiguousReferenceNumberRetryDelay),
             AttemptCount = cache.AttemptCount + 1,
             ResolvedAt = null,
             LastFailure = "Account returned multiple matching organisations",
@@ -323,11 +323,15 @@ public class OrganisationReferenceCacheService(
         };
 
     private static bool IsDue(OrganisationReferenceCache cache, DateTime utcNow) =>
-        cache.ResolutionState
-            is OrganisationReferenceNumberResolutionState.Pending
-                or OrganisationReferenceNumberResolutionState.NotFound
-                or OrganisationReferenceNumberResolutionState.Failed
-        && cache.NextAttemptAt <= utcNow;
+        cache.ResolutionState switch
+        {
+            OrganisationReferenceNumberResolutionState.Pending
+            or OrganisationReferenceNumberResolutionState.NotFound
+            or OrganisationReferenceNumberResolutionState.Failed => cache.NextAttemptAt <= utcNow,
+            OrganisationReferenceNumberResolutionState.Ambiguous => cache.NextAttemptAt is null
+                || cache.NextAttemptAt <= utcNow,
+            _ => false,
+        };
 
     private static Source[] CreateSources(
         IReadOnlyCollection<Data.Entities.OrganisationComplianceDeclarationEligibility> eligibilityRows

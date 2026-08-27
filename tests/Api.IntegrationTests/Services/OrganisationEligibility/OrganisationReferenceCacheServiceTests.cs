@@ -160,7 +160,138 @@ public class OrganisationReferenceCacheServiceTests : IntegrationTestBase
             .Which.ResolutionState.Should()
             .Be(OrganisationReferenceNumberResolutionState.Ambiguous);
         result.Single().ReferenceNumber.Should().BeNull();
-        result.Single().NextAttemptAt.Should().BeNull();
+        result.Single().NextAttemptAt.Should().Be(_timeProvider.GetUtcNow().UtcDateTime.AddHours(24));
+    }
+
+    [Fact]
+    public async Task SynchroniseAndResolve_WhenAmbiguousReferenceBecomesDueAndAccountIsCorrected_ShouldResolve()
+    {
+        const string companiesHouseNumber = "12345678";
+        const string referenceNumber = "530001";
+        var organisationId = Guid.NewGuid();
+        var companiesHouseNumbers = new[] { companiesHouseNumber };
+        OrganisationReferenceSearchService
+            .SearchOrganisationsByCompaniesHouseNumbers(
+                Arg.Is<IReadOnlyCollection<string>>(x => x.SequenceEqual(companiesHouseNumbers)),
+                Arg.Any<CancellationToken>()
+            )
+            .Returns(
+                new List<AccountOrganisation>
+                {
+                    new()
+                    {
+                        CompaniesHouseNumber = companiesHouseNumber,
+                        ReferenceNumber = referenceNumber,
+                        IsComplianceScheme = true,
+                    },
+                    new()
+                    {
+                        CompaniesHouseNumber = companiesHouseNumber,
+                        ReferenceNumber = "530002",
+                        IsComplianceScheme = true,
+                    },
+                },
+                new List<AccountOrganisation>
+                {
+                    new()
+                    {
+                        CompaniesHouseNumber = companiesHouseNumber,
+                        ReferenceNumber = referenceNumber,
+                        IsComplianceScheme = true,
+                    },
+                }
+            );
+        var subject = CreateSubject();
+        var row = CreateEligibilityRow(organisationId, RegistrationType.ComplianceScheme, 2026);
+        var ambiguous = await subject.SynchroniseAndResolve([row], TestContext.Current.CancellationToken);
+        _timeProvider.Advance(TimeSpan.FromHours(24).Subtract(TimeSpan.FromMinutes(1)));
+
+        var beforeDue = await subject.SynchroniseAndResolve([row], TestContext.Current.CancellationToken);
+        _timeProvider.Advance(TimeSpan.FromMinutes(1));
+        var resolved = await subject.SynchroniseAndResolve([row], TestContext.Current.CancellationToken);
+
+        ambiguous.Single().ResolutionState.Should().Be(OrganisationReferenceNumberResolutionState.Ambiguous);
+        beforeDue.Single().AttemptCount.Should().Be(1);
+        resolved
+            .Should()
+            .ContainSingle()
+            .Which.Should()
+            .BeEquivalentTo(
+                new
+                {
+                    ReferenceNumber = referenceNumber,
+                    ResolutionState = OrganisationReferenceNumberResolutionState.Resolved,
+                    AttemptCount = 2,
+                    NextAttemptAt = (DateTime?)null,
+                },
+                options => options.ExcludingMissingMembers()
+            );
+        await OrganisationReferenceSearchService
+            .Received(2)
+            .SearchOrganisationsByCompaniesHouseNumbers(
+                Arg.Any<IReadOnlyCollection<string>>(),
+                Arg.Any<CancellationToken>()
+            );
+    }
+
+    [Fact]
+    public async Task SynchroniseAndResolve_WhenLegacyAmbiguousReferenceHasNoNextAttempt_ShouldRetry()
+    {
+        const string companiesHouseNumber = "12345678";
+        const string referenceNumber = "530001";
+        var organisationId = Guid.NewGuid();
+        await OrganisationReferenceCaches.InsertOneAsync(
+            new OrganisationReferenceCache
+            {
+                OrganisationId = organisationId,
+                RegistrationType = RegistrationType.ComplianceScheme,
+                LookupMode = OrganisationReferenceLookupMode.CompaniesHouseNumber,
+                CompaniesHouseNumber = companiesHouseNumber,
+                ResolutionState = OrganisationReferenceNumberResolutionState.Ambiguous,
+                FirstSeenAt = _timeProvider.GetUtcNow().UtcDateTime.AddDays(-1),
+                LastSeenAt = _timeProvider.GetUtcNow().UtcDateTime.AddDays(-1),
+                LastAttemptedAt = _timeProvider.GetUtcNow().UtcDateTime.AddDays(-1),
+                NextAttemptAt = null,
+                AttemptCount = 1,
+            },
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        OrganisationReferenceSearchService
+            .SearchOrganisationsByCompaniesHouseNumbers(
+                Arg.Any<IReadOnlyCollection<string>>(),
+                Arg.Any<CancellationToken>()
+            )
+            .Returns(
+                new List<AccountOrganisation>
+                {
+                    new()
+                    {
+                        CompaniesHouseNumber = companiesHouseNumber,
+                        ReferenceNumber = referenceNumber,
+                        IsComplianceScheme = true,
+                    },
+                }
+            );
+        var subject = CreateSubject();
+
+        var result = await subject.SynchroniseAndResolve(
+            [CreateEligibilityRow(organisationId, RegistrationType.ComplianceScheme, 2026)],
+            TestContext.Current.CancellationToken
+        );
+
+        result
+            .Should()
+            .ContainSingle()
+            .Which.Should()
+            .BeEquivalentTo(
+                new
+                {
+                    ReferenceNumber = referenceNumber,
+                    ResolutionState = OrganisationReferenceNumberResolutionState.Resolved,
+                    AttemptCount = 2,
+                },
+                options => options.ExcludingMissingMembers()
+            );
     }
 
     [Fact]
