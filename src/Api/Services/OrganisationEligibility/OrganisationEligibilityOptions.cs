@@ -29,4 +29,6 @@ public record OrganisationEligibilityOptions
     public TimeSpan ReferenceNumberRetryDelay { get; init; } = TimeSpan.FromHours(6);
 
     public TimeSpan AmbiguousReferenceNumberRetryDelay { get; init; } = TimeSpan.FromHours(24);
+
+    public TimeSpan GenerationRetentionPeriod { get; init; } = TimeSpan.FromDays(30);
 }

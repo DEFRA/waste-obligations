@@ -150,10 +150,11 @@ public class RefreshOrganisationEligibilityFromDownstreamServicesTests : Integra
             Options.Create(new MongoDbOptions()),
             NullLogger<MongoDbContext>.Instance
         );
+        var options = Options.Create(new OrganisationEligibilityOptions { AccountReferenceNumberBatchSize = 10 });
         var cacheService = new OrganisationReferenceCacheService(
             dbContext,
             serviceProvider.GetRequiredService<IOrganisationReferenceSearchService>(),
-            Options.Create(new OrganisationEligibilityOptions { AccountReferenceNumberBatchSize = 10 }),
+            options,
             TimeProvider.System,
             NullLogger<OrganisationReferenceCacheService>.Instance
         );
@@ -162,6 +163,7 @@ public class RefreshOrganisationEligibilityFromDownstreamServicesTests : Integra
             dbContext,
             serviceProvider.GetRequiredService<IOrganisationEligibilitySource>(),
             cacheService,
+            options,
             TimeProvider.System
         );
     }

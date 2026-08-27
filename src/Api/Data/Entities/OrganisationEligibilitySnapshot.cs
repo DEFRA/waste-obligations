@@ -17,4 +17,6 @@ public record OrganisationEligibilitySnapshot
 
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime? LastVerifiedAt { get; init; }
+
+    public RetainedOrganisationEligibilityGeneration[] RetainedGenerations { get; init; } = [];
 }

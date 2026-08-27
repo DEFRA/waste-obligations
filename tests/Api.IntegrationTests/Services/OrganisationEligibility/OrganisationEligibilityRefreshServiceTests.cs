@@ -216,9 +216,103 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
             .SingleAsync(TestContext.Current.CancellationToken);
         activeRow.Name.Should().Be("Changed organisation name");
         activeRow.ReferenceNumber.Should().Be("051829");
+        var snapshot = await OrganisationEligibilitySnapshots
+            .Find(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        snapshot.RetainedGenerations.Should().ContainSingle();
+        snapshot.RetainedGenerations[0].Generation.Should().Be(initial.ActiveGeneration);
+        snapshot.RetainedGenerations[0].DeleteAfter.Should().Be(_timeProvider.GetUtcNow().UtcDateTime.AddDays(30));
         await OrganisationReferenceSearchService
             .Received(1)
             .SearchOrganisationsByExternalIds(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Refresh_WhenRetainedGenerationExpires_ShouldGarbageCollectIt()
+    {
+        var organisationId = Guid.NewGuid();
+        ArrangeSource(organisationId);
+        ArrangeDirectProducerReference(organisationId, "051829");
+        var subject = CreateSubject();
+        var initial = await subject.Refresh(TestContext.Current.CancellationToken);
+        ArrangeSource(organisationId, name: "Changed organisation name");
+        var promoted = await subject.Refresh(TestContext.Current.CancellationToken);
+        _timeProvider.Advance(TimeSpan.FromDays(30));
+
+        var refreshed = await subject.Refresh(TestContext.Current.CancellationToken);
+
+        refreshed.Outcome.Should().Be(OrganisationEligibilityRefreshOutcome.Unchanged);
+        refreshed.ActiveGeneration.Should().Be(promoted.ActiveGeneration);
+        (
+            await OrganisationComplianceDeclarationEligibilities.CountDocumentsAsync(
+                x => x.Generation == initial.ActiveGeneration,
+                cancellationToken: TestContext.Current.CancellationToken
+            )
+        )
+            .Should()
+            .Be(0);
+        (
+            await OrganisationComplianceDeclarationEligibilities.CountDocumentsAsync(
+                x => x.Generation == promoted.ActiveGeneration,
+                cancellationToken: TestContext.Current.CancellationToken
+            )
+        )
+            .Should()
+            .Be(1);
+        var snapshot = await OrganisationEligibilitySnapshots
+            .Find(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        snapshot.RetainedGenerations.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Refresh_WhenOrphanedGenerationExpires_ShouldGarbageCollectItAndPreserveRecentAndActiveRows()
+    {
+        var organisationId = Guid.NewGuid();
+        ArrangeSource(organisationId);
+        ArrangeDirectProducerReference(organisationId, "051829");
+        var subject = CreateSubject();
+        var initial = await subject.Refresh(TestContext.Current.CancellationToken);
+        var activeRow = await OrganisationComplianceDeclarationEligibilities
+            .Find(x => x.Generation == initial.ActiveGeneration)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        var expiredAt = _timeProvider.GetUtcNow().UtcDateTime.AddDays(-31);
+        await OrganisationComplianceDeclarationEligibilities.ReplaceOneAsync(
+            x => x.Id == activeRow.Id,
+            activeRow with
+            {
+                RefreshedAt = expiredAt,
+            },
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        const string expiredGeneration = "expired-orphan";
+        const string recentGeneration = "recent-orphan";
+        await OrganisationComplianceDeclarationEligibilities.InsertManyAsync(
+            [
+                activeRow with
+                {
+                    Id = ObjectId.GenerateNewId(),
+                    Generation = expiredGeneration,
+                    RefreshedAt = expiredAt,
+                },
+                activeRow with
+                {
+                    Id = ObjectId.GenerateNewId(),
+                    Generation = recentGeneration,
+                    RefreshedAt = _timeProvider.GetUtcNow().UtcDateTime.AddDays(-29),
+                },
+            ],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+
+        await subject.Refresh(TestContext.Current.CancellationToken);
+
+        var generations = await OrganisationComplianceDeclarationEligibilities
+            .Find(Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Empty)
+            .Project(x => x.Generation)
+            .ToListAsync(TestContext.Current.CancellationToken);
+        generations.Should().BeEquivalentTo(initial.ActiveGeneration, recentGeneration);
+        generations.Should().NotContain(expiredGeneration);
     }
 
     [Fact]
@@ -380,7 +474,7 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
             Microsoft.Extensions.Logging.Abstractions.NullLogger<OrganisationReferenceCacheService>.Instance
         );
 
-        return new OrganisationEligibilityRefreshService(dbContext, source, cacheService, timeProvider);
+        return new OrganisationEligibilityRefreshService(dbContext, source, cacheService, options, timeProvider);
     }
 
     private void ArrangeSource(Guid organisationId, string name = "Example organisation") =>

@@ -1,6 +1,7 @@
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
+using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 
 namespace Defra.WasteObligations.Api.Services.OrganisationEligibility;
@@ -9,6 +10,7 @@ public class OrganisationEligibilityRefreshService(
     IDbContext dbContext,
     IOrganisationEligibilitySource organisationEligibilitySource,
     OrganisationReferenceCacheService organisationReferenceCacheService,
+    IOptions<OrganisationEligibilityOptions> options,
     TimeProvider timeProvider
 ) : IOrganisationEligibilityRefreshService
 {
@@ -45,7 +47,16 @@ public class OrganisationEligibilityRefreshService(
             && activeSnapshot.ActiveRowCount == content.Rows.Count
         )
         {
-            await VerifyActiveGeneration(activeSnapshot, utcNow, cancellationToken);
+            var retainedGenerations = UnexpiredRetainedGenerations(activeSnapshot, utcNow);
+            await VerifyActiveGeneration(activeSnapshot, retainedGenerations, utcNow, cancellationToken);
+            await CollectGarbage(
+                activeSnapshot with
+                {
+                    RetainedGenerations = retainedGenerations,
+                },
+                utcNow,
+                cancellationToken
+            );
 
             return new OrganisationEligibilityRefreshResult
             {
@@ -79,8 +90,10 @@ public class OrganisationEligibilityRefreshService(
             ActiveRowCount = content.Rows.Count,
             ActiveGenerationPromotedAt = utcNow,
             LastVerifiedAt = utcNow,
+            RetainedGenerations = RetainedGenerationsAfterPromotion(activeSnapshot, utcNow),
         };
         await PromoteActiveGeneration(activeSnapshot, snapshot, cancellationToken);
+        await CollectGarbage(snapshot, utcNow, cancellationToken);
 
         return new OrganisationEligibilityRefreshResult
         {
@@ -93,18 +106,68 @@ public class OrganisationEligibilityRefreshService(
 
     private async Task VerifyActiveGeneration(
         OrganisationEligibilitySnapshot activeSnapshot,
+        RetainedOrganisationEligibilityGeneration[] retainedGenerations,
         DateTime utcNow,
         CancellationToken cancellationToken
     )
     {
         var result = await dbContext.OrganisationEligibilitySnapshots.UpdateOneAsync(
             ActiveGenerationFilter(activeSnapshot.ActiveGeneration),
-            Builders<OrganisationEligibilitySnapshot>.Update.Set(x => x.LastVerifiedAt, utcNow),
+            Builders<OrganisationEligibilitySnapshot>
+                .Update.Set(x => x.LastVerifiedAt, utcNow)
+                .Set(x => x.RetainedGenerations, retainedGenerations),
             cancellationToken: cancellationToken
         );
 
         EnsureActiveGenerationUnchanged(result.MatchedCount);
     }
+
+    private async Task CollectGarbage(
+        OrganisationEligibilitySnapshot snapshot,
+        DateTime utcNow,
+        CancellationToken cancellationToken
+    )
+    {
+        var generationsToKeep = snapshot.RetainedGenerations.Select(x => x.Generation).ToList();
+        if (snapshot.ActiveGeneration is not null)
+        {
+            generationsToKeep.Add(snapshot.ActiveGeneration);
+        }
+
+        var deleteBefore = utcNow.Subtract(options.Value.GenerationRetentionPeriod);
+        var filter = Builders<OrganisationComplianceDeclarationEligibility>.Filter.And(
+            Builders<OrganisationComplianceDeclarationEligibility>.Filter.Nin(x => x.Generation, generationsToKeep),
+            Builders<OrganisationComplianceDeclarationEligibility>.Filter.Lte(x => x.RefreshedAt, deleteBefore)
+        );
+        await dbContext.OrganisationComplianceDeclarationEligibilities.DeleteManyAsync(filter, cancellationToken);
+    }
+
+    private RetainedOrganisationEligibilityGeneration[] RetainedGenerationsAfterPromotion(
+        OrganisationEligibilitySnapshot? activeSnapshot,
+        DateTime utcNow
+    )
+    {
+        if (activeSnapshot?.ActiveGeneration is null)
+        {
+            return [];
+        }
+
+        return
+        [
+            .. UnexpiredRetainedGenerations(activeSnapshot, utcNow)
+                .Where(x => x.Generation != activeSnapshot.ActiveGeneration),
+            new RetainedOrganisationEligibilityGeneration
+            {
+                Generation = activeSnapshot.ActiveGeneration,
+                DeleteAfter = utcNow.Add(options.Value.GenerationRetentionPeriod),
+            },
+        ];
+    }
+
+    private static RetainedOrganisationEligibilityGeneration[] UnexpiredRetainedGenerations(
+        OrganisationEligibilitySnapshot snapshot,
+        DateTime utcNow
+    ) => snapshot.RetainedGenerations.Where(x => x.DeleteAfter > utcNow).ToArray();
 
     private async Task PromoteActiveGeneration(
         OrganisationEligibilitySnapshot? activeSnapshot,

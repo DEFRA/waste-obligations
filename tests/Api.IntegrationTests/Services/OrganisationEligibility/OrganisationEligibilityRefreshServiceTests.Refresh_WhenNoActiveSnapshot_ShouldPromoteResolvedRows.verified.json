@@ -5,7 +5,8 @@
     "activeContentFingerprint": "{Calculated}",
     "activeRowCount": 1,
     "activeGenerationPromotedAt": "DateTimeOffset_1",
-    "lastVerifiedAt": "DateTimeOffset_1"
+    "lastVerifiedAt": "DateTimeOffset_1",
+    "retainedGenerations": []
   },
   "row": {
     "id": "{Scrubbed}",
