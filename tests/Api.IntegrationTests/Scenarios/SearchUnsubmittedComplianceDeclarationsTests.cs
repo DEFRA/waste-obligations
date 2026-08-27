@@ -55,7 +55,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests : IntegrationTestBase
                 OrganisationId = submittedOrganisationId,
                 ObligationYear = 2026,
                 RegistrationType = Defra.WasteObligations.Api.Data.Entities.RegistrationType.DirectProducer,
-                SubmittedOrAcceptedCount = 1,
+                UnsubmittedExclusionCount = 1,
                 UpdatedAt = verifiedAt,
             },
             cancellationToken: TestContext.Current.CancellationToken

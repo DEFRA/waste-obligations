@@ -13,7 +13,7 @@ public record ComplianceDeclarationReviewState
 
     public int ObligationYear { get; init; }
     public RegistrationType RegistrationType { get; init; }
-    public int SubmittedOrAcceptedCount { get; init; }
+    public int UnsubmittedExclusionCount { get; init; }
 
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime UpdatedAt { get; init; }

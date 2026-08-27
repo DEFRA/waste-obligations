@@ -53,7 +53,7 @@ public class ComplianceDeclarationReviewStateBackfillServiceTests : IntegrationT
                 && x.RegistrationType == organisation.RegistrationType
             )
             .SingleAsync(TestContext.Current.CancellationToken);
-        reviewState.SubmittedOrAcceptedCount.Should().Be(2);
+        reviewState.UnsubmittedExclusionCount.Should().Be(2);
         reviewState.UpdatedAt.Should().Be(_timeProvider.GetUtcNow().UtcDateTime);
         var snapshot = await ComplianceDeclarationReviewStateSnapshots
             .Find(x => x.Id == ComplianceDeclarationReviewStateSnapshot.SnapshotId)

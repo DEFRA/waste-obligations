@@ -23,7 +23,7 @@ public class ComplianceDeclarationReviewStateBackfillService(IDbContext dbContex
         }
 
         var backfillStartedAt = timeProvider.GetUtcNowWithoutMicroseconds();
-        var submittedOrAccepted = await dbContext
+        var unsubmittedExclusions = await dbContext
             .ComplianceDeclarations.Find(
                 Builders<ComplianceDeclaration>.Filter.In(
                     x => x.Status,
@@ -31,7 +31,7 @@ public class ComplianceDeclarationReviewStateBackfillService(IDbContext dbContex
                 )
             )
             .ToListAsync(cancellationToken);
-        var counts = submittedOrAccepted
+        var counts = unsubmittedExclusions
             .GroupBy(ReviewStateKey.From)
             .Select(x => new ReviewStateCount(x.Key, x.Count()))
             .ToList();
@@ -105,9 +105,9 @@ public class ComplianceDeclarationReviewStateBackfillService(IDbContext dbContex
                             "$ifNull",
                             new BsonArray { "$registrationType", state.Key.RegistrationType.ToString() }
                         ),
-                        ["submittedOrAcceptedCount"] = new BsonDocument(
+                        ["unsubmittedExclusionCount"] = new BsonDocument(
                             "$cond",
-                            new BsonArray { isOlderThanBackfill, state.Count, "$submittedOrAcceptedCount" }
+                            new BsonArray { isOlderThanBackfill, state.Count, "$unsubmittedExclusionCount" }
                         ),
                         ["updatedAt"] = new BsonDocument(
                             "$cond",

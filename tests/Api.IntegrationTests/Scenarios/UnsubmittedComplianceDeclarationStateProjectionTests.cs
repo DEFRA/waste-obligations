@@ -104,7 +104,7 @@ public class UnsubmittedComplianceDeclarationStateProjectionTests : IntegrationT
                 && x.RegistrationType == EntityRegistrationType.DirectProducer
             )
             .SingleAsync(TestContext.Current.CancellationToken);
-        reviewState.SubmittedOrAcceptedCount.Should().Be(0);
+        reviewState.UnsubmittedExclusionCount.Should().Be(0);
     }
 
     private static async Task BackfillReviewState()

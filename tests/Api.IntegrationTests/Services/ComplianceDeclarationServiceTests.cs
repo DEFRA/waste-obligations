@@ -91,7 +91,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         auditEvent.After!["_id"].Should().Be(initial.Id);
         auditEvent.After["version"].Should().Be(1);
         var reviewState = await FindReviewState(initial);
-        reviewState.SubmittedOrAcceptedCount.Should().Be(1);
+        reviewState.UnsubmittedExclusionCount.Should().Be(1);
         ComplianceDeclarationMetrics.Received(1).Created();
     }
 
@@ -125,7 +125,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         );
 
         var reviewState = await FindReviewState(cancelled);
-        reviewState.SubmittedOrAcceptedCount.Should().Be(2);
+        reviewState.UnsubmittedExclusionCount.Should().Be(2);
 
         await Subject.Update(
             submitted,
@@ -137,7 +137,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         );
 
         reviewState = await FindReviewState(accepted);
-        reviewState.SubmittedOrAcceptedCount.Should().Be(1);
+        reviewState.UnsubmittedExclusionCount.Should().Be(1);
     }
 
     [Fact]
@@ -347,7 +347,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         auditEvents[1].Before.Should().NotBeNull();
         auditEvents[1].After.Should().BeNull();
         var reviewState = await FindReviewState(initial);
-        reviewState.SubmittedOrAcceptedCount.Should().Be(0);
+        reviewState.UnsubmittedExclusionCount.Should().Be(0);
         ComplianceDeclarationMetrics.Received(1).Deleted();
     }
 
@@ -466,9 +466,9 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         auditEvents[1].After!["version"].Should().Be(2);
         auditEvents[1].After!["obligationYear"].Should().Be(2027);
         var previousReviewState = await FindReviewState(initial);
-        previousReviewState.SubmittedOrAcceptedCount.Should().Be(0);
+        previousReviewState.UnsubmittedExclusionCount.Should().Be(0);
         var updatedReviewState = await FindReviewState(retrieved);
-        updatedReviewState.SubmittedOrAcceptedCount.Should().Be(1);
+        updatedReviewState.UnsubmittedExclusionCount.Should().Be(1);
         ComplianceDeclarationMetrics.Received(1).Updated(retrieved.Status);
     }
 

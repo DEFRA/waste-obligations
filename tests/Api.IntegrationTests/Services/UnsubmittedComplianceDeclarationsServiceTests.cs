@@ -213,13 +213,13 @@ public class UnsubmittedComplianceDeclarationsServiceTests : IntegrationTestBase
             RefreshedAt = DateTime.UtcNow,
         };
 
-    private static ComplianceDeclarationReviewState ReviewState(Guid organisationId, int submittedOrAcceptedCount) =>
+    private static ComplianceDeclarationReviewState ReviewState(Guid organisationId, int unsubmittedExclusionCount) =>
         new()
         {
             OrganisationId = organisationId,
             ObligationYear = 2026,
             RegistrationType = RegistrationType.DirectProducer,
-            SubmittedOrAcceptedCount = submittedOrAcceptedCount,
+            UnsubmittedExclusionCount = unsubmittedExclusionCount,
             UpdatedAt = DateTime.UtcNow,
         };
 }

@@ -132,7 +132,7 @@ public class UnsubmittedComplianceDeclarationsService(
                 new BsonArray
                 {
                     new BsonDocument("reviewState", new BsonDocument("$eq", new BsonArray())),
-                    new BsonDocument("reviewState.submittedOrAcceptedCount", 0),
+                    new BsonDocument("reviewState.unsubmittedExclusionCount", 0),
                 }
             )
         );

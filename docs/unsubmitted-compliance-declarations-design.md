@@ -274,7 +274,7 @@ For this first delivery, sort raw `name` with `organisationId` as the required f
 
 For an all-years refresh, `generation` is global to the refresh, rather than one generation per year. This ensures an endpoint for any year sees rows derived from the same upstream response. `ComplianceEligibilitySnapshot` is control metadata for the eligibility data set. The query uses three business projections: eligibility rows, declaration-review state, and the independently refreshed organisation-obligation summary. Reference-resolution records are an auxiliary work/provenance store, not a query-time join.
 
-### 2. Submitted-or-Accepted declaration presence
+### 2. Unsubmitted-excluding declaration presence
 
 This is a compact projection of the only declaration fact that the inferred state needs. It is independent of eligibility, so it can exist before an organisation first appears in a Waste Organisations snapshot.
 
@@ -283,17 +283,17 @@ ComplianceDeclarationReviewState
   organisationId                 GUID
   obligationYear                 int
   registrationType               DirectProducer | ComplianceScheme
-  submittedOrAcceptedCount       non-negative integer
+  unsubmittedExclusionCount      non-negative integer
   updatedAt                      UTC timestamp
 ```
 
 The unique key is `{ organisationId, obligationYear, registrationType }`.
 
-`submittedOrAcceptedCount` means the number of declarations in the set `{ Submitted, Accepted }`, not the number of every declaration. The use of a count rather than a boolean is important because the existing data model can contain more than one declaration for an organisation/year/type. A review row is unsubmitted exactly when this count is zero or no state row exists.
+`unsubmittedExclusionCount` means the number of declarations that exclude an organisation from the inferred unsubmitted view. Today the set is `{ Submitted, Accepted }`, rather than every declaration. The use of a count rather than a boolean is important because the existing data model can contain more than one declaration for an organisation/year/type. A review row is unsubmitted exactly when this count is zero or no state row exists. Future statuses can join or leave the exclusion set without renaming the persisted field.
 
 This preserves current frontend behaviour:
 
-| Declaration state change | Count change | Is the organisation unsubmitted when no other qualifying declaration exists? |
+| Declaration state change | Exclusion count change | Is the organisation unsubmitted when no other qualifying declaration exists? |
 | --- | ---: | --- |
 | Create `Submitted` | `+1` | No |
 | `Submitted` → `Accepted` | `0` | No |
@@ -950,7 +950,7 @@ Required endpoint behaviour:
 - `obligationYear` and review `registrationType` are required, and `obligationYear` must equal `currentComplianceYear`;
 - page-number pagination follows the existing 1–100 page-size convention;
 - an active, non-stale eligibility snapshot is selected for the requested year;
-- a candidate is returned only when it has a `REGISTERED` eligibility row with a resolved non-empty reference number and its `submittedOrAcceptedCount` is zero or absent;
+- a candidate is returned only when it has a `REGISTERED` eligibility row with a resolved non-empty reference number and its `unsubmittedExclusionCount` is zero or absent;
 - a missing, pending, or stale organisation-obligation summary never excludes an otherwise eligible candidate and never makes a current-obligation calculation request in the handler; return the last successful value when one exists, otherwise the zero/default metric described below;
 - return `total`, `page`, `pageSize`, the eligibility `asOf` time, per-row obligation-summary `asOf` times, and the unresolved-reference exclusion count so consumers can diagnose source/reference/metric completeness;
 - use a deterministic final tie-breaker of `organisationId`.
@@ -1020,7 +1020,7 @@ active eligibility rows where year + review type + registrationStatus = REGISTER
     organisationId = eligibility.organisationId
     obligationYear = requested year
     registrationType = requested review type
-  WHERE submittedOrAcceptedCount is absent or zero
+  WHERE unsubmittedExclusionCount is absent or zero
   ORDER BY materialised sort fields, organisationId
   COUNT and PAGE in Mongo
   LEFT JOIN OrganisationObligationSummary on organisationId + obligationYear
@@ -1086,7 +1086,7 @@ The declaration-presence projection is separate. Suppose Beta already has a subm
   "organisationId": "b2",
   "obligationYear": 2026,
   "registrationType": "DirectProducer",
-  "submittedOrAcceptedCount": 1,
+  "unsubmittedExclusionCount": 1,
   "updatedAt": "2026-08-25T10:00:00Z"
 }
 ```
@@ -1108,7 +1108,7 @@ flowchart LR
     A["Active generation g1"] --> B["Match year 2026, DirectProducer, registrationStatus=REGISTERED"]
     B --> C["Match referenceResolutionState=Resolved"]
     C --> D["Lookup declaration-review state by organisation/year/type"]
-    D --> E{"submittedOrAcceptedCount > 0?"}
+    D --> E{"unsubmittedExclusionCount > 0?"}
     E -- "Yes" --> F["Exclude Beta"]
     E -- "No / absent" --> G["Include Acme"]
     G --> H["Sort, count and page"]

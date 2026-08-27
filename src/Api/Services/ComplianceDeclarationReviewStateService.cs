@@ -26,13 +26,13 @@ public class ComplianceDeclarationReviewStateService(IDbContext dbContext)
                     [ComplianceDeclarationStatus.Submitted, ComplianceDeclarationStatus.Accepted]
                 )
             );
-            var count = await dbContext.ComplianceDeclarations.CountDocumentsAsync(
+            var unsubmittedExclusionCount = await dbContext.ComplianceDeclarations.CountDocumentsAsync(
                 transactionSession,
                 filter,
                 cancellationToken: cancellationToken
             );
             var update = Builders<ComplianceDeclarationReviewState>
-                .Update.Set(x => x.SubmittedOrAcceptedCount, (int)count)
+                .Update.Set(x => x.UnsubmittedExclusionCount, (int)unsubmittedExclusionCount)
                 .Set(x => x.UpdatedAt, utcNow)
                 .SetOnInsert(x => x.OrganisationId, key.OrganisationId)
                 .SetOnInsert(x => x.ObligationYear, key.ObligationYear)
