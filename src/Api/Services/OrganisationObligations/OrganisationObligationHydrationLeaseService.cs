@@ -14,32 +14,31 @@ public class OrganisationObligationHydrationLeaseService(
     private const string OwnerField = "owner";
 
     private readonly string _instanceId = $"{Environment.MachineName}-{Guid.NewGuid():N}";
-    private readonly IMongoCollection<OrganisationObligationHydrationLease> _leases =
-        database.GetCollection<OrganisationObligationHydrationLease>(
-            OrganisationObligationHydrationLease.CollectionName
-        );
+    private readonly IMongoCollection<BackgroundWorkerLease> _leases = database.GetCollection<BackgroundWorkerLease>(
+        BackgroundWorkerLease.OrganisationObligationHydrationCollectionName
+    );
 
     public async Task<bool> TryAcquire(TimeSpan leaseDuration, CancellationToken cancellationToken)
     {
         var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
         var leaseExpiresAt = utcNow.Add(leaseDuration);
 
-        var filter = Builders<OrganisationObligationHydrationLease>.Filter.And(
-            Builders<OrganisationObligationHydrationLease>.Filter.Eq(
+        var filter = Builders<BackgroundWorkerLease>.Filter.And(
+            Builders<BackgroundWorkerLease>.Filter.Eq(
                 x => x.Id,
-                OrganisationObligationHydrationLease.LeaseId
+                BackgroundWorkerLease.OrganisationObligationHydrationLeaseId
             ),
-            Builders<OrganisationObligationHydrationLease>.Filter.Or(
-                Builders<OrganisationObligationHydrationLease>.Filter.Lte(x => x.ExpiresAt, utcNow),
-                Builders<OrganisationObligationHydrationLease>.Filter.Eq(x => x.Owner, _instanceId)
+            Builders<BackgroundWorkerLease>.Filter.Or(
+                Builders<BackgroundWorkerLease>.Filter.Lte(x => x.ExpiresAt, utcNow),
+                Builders<BackgroundWorkerLease>.Filter.Eq(x => x.Owner, _instanceId)
             )
         );
 
-        var update = Builders<OrganisationObligationHydrationLease>
+        var update = Builders<BackgroundWorkerLease>
             .Update.Set(x => x.Owner, _instanceId)
             .Set(x => x.ExpiresAt, leaseExpiresAt)
             .Set(x => x.UpdatedAt, utcNow)
-            .SetOnInsert(x => x.Id, OrganisationObligationHydrationLease.LeaseId)
+            .SetOnInsert(x => x.Id, BackgroundWorkerLease.OrganisationObligationHydrationLeaseId)
             .SetOnInsert(x => x.CreatedAt, utcNow);
 
         try
@@ -47,7 +46,7 @@ public class OrganisationObligationHydrationLeaseService(
             await _leases.FindOneAndUpdateAsync(
                 filter,
                 update,
-                new FindOneAndUpdateOptions<OrganisationObligationHydrationLease>
+                new FindOneAndUpdateOptions<BackgroundWorkerLease>
                 {
                     IsUpsert = true,
                     ReturnDocument = ReturnDocument.After,
@@ -76,15 +75,15 @@ public class OrganisationObligationHydrationLeaseService(
         var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
         var leaseExpiresAt = utcNow.Add(leaseDuration);
 
-        var filter = Builders<OrganisationObligationHydrationLease>.Filter.And(
-            Builders<OrganisationObligationHydrationLease>.Filter.Eq(
+        var filter = Builders<BackgroundWorkerLease>.Filter.And(
+            Builders<BackgroundWorkerLease>.Filter.Eq(
                 x => x.Id,
-                OrganisationObligationHydrationLease.LeaseId
+                BackgroundWorkerLease.OrganisationObligationHydrationLeaseId
             ),
-            Builders<OrganisationObligationHydrationLease>.Filter.Eq(x => x.Owner, _instanceId)
+            Builders<BackgroundWorkerLease>.Filter.Eq(x => x.Owner, _instanceId)
         );
 
-        var update = Builders<OrganisationObligationHydrationLease>
+        var update = Builders<BackgroundWorkerLease>
             .Update.Set(x => x.ExpiresAt, leaseExpiresAt)
             .Set(x => x.UpdatedAt, utcNow);
 
@@ -102,15 +101,15 @@ public class OrganisationObligationHydrationLeaseService(
     {
         var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
 
-        var filter = Builders<OrganisationObligationHydrationLease>.Filter.And(
-            Builders<OrganisationObligationHydrationLease>.Filter.Eq(
+        var filter = Builders<BackgroundWorkerLease>.Filter.And(
+            Builders<BackgroundWorkerLease>.Filter.Eq(
                 x => x.Id,
-                OrganisationObligationHydrationLease.LeaseId
+                BackgroundWorkerLease.OrganisationObligationHydrationLeaseId
             ),
-            Builders<OrganisationObligationHydrationLease>.Filter.Eq(x => x.Owner, _instanceId)
+            Builders<BackgroundWorkerLease>.Filter.Eq(x => x.Owner, _instanceId)
         );
 
-        var update = Builders<OrganisationObligationHydrationLease>
+        var update = Builders<BackgroundWorkerLease>
             .Update.Set(x => x.ExpiresAt, utcNow)
             .Set(x => x.UpdatedAt, utcNow)
             .Set(x => x.LastReleasedAt, utcNow)

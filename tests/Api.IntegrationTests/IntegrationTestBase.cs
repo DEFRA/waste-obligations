@@ -41,8 +41,8 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     public required IMongoCollection<OrganisationReferenceCache> OrganisationReferenceCaches { get; set; }
     public required IMongoCollection<OrganisationComplianceDeclarationEligibility> OrganisationComplianceDeclarationEligibilities { get; set; }
     public required IMongoCollection<OrganisationEligibilitySnapshot> OrganisationEligibilitySnapshots { get; set; }
-    public required IMongoCollection<OrganisationEligibilityRefreshLease> OrganisationEligibilityRefreshLeases { get; set; }
-    public required IMongoCollection<OrganisationObligationHydrationLease> OrganisationObligationHydrationLeases { get; set; }
+    public required IMongoCollection<BackgroundWorkerLease> OrganisationEligibilityRefreshLeases { get; set; }
+    public required IMongoCollection<BackgroundWorkerLease> OrganisationObligationHydrationLeases { get; set; }
     public required IMongoCollection<OrganisationObligationHydrationWork> OrganisationObligationHydrationWork { get; set; }
     public required IMongoCollection<OrganisationObligationSummary> OrganisationObligationSummaries { get; set; }
 
@@ -73,11 +73,11 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         OrganisationComplianceDeclarationEligibilities =
             GetMongoCollection<OrganisationComplianceDeclarationEligibility>();
         OrganisationEligibilitySnapshots = GetMongoCollection<OrganisationEligibilitySnapshot>();
-        OrganisationEligibilityRefreshLeases = GetMongoCollection<OrganisationEligibilityRefreshLease>(
-            OrganisationEligibilityRefreshLease.CollectionName
+        OrganisationEligibilityRefreshLeases = GetMongoCollection<BackgroundWorkerLease>(
+            BackgroundWorkerLease.OrganisationEligibilityRefreshCollectionName
         );
-        OrganisationObligationHydrationLeases = GetMongoCollection<OrganisationObligationHydrationLease>(
-            OrganisationObligationHydrationLease.CollectionName
+        OrganisationObligationHydrationLeases = GetMongoCollection<BackgroundWorkerLease>(
+            BackgroundWorkerLease.OrganisationObligationHydrationCollectionName
         );
         OrganisationObligationHydrationWork = GetMongoCollection<OrganisationObligationHydrationWork>();
         OrganisationObligationSummaries = GetMongoCollection<OrganisationObligationSummary>();

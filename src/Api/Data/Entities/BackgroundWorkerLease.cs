@@ -3,13 +3,15 @@ using MongoDB.Bson.Serialization.Attributes;
 namespace Defra.WasteObligations.Api.Data.Entities;
 
 [BsonIgnoreExtraElements]
-public record OrganisationObligationHydrationLease
+public record BackgroundWorkerLease
 {
-    public const string CollectionName = "_organisation_obligation_hydration_lease";
-    public const string LeaseId = "organisation-obligation-hydration";
+    public const string OrganisationEligibilityRefreshCollectionName = "_organisation_eligibility_refresh_lease";
+    public const string OrganisationEligibilityRefreshLeaseId = "organisation-eligibility-refresh";
+    public const string OrganisationObligationHydrationCollectionName = "_organisation_obligation_hydration_lease";
+    public const string OrganisationObligationHydrationLeaseId = "organisation-obligation-hydration";
 
     [BsonId]
-    public required string Id { get; init; } = LeaseId;
+    public required string Id { get; init; }
 
     public string? Owner { get; init; }
 
