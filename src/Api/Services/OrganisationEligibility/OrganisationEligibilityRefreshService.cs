@@ -26,6 +26,15 @@ public class OrganisationEligibilityRefreshService(
         var activeSnapshot = await dbContext
             .OrganisationEligibilitySnapshots.Find(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId)
             .SingleOrDefaultAsync(cancellationToken);
+        if (
+            activeSnapshot?.ActiveGeneration is null
+            && referenceCaches.Any(x => x.ResolutionState == OrganisationReferenceNumberResolutionState.Failed)
+        )
+        {
+            throw new InvalidOperationException(
+                "Initial organisation eligibility generation contains failed Account reference lookups"
+            );
+        }
 
         if (
             activeSnapshot?.ActiveContentFingerprint == content.Fingerprint

@@ -70,6 +70,43 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Refresh_WhenInitialReferenceLookupFails_ShouldNotPromoteGeneration()
+    {
+        var organisationId = Guid.NewGuid();
+        ArrangeSource(organisationId);
+        OrganisationReferenceSearchService
+            .SearchOrganisationsByExternalIds(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromException<OrganisationsByExternalIdsResponse>(
+                    new HttpRequestException("Account is unavailable")
+                )
+            );
+        var subject = CreateSubject();
+
+        var act = async () => await subject.Refresh(TestContext.Current.CancellationToken);
+
+        await act.Should()
+            .ThrowAsync<InvalidOperationException>()
+            .WithMessage("Initial organisation eligibility generation contains failed Account reference lookups");
+        (
+            await OrganisationComplianceDeclarationEligibilities.CountDocumentsAsync(
+                Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Empty,
+                cancellationToken: TestContext.Current.CancellationToken
+            )
+        )
+            .Should()
+            .Be(0);
+        (
+            await OrganisationEligibilitySnapshots.CountDocumentsAsync(
+                Builders<OrganisationEligibilitySnapshot>.Filter.Empty,
+                cancellationToken: TestContext.Current.CancellationToken
+            )
+        )
+            .Should()
+            .Be(0);
+    }
+
+    [Fact]
     public async Task Refresh_WhenMultipleOrganisationsAreNew_ShouldPromoteEveryRow()
     {
         var firstOrganisationId = Guid.NewGuid();
