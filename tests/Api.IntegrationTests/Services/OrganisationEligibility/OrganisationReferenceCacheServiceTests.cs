@@ -21,6 +21,25 @@ public class OrganisationReferenceCacheServiceTests : IntegrationTestBase
         Substitute.For<IOrganisationReferenceSearchService>();
 
     [Fact]
+    public async Task SynchroniseAndResolve_WhenNoEligibilityRows_ShouldReturnEmptyWithoutAccountCall()
+    {
+        var subject = CreateSubject();
+
+        var result = await subject.SynchroniseAndResolve([], TestContext.Current.CancellationToken);
+
+        result.Should().BeEmpty();
+        await OrganisationReferenceSearchService
+            .DidNotReceive()
+            .SearchOrganisationsByExternalIds(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>());
+        await OrganisationReferenceSearchService
+            .DidNotReceive()
+            .SearchOrganisationsByCompaniesHouseNumbers(
+                Arg.Any<IReadOnlyCollection<string>>(),
+                Arg.Any<CancellationToken>()
+            );
+    }
+
+    [Fact]
     public async Task SynchroniseAndResolve_WhenNewDirectProducer_ShouldResolveAndDeduplicateYears()
     {
         var organisationId = Guid.NewGuid();
@@ -441,6 +460,143 @@ public class OrganisationReferenceCacheServiceTests : IntegrationTestBase
                     AttemptCount = 1,
                     NextAttemptAt = _timeProvider.GetUtcNow().UtcDateTime.AddHours(6),
                     LastFailure = new string('x', 500),
+                },
+                options => options.ExcludingMissingMembers()
+            );
+    }
+
+    [Fact]
+    public async Task SynchroniseAndResolve_WhenFailedReferenceBecomesDue_ShouldRetryAndResolve()
+    {
+        const string referenceNumber = "051829";
+        var organisationId = Guid.NewGuid();
+        OrganisationReferenceSearchService
+            .SearchOrganisationsByExternalIds(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromException<OrganisationsByExternalIdsResponse>(
+                    new HttpRequestException("Account is unavailable")
+                )
+            );
+        var subject = CreateSubject();
+        var row = CreateEligibilityRow(organisationId, RegistrationType.DirectProducer, 2026);
+        var failed = await subject.SynchroniseAndResolve([row], TestContext.Current.CancellationToken);
+        _timeProvider.Advance(TimeSpan.FromHours(6).Subtract(TimeSpan.FromMinutes(1)));
+
+        var beforeDue = await subject.SynchroniseAndResolve([row], TestContext.Current.CancellationToken);
+        OrganisationReferenceSearchService
+            .SearchOrganisationsByExternalIds(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
+            .Returns(
+                new OrganisationsByExternalIdsResponse
+                {
+                    Organisations =
+                    [
+                        new AccountOrganisation
+                        {
+                            ExternalId = organisationId.ToString("D"),
+                            ReferenceNumber = referenceNumber,
+                        },
+                    ],
+                }
+            );
+        _timeProvider.Advance(TimeSpan.FromMinutes(1));
+        var resolved = await subject.SynchroniseAndResolve([row], TestContext.Current.CancellationToken);
+
+        failed.Single().ResolutionState.Should().Be(OrganisationReferenceNumberResolutionState.Failed);
+        beforeDue.Single().AttemptCount.Should().Be(1);
+        resolved
+            .Should()
+            .ContainSingle()
+            .Which.Should()
+            .BeEquivalentTo(
+                new
+                {
+                    ReferenceNumber = referenceNumber,
+                    ResolutionState = OrganisationReferenceNumberResolutionState.Resolved,
+                    AttemptCount = 2,
+                    NextAttemptAt = (DateTime?)null,
+                },
+                options => options.ExcludingMissingMembers()
+            );
+        await OrganisationReferenceSearchService
+            .Received(2)
+            .SearchOrganisationsByExternalIds(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SynchroniseAndResolve_WhenComplianceSchemeAccountSearchFails_ShouldMarkReferenceForRetry()
+    {
+        var organisationId = Guid.NewGuid();
+        OrganisationReferenceSearchService
+            .SearchOrganisationsByCompaniesHouseNumbers(
+                Arg.Any<IReadOnlyCollection<string>>(),
+                Arg.Any<CancellationToken>()
+            )
+            .Returns(
+                Task.FromException<IReadOnlyList<AccountOrganisation>>(
+                    new HttpRequestException("Account is unavailable")
+                )
+            );
+        var subject = CreateSubject();
+
+        var result = await subject.SynchroniseAndResolve(
+            [CreateEligibilityRow(organisationId, RegistrationType.ComplianceScheme, 2026)],
+            TestContext.Current.CancellationToken
+        );
+
+        result
+            .Should()
+            .ContainSingle()
+            .Which.Should()
+            .BeEquivalentTo(
+                new
+                {
+                    ResolutionState = OrganisationReferenceNumberResolutionState.Failed,
+                    AttemptCount = 1,
+                    NextAttemptAt = _timeProvider.GetUtcNow().UtcDateTime.AddHours(6),
+                    LastFailure = "Account is unavailable",
+                },
+                options => options.ExcludingMissingMembers()
+            );
+    }
+
+    [Fact]
+    public async Task SynchroniseAndResolve_WhenCompaniesHouseMatchIsNotAComplianceScheme_ShouldNotResolveIt()
+    {
+        var organisationId = Guid.NewGuid();
+        OrganisationReferenceSearchService
+            .SearchOrganisationsByCompaniesHouseNumbers(
+                Arg.Any<IReadOnlyCollection<string>>(),
+                Arg.Any<CancellationToken>()
+            )
+            .Returns(
+                new List<AccountOrganisation>
+                {
+                    new()
+                    {
+                        CompaniesHouseNumber = "12345678",
+                        ReferenceNumber = "530001",
+                        IsComplianceScheme = false,
+                    },
+                }
+            );
+        var subject = CreateSubject();
+
+        var result = await subject.SynchroniseAndResolve(
+            [CreateEligibilityRow(organisationId, RegistrationType.ComplianceScheme, 2026)],
+            TestContext.Current.CancellationToken
+        );
+
+        result
+            .Should()
+            .ContainSingle()
+            .Which.Should()
+            .BeEquivalentTo(
+                new
+                {
+                    ResolutionState = OrganisationReferenceNumberResolutionState.NotFound,
+                    ReferenceNumber = (string?)null,
+                    AttemptCount = 1,
+                    NextAttemptAt = _timeProvider.GetUtcNow().UtcDateTime.AddHours(6),
                 },
                 options => options.ExcludingMissingMembers()
             );

@@ -192,6 +192,15 @@ public class OrganisationEligibilityRefreshWorkerTests
                 renewalAttempted.TrySetResult();
                 return Task.FromResult(false);
             });
+        var released = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        leaseService
+            .Release(CancellationToken.None)
+            .Returns(_ =>
+            {
+                released.TrySetResult();
+
+                return Task.CompletedTask;
+            });
         var refreshService = Substitute.For<IOrganisationEligibilityRefreshService>();
         var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var refreshCompletion = new TaskCompletionSource<OrganisationEligibilityRefreshResult>(
@@ -221,6 +230,7 @@ public class OrganisationEligibilityRefreshWorkerTests
         await subject.StartAsync(CancellationToken.None);
         await renewalAttempted.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await released.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         await subject.StopAsync(CancellationToken.None);
 
         logger.Messages.Should().Contain("Organisation eligibility refresh stopped because its lease was not renewed");

@@ -228,6 +228,45 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Refresh_WhenSeveralGenerationsArePromotedWithinRetentionPeriod_ShouldRetainEachSupersededGeneration()
+    {
+        var organisationId = Guid.NewGuid();
+        ArrangeSource(organisationId);
+        ArrangeDirectProducerReference(organisationId, "051829");
+        var subject = CreateSubject();
+        var initial = await subject.Refresh(TestContext.Current.CancellationToken);
+        _timeProvider.Advance(TimeSpan.FromDays(1));
+        ArrangeSource(organisationId, name: "First changed name");
+        var second = await subject.Refresh(TestContext.Current.CancellationToken);
+        var initialDeleteAfter = _timeProvider.GetUtcNow().UtcDateTime.AddDays(30);
+        _timeProvider.Advance(TimeSpan.FromDays(1));
+        ArrangeSource(organisationId, name: "Second changed name");
+
+        var third = await subject.Refresh(TestContext.Current.CancellationToken);
+
+        third.Outcome.Should().Be(OrganisationEligibilityRefreshOutcome.Promoted);
+        var snapshot = await OrganisationEligibilitySnapshots
+            .Find(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        snapshot
+            .RetainedGenerations.Select(x => x.Generation)
+            .Should()
+            .Equal(initial.ActiveGeneration, second.ActiveGeneration);
+        snapshot
+            .RetainedGenerations.Select(x => x.DeleteAfter)
+            .Should()
+            .Equal(initialDeleteAfter, _timeProvider.GetUtcNow().UtcDateTime.AddDays(30));
+        (
+            await OrganisationComplianceDeclarationEligibilities.CountDocumentsAsync(
+                Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Empty,
+                cancellationToken: TestContext.Current.CancellationToken
+            )
+        )
+            .Should()
+            .Be(3);
+    }
+
+    [Fact]
     public async Task Refresh_WhenRetainedGenerationExpires_ShouldGarbageCollectIt()
     {
         var organisationId = Guid.NewGuid();
