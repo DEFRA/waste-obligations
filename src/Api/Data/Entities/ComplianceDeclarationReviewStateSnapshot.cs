@@ -12,4 +12,9 @@ public record ComplianceDeclarationReviewStateSnapshot
 
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime? BackfillCompletedAt { get; init; }
+
+    // TEMPORARY INITIAL ROLLOUT: Remove this property and the initial-rollout reconciliation path once this is
+    // populated in every deployed environment.
+    [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
+    public DateTime? InitialRolloutReconciliationCompletedAt { get; init; }
 }

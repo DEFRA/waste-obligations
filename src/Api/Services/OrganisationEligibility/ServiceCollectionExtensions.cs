@@ -26,6 +26,8 @@ public static class ServiceCollectionExtensions
         if (addRefreshWorker)
         {
             services.AddHostedService<OrganisationEligibilityRefreshWorker>();
+            // TEMPORARY INITIAL ROLLOUT: Remove with the delayed review-state reconciliation worker.
+            services.AddHostedService<ComplianceDeclarationReviewStateInitialRolloutReconciliationWorker>();
         }
 
         return services;

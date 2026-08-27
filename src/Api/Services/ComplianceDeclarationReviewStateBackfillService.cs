@@ -13,16 +13,35 @@ public class ComplianceDeclarationReviewStateBackfillService(IDbContext dbContex
 
     public async Task<ComplianceDeclarationReviewStateBackfillResult> Backfill(CancellationToken cancellationToken)
     {
-        var snapshot = await dbContext
-            .ComplianceDeclarationReviewStateSnapshots.Find(x =>
-                x.Id == ComplianceDeclarationReviewStateSnapshot.SnapshotId
-            )
-            .SingleOrDefaultAsync(cancellationToken);
+        var snapshot = await ReadSnapshot(cancellationToken);
         if (snapshot?.BackfillCompletedAt is not null)
         {
             return new ComplianceDeclarationReviewStateBackfillResult { AlreadyComplete = true, StateRowCount = 0 };
         }
 
+        return await Reconcile(snapshot, false, cancellationToken);
+    }
+
+    // TEMPORARY INITIAL ROLLOUT: Remove after InitialRolloutReconciliationCompletedAt is populated everywhere.
+    public async Task<ComplianceDeclarationReviewStateBackfillResult> ReconcileInitialRollout(
+        CancellationToken cancellationToken
+    )
+    {
+        var snapshot = await ReadSnapshot(cancellationToken);
+        if (snapshot?.InitialRolloutReconciliationCompletedAt is not null)
+        {
+            return new ComplianceDeclarationReviewStateBackfillResult { AlreadyComplete = true, StateRowCount = 0 };
+        }
+
+        return await Reconcile(snapshot, true, cancellationToken);
+    }
+
+    private async Task<ComplianceDeclarationReviewStateBackfillResult> Reconcile(
+        ComplianceDeclarationReviewStateSnapshot? snapshot,
+        bool completeInitialRolloutReconciliation,
+        CancellationToken cancellationToken
+    )
+    {
         var backfillStartedAt = timeProvider.GetUtcNowWithoutMicroseconds();
         var unsubmittedExclusions = await dbContext
             .ComplianceDeclarations.Find(
@@ -32,9 +51,16 @@ public class ComplianceDeclarationReviewStateBackfillService(IDbContext dbContex
                 )
             )
             .ToListAsync(cancellationToken);
-        var counts = unsubmittedExclusions
-            .GroupBy(ReviewStateKey.From)
-            .Select(x => new ReviewStateCount(x.Key, x.Count()))
+        var countsByKey = unsubmittedExclusions
+            .GroupBy(ComplianceDeclarationReviewStateKey.From)
+            .ToDictionary(x => x.Key, x => x.Count());
+        var existingNonZeroStates = await dbContext
+            .ComplianceDeclarationReviewStates.Find(x => x.UnsubmittedExclusionCount != 0)
+            .ToListAsync(cancellationToken);
+        var counts = countsByKey
+            .Keys.Concat(existingNonZeroStates.Select(ComplianceDeclarationReviewStateKey.From))
+            .Distinct()
+            .ToDictionary(x => x, x => countsByKey.GetValueOrDefault(x))
             .ToList();
 
         foreach (var batch in counts.Chunk(BatchSize))
@@ -47,13 +73,17 @@ public class ComplianceDeclarationReviewStateBackfillService(IDbContext dbContex
             );
         }
 
+        var completedSnapshot = new ComplianceDeclarationReviewStateSnapshot
+        {
+            Id = ComplianceDeclarationReviewStateSnapshot.SnapshotId,
+            BackfillCompletedAt = snapshot?.BackfillCompletedAt ?? backfillStartedAt,
+            InitialRolloutReconciliationCompletedAt = completeInitialRolloutReconciliation
+                ? backfillStartedAt
+                : snapshot?.InitialRolloutReconciliationCompletedAt,
+        };
         await dbContext.ComplianceDeclarationReviewStateSnapshots.ReplaceOneAsync(
             x => x.Id == ComplianceDeclarationReviewStateSnapshot.SnapshotId,
-            new ComplianceDeclarationReviewStateSnapshot
-            {
-                Id = ComplianceDeclarationReviewStateSnapshot.SnapshotId,
-                BackfillCompletedAt = backfillStartedAt,
-            },
+            completedSnapshot,
             new ReplaceOptions { IsUpsert = true },
             cancellationToken
         );
@@ -65,8 +95,15 @@ public class ComplianceDeclarationReviewStateBackfillService(IDbContext dbContex
         };
     }
 
+    private async Task<ComplianceDeclarationReviewStateSnapshot?> ReadSnapshot(CancellationToken cancellationToken) =>
+        await dbContext
+            .ComplianceDeclarationReviewStateSnapshots.Find(x =>
+                x.Id == ComplianceDeclarationReviewStateSnapshot.SnapshotId
+            )
+            .SingleOrDefaultAsync(cancellationToken);
+
     private static WriteModel<ComplianceDeclarationReviewState> CreateUpsert(
-        ReviewStateCount state,
+        KeyValuePair<ComplianceDeclarationReviewStateKey, int> state,
         DateTime backfillStartedAt
     )
     {
@@ -108,7 +145,7 @@ public class ComplianceDeclarationReviewStateBackfillService(IDbContext dbContex
                         ),
                         ["unsubmittedExclusionCount"] = new BsonDocument(
                             "$cond",
-                            new BsonArray { isOlderThanBackfill, state.Count, "$unsubmittedExclusionCount" }
+                            new BsonArray { isOlderThanBackfill, state.Value, "$unsubmittedExclusionCount" }
                         ),
                         ["updatedAt"] = new BsonDocument(
                             "$cond",
@@ -121,12 +158,4 @@ public class ComplianceDeclarationReviewStateBackfillService(IDbContext dbContex
 
         return new UpdateOneModel<ComplianceDeclarationReviewState>(filter, update) { IsUpsert = true };
     }
-
-    private sealed record ReviewStateKey(Guid OrganisationId, int ObligationYear, RegistrationType RegistrationType)
-    {
-        public static ReviewStateKey From(ComplianceDeclaration declaration) =>
-            new(declaration.Organisation.Id, declaration.ObligationYear, declaration.Organisation.RegistrationType);
-    }
-
-    private sealed record ReviewStateCount(ReviewStateKey Key, int Count);
 }

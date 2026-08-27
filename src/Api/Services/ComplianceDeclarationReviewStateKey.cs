@@ -10,4 +10,7 @@ internal sealed record ComplianceDeclarationReviewStateKey(
 {
     public static ComplianceDeclarationReviewStateKey From(ComplianceDeclaration declaration) =>
         new(declaration.Organisation.Id, declaration.ObligationYear, declaration.Organisation.RegistrationType);
+
+    public static ComplianceDeclarationReviewStateKey From(ComplianceDeclarationReviewState state) =>
+        new(state.OrganisationId, state.ObligationYear, state.RegistrationType);
 }

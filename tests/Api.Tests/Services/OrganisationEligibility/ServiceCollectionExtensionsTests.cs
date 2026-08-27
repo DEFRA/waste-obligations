@@ -8,7 +8,7 @@ namespace Defra.WasteObligations.Api.Tests.Services.OrganisationEligibility;
 public class ServiceCollectionExtensionsTests
 {
     [Fact]
-    public void AddOrganisationEligibility_ShouldRegisterTheRefreshWorkerByDefault()
+    public void AddOrganisationEligibility_ShouldRegisterTheWorkersByDefault()
     {
         var services = new ServiceCollection();
 
@@ -19,6 +19,13 @@ public class ServiceCollectionExtensionsTests
             .Contain(descriptor =>
                 descriptor.ServiceType == typeof(IHostedService)
                 && descriptor.ImplementationType == typeof(OrganisationEligibilityRefreshWorker)
+            );
+        services
+            .Should()
+            .Contain(descriptor =>
+                descriptor.ServiceType == typeof(IHostedService)
+                && descriptor.ImplementationType
+                    == typeof(ComplianceDeclarationReviewStateInitialRolloutReconciliationWorker)
             );
     }
 }
