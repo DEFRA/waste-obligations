@@ -2,7 +2,9 @@
 
 ## Status and scope
 
-**Status:** draft for design review. No application code, Mongo collection, public endpoint, or compliance-declaration status is introduced by this document.
+**Status:** partially implemented. The pushed implementation delivers the local organisation-eligibility snapshot, Account-reference materialisation and retry, the declaration-review-state projection/backfill/reconciliation, and `GET /compliance-declarations/unsubmitted`. `Unsubmitted` remains an inferred review state rather than a compliance-declaration status.
+
+The current endpoint performs the active-generation/declaration-state anti-join locally, accepts `obligationYear`, `registrationType`, page/page-size, and `OrganisationName` ordering, and returns the safe default obligation values (`0` / `null` / `Pending`). It deliberately has no request-time Account or PRN calculation calls. Generic search, response freshness/coverage metadata, current-year enforcement, and organisation-obligation-summary hydration remain planned work described below.
 
 The proposed delivery is a local, refreshable copy of the Waste Organisations eligibility data in Waste Obligations, a local declaration-presence projection maintained as declarations change, and a separately refreshed organisation-obligation summary. Together they support a server-side query for the **Not submitted** review tab and CSV download.
 
@@ -949,7 +951,7 @@ Required endpoint behaviour:
 
 - `obligationYear` and review `registrationType` are required, and `obligationYear` must equal `currentComplianceYear`;
 - page-number pagination follows the existing 1–100 page-size convention;
-- an active, non-stale eligibility snapshot is selected for the requested year;
+- the active eligibility snapshot is selected for the requested year; if it is older than `MaximumAllowedStaleness`, log the condition and continue to serve the last complete active generation;
 - a candidate is returned only when it has a `REGISTERED` eligibility row with a resolved non-empty reference number and its `unsubmittedExclusionCount` is zero or absent;
 - a missing, pending, or stale organisation-obligation summary never excludes an otherwise eligible candidate and never makes a current-obligation calculation request in the handler; return the last successful value when one exists, otherwise the zero/default metric described below;
 - return `total`, `page`, `pageSize`, the eligibility `asOf` time, per-row obligation-summary `asOf` times, and the unresolved-reference exclusion count so consumers can diagnose source/reference/metric completeness;
@@ -1166,7 +1168,7 @@ The organisation-obligation summary is deliberately outside the organisation sna
 ## Open decisions
 
 1. What maximum end-to-end staleness is acceptable, accounting for both the upstream Synapse-to-Waste-Organisations schedule and this poller?
-2. Should a snapshot older than the limit produce `503` (recommended) or a clearly labelled stale response?
+2. Resolved: a snapshot older than the limit continues to serve the last complete active generation and logs an error. This preserves the implemented endpoint behaviour while refresh recovery proceeds.
 3. What is the definitive scheme display-name rule: Waste Organisations `tradingName`, `name`, or an Account-derived operator name?
 4. Should a Cancelled declaration continue to count as not submitted? The current frontend says yes.
 5. Which materialised fields should be in the first `sort` allow-list? Organisation name is available; percentage/recycling sorting needs a further read-model or measured full lookup design.
