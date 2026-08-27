@@ -268,7 +268,7 @@ ComplianceEligibilityOrganisation
 
 The unique key is `{ generation, obligationYear, organisationId, reviewType }`. `generation` makes the active data set immutable during a refresh. `registrationStatus` is the source's single current status for that key; `REGISTERED` is necessary but not sufficient for eligibility. A row is considered by the unsubmitted query only when `registrationStatus = REGISTERED` **and** `referenceResolutionState = Resolved` with a non-empty `referenceNumber`. Other reference states remain stored for retry/diagnostics but are never a candidate. The UI display-name rule for schemes must be explicitly agreed before the endpoint uses `name` versus `tradingName`; the current frontend receives the full organisation DTO and its scheme-name handling should not be copied accidentally.
 
-An empty result must never silently mean “every organisation has submitted” when source rows are being excluded for missing references. Persist the excluded count in snapshot metadata, emit it as a metric, and either return it in the endpoint metadata or fail closed according to the agreed reference-coverage policy. The initial bootstrap should normally remain unavailable until its required reference coverage is reached; the policy for later newly-unresolved rows is an explicit open decision.
+An empty result must never silently mean “every organisation has submitted” when source rows are being excluded for missing references. Persist the excluded count in snapshot metadata and emit it as an operational metric. The public endpoint deliberately returns only usable list data; a future administration/operational-insight endpoint will expose reference coverage, freshness, and other diagnostic state. The initial bootstrap should normally remain unavailable until its required reference coverage is reached; the policy for later newly-unresolved rows is an explicit open decision.
 
 For this first delivery, sort raw `name` with `organisationId` as the required final tie-breaker. This deliberately follows the current `ComplianceDeclaration` approach: there is no shared search/sort projection, normalised sort key, or new schema migration for historic declarations. Raw Mongo string order is deterministic but is not an explicit case-insensitive or locale-aware alphabetisation contract; revisit that only if user-facing ordering requires it.
 
@@ -958,7 +958,7 @@ Required endpoint behaviour:
 - the active eligibility snapshot is selected for the requested year; if it is older than `MaximumAllowedStaleness`, log the condition and continue to serve the last complete active generation;
 - a candidate is returned only when it has a `REGISTERED` eligibility row with a resolved non-empty reference number and its `unsubmittedExclusionCount` is zero or absent;
 - a missing, pending, or stale organisation-obligation summary never excludes an otherwise eligible candidate and never makes a current-obligation calculation request in the handler; return the last successful value when one exists, otherwise the zero/default metric described below;
-- return `total`, `page`, `pageSize`, the eligibility `asOf` time, per-row obligation-summary `asOf` times, and the unresolved-reference exclusion count so consumers can diagnose source/reference/metric completeness;
+- return `total`, `page`, `pageSize`, and per-row obligation-summary `asOf` times;
 - use a deterministic final tie-breaker of `organisationId`.
 
 The initial response contains the eligibility fields plus the locally hydrated organisation-obligation summary:
@@ -979,13 +979,17 @@ The initial response contains the eligibility fields plus the locally hydrated o
   ],
   "total": 0,
   "page": 1,
-  "pageSize": 20,
-  "eligibilityAsOf": "2026-08-26T12:00:00Z",
-  "excludedUnresolvedReferenceCount": 0
+  "pageSize": 20
 }
 ```
 
 `obligationCoveragePercentage: 0` is the safe initial display value, rather than evidence that the organisation has met zero percent of a known obligation. `obligationDataState` makes that distinction available to a client or support investigation: `Pending` has no successful read yet, `Ready` has a current summary, `Stale` exposes its last successful summary outside the target refresh window, and `Failed` has no successful read after a recoverable failure. The page may contain a mixture of these states. `recyclingObligationsMet` remains `null` until an actual summary is available.
+
+### Future operational insight endpoint
+
+The public unsubmitted endpoint is a client-facing list contract and must contain only data required to render, page, and act on that list. It does not expose eligibility-generation freshness or counts of organisations withheld because their reference is unresolved.
+
+A future administration/operational-insight endpoint should provide the corresponding diagnostic state: active-generation promotion and verification times, source freshness, resolved/unresolved reference counts and ages, reference retry/failure/ambiguity counts, organisation-obligation summary state counts, and the oldest pending or stale work. Its authorisation, retention, response shape, and alerting/metric relationship are deliberately separate design work.
 
 ### Generic search
 
