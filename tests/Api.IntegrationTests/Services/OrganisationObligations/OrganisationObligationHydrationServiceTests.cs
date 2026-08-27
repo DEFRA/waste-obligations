@@ -88,6 +88,43 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
             .Be(0);
     }
 
+    [Theory]
+    [InlineData(OrganisationRegistrationStatus.Cancelled, OrganisationReferenceNumberResolutionState.Resolved)]
+    [InlineData(OrganisationRegistrationStatus.Registered, OrganisationReferenceNumberResolutionState.NotFound)]
+    public async Task HydrateDue_WhenQueuedOrganisationIsNoLongerEligible_ShouldRemoveWorkWithoutCallingSource(
+        OrganisationRegistrationStatus registrationStatus,
+        OrganisationReferenceNumberResolutionState referenceResolutionState
+    )
+    {
+        var organisationId = Guid.NewGuid();
+        await InsertEligibility(organisationId, RegistrationType.DirectProducer, generation: "previous");
+        await InsertWork(organisationId);
+        await InsertEligibility(
+            organisationId,
+            RegistrationType.DirectProducer,
+            registrationStatus: registrationStatus,
+            referenceResolutionState: referenceResolutionState,
+            generation: "current"
+        );
+        await InsertActiveSnapshot("current");
+        var subject = CreateSubject();
+
+        var processedCount = await subject.HydrateDue(ObligationYear, TestContext.Current.CancellationToken);
+
+        processedCount.Should().Be(0);
+        await ObligationSource
+            .DidNotReceive()
+            .ReadObligations(organisationId, ObligationYear, Arg.Any<CancellationToken>());
+        (
+            await OrganisationObligationHydrationWork.CountDocumentsAsync(
+                Builders<OrganisationObligationHydrationWork>.Filter.Empty,
+                cancellationToken: TestContext.Current.CancellationToken
+            )
+        )
+            .Should()
+            .Be(0);
+    }
+
     [Fact]
     public async Task HydrateDue_WhenSourceSucceeds_ShouldPersistReadySummaryAndScheduleRefresh()
     {
@@ -217,12 +254,12 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
         );
     }
 
-    private Task InsertActiveSnapshot() =>
+    private Task InsertActiveSnapshot(string activeGeneration = "active") =>
         OrganisationEligibilitySnapshots.InsertOneAsync(
             new OrganisationEligibilitySnapshot
             {
                 Id = OrganisationEligibilitySnapshot.SnapshotId,
-                ActiveGeneration = "active",
+                ActiveGeneration = activeGeneration,
                 ActiveContentFingerprint = "fingerprint",
                 ActiveRowCount = 1,
             },
@@ -235,12 +272,13 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
         int obligationYear = ObligationYear,
         OrganisationRegistrationStatus registrationStatus = OrganisationRegistrationStatus.Registered,
         OrganisationReferenceNumberResolutionState referenceResolutionState =
-            OrganisationReferenceNumberResolutionState.Resolved
+            OrganisationReferenceNumberResolutionState.Resolved,
+        string generation = "active"
     ) =>
         OrganisationComplianceDeclarationEligibilities.InsertOneAsync(
             new OrganisationComplianceDeclarationEligibility
             {
-                Generation = "active",
+                Generation = generation,
                 OrganisationId = organisationId,
                 ObligationYear = obligationYear,
                 RegistrationType = registrationType,

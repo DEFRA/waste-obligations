@@ -19,11 +19,53 @@ public class OrganisationObligationHydrationService(
 
     public async Task<int> EnqueueNewEligible(int obligationYear, CancellationToken cancellationToken)
     {
+        var organisationIds = await GetEligibleOrganisationIds(obligationYear, cancellationToken);
+        var result = await EnqueueNewEligible(organisationIds, obligationYear, cancellationToken);
+
+        return result;
+    }
+
+    public async Task<int> HydrateDue(int obligationYear, CancellationToken cancellationToken)
+    {
+        var organisationIds = await GetEligibleOrganisationIds(obligationYear, cancellationToken);
+        await RemoveInactiveWork(organisationIds, obligationYear, cancellationToken);
+        await EnqueueNewEligible(organisationIds, obligationYear, cancellationToken);
+        var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
+        var work = await dbContext
+            .OrganisationObligationHydrationWork.Find(x =>
+                x.ObligationYear == obligationYear && x.NextAttemptAt <= utcNow
+            )
+            .SortBy(x => x.Priority)
+            .ThenBy(x => x.NextAttemptAt)
+            .Limit(options.Value.BatchSize)
+            .ToListAsync(cancellationToken);
+        var processedCount = 0;
+        var parallelOptions = new ParallelOptions
+        {
+            CancellationToken = cancellationToken,
+            MaxDegreeOfParallelism = options.Value.MaxConcurrentRequests,
+        };
+
+        await Parallel.ForEachAsync(
+            work,
+            parallelOptions,
+            async (item, token) =>
+            {
+                await Hydrate(item, token);
+                Interlocked.Increment(ref processedCount);
+            }
+        );
+
+        return processedCount;
+    }
+
+    private async Task<Guid[]> GetEligibleOrganisationIds(int obligationYear, CancellationToken cancellationToken)
+    {
         var snapshot = await dbContext
             .OrganisationEligibilitySnapshots.Find(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId)
             .SingleOrDefaultAsync(cancellationToken);
         if (snapshot?.ActiveGeneration is null)
-            return 0;
+            return [];
 
         var eligibleOrganisationIds = await dbContext
             .OrganisationComplianceDeclarationEligibilities.Find(x =>
@@ -34,7 +76,16 @@ public class OrganisationObligationHydrationService(
             )
             .Project(x => x.OrganisationId)
             .ToListAsync(cancellationToken);
-        var organisationIds = eligibleOrganisationIds.Distinct().ToArray();
+
+        return eligibleOrganisationIds.Distinct().ToArray();
+    }
+
+    private async Task<int> EnqueueNewEligible(
+        Guid[] organisationIds,
+        int obligationYear,
+        CancellationToken cancellationToken
+    )
+    {
         if (organisationIds.Length == 0)
             return 0;
 
@@ -78,36 +129,19 @@ public class OrganisationObligationHydrationService(
         return result.Upserts.Count;
     }
 
-    public async Task<int> HydrateDue(int obligationYear, CancellationToken cancellationToken)
+    private async Task RemoveInactiveWork(
+        Guid[] organisationIds,
+        int obligationYear,
+        CancellationToken cancellationToken
+    )
     {
-        await EnqueueNewEligible(obligationYear, cancellationToken);
-        var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
-        var work = await dbContext
-            .OrganisationObligationHydrationWork.Find(x =>
-                x.ObligationYear == obligationYear && x.NextAttemptAt <= utcNow
-            )
-            .SortBy(x => x.Priority)
-            .ThenBy(x => x.NextAttemptAt)
-            .Limit(options.Value.BatchSize)
-            .ToListAsync(cancellationToken);
-        var processedCount = 0;
-        var parallelOptions = new ParallelOptions
+        var filter = Builders<OrganisationObligationHydrationWork>.Filter.Eq(x => x.ObligationYear, obligationYear);
+        if (organisationIds.Length > 0)
         {
-            CancellationToken = cancellationToken,
-            MaxDegreeOfParallelism = options.Value.MaxConcurrentRequests,
-        };
+            filter &= Builders<OrganisationObligationHydrationWork>.Filter.Nin(x => x.OrganisationId, organisationIds);
+        }
 
-        await Parallel.ForEachAsync(
-            work,
-            parallelOptions,
-            async (item, token) =>
-            {
-                await Hydrate(item, token);
-                Interlocked.Increment(ref processedCount);
-            }
-        );
-
-        return processedCount;
+        await dbContext.OrganisationObligationHydrationWork.DeleteManyAsync(filter, cancellationToken);
     }
 
     private async Task Hydrate(OrganisationObligationHydrationWork work, CancellationToken cancellationToken)

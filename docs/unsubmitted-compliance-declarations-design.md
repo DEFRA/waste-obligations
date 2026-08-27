@@ -470,6 +470,7 @@ The obligation hydrator is a second interval worker using the existing `AuditEve
 On a changed organisation generation, restrict all obligation work to `obligationYear = currentComplianceYear`:
 
 1. Identify active rows for the current compliance year that are `REGISTERED`, have a resolved reference, and have no current-enough `{ organisationId, obligationYear }` summary. Deduplicate to work keys and enqueue them with `NewEligible` priority.
+   Before selecting due work, remove current-year work keys that no longer satisfy those active-generation conditions. This prevents a cancellation or an unresolved reference in a later generation from continuing to generate PRN calculation calls.
 2. Reuse an existing summary for source-identical rows until its `nextRefreshAt` is due. A reference becoming resolved can enqueue the existing organisation/year without changing the PRN key.
 3. The obligation worker selects a bounded due batch, calls `IPrnCommonBackendService.ReadObligations` for each key with deliberately low, configurable concurrency, maps the result, calculates the summary, and upserts it. A result with an unchanged `sourceFingerprint` updates freshness timestamps but need not rewrite the metric fields.
 4. A transient PRN failure records `Failed` and uses capped exponential back-off. It does not alter declaration presence or organisation eligibility. A successful empty response is `Ready`, not a failure.
