@@ -75,15 +75,15 @@ public class SearchUnsubmittedComplianceDeclarationsTests : IntegrationTestBase
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var responseBody = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-        var result = await response.Content.ReadFromJsonAsync<UnsubmittedComplianceDeclarationsPaged>(
+        var result = await response.Content.ReadFromJsonAsync<UnsubmittedOrganisationsPaged>(
             TestContext.Current.CancellationToken
         );
         result.Should().NotBeNull();
         result.Total.Should().Be(2);
         result.Page.Should().Be(1);
         result.PageSize.Should().Be(1);
-        result.UnsubmittedComplianceDeclarations.Should().ContainSingle();
-        var row = result.UnsubmittedComplianceDeclarations.Single();
+        result.UnsubmittedOrganisations.Should().ContainSingle();
+        var row = result.UnsubmittedOrganisations.Single();
         row.OrganisationId.Should().Be(secondIncludedOrganisationId);
         row.OrganisationReferenceNumber.Should().Be("100004");
         row.ObligationCoveragePercentage.Should().Be(0);

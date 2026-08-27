@@ -10,7 +10,7 @@ using OrganisationEligibilityEntity = Defra.WasteObligations.Api.Data.Entities.O
 
 namespace Defra.WasteObligations.Api.IntegrationTests.Services;
 
-public class UnsubmittedComplianceDeclarationsServiceTests : IntegrationTestBase
+public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
 {
     private readonly FakeTimeProvider _timeProvider = new(new DateTimeOffset(2026, 8, 27, 12, 0, 0, TimeSpan.Zero));
 
@@ -70,7 +70,6 @@ public class UnsubmittedComplianceDeclarationsServiceTests : IntegrationTestBase
         descending.Total.Should().Be(2);
         descending.Rows.Should().ContainSingle().Which.OrganisationId.Should().Be(beta);
         descending.Rows.Single().ReferenceNumber.Should().Be("100002");
-        descending.EligibilityAsOf.Should().Be(_timeProvider.GetUtcNow().UtcDateTime);
         ascendingSecondPage.Total.Should().Be(2);
         ascendingSecondPage.Rows.Should().ContainSingle().Which.OrganisationId.Should().Be(beta);
     }
@@ -109,7 +108,7 @@ public class UnsubmittedComplianceDeclarationsServiceTests : IntegrationTestBase
                 TestContext.Current.CancellationToken
             );
 
-        await unavailable.Should().ThrowAsync<UnsubmittedComplianceDeclarationsUnavailableException>();
+        await unavailable.Should().ThrowAsync<UnsubmittedOrganisationsUnavailableException>();
 
         await OrganisationEligibilitySnapshots.InsertOneAsync(
             new OrganisationEligibilitySnapshot
@@ -124,7 +123,7 @@ public class UnsubmittedComplianceDeclarationsServiceTests : IntegrationTestBase
             cancellationToken: TestContext.Current.CancellationToken
         );
 
-        await unavailable.Should().ThrowAsync<UnsubmittedComplianceDeclarationsUnavailableException>();
+        await unavailable.Should().ThrowAsync<UnsubmittedOrganisationsUnavailableException>();
     }
 
     [Fact]
@@ -154,10 +153,10 @@ public class UnsubmittedComplianceDeclarationsServiceTests : IntegrationTestBase
                 TestContext.Current.CancellationToken
             );
 
-        await act.Should().ThrowAsync<UnsubmittedComplianceDeclarationsUnavailableException>();
+        await act.Should().ThrowAsync<UnsubmittedOrganisationsUnavailableException>();
     }
 
-    private UnsubmittedComplianceDeclarationsService CreateSubject() =>
+    private UnsubmittedOrganisationsService CreateSubject() =>
         new(
             new MongoDbContext(
                 GetMongoDatabase(),

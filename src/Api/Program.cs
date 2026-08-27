@@ -70,10 +70,7 @@ try
         IComplianceDeclarationReviewStateBackfillService,
         ComplianceDeclarationReviewStateBackfillService
     >();
-    builder.Services.AddTransient<
-        IUnsubmittedComplianceDeclarationsService,
-        UnsubmittedComplianceDeclarationsService
-    >();
+    builder.Services.AddTransient<IUnsubmittedOrganisationsService, UnsubmittedOrganisationsService>();
     builder.Services.AddTransient<ICancellationEmailRecipientResolver, CancellationEmailRecipientResolver>();
     builder.Services.AddTransient<IEmailService, EmailService>();
 

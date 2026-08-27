@@ -98,7 +98,7 @@ public class RefreshOrganisationEligibilityFromDownstreamServicesTests : Integra
         );
         var client = CreateClient();
 
-        var response = await client.GetFromJsonAsync<UnsubmittedComplianceDeclarationsPaged>(
+        var response = await client.GetFromJsonAsync<UnsubmittedOrganisationsPaged>(
             Testing.Endpoints.ComplianceDeclarations.Unsubmitted(
                 EndpointQuery
                     .New.Where(EndpointFilter.ObligationYear(2026))
@@ -111,13 +111,10 @@ public class RefreshOrganisationEligibilityFromDownstreamServicesTests : Integra
         response.Should().NotBeNull();
         response!.Total.Should().Be(2);
         response
-            .UnsubmittedComplianceDeclarations.Select(x => x.OrganisationId)
+            .UnsubmittedOrganisations.Select(x => x.OrganisationId)
             .Should()
             .Equal(firstOrganisationId, secondOrganisationId);
-        response
-            .UnsubmittedComplianceDeclarations.Select(x => x.OrganisationReferenceNumber)
-            .Should()
-            .Equal("100001", "100002");
+        response.UnsubmittedOrganisations.Select(x => x.OrganisationReferenceNumber).Should().Equal("100001", "100002");
     }
 
     private static ServiceProvider CreateServiceProvider()

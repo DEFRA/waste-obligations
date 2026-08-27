@@ -17,7 +17,7 @@ public static class SearchUnsubmittedComplianceDeclarations
             .WithTags("Search")
             .WithSummary("Search unsubmitted compliance declarations")
             .WithDescription("Returns eligible organisations without a submitted or accepted compliance declaration")
-            .Produces<UnsubmittedComplianceDeclarationsPaged>()
+            .Produces<UnsubmittedOrganisationsPaged>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -28,7 +28,7 @@ public static class SearchUnsubmittedComplianceDeclarations
 
     private static async Task<IResult> Handle(
         [AsParameters] UnsubmittedComplianceDeclarationsRequest request,
-        [FromServices] IUnsubmittedComplianceDeclarationsService service,
+        [FromServices] IUnsubmittedOrganisationsService service,
         CancellationToken cancellationToken
     )
     {
@@ -52,9 +52,9 @@ public static class SearchUnsubmittedComplianceDeclarations
             );
 
             return Results.Ok(
-                new UnsubmittedComplianceDeclarationsPaged
+                new UnsubmittedOrganisationsPaged
                 {
-                    UnsubmittedComplianceDeclarations = result.Rows.Select(x => new UnsubmittedComplianceDeclaration
+                    UnsubmittedOrganisations = result.Rows.Select(x => new UnsubmittedOrganisation
                     {
                         OrganisationId = x.OrganisationId,
                         RegistrationType = x.RegistrationType.ToDto(),
@@ -66,11 +66,10 @@ public static class SearchUnsubmittedComplianceDeclarations
                     Total = result.Total,
                     Page = page,
                     PageSize = pageSize,
-                    EligibilityAsOf = result.EligibilityAsOf,
                 }
             );
         }
-        catch (UnsubmittedComplianceDeclarationsUnavailableException exception)
+        catch (UnsubmittedOrganisationsUnavailableException exception)
         {
             return Results.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: exception.Message);
         }

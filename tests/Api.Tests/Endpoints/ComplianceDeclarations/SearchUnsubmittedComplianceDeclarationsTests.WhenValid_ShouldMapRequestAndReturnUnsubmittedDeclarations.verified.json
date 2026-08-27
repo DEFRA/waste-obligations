@@ -1,5 +1,5 @@
 {
-  "unsubmittedComplianceDeclarations": [
+  "unsubmittedOrganisations": [
     {
       "organisationId": "Guid_1",
       "registrationType": "DirectProducer",
@@ -13,6 +13,5 @@
   ],
   "total": 6,
   "page": 2,
-  "pageSize": 5,
-  "eligibilityAsOf": "DateTimeOffset_1"
+  "pageSize": 5
 }

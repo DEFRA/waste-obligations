@@ -927,7 +927,7 @@ GET /compliance-declarations/unsubmitted
 The route is provisional, but is the route to design and spike against. Its internal equivalent is:
 
 ```csharp
-Task<UnsubmittedComplianceDeclarationsPaged> SearchUnsubmitted(
+Task<UnsubmittedOrganisationsPaged> SearchUnsubmitted(
     UnsubmittedComplianceDeclarationsQuery query,
     CancellationToken cancellationToken);
 ```

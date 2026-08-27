@@ -5,6 +5,7 @@
 - Add blank line before return statement
 - Prefer typed `Results.[method]()` helpers over `Results.Problem()` for endpoint responses; reserve `Results.Problem()` for cases without an appropriate typed helper
 - Use constants for values that are used more than once; inline values that are only used once
+- Place each production class, interface, record, enum, or struct in its own file, named for that type. Keep nested test-only types with their test when that makes the test self-contained.
 - Declare variables as close to their point of use as possible
 - Use camelCase for constants declared within methods
 - Lint files changed/created using "dotnet csharpier format ."

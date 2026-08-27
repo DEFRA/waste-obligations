@@ -93,7 +93,7 @@ public class UnsubmittedComplianceDeclarationStateProjectionTests : IntegrationT
         var cancelledSearch = await Search(client);
         cancelledSearch.Total.Should().Be(1);
         cancelledSearch
-            .UnsubmittedComplianceDeclarations.Should()
+            .UnsubmittedOrganisations.Should()
             .ContainSingle()
             .Which.OrganisationId.Should()
             .Be(organisationId);
@@ -121,9 +121,9 @@ public class UnsubmittedComplianceDeclarationStateProjectionTests : IntegrationT
         result.AlreadyComplete.Should().BeFalse();
     }
 
-    private static async Task<UnsubmittedComplianceDeclarationsPaged> Search(HttpClient client)
+    private static async Task<UnsubmittedOrganisationsPaged> Search(HttpClient client)
     {
-        var response = await client.GetFromJsonAsync<UnsubmittedComplianceDeclarationsPaged>(
+        var response = await client.GetFromJsonAsync<UnsubmittedOrganisationsPaged>(
             Testing.Endpoints.ComplianceDeclarations.Unsubmitted(
                 EndpointQuery
                     .New.Where(EndpointFilter.ObligationYear(2026))

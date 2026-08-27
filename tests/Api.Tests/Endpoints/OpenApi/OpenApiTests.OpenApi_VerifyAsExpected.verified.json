@@ -1046,7 +1046,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/UnsubmittedComplianceDeclarationsPaged"
+                  "$ref": "#/components/schemas/UnsubmittedOrganisationsPaged"
                 }
               }
             }
@@ -1867,7 +1867,7 @@
           null
         ]
       },
-      "UnsubmittedComplianceDeclaration": {
+      "UnsubmittedOrganisation": {
         "required": [
           "organisationName",
           "organisationReferenceNumber",
@@ -1914,13 +1914,13 @@
           }
         }
       },
-      "UnsubmittedComplianceDeclarationsPaged": {
+      "UnsubmittedOrganisationsPaged": {
         "type": "object",
         "properties": {
-          "unsubmittedComplianceDeclarations": {
+          "unsubmittedOrganisations": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/UnsubmittedComplianceDeclaration"
+              "$ref": "#/components/schemas/UnsubmittedOrganisation"
             }
           },
           "total": {
@@ -1946,10 +1946,6 @@
               "string"
             ],
             "format": "int32"
-          },
-          "eligibilityAsOf": {
-            "type": "string",
-            "format": "date-time"
           }
         }
       },

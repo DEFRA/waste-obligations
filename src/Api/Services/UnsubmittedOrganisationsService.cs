@@ -4,31 +4,18 @@ using Defra.WasteObligations.Api.Services.OrganisationEligibility;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
-using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 using OrganisationEligibilityEntity = Defra.WasteObligations.Api.Data.Entities.OrganisationEligibility;
 
 namespace Defra.WasteObligations.Api.Services;
 
-public interface IUnsubmittedComplianceDeclarationsService
-{
-    Task<UnsubmittedComplianceDeclarationsSearchResult> Search(
-        int obligationYear,
-        RegistrationType registrationType,
-        IReadOnlyCollection<ComplianceDeclarationSort> sort,
-        int page,
-        int pageSize,
-        CancellationToken cancellationToken
-    );
-}
-
-public class UnsubmittedComplianceDeclarationsService(
+public class UnsubmittedOrganisationsService(
     IDbContext dbContext,
     IOptions<OrganisationEligibilityOptions> options,
     TimeProvider timeProvider
-) : IUnsubmittedComplianceDeclarationsService
+) : IUnsubmittedOrganisationsService
 {
-    public async Task<UnsubmittedComplianceDeclarationsSearchResult> Search(
+    public async Task<UnsubmittedOrganisationSearchResult> Search(
         int obligationYear,
         RegistrationType registrationType,
         IReadOnlyCollection<ComplianceDeclarationSort> sort,
@@ -46,7 +33,7 @@ public class UnsubmittedComplianceDeclarationsService(
             || timeProvider.GetUtcNow().UtcDateTime - snapshot.LastVerifiedAt > options.Value.MaximumAllowedStaleness
         )
         {
-            throw new UnsubmittedComplianceDeclarationsUnavailableException(
+            throw new UnsubmittedOrganisationsUnavailableException(
                 "Organisation eligibility data is unavailable or stale"
             );
         }
@@ -58,7 +45,7 @@ public class UnsubmittedComplianceDeclarationsService(
             .SingleOrDefaultAsync(cancellationToken);
         if (reviewStateSnapshot?.BackfillCompletedAt is null)
         {
-            throw new UnsubmittedComplianceDeclarationsUnavailableException(
+            throw new UnsubmittedOrganisationsUnavailableException(
                 "Compliance declaration review state has not been backfilled"
             );
         }
@@ -90,12 +77,7 @@ public class UnsubmittedComplianceDeclarationsService(
         var rows = result is null ? [] : ReadRows(result);
         var total = result is null ? 0 : ReadTotal(result);
 
-        return new UnsubmittedComplianceDeclarationsSearchResult
-        {
-            Rows = rows,
-            Total = total,
-            EligibilityAsOf = snapshot.LastVerifiedAt.Value,
-        };
+        return new UnsubmittedOrganisationSearchResult { Rows = rows, Total = total };
     }
 
     private static BsonDocument ReviewStateLookup() =>
@@ -189,11 +171,9 @@ public class UnsubmittedComplianceDeclarationsService(
         };
     }
 
-    private static List<UnsubmittedComplianceDeclarationSearchRow> ReadRows(BsonDocument document) =>
+    private static List<UnsubmittedOrganisationSearchRow> ReadRows(BsonDocument document) =>
         document["rows"]
-            .AsBsonArray.Select(x =>
-                BsonSerializer.Deserialize<UnsubmittedComplianceDeclarationSearchRow>(x.AsBsonDocument)
-            )
+            .AsBsonArray.Select(x => BsonSerializer.Deserialize<UnsubmittedOrganisationSearchRow>(x.AsBsonDocument))
             .ToList();
 
     private static int ReadTotal(BsonDocument document)
@@ -203,24 +183,3 @@ public class UnsubmittedComplianceDeclarationsService(
         return total.Count == 0 ? 0 : total[0].AsBsonDocument["value"].ToInt32();
     }
 }
-
-public record UnsubmittedComplianceDeclarationsSearchResult
-{
-    public required IReadOnlyList<UnsubmittedComplianceDeclarationSearchRow> Rows { get; init; }
-    public required int Total { get; init; }
-    public required DateTime EligibilityAsOf { get; init; }
-}
-
-[BsonIgnoreExtraElements]
-public record UnsubmittedComplianceDeclarationSearchRow
-{
-    [BsonGuidRepresentation(GuidRepresentation.Standard)]
-    public Guid OrganisationId { get; init; }
-
-    public int ObligationYear { get; init; }
-    public RegistrationType RegistrationType { get; init; }
-    public required string Name { get; init; }
-    public required string ReferenceNumber { get; init; }
-}
-
-public class UnsubmittedComplianceDeclarationsUnavailableException(string message) : Exception(message);

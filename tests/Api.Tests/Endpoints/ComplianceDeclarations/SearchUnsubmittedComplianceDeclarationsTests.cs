@@ -14,20 +14,19 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
     ITestOutputHelper outputHelper
 ) : EndpointTestBase(factory, outputHelper)
 {
-    private IUnsubmittedComplianceDeclarationsService UnsubmittedComplianceDeclarationsService { get; } =
-        Substitute.For<IUnsubmittedComplianceDeclarationsService>();
+    private IUnsubmittedOrganisationsService UnsubmittedOrganisationsService { get; } =
+        Substitute.For<IUnsubmittedOrganisationsService>();
 
     protected override void ConfigureTestServices(IServiceCollection services)
     {
-        services.AddTransient<IUnsubmittedComplianceDeclarationsService>(_ => UnsubmittedComplianceDeclarationsService);
+        services.AddTransient<IUnsubmittedOrganisationsService>(_ => UnsubmittedOrganisationsService);
     }
 
     [Fact]
     public async Task WhenValid_ShouldMapRequestAndReturnUnsubmittedDeclarations()
     {
         var organisationId = Guid.Parse("c961459a-324c-4400-bb22-afae8c8a9827");
-        var eligibilityAsOf = new DateTime(2026, 8, 27, 12, 0, 0, DateTimeKind.Utc);
-        UnsubmittedComplianceDeclarationsService
+        UnsubmittedOrganisationsService
             .Search(
                 2026,
                 EntityRegistrationType.DirectProducer,
@@ -40,11 +39,11 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
                 cancellationToken: Arg.Any<CancellationToken>()
             )
             .Returns(
-                new UnsubmittedComplianceDeclarationsSearchResult
+                new UnsubmittedOrganisationSearchResult
                 {
                     Rows =
                     [
-                        new UnsubmittedComplianceDeclarationSearchRow
+                        new UnsubmittedOrganisationSearchRow
                         {
                             OrganisationId = organisationId,
                             ObligationYear = 2026,
@@ -54,7 +53,6 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
                         },
                     ],
                     Total = 6,
-                    EligibilityAsOf = eligibilityAsOf,
                 }
             );
         var client = CreateClient(testUser: TestUser.ReadOnly);
@@ -79,7 +77,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
     public async Task WhenValidForComplianceScheme_ShouldUseDefaultsAndReturnResponseShape()
     {
         var organisationId = Guid.Parse("b4d5584e-fa55-431f-9fcc-1bf747e001e4");
-        UnsubmittedComplianceDeclarationsService
+        UnsubmittedOrganisationsService
             .Search(
                 2026,
                 EntityRegistrationType.ComplianceScheme,
@@ -89,11 +87,11 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
                 cancellationToken: Arg.Any<CancellationToken>()
             )
             .Returns(
-                new UnsubmittedComplianceDeclarationsSearchResult
+                new UnsubmittedOrganisationSearchResult
                 {
                     Rows =
                     [
-                        new UnsubmittedComplianceDeclarationSearchRow
+                        new UnsubmittedOrganisationSearchRow
                         {
                             OrganisationId = organisationId,
                             ObligationYear = 2026,
@@ -103,7 +101,6 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
                         },
                     ],
                     Total = 1,
-                    EligibilityAsOf = new DateTime(2026, 8, 27, 12, 0, 0, DateTimeKind.Utc),
                 }
             );
         var client = CreateClient(testUser: TestUser.ReadOnly);
@@ -208,7 +205,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         await VerifyJson(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-        await UnsubmittedComplianceDeclarationsService
+        await UnsubmittedOrganisationsService
             .DidNotReceive()
             .Search(
                 Arg.Any<int>(),
@@ -223,7 +220,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
     [Fact]
     public async Task WhenEligibilityDataIsUnavailable_ShouldBeServiceUnavailable()
     {
-        UnsubmittedComplianceDeclarationsService
+        UnsubmittedOrganisationsService
             .Search(
                 Arg.Any<int>(),
                 Arg.Any<EntityRegistrationType>(),
@@ -233,10 +230,8 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
                 Arg.Any<CancellationToken>()
             )
             .Returns(
-                Task.FromException<UnsubmittedComplianceDeclarationsSearchResult>(
-                    new UnsubmittedComplianceDeclarationsUnavailableException(
-                        "Organisation eligibility data is unavailable"
-                    )
+                Task.FromException<UnsubmittedOrganisationSearchResult>(
+                    new UnsubmittedOrganisationsUnavailableException("Organisation eligibility data is unavailable")
                 )
             );
         var client = CreateClient(testUser: TestUser.ReadOnly);
