@@ -12,6 +12,10 @@ public class OrganisationEligibilityRefreshService(
     TimeProvider timeProvider
 ) : IOrganisationEligibilityRefreshService
 {
+    private const int DuplicateKeyErrorCode = 11000;
+    private const string ActiveGenerationChangedMessage =
+        "The active organisation eligibility generation changed during refresh";
+
     public async Task<OrganisationEligibilityRefreshResult> Refresh(CancellationToken cancellationToken)
     {
         var source = await organisationEligibilitySource.Search(cancellationToken);
@@ -41,11 +45,7 @@ public class OrganisationEligibilityRefreshService(
             && activeSnapshot.ActiveRowCount == content.Rows.Count
         )
         {
-            await dbContext.OrganisationEligibilitySnapshots.UpdateOneAsync(
-                x => x.Id == OrganisationEligibilitySnapshot.SnapshotId,
-                Builders<OrganisationEligibilitySnapshot>.Update.Set(x => x.LastVerifiedAt, utcNow),
-                cancellationToken: cancellationToken
-            );
+            await VerifyActiveGeneration(activeSnapshot, utcNow, cancellationToken);
 
             return new OrganisationEligibilityRefreshResult
             {
@@ -80,12 +80,7 @@ public class OrganisationEligibilityRefreshService(
             ActiveGenerationPromotedAt = utcNow,
             LastVerifiedAt = utcNow,
         };
-        await dbContext.OrganisationEligibilitySnapshots.ReplaceOneAsync(
-            x => x.Id == OrganisationEligibilitySnapshot.SnapshotId,
-            snapshot,
-            new ReplaceOptions { IsUpsert = true },
-            cancellationToken
-        );
+        await PromoteActiveGeneration(activeSnapshot, snapshot, cancellationToken);
 
         return new OrganisationEligibilityRefreshResult
         {
@@ -94,5 +89,70 @@ public class OrganisationEligibilityRefreshService(
             RowCount = content.Rows.Count,
             ContentFingerprint = content.Fingerprint,
         };
+    }
+
+    private async Task VerifyActiveGeneration(
+        OrganisationEligibilitySnapshot activeSnapshot,
+        DateTime utcNow,
+        CancellationToken cancellationToken
+    )
+    {
+        var result = await dbContext.OrganisationEligibilitySnapshots.UpdateOneAsync(
+            ActiveGenerationFilter(activeSnapshot.ActiveGeneration),
+            Builders<OrganisationEligibilitySnapshot>.Update.Set(x => x.LastVerifiedAt, utcNow),
+            cancellationToken: cancellationToken
+        );
+
+        EnsureActiveGenerationUnchanged(result.MatchedCount);
+    }
+
+    private async Task PromoteActiveGeneration(
+        OrganisationEligibilitySnapshot? activeSnapshot,
+        OrganisationEligibilitySnapshot replacement,
+        CancellationToken cancellationToken
+    )
+    {
+        if (activeSnapshot is null)
+        {
+            try
+            {
+                await dbContext.OrganisationEligibilitySnapshots.InsertOneAsync(
+                    replacement,
+                    cancellationToken: cancellationToken
+                );
+            }
+            catch (MongoCommandException exception) when (exception.Code == DuplicateKeyErrorCode)
+            {
+                throw new InvalidOperationException(ActiveGenerationChangedMessage, exception);
+            }
+            catch (MongoWriteException exception) when (exception.WriteError.Code == DuplicateKeyErrorCode)
+            {
+                throw new InvalidOperationException(ActiveGenerationChangedMessage, exception);
+            }
+
+            return;
+        }
+
+        var result = await dbContext.OrganisationEligibilitySnapshots.ReplaceOneAsync(
+            ActiveGenerationFilter(activeSnapshot.ActiveGeneration),
+            replacement,
+            cancellationToken: cancellationToken
+        );
+
+        EnsureActiveGenerationUnchanged(result.MatchedCount);
+    }
+
+    private static FilterDefinition<OrganisationEligibilitySnapshot> ActiveGenerationFilter(string? activeGeneration) =>
+        Builders<OrganisationEligibilitySnapshot>.Filter.And(
+            Builders<OrganisationEligibilitySnapshot>.Filter.Eq(x => x.Id, OrganisationEligibilitySnapshot.SnapshotId),
+            Builders<OrganisationEligibilitySnapshot>.Filter.Eq(x => x.ActiveGeneration, activeGeneration)
+        );
+
+    private static void EnsureActiveGenerationUnchanged(long matchedCount)
+    {
+        if (matchedCount != 1)
+        {
+            throw new InvalidOperationException(ActiveGenerationChangedMessage);
+        }
     }
 }

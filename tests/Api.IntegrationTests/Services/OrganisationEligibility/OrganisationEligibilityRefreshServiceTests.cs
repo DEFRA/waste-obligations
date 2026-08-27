@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using MongoDB.Bson;
 using MongoDB.Driver;
+using MongoDB.Driver.Core.Events;
 using NSubstitute;
 using Organisation = Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation;
 using OrganisationComplianceDeclarationEligibilityEntity = Defra.WasteObligations.Api.Data.Entities.OrganisationComplianceDeclarationEligibility;
@@ -220,34 +221,185 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
             .SearchOrganisationsByExternalIds(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>());
     }
 
-    private OrganisationEligibilityRefreshService CreateSubject()
+    [Fact]
+    public async Task Refresh_WhenAnotherHostCreatesTheInitialSnapshot_ShouldNotReplaceIt()
+    {
+        const string competingGeneration = "competing-generation";
+        var competingSnapshot = CreateSnapshot(competingGeneration, "competing-fingerprint");
+        var competingDatabase = GetMongoDatabase();
+        var snapshotInserted = 0;
+        var monitoredDatabase = CreateMonitoredDatabase(@event =>
+        {
+            if (
+                !IsCommandForCollection(@event, "insert", nameof(OrganisationEligibilitySnapshot))
+                || Interlocked.Exchange(ref snapshotInserted, 1) != 0
+            )
+            {
+                return;
+            }
+
+            competingDatabase
+                .GetCollection<OrganisationEligibilitySnapshot>(nameof(OrganisationEligibilitySnapshot))
+                .InsertOne(competingSnapshot);
+        });
+        var organisationId = Guid.NewGuid();
+        var source = CreateSource(organisationId);
+        var referenceSearchService = Substitute.For<IOrganisationReferenceSearchService>();
+        ArrangeDirectProducerReference(referenceSearchService, organisationId, "051829");
+        var subject = CreateSubject(monitoredDatabase, source, referenceSearchService, _timeProvider);
+
+        var act = async () => await subject.Refresh(TestContext.Current.CancellationToken);
+
+        await act.Should()
+            .ThrowAsync<InvalidOperationException>()
+            .WithMessage("The active organisation eligibility generation changed during refresh");
+        snapshotInserted.Should().Be(1);
+        var snapshot = await OrganisationEligibilitySnapshots
+            .Find(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        snapshot.ActiveGeneration.Should().Be(competingGeneration);
+    }
+
+    [Fact]
+    public async Task Refresh_WhenActiveGenerationChangesBeforePromotion_ShouldNotReplaceIt()
+    {
+        const string initialGeneration = "initial-generation";
+        const string competingGeneration = "competing-generation";
+        await OrganisationEligibilitySnapshots.InsertOneAsync(
+            CreateSnapshot(initialGeneration, "initial-fingerprint"),
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        var competingSnapshot = CreateSnapshot(competingGeneration, "competing-fingerprint");
+        var competingDatabase = GetMongoDatabase();
+        var snapshotReplaced = 0;
+        var monitoredDatabase = CreateMonitoredDatabase(@event =>
+        {
+            if (
+                !IsCommandForCollection(@event, "update", nameof(OrganisationEligibilitySnapshot))
+                || Interlocked.Exchange(ref snapshotReplaced, 1) != 0
+            )
+            {
+                return;
+            }
+
+            competingDatabase
+                .GetCollection<OrganisationEligibilitySnapshot>(nameof(OrganisationEligibilitySnapshot))
+                .ReplaceOne(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId, competingSnapshot);
+        });
+        var organisationId = Guid.NewGuid();
+        var source = CreateSource(organisationId);
+        var referenceSearchService = Substitute.For<IOrganisationReferenceSearchService>();
+        ArrangeDirectProducerReference(referenceSearchService, organisationId, "051829");
+        var subject = CreateSubject(monitoredDatabase, source, referenceSearchService, _timeProvider);
+
+        var act = async () => await subject.Refresh(TestContext.Current.CancellationToken);
+
+        await act.Should()
+            .ThrowAsync<InvalidOperationException>()
+            .WithMessage("The active organisation eligibility generation changed during refresh");
+        snapshotReplaced.Should().Be(1);
+        var snapshot = await OrganisationEligibilitySnapshots
+            .Find(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        snapshot.ActiveGeneration.Should().Be(competingGeneration);
+    }
+
+    [Fact]
+    public async Task Refresh_WhenActiveGenerationChangesBeforeVerification_ShouldNotUpdateIt()
+    {
+        var organisationId = Guid.NewGuid();
+        ArrangeSource(organisationId);
+        ArrangeDirectProducerReference(organisationId, "051829");
+        var initial = await CreateSubject().Refresh(TestContext.Current.CancellationToken);
+        _timeProvider.Advance(TimeSpan.FromMinutes(30));
+        const string competingGeneration = "competing-generation";
+        var competingVerifiedAt = _timeProvider.GetUtcNow().UtcDateTime.AddMinutes(-5);
+        var competingSnapshot = CreateSnapshot(competingGeneration, initial.ContentFingerprint, competingVerifiedAt);
+        var competingDatabase = GetMongoDatabase();
+        var snapshotReplaced = 0;
+        var monitoredDatabase = CreateMonitoredDatabase(@event =>
+        {
+            if (
+                !IsCommandForCollection(@event, "update", nameof(OrganisationEligibilitySnapshot))
+                || Interlocked.Exchange(ref snapshotReplaced, 1) != 0
+            )
+            {
+                return;
+            }
+
+            competingDatabase
+                .GetCollection<OrganisationEligibilitySnapshot>(nameof(OrganisationEligibilitySnapshot))
+                .ReplaceOne(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId, competingSnapshot);
+        });
+        var subject = CreateSubject(
+            monitoredDatabase,
+            OrganisationEligibilitySource,
+            OrganisationReferenceSearchService,
+            _timeProvider
+        );
+
+        var act = async () => await subject.Refresh(TestContext.Current.CancellationToken);
+
+        await act.Should()
+            .ThrowAsync<InvalidOperationException>()
+            .WithMessage("The active organisation eligibility generation changed during refresh");
+        snapshotReplaced.Should().Be(1);
+        var snapshot = await OrganisationEligibilitySnapshots
+            .Find(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        snapshot.ActiveGeneration.Should().Be(competingGeneration);
+        snapshot.LastVerifiedAt.Should().Be(competingVerifiedAt);
+    }
+
+    private OrganisationEligibilityRefreshService CreateSubject() =>
+        CreateSubject(
+            GetMongoDatabase(),
+            OrganisationEligibilitySource,
+            OrganisationReferenceSearchService,
+            _timeProvider
+        );
+
+    private static OrganisationEligibilityRefreshService CreateSubject(
+        IMongoDatabase database,
+        IOrganisationEligibilitySource source,
+        IOrganisationReferenceSearchService referenceSearchService,
+        TimeProvider timeProvider
+    )
     {
         var dbContext = new MongoDbContext(
-            GetMongoDatabase(),
+            database,
             Options.Create(new MongoDbOptions()),
             Substitute.For<Microsoft.Extensions.Logging.ILogger<MongoDbContext>>()
         );
         var options = Options.Create(new OrganisationEligibilityOptions { AccountReferenceNumberBatchSize = 10 });
         var cacheService = new OrganisationReferenceCacheService(
             dbContext,
-            OrganisationReferenceSearchService,
+            referenceSearchService,
             options,
-            _timeProvider,
+            timeProvider,
             Microsoft.Extensions.Logging.Abstractions.NullLogger<OrganisationReferenceCacheService>.Instance
         );
 
-        return new OrganisationEligibilityRefreshService(
-            dbContext,
-            OrganisationEligibilitySource,
-            cacheService,
-            _timeProvider
-        );
+        return new OrganisationEligibilityRefreshService(dbContext, source, cacheService, timeProvider);
     }
 
     private void ArrangeSource(Guid organisationId, string name = "Example organisation") =>
         OrganisationEligibilitySource
             .Search(Arg.Any<CancellationToken>())
             .Returns(new OrganisationSearch { Organisations = [CreateSourceOrganisation(organisationId, name)] });
+
+    private static IOrganisationEligibilitySource CreateSource(
+        Guid organisationId,
+        string name = "Example organisation"
+    )
+    {
+        var source = Substitute.For<IOrganisationEligibilitySource>();
+        source
+            .Search(Arg.Any<CancellationToken>())
+            .Returns(new OrganisationSearch { Organisations = [CreateSourceOrganisation(organisationId, name)] });
+
+        return source;
+    }
 
     private static Organisation CreateSourceOrganisation(Guid organisationId, string name) =>
         new()
@@ -267,7 +419,14 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
         };
 
     private void ArrangeDirectProducerReference(Guid organisationId, string referenceNumber) =>
-        OrganisationReferenceSearchService
+        ArrangeDirectProducerReference(OrganisationReferenceSearchService, organisationId, referenceNumber);
+
+    private static void ArrangeDirectProducerReference(
+        IOrganisationReferenceSearchService referenceSearchService,
+        Guid organisationId,
+        string referenceNumber
+    ) =>
+        referenceSearchService
             .SearchOrganisationsByExternalIds(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
             .Returns(
                 new OrganisationsByExternalIdsResponse
@@ -282,4 +441,35 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
                     ],
                 }
             );
+
+    private OrganisationEligibilitySnapshot CreateSnapshot(
+        string generation,
+        string fingerprint,
+        DateTime? lastVerifiedAt = null
+    ) =>
+        new()
+        {
+            Id = OrganisationEligibilitySnapshot.SnapshotId,
+            ActiveGeneration = generation,
+            ActiveContentFingerprint = fingerprint,
+            ActiveRowCount = 1,
+            ActiveGenerationPromotedAt = _timeProvider.GetUtcNow().UtcDateTime,
+            LastVerifiedAt = lastVerifiedAt ?? _timeProvider.GetUtcNow().UtcDateTime,
+        };
+
+    private static IMongoDatabase CreateMonitoredDatabase(Action<CommandStartedEvent> commandStarted)
+    {
+        var settings = MongoClientSettings.FromConnectionString(
+            "mongodb://127.0.0.1:27017/?replicaSet=rs0&directConnection=true&readPreference=secondaryPreferred"
+        );
+        settings.ServerSelectionTimeout = TimeSpan.FromSeconds(5);
+        settings.ConnectTimeout = TimeSpan.FromSeconds(5);
+        settings.SocketTimeout = TimeSpan.FromSeconds(5);
+        settings.ClusterConfigurator = builder => builder.Subscribe(commandStarted);
+
+        return new MongoClient(settings).GetDatabase("waste-obligations");
+    }
+
+    private static bool IsCommandForCollection(CommandStartedEvent @event, string commandName, string collectionName) =>
+        @event.CommandName == commandName && @event.Command[commandName].AsString == collectionName;
 }
