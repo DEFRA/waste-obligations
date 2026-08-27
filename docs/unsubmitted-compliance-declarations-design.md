@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-**Status:** in implementation. The local eligibility snapshot, Account-reference materialisation, declaration-review-state projection, and unsubmitted query endpoint are implemented. Organisation-obligation summary hydration remains to be implemented. `Unsubmitted` remains an inferred review state rather than a compliance-declaration status.
+**Status:** implementation in progress. The local eligibility snapshot, Account-reference materialisation, declaration-review-state projection, unsubmitted query endpoint, and organisation-obligation summary hydration/polling are implemented in this branch. `Unsubmitted` remains an inferred review state rather than a compliance-declaration status.
 
 The proposed delivery is a local, refreshable copy of the Waste Organisations eligibility data in Waste Obligations, a local declaration-presence projection maintained as declarations change, and a separately refreshed organisation-obligation summary. Together they support a server-side query for the **Not submitted** review tab and CSV download.
 
