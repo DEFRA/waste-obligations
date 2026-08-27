@@ -42,6 +42,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     public required IMongoCollection<OrganisationComplianceDeclarationEligibility> OrganisationComplianceDeclarationEligibilities { get; set; }
     public required IMongoCollection<OrganisationEligibilitySnapshot> OrganisationEligibilitySnapshots { get; set; }
     public required IMongoCollection<OrganisationEligibilityRefreshLease> OrganisationEligibilityRefreshLeases { get; set; }
+    public required IMongoCollection<OrganisationObligationHydrationLease> OrganisationObligationHydrationLeases { get; set; }
     public required IMongoCollection<OrganisationObligationHydrationWork> OrganisationObligationHydrationWork { get; set; }
     public required IMongoCollection<OrganisationObligationSummary> OrganisationObligationSummaries { get; set; }
 
@@ -75,6 +76,9 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         OrganisationEligibilityRefreshLeases = GetMongoCollection<OrganisationEligibilityRefreshLease>(
             OrganisationEligibilityRefreshLease.CollectionName
         );
+        OrganisationObligationHydrationLeases = GetMongoCollection<OrganisationObligationHydrationLease>(
+            OrganisationObligationHydrationLease.CollectionName
+        );
         OrganisationObligationHydrationWork = GetMongoCollection<OrganisationObligationHydrationWork>();
         OrganisationObligationSummaries = GetMongoCollection<OrganisationObligationSummary>();
 
@@ -88,6 +92,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         await DeleteMany(OrganisationComplianceDeclarationEligibilities);
         await DeleteMany(OrganisationEligibilitySnapshots);
         await DeleteMany(OrganisationEligibilityRefreshLeases);
+        await DeleteMany(OrganisationObligationHydrationLeases);
         await DeleteMany(OrganisationObligationHydrationWork);
         await DeleteMany(OrganisationObligationSummaries);
 
