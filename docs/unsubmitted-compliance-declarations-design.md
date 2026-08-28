@@ -27,7 +27,7 @@ currentObligationYear = localDate.Month == January
   : localDate.Year
 ```
 
-For example, every day from 1 to 31 January 2027 has current obligation year `2026`; 1 February 2027 changes it to `2027`. Implement this behind one tested domain service using an injected `TimeProvider` and an explicit `Europe/London` business time zone, never the host-local clock. The value must be calculated once per worker run and supplied to its queries, so a run cannot straddle the February boundary with two interpretations.
+For example, every day from 1 to 31 January 2027 has current obligation year `2026`; 1 February 2027 changes it to `2027`. The implementation uses one tested domain service with an injected `TimeProvider` and the explicit `Europe/London` business time zone, never the host-local clock. The worker calculates the handover once per run and supplies it to its queries, so a run cannot straddle the February boundary with two interpretations.
 
 Eligibility data continues to be loaded for all years, because it is the source needed to identify registrations/status transitions. The rolling obligation-hydration worker operates **only** for `currentObligationYear`, except for the explicit January/February handover below; it must not call the downstream organisation-obligation calculation endpoint for arbitrary historic or future years. Summary hydration is non-blocking: it enriches rows already eligible from the snapshot and declaration state.
 
@@ -201,11 +201,10 @@ The recommended interpretation of “ingest everything” is to fetch every sour
 
 Persisting every source field and every unrelated registration type is a separate option. It provides a local raw-source archive for debugging or future features, but it adds storage, PII ownership, schema-versioning, and a further collection/projection to maintain. It is not required for the initial unsubmitted query. If that audit/archive requirement emerges, add it explicitly rather than allowing the review projection to become an accidental full replica of Waste Organisations.
 
-The downstream client contract should be intentionally narrow and use a source-response model, for example:
+The implemented downstream adapter is intentionally narrow and uses a source-response model:
 
 ```csharp
-Task<WasteOrganisationsSearchResponse> SearchRegisteredComplianceOrganisations(
-    CancellationToken cancellationToken);
+Task<OrganisationSearch> Search(CancellationToken cancellationToken);
 ```
 
 This is an internal adapter contract, not a new public API. It must preserve source HTTP failures and cancellation rather than silently returning an empty population, because an empty population would be indistinguishable from every organisation having submitted.
@@ -214,21 +213,25 @@ This is an internal adapter contract, not a new public API. It must preserve sou
 
 The query needs two local business projections. `ComplianceDeclaration` remains the authoritative declaration document, but the endpoint does not perform a full declaration join for every page request because the yes/no answer is maintained on the eligibility row at mutation time.
 
-Names below are provisional. New collection names, indexes, schema files, migration scripts, and audit documentation must follow this repository's Mongo persistence process when implementation begins.
+The implementation uses the collection names and indexes described below. Any later persisted-shape change follows this repository's Mongo persistence process.
 
 `activeGeneration` is persisted in Mongo, not application memory or configuration, so every API instance reads the same active view after a restart or deployment. Its physical home is the dedicated `OrganisationEligibilitySnapshot` metadata collection containing one document for the all-years scope:
 
 ```json
 {
-  "_id": "all-years",
+  "_id": "unsubmitted-compliance-declarations",
   "activeGeneration": "g1",
   "activeContentFingerprint": "sha256:...",
-  "lastPromotedAt": "2026-08-26T08:15:00Z",
+  "activeRowCount": 12345,
+  "materialisedStateVersion": 17,
+  "activeGenerationPromotedAt": "2026-08-26T08:15:00Z",
   "lastVerifiedAt": "2026-08-26T08:14:47Z",
-  "sourceOrganisationCount": 12345,
-  "resolvedReferenceRowCount": 12001,
-  "excludedUnresolvedReferenceRowCount": 3,
-  "status": "Ready"
+  "retainedGenerations": [
+    {
+      "generation": "previous-generation",
+      "deleteAfter": "2026-09-25T08:15:00Z"
+    }
+  ]
 }
 ```
 
@@ -253,7 +256,7 @@ This is the refreshable Waste Organisations copy. Its job is to decide whether a
 
 ```text
 OrganisationEligibilitySnapshot
-  id                             "active"
+  id                             "unsubmitted-compliance-declarations"
   activeGeneration               GUID
   activeContentFingerprint       SHA-256 of the canonical derived eligibility set
   activeRowCount                 int
@@ -283,7 +286,7 @@ OrganisationComplianceDeclarationEligibility
 
 The unique key is `{ generation, obligationYear, organisationId, registrationType }`. `generation` makes the active data set stable during a refresh. `isVisibleInUnsubmittedView` is the endpoint's complete membership decision: it is true only for a Registered row with a resolved non-empty reference number and no Submitted or Accepted declaration for the same organisation/year/type. Other reference states remain stored for retry/diagnostics but are never visible. `name` is the established `CompanyName` value: Waste Organisations `name` for Direct Producers and `tradingName`, falling back to `name`, for Compliance Schemes. It is both the display and searchable organisation name. The separately retained source `tradingName` is not queried by the public endpoint.
 
-An empty result must never silently mean “every organisation has submitted” when source rows are being excluded for missing references. Persist the excluded count in snapshot metadata and emit it as an operational metric. The public endpoint deliberately returns only usable list data; a future administration/operational-insight endpoint will expose reference coverage, freshness, and other diagnostic state. The initial bootstrap should normally remain unavailable until its required reference coverage is reached; the policy for later newly-unresolved rows is an explicit open decision.
+An empty result must never silently mean “every organisation has submitted” when source rows are being excluded for missing references. The current snapshot intentionally records only the active generation, fingerprint, row count, materialised-state version, verification/promotion times, and retained generations. It neither persists reference-coverage counts nor blocks bootstrap on a coverage percentage. The public endpoint deliberately returns only usable list data; reference coverage, freshness, and other diagnostic state are future administration/operational-insight work.
 
 The eligibility row is the query aggregate. It contains the two obligation display metrics as a small write-time copy of the separately retained hydration summary, so the regulator query can match, sort, and page one indexed collection. The copy is updated in the same Mongo transaction that persists a successful hydration result, and is copied forward into a newly staged generation from the current summary. This avoids a request-time `$lookup` and avoids a third projection collection. It also means a future event consumer has one established place to apply changed organisation or calculation state; it must not create a competing list projection. Each in-place visibility or metric transaction increments `materialisedStateVersion`. A generation promotion matches the version it observed while staging, so it cannot replace a concurrent local mutation with an older staged value.
 
@@ -334,7 +337,7 @@ The initial `g1` flow is:
 
 For a later source refresh, compare each new row's **source** fingerprint to `g1`. A resolved reference from the active generation is copied forward for the same organisation/type, including when the source row itself changes. Every remaining unresolved key is sent in the bounded Account batch for this refresh. Thus a single genuinely new organisation creates one Account lookup, while resolved organisations are copied into `g2` without a call. Build the complete `g2` and promote it atomically only after the immediate lookup batch has outcomes.
 
-An Account timeout, a not-found result, or an ambiguous scheme must not indefinitely hold an otherwise valid Waste Organisations snapshot hostage. Record `Failed`, `NotFound`, or `Ambiguous` on the staged generation and promote it. The row is excluded, satisfying the no-reference rule, and is retried by the next eligibility refresh. When it later becomes `Resolved`, materialise a fresh complete generation on that refresh cycle; do not mutate active generation rows in place.
+An initial Account timeout blocks the first promotion so the service does not publish a generation while its required reference lookup has failed. A `NotFound` or `Ambiguous` result, and a failed lookup for a newly introduced row after a generation already exists, remain stored as unresolved: the row is excluded and retried by the next eligibility refresh. When it later becomes `Resolved`, the refresh materialises and promotes a complete new generation; it does not mutate active generation rows in place.
 
 This is safe because the stated business invariant is that a reference number never changes once assigned to an organisation ID. The resolver reuses the first non-empty `Resolved` value found in the active generation; conflicting active values fail the refresh rather than selecting one. For a compliance scheme, a change to the source Companies House number after resolution is an integrity signal, not a reason to substitute a new reference automatically. An unresolved scheme may update its lookup key in the next source generation and be retried then.
 
@@ -399,7 +402,7 @@ The new worker must calculate the display value in Waste Obligations, using the 
 
 #### Projection and hydration state
 
-Add a per-organisation/year summary; `reviewType` is intentionally not part of its key because the PRN backend's organisation-obligation calculation endpoint is keyed only by organisation and obligation year. This lets one summary be reused if an organisation is represented by more than one review row.
+The delivery has a per-organisation/year summary; `registrationType` is intentionally not part of its key because the PRN backend's organisation-obligation calculation endpoint is keyed only by organisation and obligation year. This lets one summary be reused if an organisation is represented by more than one eligibility row.
 
 ```text
 OrganisationObligationSummary
@@ -561,7 +564,7 @@ The lease document follows the existing shape:
 }
 ```
 
-Each host uses the same configurable `PollingIntervalMinutes`; it is not a cron schedule. On startup, each host waits a small bounded random delay, then attempts a run. Subsequent attempts are targeted at a fixed interval from the previous attempt's start; an instance never overlaps its own runs. `PollingIntervalMinutes` must therefore be greater than the measured maximum normal refresh duration—if a run overruns, the next attempt occurs once it finishes and the freshness bound is breached/alerted. Every attempt calls `TryAcquire`. Mongo atomically grants the lease only when it has expired or is already owned by that same instance. Hosts that do not acquire it log/measure the skip and return; they do not wait or run a duplicate poll.
+Each host uses the same configurable `RefreshPollIntervalSeconds`; it is not a cron schedule. The worker attempts a run, then waits that interval. Every attempt calls `TryAcquire`. Mongo atomically grants the lease only when it has expired or is already owned by that same instance. Hosts that do not acquire it log the skip and return; they do not wait or run a duplicate poll.
 
 The owner must renew the lease throughout the source request, transformation, and every bounded bulk-write sequence. If renewal fails, it must cancel the refresh and **must not promote** the staged generation. Immediately before the metadata pointer is changed, renew/check ownership again. Release in `finally` by unsetting the owner and expiring the lease, as the audit-event worker does. If a host crashes, another host can acquire the lease after expiry and safely create its own staged generation.
 
@@ -573,41 +576,41 @@ One refresh run should work as follows:
 
 1. Acquire an `eligibility-organisations` lease. If another instance holds it, skip this interval.
 2. Fetch the single combined Waste Organisations search response with a timeout and normal HTTP resilience policy.
-3. Validate the response, then expand every relevant source registration into one `{ organisationId, obligationYear, reviewType }` review row. Retain its current status for `LARGE_PRODUCER` and `COMPLIANCE_SCHEME`, including non-`REGISTERED` statuses; ignore unrelated registration types in the derived projection.
+3. Validate the response, then expand every relevant source registration into one `{ organisationId, obligationYear, registrationType }` eligibility row. Retain its current status for `LARGE_PRODUCER` and `COMPLIANCE_SCHEME`, including non-`REGISTERED` statuses; ignore unrelated registration types in the derived projection.
 4. For every derived row, calculate its Waste Organisations-only `sourceFingerprint`. Reuse a known resolved reference from active-generation rows with the same organisation/type; make bounded immediate Account batch calls for every remaining unresolved key.
 5. Materialise the Account outcome on every staged row. A successful reference produces `Resolved` plus its string value; every other outcome produces an excluded unresolved state. Record source/row/duplicate/reference-outcome counts for diagnostics.
 6. Canonically sort the complete materialised set and calculate its semantic `activeContentFingerprint`. The fingerprint includes each row's `sourceFingerprint` and either its resolved reference value or one common `Unresolved` marker; it excludes retry timestamps and distinctions between non-eligible states such as `Pending` and `Failed`.
 7. Compare that fingerprint with the active generation in metadata.
-8. If the fingerprint is unchanged, atomically update only metadata such as `lastVerifiedAt`, source/row counts, and the no-change outcome. Do **not** create a generation, write eligibility rows, or alter the active pointer.
-9. If the fingerprint changed, bulk-write individual materialised eligibility documents under a new generation. The write key is `{ generation, obligationYear, organisationId, reviewType }`; do **not** modify the active generation in place.
-10. Verify the intended row count was written. Only after every bulk write succeeds, atomically switch snapshot metadata to the new generation, fingerprint, and `lastPromotedAt`/`lastVerifiedAt`.
+8. If the fingerprint is unchanged, atomically update `lastVerifiedAt` and retained-generation metadata. Do **not** create a generation, write eligibility rows, or alter the active pointer.
+9. If the fingerprint changed, bulk-write individual materialised eligibility documents under a new generation. The write key is `{ generation, obligationYear, organisationId, registrationType }`; do **not** modify the active generation in place.
+10. Verify the intended row count was written. Only after every bulk write succeeds, atomically switch snapshot metadata to the new generation, fingerprint, `activeGenerationPromotedAt`, and `lastVerifiedAt`.
 11. Delete old generations asynchronously after a retention period. A failed run never changes the active generation.
 
 This gives readers a complete old snapshot or a complete new one—never a partially refreshed population. It also avoids a failed source call being interpreted as no organisations.
 
-The run needs a data-quality guard before fingerprint comparison or promotion. At minimum it should detect invalid required IDs/years, duplicate keys after transformation, and a sudden source/row-count collapse against the last successful run. The policy for a legitimate zero-result snapshot must be agreed; it should not silently replace a non-empty active population.
+The current transformation rejects duplicate organisation/year/registration-type keys and the refresh verifies the written-row count before promotion. A sudden source/row-count collapse guard and a policy for a legitimate zero-result replacement are future operational hardening; the current code does not treat them as a separate promotion gate.
 
 ### Minimising data churn on frequent polls
 
 With the original generation-only description, every 30-minute poll would create a full new set of eligibility documents, even when Waste Organisations had not changed. That is safe but unnecessarily expensive. The poller should instead use **copy on semantic change**. The full-set fingerprint comparison happens **before** any staged-generation write:
 
 1. It must still call unfiltered `GET /organisations`. Waste Organisations exposes neither a change cursor nor a conditional/ETag contract in the current interface, so there is no safe way to know that the source is unchanged before reading it.
-2. It transforms the response into source rows, reuses/calls Account resolution as described above, then forms precisely the materialised eligibility fields that would be persisted. It sorts rows by `{ organisationId, obligationYear, reviewType }`, sorts each matching-registration list deterministically, serialises them canonically, and hashes that value (for example SHA-256). Do not include retrieval timestamps, response ordering, transport-only fields, or non-eligible retry-state changes in the hash.
+2. It transforms the response into source rows, reuses/calls Account resolution as described above, then forms precisely the materialised eligibility fields that would be persisted. It sorts rows by `{ organisationId, obligationYear, registrationType }`, serialises the row components canonically, and hashes that value. It excludes retrieval timestamps, response ordering, transport-only fields, and distinctions between unresolved reference states.
 3. If that full-set hash equals `activeContentFingerprint`, the poll is successful but is a **no-change** outcome. Update the small metadata document's `lastVerifiedAt` and metrics only. Existing eligibility rows and their generation remain untouched.
 4. If the hash differs—because source data changed or an unresolved reference became resolved—create and validate `g(n+1)`, then promote it as described below. The old data remains active until that promotion.
 
-The fingerprint deliberately covers the **derived materialised projection**, not the raw source response. A source change to an ignored registration type or an unpersisted field therefore does not create a new generation. An Account retry changing `Pending` to `Failed` also does not create one because neither value makes the row eligible; the first resolved reference does. This eliminates Mongo eligibility-row churn entirely when there are no relevant changes. It also means the endpoint can truthfully report that the source population was recently checked even when the data generation was last promoted days earlier. `lastVerifiedAt` is the freshness value for the endpoint; `lastPromotedAt` is the last time queryable data actually changed.
+The fingerprint deliberately covers the **derived materialised projection**, not the raw source response. A source change to an ignored registration type or an unpersisted field therefore does not create a new generation. An Account retry changing `Pending` to `Failed` also does not create one because neither value makes the row eligible; the first resolved reference does. This eliminates Mongo eligibility-row churn entirely when there are no relevant changes. It also means the endpoint can truthfully report that the source population was recently checked even when the data generation was last promoted days earlier. `lastVerifiedAt` is the freshness value for the endpoint; `activeGenerationPromotedAt` is the last time queryable data actually changed.
 
 When only a few organisations change—or a small number of references become resolved—the first implementation should still write a complete new generation. It performs one full source GET and one full local generation write *only on a semantic materialised-view change*, preserving the simple, indexed query that selects one generation. The per-row `sourceFingerprint` remains useful for diagnostics and later optimisation, but must not cause an in-place partial update of the active snapshot.
 
 #### Fingerprint algorithm and cost
 
-The fingerprint is cheap relative to an HTTP download and a full Mongo generation write, but it is not free: Waste Obligations must inspect every relevant source registration because the current source has no change token. Let `N` be the number of organisations, `R` the number of relevant `LARGE_PRODUCER`/`COMPLIANCE_SCHEME` registrations, and `M` the derived `{ organisationId, obligationYear, reviewType }` rows.
+The fingerprint is cheap relative to an HTTP download and a full Mongo generation write, but it is not free: Waste Obligations must inspect every relevant source registration because the current source has no change token. Let `N` be the number of organisations, `R` the number of relevant `LARGE_PRODUCER`/`COMPLIANCE_SCHEME` registrations, and `M` the derived `{ organisationId, obligationYear, registrationType }` rows.
 
 1. Read each source organisation and retain only the fields that would be stored in the eligibility projection. Convert each relevant source registration into its derived row and validate the source's `{ organisationId, type, registrationYear }` uniqueness.
-2. For each row, calculate `sourceFingerprint`: SHA-256 over a versioned, length-prefixed canonical encoding of its key and Waste Organisations fields. Resolve/copy its Account value, then calculate `materializedFingerprint` over the source fingerprint plus either the exact resolved reference string or the common `Unresolved` marker. Nulls, enum values, dates (UTC ISO-8601), and strings must each have one defined representation.
+2. For each row, calculate `sourceFingerprint`: SHA-256 over a versioned, length-prefixed canonical encoding of its key and Waste Organisations fields. Resolve/copy its Account value. The active content fingerprint incorporates the source fingerprint plus either the exact resolved reference string or the common `Unresolved` marker; no separate per-row materialised-fingerprint field is stored.
 3. Sort the small row descriptors by the composite row key using ordinal comparisons. Do not rely on Waste Organisations response order, which is not a source contract.
-4. Incrementally calculate `activeContentFingerprint` as SHA-256 over a version tag, the row count, and the ordered `{ row key, materializedFingerprint }` pairs. Persist and compare the resulting 32-byte digest and row count in snapshot metadata.
+4. Calculate `activeContentFingerprint` as SHA-256 over a version tag, the row count, and the ordered `{ row key, source fingerprint, resolved reference or Unresolved }` components. Persist and compare the resulting digest and row count in snapshot metadata.
 
 Hashing row fingerprints rather than serialising a second giant JSON document avoids a large temporary string/byte array and makes the source/materialised fingerprints reusable for diagnostics. It also means a source response that merely changes array ordering produces the same fingerprint.
 
@@ -626,72 +629,9 @@ SHA-256 is a content fingerprint, not a mathematical proof of equality. Prefixin
 
 #### Mongo change-identification query
 
-The normal no-change decision does **not** use a Mongo row-comparison query and does not write `g2`: it reads the one snapshot-metadata document and compares the complete-set fingerprint. That is the efficient path when nothing changed. A full `g2` is written only after a fingerprint mismatch has established that the derived set differs.
+The implemented no-change decision does **not** compare rows in Mongo and does not write `g2`: it compares the complete content fingerprint and row count held in the one snapshot-metadata document. A full `g2` is written only after that comparison establishes that the derived set differs.
 
-If a changed materialised result has been written to staged `g2`, an optional background aggregation can classify the difference from active `g1` for metrics, audit diagnostics, or a later decision to introduce sparse overlays. It must never run in the API request path. Project both `sourceFingerprint` and `materializedFingerprint`: a changed source fingerprint is an upstream organisation change; an unchanged source fingerprint with a changed materialized fingerprint is an Account-reference resolution change. The forward pass identifies added and changed rows:
-
-```javascript
-// complianceEligibilityOrganisations (illustrative collection name); g1 is active, g2 is staged
-db.complianceEligibilityOrganisations.aggregate([
-  { $match: { generation: g2 } },
-  {
-    $lookup: {
-      from: "complianceEligibilityOrganisations",
-      let: {
-        organisationId: "$organisationId",
-        obligationYear: "$obligationYear",
-        reviewType: "$reviewType"
-      },
-      pipeline: [
-        {
-          $match: {
-            $expr: {
-              $and: [
-                { $eq: ["$generation", g1] },
-                { $eq: ["$organisationId", "$$organisationId"] },
-                { $eq: ["$obligationYear", "$$obligationYear"] },
-                { $eq: ["$reviewType", "$$reviewType"] }
-              ]
-            }
-          }
-        },
-        { $project: { _id: 0, sourceFingerprint: 1, materializedFingerprint: 1 } },
-        { $limit: 1 }
-      ],
-      as: "previous"
-    }
-  },
-  {
-    $set: {
-      previousFingerprint: { $arrayElemAt: ["$previous.sourceFingerprint", 0] },
-      previousMaterializedFingerprint: { $arrayElemAt: ["$previous.materializedFingerprint", 0] },
-      previousCount: { $size: "$previous" }
-    }
-  },
-  {
-    $set: {
-      change: {
-        $switch: {
-          branches: [
-            { case: { $eq: ["$previousCount", 0] }, then: "Added" },
-            { case: { $ne: ["$sourceFingerprint", "$previousFingerprint"] }, then: "SourceChanged" },
-            { case: { $ne: ["$materializedFingerprint", "$previousMaterializedFingerprint"] }, then: "ReferenceResolved" }
-          ],
-          default: "Unchanged"
-        }
-      }
-    }
-  },
-  { $match: { change: { $ne: "Unchanged" } } },
-  { $project: { _id: 0, organisationId: 1, obligationYear: 1, reviewType: 1, change: 1 } }
-]);
-```
-
-Run the same indexed lookup in reverse—start from `g1`, look up `g2`, retain rows with no match—to identify `Removed` rows. A single `$unionWith` aggregation can combine the two passes, but separate forward/reverse counts are clearer and sufficient for the worker's telemetry.
-
-The existing unique index `{ generation, obligationYear, organisationId, reviewType }` is the required lookup index. The forward pass scans `M` staged rows and performs at most one exact active-generation lookup per row; the reverse pass does the equivalent for `g1`. Its practical cost is therefore linear in the two generations plus indexed lookup overhead, rather than a quadratic cross-product. The exact query plan must be verified with production-like cardinality using `explain("executionStats")`; Mongo version and `$lookup` planning determine how completely the compound index is used with the `let` values.
-
-This comparison is optional in the initial implementation. The only required changed/not-changed decision is the materialised content-fingerprint comparison; after a mismatch, the worker can safely write/promote the complete generation without identifying each changed row. If a staged-generation comparison ever reports no row-level differences after a fingerprint mismatch, treat it as an invariant failure (for example, a fingerprint-version/configuration defect): do not promote that staged generation automatically, record diagnostics, and investigate. It is not the normal no-change path.
+No row-difference aggregation is stored or run in the initial delivery. If future diagnostics need to classify additions, removals, source changes, and reference-resolution changes, they must use the actual unique key `{ generation, organisationId, obligationYear, registrationType }` and derive the reference component from `referenceNumber` and `referenceResolutionState`; the current document deliberately has no persisted `materializedFingerprint` field. Such analysis remains outside the API request path.
 
 | Approach after a sparse change | Mongo writes | Query/correctness cost | Decision |
 | --- | --- | --- | --- |
@@ -700,7 +640,7 @@ This comparison is optional in the initial implementation. The only required cha
 | Update active rows in place | Only changed rows. | Cannot atomically represent changes and removals from a full source read without pending/run markers and delayed deletion. | Not recommended. |
 | Source change cursor, event, or ETag | Potentially avoids the full GET too. | Requires Waste Organisations contract support that does not exist today. | Future source-interface improvement. |
 
-The poller's metrics must distinguish `NoChange` from `Promoted`, and record source GET duration/bytes, rows derived, row writes, full-set fingerprint, and promotion duration. Load-test this with production-like population size before deciding whether sparse-change overlays are warranted.
+The eligibility worker logs the `Unchanged` or `Promoted` outcome and row count. Source GET duration/bytes, row-write counts, full-set fingerprint diagnostics, and promotion-duration metrics are future operational telemetry. Load-test this with production-like population size before deciding whether sparse-change overlays are warranted.
 
 ### Generations, promotion, and old data
 
@@ -724,8 +664,8 @@ During a refresh whose fingerprint differs, all new documents are written with `
 After validation and the final bulk-write verification, promotion is one atomic update of the small snapshot-metadata document:
 
 ```text
-before: { activeGeneration: "g1", activeContentFingerprint: "...", lastPromotedAt: ... }
-after:  { activeGeneration: "g2", activeContentFingerprint: "...", lastPromotedAt: ... }
+before: { activeGeneration: "g1", activeContentFingerprint: "...", activeGenerationPromotedAt: ... }
+after:  { activeGeneration: "g2", activeContentFingerprint: "...", activeGenerationPromotedAt: ... }
 ```
 
 This does **not** put every eligibility-document write in one large Mongo transaction. The atomic operation is only the pointer swap. A request observes either `g1` or `g2`, never a mixture, because it matches rows by the pointer value it captured.
@@ -804,43 +744,31 @@ No suitable PRN-state or Recycling-data event is emitted by the inspected `epr-p
 Recommended configuration (values to agree operationally):
 
 ```text
-ComplianceEligibilityRefresh
-  Enabled
-  RefreshMode                    // AllYears initially; PerYear only after a load decision
-  ObligationYears                // used only by PerYear mode
-  PollingIntervalSeconds         // interval between attempted poll starts; 1800 seconds initially proposed
-  StartupJitterMaximumSeconds    // avoids every newly deployed host attempting at exactly the same moment
-  RequestTimeout
-  LeaseDuration
-  LeaseRenewalInterval
-  MaximumNormalRefreshDuration
-  ContentFingerprintVersion      // changes deliberately when canonical persisted-field set changes
+OrganisationEligibility
+  RefreshPollingEnabled
+  RefreshPollIntervalSeconds     // 1800 seconds initially configured
+  RefreshLeaseDurationSeconds
+  RefreshLeaseRenewalIntervalSeconds
   MaximumAllowedStaleness
-  MinimumInitialReferenceCoverage
-  RetentionGenerations
+  AccountReferenceNumberBatchSize
+  GenerationRetentionPeriod
 
-ComplianceReferenceResolution
-  PollingIntervalMinutes
-  BatchSize
-  MaxConcurrency
-  RetryBackoff
-
-ComplianceObligationHydration
-  Enabled
-  BusinessTimeZone               // Europe/London; current year is previous calendar year throughout January
-  RefreshIntervalMinutes         // 30 initially recommended; polls each current-year organisation's calculated obligations
-  MaximumSummaryStaleness        // refresh interval plus tolerated queue/retry/recovery margin; alert/retry threshold, not endpoint gate
-  WorkerWakeIntervalMinutes      // short interval to acquire the lease and drain newly due/retry work
+OrganisationObligationHydration
+  PollingEnabled
+  PollIntervalSeconds             // short interval to acquire the lease and drain newly due/retry work
+  RefreshInterval                 // 30 minutes initially recommended; polls each current-year organisation's calculated obligations
+  MaximumSummaryStaleness         // refresh interval plus tolerated queue/retry/recovery margin; alert threshold, not endpoint gate
   MaxDownstreamRequestsPerMinute // 20 initial setting for 500 organisations refreshed every 30 minutes; shared and paced across new, scheduled, and retry work
   BatchSize
-  MaxConcurrency                // 2 initially; bounds short downstream bursts independently of the rate cap
-  RequestTimeout
-  RetryBackoff
-  LeaseDuration
-  LeaseRenewalInterval
+  MaxConcurrentRequests           // 2 initially; bounds short downstream bursts independently of the rate cap
+  InitialRetryDelay
+  MaximumRetryDelay
+  LeaseDurationSeconds
+  LeaseRenewalIntervalSeconds
+  OutgoingYearGracePeriod
 ```
 
-The organisation eligibility job emits `NoChange`/`Promoted` outcome, duration, source count, rows written, last-verified age, and lease outcome. The organisation-obligation worker emits success and failure counters and, after each hydration sweep, records the count and oldest age of active summaries that are older than `MaximumSummaryStaleness`. A summary without a successful read is measured from `requestedAt`; a summary with one is measured from `lastSuccessfulReadAt`. It logs a warning while that count is non-zero. These are operational signals only: the public endpoint continues to return the copied zero/default or last-known metrics and never triggers a calculation read.
+The organisation eligibility worker logs its `Unchanged` or `Promoted` outcome and row count. The organisation-obligation worker emits success and failure counters and, after each hydration sweep, records the count and oldest age of active summaries that are older than `MaximumSummaryStaleness`. A summary without a successful read is measured from `requestedAt`; a summary with one is measured from `lastSuccessfulReadAt`. It logs a warning while that count is non-zero. These are operational signals only: the public endpoint continues to return the copied zero/default or last-known metrics and never triggers a calculation read.
 
 When an active eligibility generation is older than `MaximumAllowedStaleness`, the query endpoint logs an error for platform alerting but continues to return that last known generation. If no active generation exists, it logs an error and returns an empty page because no correct result can be derived.
 
@@ -850,7 +778,7 @@ There are three distinct freshness clocks. They must not be reported as though t
 
 | Clock | Meaning | Can this design directly measure/enforce it? |
 | --- | --- | --- |
-| Waste Organisations to Waste Obligations | Time from an organisation change being visible in Waste Organisations to the new local generation being promoted. | Yes: record refresh start/end, `lastVerifiedAt`, and `lastPromotedAt`. |
+| Waste Organisations to Waste Obligations | Time from an organisation change being visible in Waste Organisations to the new local generation being promoted. | Yes locally: `lastVerifiedAt` and `activeGenerationPromotedAt` are persisted; worker outcome/row-count logging provides the delivered refresh signal. |
 | Account reference to queryability | Time from an Account reference becoming available to an otherwise eligible organisation appearing in an active generation. | Yes locally: record resolver completion and the next materialised-generation promotion; upstream assignment time needs an Account event/watermark. |
 | Daily obligation calculation to percentage met | Time from a changed daily `ObligationCalculation` record to the next scheduled current-year organisation-obligation read. | Yes locally: record `lastSuccessfulReadAt`, scheduled due time, coverage, and work latency. |
 | Individual PRN-state change to percentage met | Time from a changed individual PRN state to the next scheduled current-year organisation-obligation read. | Yes only as a rolling-interval bound in this first phase. There is deliberately no state event or PRN-change polling. |
@@ -864,10 +792,10 @@ Define the following measured/configured values:
 | --- | --- |
 | `U` | Upstream schedule wait: **16h 30m** under the current cron. |
 | `I` | Time from the chosen integration invocation starting until its final organisation update is visible in Waste Organisations. This includes the Common Data delta request, sequential organisation writes, retries, and Waste Organisations processing. |
-| `P` | `PollingIntervalMinutes` for Waste Obligations; **30m** is the initial proposal. |
+| `P` | `RefreshPollIntervalSeconds` for Waste Obligations; **30m** is the initial configuration. |
 | `R` | Time from the Waste Obligations poll starting to its new generation being atomically promoted, including the source GET, active-reference reuse/immediate Account batch attempts, transformation and bulk writes. |
 | `J` | Bounded scheduler/startup jitter. |
-| `T` | `RefreshIntervalMinutes` for each current-year organisation's calculated obligations; **30 minutes** is the initial recommendation. |
+| `T` | `RefreshInterval` for each current-year organisation's calculated obligations; **30 minutes** is the initial configuration. |
 | `H` | Queue delay plus one bounded organisation-obligation calculation request, mapping, and local summary upsert after the row becomes due. |
 | `E` | Event-delivery and consumer delay, if a suitable PRN event contract exists. |
 
@@ -902,7 +830,7 @@ Source input change to locally hydrated percentage <= T + H + J
 
 With the recommended 30-minute interval, a change that occurs just after an organisation's read is normally visible within about 30 minutes plus bounded queue/HTTP time. This is not a claim of real-time PRN-state tracking; it is a controlled staleness window. If a future durable PRN-state event is adopted, the targeted path becomes `E + H`; that is outside this initial design. `lastSuccessfulReadAt` says only when Waste Obligations read the calculation endpoint. The current response does not expose a daily-calculation run ID/timestamp, so it cannot prove exactly which daily calculation run was observed.
 
-The first equation is a successful-operation *cadence bound*, not an unconditional service SLA. The code has no global upper limit for `I`: it processes updates sequentially and the volume is unbounded. Repeated Azure Function failures, Common Data delay, missed timer executions, failed Waste Organisations writes, prolonged lease recovery, or a failed local refresh make the true worst case unbounded until the fault is repaired. Measure `I` and `R` at production cardinality, and alert when `MaximumAllowedStaleness` is exceeded while the endpoint returns the last active generation.
+The first equation is a successful-operation *cadence bound*, not an unconditional service SLA. Hydration uses configured concurrency and a shared downstream request-rate cap, but no configuration can bound upstream delay, a growing queue, or outage recovery time. Repeated Azure Function failures, Common Data delay, missed timer executions, failed Waste Organisations writes, prolonged lease recovery, or a failed local refresh make the true worst case unbounded until the fault is repaired. Measure `I` and `R` at production cardinality, and alert when `MaximumAllowedStaleness` is exceeded while the endpoint returns the last active generation.
 
 For the multi-host worker specifically, a host crash immediately after a lease renewal can add up to `LeaseDuration + P + R + J` before another healthy host promotes a replacement generation. Set the lease duration well below `P`, renew it frequently, and alert on lease-renewal failure so this is a recovery path rather than normal operation.
 
@@ -922,11 +850,16 @@ GET /compliance-declarations/unsubmitted
     &sort=OrganisationName[asc]
 ```
 
-The route is provisional, but is the route to design and spike against. Its internal equivalent is:
+This is the implemented public route. Its internal equivalent is:
 
 ```csharp
-Task<UnsubmittedOrganisationsPaged> SearchUnsubmitted(
-    UnsubmittedComplianceDeclarationsQuery query,
+Task<UnsubmittedOrganisationSearchResult> Search(
+    int? obligationYear,
+    IReadOnlyCollection<RegistrationType>? registrationTypes,
+    string? search,
+    IReadOnlyCollection<UnsubmittedOrganisationSort>? sort,
+    int page,
+    int pageSize,
     CancellationToken cancellationToken);
 ```
 
@@ -1037,7 +970,7 @@ The job maps and bulk-writes three individual documents under generation `g1`. T
   "generation": "g1",
   "organisationId": "a1",
   "obligationYear": 2026,
-  "reviewType": "DirectProducer",
+  "registrationType": "DirectProducer",
   "name": "Acme Packaging Ltd",
   "tradingName": null,
   "companiesHouseNumber": "12345678",
@@ -1045,7 +978,9 @@ The job maps and bulk-writes three individual documents under generation `g1`. T
   "referenceNumber": "518293",
   "referenceResolutionState": "Resolved",
   "sourceFingerprint": "...",
-  "materializedFingerprint": "...",
+  "isVisibleInUnsubmittedView": true,
+  "recyclingObligationsMet": null,
+  "obligationCoveragePercentage": 0,
   "refreshedAt": "2026-08-26T08:15:00Z"
 }
 ```
@@ -1099,14 +1034,14 @@ If Acme then submits a declaration, the declaration transaction inserts the decl
 
 On the following day, the integration function maps a source `deleted` producer update to a Waste Organisations registration with status `CANCELLED`. The unfiltered Waste Organisations load still returns Acme and its registration, so Waste Obligations can see the actual new status rather than infer it from a missing filtered result.
 
-The next run writes a new `g2` document for the same organisation/year/review type:
+The next run writes a new `g2` document for the same organisation/year/registration type:
 
 ```json
 {
   "generation": "g2",
   "organisationId": "a1",
   "obligationYear": 2026,
-  "reviewType": "DirectProducer",
+  "registrationType": "DirectProducer",
   "registrationStatus": "CANCELLED",
   "sourceFingerprint": "changed...",
   "refreshedAt": "2026-08-27T08:15:00Z"
