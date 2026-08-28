@@ -53,7 +53,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
 
         var descending = await subject.Search(
             2026,
-            RegistrationType.DirectProducer,
+            [RegistrationType.DirectProducer],
             null,
             [
                 new UnsubmittedOrganisationSort
@@ -68,7 +68,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
         );
         var ascendingSecondPage = await subject.Search(
             2026,
-            RegistrationType.DirectProducer,
+            [RegistrationType.DirectProducer],
             null,
             null,
             page: 2,
@@ -91,7 +91,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
 
         var result = await subject.Search(
             2026,
-            RegistrationType.DirectProducer,
+            [RegistrationType.DirectProducer],
             null,
             null,
             page: 1,
@@ -101,6 +101,79 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
 
         result.Rows.Should().BeEmpty();
         result.Total.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Search_WhenYearAndRegistrationTypeAreOptional_ShouldApplyOnlyTheProvidedFilters()
+    {
+        const string generation = "generation";
+        var directCurrentYear = Guid.NewGuid();
+        var schemeCurrentYear = Guid.NewGuid();
+        var directHistoricYear = Guid.NewGuid();
+        await SetReadySnapshot(generation);
+        await OrganisationComplianceDeclarationEligibilities.InsertManyAsync(
+            [
+                Eligibility(directCurrentYear, generation, "Alpha Packaging", "100001"),
+                Eligibility(schemeCurrentYear, generation, "Bravo Scheme", "200001") with
+                {
+                    RegistrationType = RegistrationType.ComplianceScheme,
+                },
+                Eligibility(directHistoricYear, generation, "Charlie Packaging", "100002") with
+                {
+                    ObligationYear = 2025,
+                },
+            ],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        var subject = CreateSubject();
+
+        var allRows = await subject.Search(
+            null,
+            [],
+            null,
+            null,
+            page: 1,
+            pageSize: 20,
+            TestContext.Current.CancellationToken
+        );
+        var currentYearRows = await subject.Search(
+            2026,
+            [],
+            null,
+            null,
+            page: 1,
+            pageSize: 20,
+            TestContext.Current.CancellationToken
+        );
+        var schemeRows = await subject.Search(
+            null,
+            [RegistrationType.ComplianceScheme],
+            null,
+            null,
+            page: 1,
+            pageSize: 20,
+            TestContext.Current.CancellationToken
+        );
+        var bothRegistrationTypes = await subject.Search(
+            null,
+            [RegistrationType.DirectProducer, RegistrationType.ComplianceScheme],
+            null,
+            null,
+            page: 1,
+            pageSize: 20,
+            TestContext.Current.CancellationToken
+        );
+
+        allRows
+            .Rows.Select(x => x.OrganisationId)
+            .Should()
+            .Equal(directCurrentYear, schemeCurrentYear, directHistoricYear);
+        currentYearRows.Rows.Select(x => x.OrganisationId).Should().Equal(directCurrentYear, schemeCurrentYear);
+        schemeRows.Rows.Select(x => x.OrganisationId).Should().ContainSingle().Which.Should().Be(schemeCurrentYear);
+        bothRegistrationTypes
+            .Rows.Select(x => x.OrganisationId)
+            .Should()
+            .Equal(directCurrentYear, schemeCurrentYear, directHistoricYear);
     }
 
     [Fact]
@@ -129,7 +202,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
 
         var nameResult = await subject.Search(
             2026,
-            RegistrationType.DirectProducer,
+            [RegistrationType.DirectProducer],
             "PHA PAC",
             null,
             page: 1,
@@ -138,7 +211,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
         );
         var tradingNameResult = await subject.Search(
             2026,
-            RegistrationType.DirectProducer,
+            [RegistrationType.DirectProducer],
             "operator",
             null,
             page: 1,
@@ -147,7 +220,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
         );
         var referenceResult = await subject.Search(
             2026,
-            RegistrationType.DirectProducer,
+            [RegistrationType.DirectProducer],
             "0003",
             null,
             page: 1,
@@ -199,7 +272,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
 
         var result = await subject.Search(
             2026,
-            RegistrationType.DirectProducer,
+            [RegistrationType.DirectProducer],
             null,
             null,
             page: 1,
@@ -249,7 +322,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
 
         var byReference = await subject.Search(
             2026,
-            RegistrationType.DirectProducer,
+            [RegistrationType.DirectProducer],
             null,
             [
                 new UnsubmittedOrganisationSort
@@ -264,7 +337,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
         );
         var byRecycling = await subject.Search(
             2026,
-            RegistrationType.DirectProducer,
+            [RegistrationType.DirectProducer],
             null,
             [
                 new UnsubmittedOrganisationSort
@@ -279,7 +352,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
         );
         var byPercentage = await subject.Search(
             2026,
-            RegistrationType.DirectProducer,
+            [RegistrationType.DirectProducer],
             null,
             [
                 new UnsubmittedOrganisationSort
@@ -327,7 +400,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
 
         var result = await subject.Search(
             2026,
-            RegistrationType.DirectProducer,
+            [RegistrationType.DirectProducer],
             null,
             [
                 new UnsubmittedOrganisationSort
@@ -350,17 +423,14 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
     }
 
     [Theory]
-    [InlineData(
-        "referenceNumber",
-        "Generation_ObligationYear_RegistrationType_IsVisibleInUnsubmittedView_ReferenceNumber_Name_OrganisationId"
-    )]
+    [InlineData("referenceNumber", "Generation_IsVisibleInUnsubmittedView_ReferenceNumber_Name_OrganisationId")]
     [InlineData(
         "recyclingObligationsMet",
-        "Generation_ObligationYear_RegistrationType_IsVisibleInUnsubmittedView_RecyclingObligationsMet_Name_OrganisationId"
+        "Generation_IsVisibleInUnsubmittedView_RecyclingObligationsMet_Name_OrganisationId"
     )]
     [InlineData(
         "obligationCoveragePercentage",
-        "Generation_ObligationYear_RegistrationType_IsVisibleInUnsubmittedView_ObligationCoveragePercentage_Name_OrganisationId"
+        "Generation_IsVisibleInUnsubmittedView_ObligationCoveragePercentage_Name_OrganisationId"
     )]
     public async Task SearchPlan_WhenUsingAnObligationSort_ShouldUseTheDedicatedIndex(
         string sortField,
@@ -404,6 +474,35 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task SearchPlan_WhenScopeFiltersAreOmitted_ShouldUseTheDefaultSortIndex()
+    {
+        const string generation = "generation";
+        const string indexName = "Generation_IsVisibleInUnsubmittedView_Name_OrganisationId";
+        await SetReadySnapshot(generation);
+        await OrganisationComplianceDeclarationEligibilities.InsertOneAsync(
+            Eligibility(Guid.NewGuid(), generation, "Alpha Packaging", "100001"),
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        var command = new BsonDocument
+        {
+            ["explain"] = new BsonDocument
+            {
+                ["find"] = nameof(OrganisationComplianceDeclarationEligibility),
+                ["filter"] = new BsonDocument { ["generation"] = generation, ["isVisibleInUnsubmittedView"] = true },
+                ["sort"] = new BsonDocument { ["name"] = 1, ["organisationId"] = 1 },
+            },
+            ["verbosity"] = "queryPlanner",
+        };
+
+        var plan = await GetMongoDatabase()
+            .RunCommandAsync<BsonDocument>(command, cancellationToken: TestContext.Current.CancellationToken);
+        var renderedWinningPlan = plan["queryPlanner"]["winningPlan"].ToJson();
+
+        renderedWinningPlan.Should().Contain(indexName);
+        renderedWinningPlan.Should().NotContain("\"stage\" : \"SORT\"");
+    }
+
+    [Fact]
     public async Task Search_WhenNoActiveGeneration_ShouldReturnAnEmptyPageAndLogAnError()
     {
         var logger = new RecordingLogger<UnsubmittedOrganisationsService>();
@@ -411,7 +510,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
 
         var result = await subject.Search(
             2026,
-            RegistrationType.DirectProducer,
+            [RegistrationType.DirectProducer],
             null,
             null,
             page: 1,
@@ -456,7 +555,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
 
         var result = await subject.Search(
             2026,
-            RegistrationType.DirectProducer,
+            [RegistrationType.DirectProducer],
             null,
             null,
             page: 1,

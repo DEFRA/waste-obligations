@@ -2,6 +2,7 @@
   "unsubmittedOrganisations": [
     {
       "organisationId": "Guid_1",
+      "obligationYear": 2026,
       "registrationType": "DirectProducer",
       "organisationName": "Alpha Packaging",
       "organisationReferenceNumber": "100001",

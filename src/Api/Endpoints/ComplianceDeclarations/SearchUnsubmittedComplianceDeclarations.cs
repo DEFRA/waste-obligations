@@ -30,13 +30,13 @@ public static class SearchUnsubmittedComplianceDeclarations
         CancellationToken cancellationToken
     )
     {
-        var registrationType = request.ParsedRegistrationType();
+        var registrationTypes = request.ParsedRegistrationTypes();
         var sort = request.ParsedSort();
         var page = request.EffectivePage;
         var pageSize = request.EffectivePageSize;
         var result = await service.Search(
-            request.ObligationYear.GetValueOrDefault(),
-            registrationType,
+            request.ObligationYear,
+            registrationTypes,
             request.Search,
             sort,
             page,
@@ -50,6 +50,7 @@ public static class SearchUnsubmittedComplianceDeclarations
                 UnsubmittedOrganisations = result.Rows.Select(x => new UnsubmittedOrganisation
                 {
                     OrganisationId = x.OrganisationId,
+                    ObligationYear = x.ObligationYear,
                     RegistrationType = x.RegistrationType.ToDto(),
                     OrganisationName = x.Name,
                     OrganisationReferenceNumber = x.ReferenceNumber,

@@ -40,7 +40,7 @@ The current-year rule does **not** mean an abrupt stop at midnight. At the UK-ti
 | Period | Outgoing year (`Y - 1`) | Incoming year (`Y`) |
 | --- | --- | --- |
 | Before cutover | Continue normal rolling refreshes. | Best-effort pre-warming is allowed only from spare downstream capacity; it is not an availability requirement. |
-| At cutover | It remains internally refreshed, but is no longer served by the current-year endpoint. | Becomes the endpoint's only permitted `obligationYear`; rows without a summary are returned with percentage met `0`. |
+| At cutover | It remains internally refreshed and is available when the caller explicitly selects it (or does not filter by year). | Becomes the normal regulator-view year; rows without a summary are returned with percentage met `0`. |
 | After cutover grace | Stop scheduled refreshes; retain the final summaries under normal retention. | Continue normal rolling refreshes. |
 
 This protects both sides of the boundary without making obligation hydration an availability dependency. An incoming-year organisation can be returned immediately when the endpoint changes year, with percentage met `0` until its first summary arrives. An outgoing-year PRN state change at, for example, 23:59 on 31 January must still receive a final organisation-obligation read after midnight; otherwise it could never be persisted locally.
@@ -345,10 +345,10 @@ The Account endpoints are already batch interfaces, but the service has no publi
 
 No change is proposed to `GET /compliance-declarations`: its existing generic `search` already includes its persisted `organisation.referenceNumber`. Account resolution is used only while refreshing the new unsubmitted projection.
 
-The unsubmitted query reads only the active generation and needs no Account call, reference join, summary lookup, or downstream call. Reference numbers and the sortable obligation metrics are already on eligible rows. The page and total are separate local Mongo operations so the page query can use the selected sort index. The unsubmitted endpoint uses the same generic `search` parameter and case-insensitive partial-match semantics as the existing declaration endpoint:
+The unsubmitted query reads only the active generation and needs no Account call, reference join, summary lookup, or downstream call. Reference numbers and the sortable obligation metrics are already on eligible rows. The page and total are separate local Mongo operations so the page query can use the selected sort index. `obligationYear` and `registrationType` are optional, matching declaration search; when supplied, the latter accepts the same comma-separated list. The unsubmitted endpoint uses the same generic `search` parameter and case-insensitive partial-match semantics as the existing declaration endpoint:
 
 ```text
-1. Match active generation + obligation year + registration type + isVisibleInUnsubmittedView=true.
+1. Match active generation + isVisibleInUnsubmittedView=true, then optionally obligation year and one or more registration types.
 2. Match escaped, case-insensitive contains regex over name OR tradingName OR referenceNumber.
 3. For a default or single-field sort, use the selected indexed ordering, then page the matching rows. For multiple sort fields, apply the requested priority order to the matching rows before paging; count the same filter separately.
 ```
@@ -357,12 +357,12 @@ This is entirely local Mongo work. The same unanchored contains limitation remai
 
 The endpoint has its own `UnsubmittedOrganisationSortField` and `UnsubmittedOrganisationSortDirection`; it does not reuse the declaration-search enums. Like declaration search, it accepts a comma-separated, priority-ordered list of distinct `Field[asc|desc]` terms. `OrganisationName`, `OrganisationReferenceNumber`, `RecyclingObligations`, and `PercentageMet` are valid for both registration types. The endpoint contract is not constrained by the current frontend's displayed columns. Regulation 43 and date submitted are declaration fields and are not valid unsubmitted sorts.
 
-Implemented by migration `012_OrganisationEligibilityObligationMetricSorting` (alongside the existing eligibility and summary indexes):
+Migration `013_OrganisationEligibilityOptionalScopeIndexes` replaces the scope-first sort indexes with optional-scope indexes:
 
-- eligibility rows: `{ generation, obligationYear, registrationType, isVisibleInUnsubmittedView, name, organisationId }` for direct membership filtering and deterministic default ordering;
-- eligibility rows: `{ generation, obligationYear, registrationType, isVisibleInUnsubmittedView, referenceNumber, name, organisationId }` for reference-number ordering;
-- eligibility rows: `{ generation, obligationYear, registrationType, isVisibleInUnsubmittedView, recyclingObligationsMet, name, organisationId }` for recycling-status ordering;
-- eligibility rows: `{ generation, obligationYear, registrationType, isVisibleInUnsubmittedView, obligationCoveragePercentage, name, organisationId }` for percentage ordering;
+- eligibility rows: `{ generation, isVisibleInUnsubmittedView, name, organisationId }` for direct membership filtering and deterministic default ordering;
+- eligibility rows: `{ generation, isVisibleInUnsubmittedView, referenceNumber, name, organisationId }` for reference-number ordering;
+- eligibility rows: `{ generation, isVisibleInUnsubmittedView, recyclingObligationsMet, name, organisationId }` for recycling-status ordering;
+- eligibility rows: `{ generation, isVisibleInUnsubmittedView, obligationCoveragePercentage, name, organisationId }` for percentage ordering;
 - eligibility rows: unique `{ generation, obligationYear, organisationId, registrationType }`;
 - obligation summary: unique `{ organisationId, obligationYear }` and due-work `{ isHydrationActive, nextRefreshAt, priority }`.
 
@@ -454,9 +454,9 @@ On a changed organisation generation, restrict all obligation work to `obligatio
 7. Do **not** poll individual PRNs or poll a PRN-change feed in this implementation. There is no suitable PRN-state trigger today, and such polling would create unacceptable volume. A PRN state change and a daily `ObligationCalculation` change are both reflected no later than the next rolling organisation-obligation read, subject to retry/failure handling.
 8. Retain a low-frequency full current-year `Reconciliation` sweep only as repair for failed hydration state or projection drift. It is not an additional near-real-time polling mechanism.
 
-At the 1 February UK-time boundary, the worker applies the dual-year handover described above: it has already pre-warmed the new current year, continues the previous year for its post-cutover grace, then stops scheduled work for that outgoing year. Previous-year summaries may be retained under a normal operational retention policy for diagnostics, but cannot make the current-year endpoint serve a historical request.
+At the 1 February UK-time boundary, the worker applies the dual-year handover described above: it has already pre-warmed the new current year, continues the previous year for its post-cutover grace, then stops scheduled work for that outgoing year. Previous-year summaries may be retained under a normal operational retention policy and can be returned by an explicit historical-year or all-years query; their metrics are not refreshed after the outgoing-year grace.
 
-**Side requirement — summary retention.** The unique `{ organisationId, obligationYear }` key prevents repeated polling and retries from creating duplicate state: there is one summary per organisation/year, and two years are active only during handover. The `isHydrationActive` flag removes ineligible and outgoing summaries from the polling path without discarding their last metrics. Before long-term historical operation, agree a bounded cleanup or expiry policy for obsolete summaries; retention remains a diagnostic-data decision and does not affect the current-year endpoint.
+**Side requirement — summary retention.** The unique `{ organisationId, obligationYear }` key prevents repeated polling and retries from creating duplicate state: there is one summary per organisation/year, and two years are active only during handover. The `isHydrationActive` flag removes ineligible and outgoing summaries from the polling path without discarding their last metrics. Before long-term historical operation, agree a bounded cleanup or expiry policy for obsolete summaries; retention remains a diagnostic-data decision and does not alter the query's membership rules.
 
 Do not wait for this work as part of an organisation-generation promotion. The reference is a stable identity value and a hard membership condition; the current-obligation percentage is a volatile display metric. If a PRN status change rewrote the complete eligibility generation, it would cost `O(M)` eligibility writes and repeatedly invalidate otherwise unchanged organisation data. The selected split instead costs one organisation-obligation calculation read and one summary upsert per affected organisation/year, while the organisation generation remains unchanged.
 
@@ -521,7 +521,9 @@ A future policy may assign a longer normal refresh interval to lower-impact orga
 
 #### Serving, CSV, and sortable metrics
 
-The endpoint directly matches visible eligibility rows, counts them, and uses a matching compound index to sort/page default and single-field requests. The CSV reads the same copied values in bounded Mongo batches. Neither path calls the PRN backend or looks up the summary collection. A row may hold a `null` recycling state and zero percentage before its first successful read; a failed refresh preserves its previously copied values.
+The endpoint directly matches visible eligibility rows, counts them, and uses a matching compound index to sort/page default and single-field requests. The sort indexes begin with the two required predicates rather than the optional year/type filters, so the same four indexes can serve every filter combination without a blocking Mongo sort. When a caller supplies year and/or type, Mongo applies those as residual predicates while it scans the selected active-generation index order. The CSV reads the same copied values in bounded Mongo batches. Neither path calls the PRN backend or looks up the summary collection. A row may hold a `null` recycling state and zero percentage before its first successful read; a failed refresh preserves its previously copied values.
+
+For the assumed 500 organisations, and the 1,000 and 2,000 organisation extrapolations, this bounds a default/single-sort query to scanning at most the active visible population rather than an unbounded historical collection or a request-time join. The trade-off is deliberate: retaining separate year/type-prefix sort indexes for every optional-filter combination would multiply indexes and generation write cost, while an arbitrary multi-field sort already requires a bounded in-memory sort. Monitor `keysExamined`, `docsExamined`, and page latency as the population grows; revisit the index strategy if the active visible population materially exceeds the current planning range.
 
 The contract accepts multiple unsubmitted-specific sort terms in priority order. A default or one-term request appends deterministic tie-breakers (`name`, then `organisationId`) using the requested direction, allowing the corresponding compound index to serve ascending and descending scans. Multiple terms preserve the requested order and append the same tie-breakers when absent. Indexing every field order and direction combination would create an unreasonable combinatorial index set, so Mongo performs a bounded in-memory sort of the already scoped membership set for those requests. An unanchored generic-search regex likewise requires candidate scanning and in-memory sorting of the matching subset; the selected sort indexes serve the normal unfiltered single-sort list path.
 
@@ -927,21 +929,21 @@ The endpoint accepts only these query parameters in this first design:
 
 | Parameter | Initial rule |
 | --- | --- |
-| `obligationYear` | Required integer within the existing supported obligation-year range. Historic and future values query the local eligibility and declaration-state projections; they do not cause downstream obligation polling. |
-| `registrationType` | Required single value: `DirectProducer` or `ComplianceScheme`. It identifies the review tab; it is not a comma-separated multi-type search in this first endpoint. |
+| `obligationYear` | Optional integer within the existing supported obligation-year range. Historic and future values query the local eligibility and declaration-state projections; they do not cause downstream obligation polling. Every returned row includes its obligation year. |
+| `registrationType` | Optional comma-separated list of `DirectProducer` and/or `ComplianceScheme`, matching declaration-search semantics. |
 | `search` | Optional generic organisation search, limited to 100 characters. It follows the current declaration search pattern: escaped, case-insensitive contains matching across raw fields available in this projection. An empty or whitespace-only term is treated as no search filter. |
 | `page` | Optional 1-based page number; default `1`. |
 | `pageSize` | Optional; default `20`, range `1`–`100`, matching declaration search. |
-| `sort` | Optional single `Field[asc|desc]` term using the endpoint-specific unsubmitted sort enums. `OrganisationName`, `OrganisationReferenceNumber`, `RecyclingObligations`, and `PercentageMet` are valid for both types. The default is `OrganisationName[asc]`. |
+| `sort` | Optional comma-separated, priority-ordered list of distinct `Field[asc|desc]` terms using the endpoint-specific unsubmitted sort enums. `OrganisationName`, `OrganisationReferenceNumber`, `RecyclingObligations`, and `PercentageMet` are valid for both types. The default is `OrganisationName[asc]`. |
 
 It does not accept `status` because status is an internal input to the inference, not a filter users may override.
 
 Required endpoint behaviour:
 
-- `obligationYear` and review `registrationType` are required;
+- `obligationYear` and `registrationType` independently narrow the active visible set only when supplied;
 - page-number pagination follows the existing 1–100 page-size convention;
-- the active eligibility snapshot is selected for the requested year; if it is older than `MaximumAllowedStaleness`, log the condition and continue to serve the last complete active generation;
-- a candidate is returned only when it has a `REGISTERED` eligibility row with a resolved non-empty reference number and its `unsubmittedExclusionCount` is zero or absent;
+- the active eligibility snapshot is selected independently of query scope; if it is older than `MaximumAllowedStaleness`, log the condition and continue to serve the last complete active generation;
+- a candidate is returned only when its materialised `isVisibleInUnsubmittedView` membership field is true (Registered, resolved non-empty reference number, and no Submitted or Accepted declaration for the same organisation/year/type);
 - a missing, pending, or stale organisation-obligation summary never excludes an otherwise eligible candidate and never makes a current-obligation calculation request in the handler; eligibility rows hold the last successful copied values, or the zero/default metric described below;
 - return `total`, `page`, and `pageSize`;
 - use a deterministic final tie-breaker of `organisationId`.
@@ -953,6 +955,7 @@ The initial response contains the eligibility fields plus the locally hydrated o
   "unsubmittedComplianceDeclarations": [
     {
       "organisationId": "...",
+      "obligationYear": 2026,
       "registrationType": "DirectProducer",
       "organisationName": "...",
       "organisationReferenceNumber": "518293",
@@ -987,14 +990,14 @@ The unsubmitted endpoint deliberately follows that existing, limited approach. I
 For an unsubmitted query with a term, apply the work in this order:
 
 ```text
-1. Match active generation + obligation year + registration type + `isVisibleInUnsubmittedView=true`.
+1. Match active generation + `isVisibleInUnsubmittedView=true`, then optionally obligation year and one or more registration types.
 2. Match escaped, case-insensitive contains regex over name OR tradingName OR referenceNumber.
 3. Sort, count and page the retained rows.
 ```
 
 Contains regex has to inspect every visible base candidate `C`; total-count semantics mean it cannot stop once the visible page is full. Its normal operation is therefore `O(C)` candidate inspection followed by sorting the matching subset. This is the same fundamental limitation as current declaration search, but `C` for unsubmitted organisations may be substantially larger and needs production-cardinality load tests.
 
-The eligibility compound index is `{ generation, obligationYear, registrationType, isVisibleInUnsubmittedView, name, organisationId }`. It narrows the base candidate set and supports raw-name candidate ordering. It cannot make an unanchored search regex seekable. Do not add a speculative name/trading-name/reference-number index for this contains predicate; it adds write/storage cost without solving the scan. Request validation enforces the 100-character maximum; escape the term as a literal regex, debounce the frontend request, set server-side query timeouts, and measure `C`, scan duration, and result count.
+The default-order eligibility index is `{ generation, isVisibleInUnsubmittedView, name, organisationId }`; the other supported single-sort indexes have the same required prefix. It bounds the scan to the active visible generation and supports raw-name candidate ordering regardless of whether year/type filters are supplied. It cannot make an unanchored search regex seekable. Do not add a speculative name/trading-name/reference-number index for this contains predicate; it adds write/storage cost without solving the scan. Request validation enforces the 100-character maximum; escape the term as a literal regex, debounce the frontend request, set server-side query timeouts, and measure `C`, scan duration, and result count.
 
 Any future improvement to generic search is deliberately a separate design decision for the wider system. An ordinary Mongo `$in` query is fast only for exact stored values; it cannot retain arbitrary partial contains behaviour. Prefix/token search, n-gram indexing, or a dedicated search capability each change the data/UX/operational trade-off and should be evaluated only if measurements show this current-style query is inadequate.
 
@@ -1005,7 +1008,7 @@ Reference number and the two public obligation metrics are materialised eligibil
 Conceptually the primary query is a direct indexed match on the active eligibility generation's persisted visibility field:
 
 ```text
-active eligibility rows where year + registration type + isVisibleInUnsubmittedView = true
+active eligibility rows where isVisibleInUnsubmittedView = true, optionally narrowed by year and registration type
   ORDER BY selected materialised sort field, name, organisationId
   PAGE with Find().Sort().Skip().Limit(); COUNT with CountDocuments()
 ```

@@ -981,7 +981,6 @@
           {
             "name": "obligationYear",
             "in": "query",
-            "required": true,
             "schema": {
               "maximum": 2050,
               "minimum": 2023,
@@ -996,7 +995,7 @@
           {
             "name": "registrationType",
             "in": "query",
-            "required": true,
+            "description": "Comma separated list of organisation registration type",
             "schema": {
               "type": "string"
             }
@@ -1877,6 +1876,14 @@
           "organisationId": {
             "type": "string",
             "format": "uuid"
+          },
+          "obligationYear": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           },
           "registrationType": {
             "$ref": "#/components/schemas/RegistrationType"

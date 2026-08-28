@@ -10,14 +10,13 @@ public record UnsubmittedComplianceDeclarationsRequest
 {
     private const int SearchMaxLength = 100;
 
-    [Required]
     [FromQuery(Name = "obligationYear")]
     [Range(Dtos.ObligationYear.Minimum, Dtos.ObligationYear.Maximum)]
     public int? ObligationYear { get; init; }
 
-    [Required]
+    [Description("Comma separated list of organisation registration type")]
     [FromQuery(Name = "registrationType")]
-    [EnumValue<RegistrationType>(ErrorMessage = "Invalid organisation registration type")]
+    [EnumCommaSeparatedList<RegistrationType>(ErrorMessage = "Invalid organisation registration type(s)")]
     public string? RegistrationType { get; init; }
 
     [Description("Case-insensitive partial match on organisation name, trading name or reference number")]
@@ -46,8 +45,9 @@ public record UnsubmittedComplianceDeclarationsRequest
     public int EffectivePage => Page ?? Paging.DefaultPage;
     public int EffectivePageSize => PageSize ?? Paging.DefaultPageSize;
 
-    public Data.Entities.RegistrationType ParsedRegistrationType() =>
-        RegistrationType!.FromJsonValue<RegistrationType>().ToEntity();
+    public Data.Entities.RegistrationType[] ParsedRegistrationTypes() =>
+        RegistrationType?.Split(',').NotNull().Select(x => x.FromJsonValue<RegistrationType>().ToEntity()).ToArray()
+        ?? [];
 
     public Data.UnsubmittedOrganisationSort[] ParsedSort() => UnsubmittedOrganisationSortParser.Parse(Sort);
 }

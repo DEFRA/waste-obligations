@@ -29,7 +29,9 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
         UnsubmittedOrganisationsService
             .Search(
                 2026,
-                EntityRegistrationType.DirectProducer,
+                Arg.Is<IReadOnlyCollection<EntityRegistrationType>?>(x =>
+                    x != null && x.Count == 1 && x.Single() == EntityRegistrationType.DirectProducer
+                ),
                 "alpha",
                 Arg.Is<IReadOnlyCollection<UnsubmittedOrganisationSort>?>(x =>
                     x != null
@@ -88,7 +90,9 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
         UnsubmittedOrganisationsService
             .Search(
                 2026,
-                EntityRegistrationType.ComplianceScheme,
+                Arg.Is<IReadOnlyCollection<EntityRegistrationType>?>(x =>
+                    x != null && x.Count == 1 && x.Single() == EntityRegistrationType.ComplianceScheme
+                ),
                 null,
                 Arg.Is<IReadOnlyCollection<UnsubmittedOrganisationSort>?>(x => x != null && x.Count == 0),
                 page: 1,
@@ -128,12 +132,89 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
     }
 
     [Fact]
+    public async Task WhenYearAndRegistrationTypeAreOmitted_ShouldSearchAcrossAllVisibleRows()
+    {
+        var organisationId = Guid.Parse("d14ce75d-cd19-4b7b-a572-3df93758e59d");
+        UnsubmittedOrganisationsService
+            .Search(
+                null,
+                Arg.Is<IReadOnlyCollection<EntityRegistrationType>?>(x => x != null && x.Count == 0),
+                null,
+                Arg.Is<IReadOnlyCollection<UnsubmittedOrganisationSort>?>(x => x != null && x.Count == 0),
+                page: 1,
+                pageSize: 20,
+                cancellationToken: Arg.Any<CancellationToken>()
+            )
+            .Returns(
+                new UnsubmittedOrganisationSearchResult
+                {
+                    Rows =
+                    [
+                        new UnsubmittedOrganisationSearchRow
+                        {
+                            OrganisationId = organisationId,
+                            ObligationYear = 2025,
+                            RegistrationType = EntityRegistrationType.ComplianceScheme,
+                            Name = "Historic Scheme",
+                            ReferenceNumber = "200002",
+                        },
+                    ],
+                    Total = 1,
+                }
+            );
+        var client = CreateClient(testUser: TestUser.ReadOnly);
+
+        var response = await client.GetAsync(
+            Testing.Endpoints.ComplianceDeclarations.Unsubmitted(),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        await VerifyJson(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task WhenMultipleRegistrationTypesAreProvided_ShouldPassThemToTheService()
+    {
+        UnsubmittedOrganisationsService
+            .Search(
+                2026,
+                Arg.Is<IReadOnlyCollection<EntityRegistrationType>?>(x =>
+                    x != null
+                    && x.Count == 2
+                    && x.ElementAt(0) == EntityRegistrationType.DirectProducer
+                    && x.ElementAt(1) == EntityRegistrationType.ComplianceScheme
+                ),
+                null,
+                Arg.Any<IReadOnlyCollection<UnsubmittedOrganisationSort>?>(),
+                page: 1,
+                pageSize: 20,
+                cancellationToken: Arg.Any<CancellationToken>()
+            )
+            .Returns(new UnsubmittedOrganisationSearchResult { Rows = [], Total = 0 });
+        var client = CreateClient(testUser: TestUser.ReadOnly);
+
+        var response = await client.GetAsync(
+            Testing.Endpoints.ComplianceDeclarations.Unsubmitted(
+                EndpointQuery
+                    .New.Where(EndpointFilter.ObligationYear(2026))
+                    .Where(EndpointFilter.RegistrationType("DirectProducer,ComplianceScheme"))
+            ),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
     public async Task WhenPercentageMetSortIsValidForDirectProducer_ShouldPassTheDedicatedSortToTheService()
     {
         UnsubmittedOrganisationsService
             .Search(
                 2026,
-                EntityRegistrationType.DirectProducer,
+                Arg.Is<IReadOnlyCollection<EntityRegistrationType>?>(x =>
+                    x != null && x.Count == 1 && x.Single() == EntityRegistrationType.DirectProducer
+                ),
                 null,
                 Arg.Is<IReadOnlyCollection<UnsubmittedOrganisationSort>?>(x =>
                     x != null
@@ -250,7 +331,9 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
         UnsubmittedOrganisationsService
             .Search(
                 2026,
-                EntityRegistrationType.ComplianceScheme,
+                Arg.Is<IReadOnlyCollection<EntityRegistrationType>?>(x =>
+                    x != null && x.Count == 1 && x.Single() == EntityRegistrationType.ComplianceScheme
+                ),
                 null,
                 Arg.Is<IReadOnlyCollection<UnsubmittedOrganisationSort>?>(x =>
                     x != null
@@ -280,7 +363,9 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
             .Received(1)
             .Search(
                 2026,
-                EntityRegistrationType.ComplianceScheme,
+                Arg.Is<IReadOnlyCollection<EntityRegistrationType>?>(x =>
+                    x != null && x.Count == 1 && x.Single() == EntityRegistrationType.ComplianceScheme
+                ),
                 null,
                 Arg.Is<IReadOnlyCollection<UnsubmittedOrganisationSort>?>(x =>
                     x != null
@@ -302,7 +387,9 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
         UnsubmittedOrganisationsService
             .Search(
                 obligationYear,
-                EntityRegistrationType.DirectProducer,
+                Arg.Is<IReadOnlyCollection<EntityRegistrationType>?>(x =>
+                    x != null && x.Count == 1 && x.Single() == EntityRegistrationType.DirectProducer
+                ),
                 null,
                 Arg.Is<IReadOnlyCollection<UnsubmittedOrganisationSort>?>(x => x != null && x.Count == 0),
                 page: 1,
@@ -343,7 +430,9 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
             .Received(1)
             .Search(
                 obligationYear,
-                EntityRegistrationType.DirectProducer,
+                Arg.Is<IReadOnlyCollection<EntityRegistrationType>?>(x =>
+                    x != null && x.Count == 1 && x.Single() == EntityRegistrationType.DirectProducer
+                ),
                 null,
                 Arg.Is<IReadOnlyCollection<UnsubmittedOrganisationSort>?>(x => x != null && x.Count == 0),
                 page: 1,

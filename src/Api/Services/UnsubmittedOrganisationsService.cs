@@ -18,8 +18,8 @@ public class UnsubmittedOrganisationsService(
 ) : IUnsubmittedOrganisationsService
 {
     public async Task<UnsubmittedOrganisationSearchResult> Search(
-        int obligationYear,
-        RegistrationType registrationType,
+        int? obligationYear,
+        IReadOnlyCollection<RegistrationType>? registrationTypes,
         string? search,
         IReadOnlyCollection<UnsubmittedOrganisationSort>? sort,
         int page,
@@ -51,21 +51,35 @@ public class UnsubmittedOrganisationsService(
 
         // This materialised membership field already requires a Registered row, resolved reference,
         // and no Submitted or Accepted declaration for the organisation/year/registration type.
-        var eligible = Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.And(
+        var filters = new List<FilterDefinition<OrganisationComplianceDeclarationEligibilityEntity>>
+        {
             Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Eq(x => x.Generation, activeGeneration),
-            Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Eq(
-                x => x.ObligationYear,
-                obligationYear
-            ),
-            Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Eq(
-                x => x.RegistrationType,
-                registrationType
-            ),
             Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Eq(
                 x => x.IsVisibleInUnsubmittedView,
                 true
-            )
-        );
+            ),
+        };
+        if (obligationYear.HasValue)
+        {
+            filters.Add(
+                Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Eq(
+                    x => x.ObligationYear,
+                    obligationYear.Value
+                )
+            );
+        }
+
+        if (registrationTypes is { Count: > 0 })
+        {
+            filters.Add(
+                Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.In(
+                    x => x.RegistrationType,
+                    registrationTypes
+                )
+            );
+        }
+
+        var eligible = Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.And(filters);
         if (!string.IsNullOrWhiteSpace(search))
         {
             var pattern = new BsonRegularExpression(Regex.Escape(search.Trim()), "i");

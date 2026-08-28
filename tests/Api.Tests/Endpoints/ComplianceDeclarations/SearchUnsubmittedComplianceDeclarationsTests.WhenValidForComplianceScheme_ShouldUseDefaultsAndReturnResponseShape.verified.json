@@ -2,6 +2,7 @@
   "unsubmittedOrganisations": [
     {
       "organisationId": "Guid_1",
+      "obligationYear": 2026,
       "registrationType": "ComplianceScheme",
       "organisationName": "Bravo Scheme",
       "organisationReferenceNumber": "200001",

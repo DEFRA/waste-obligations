@@ -7,6 +7,9 @@ public record UnsubmittedOrganisation
     [JsonPropertyName("organisationId")]
     public Guid OrganisationId { get; init; }
 
+    [JsonPropertyName("obligationYear")]
+    public int ObligationYear { get; init; }
+
     [JsonPropertyName("registrationType")]
     public RegistrationType RegistrationType { get; init; }
 

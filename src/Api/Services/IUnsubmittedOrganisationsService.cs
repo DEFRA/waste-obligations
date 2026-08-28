@@ -6,8 +6,8 @@ namespace Defra.WasteObligations.Api.Services;
 public interface IUnsubmittedOrganisationsService
 {
     Task<UnsubmittedOrganisationSearchResult> Search(
-        int obligationYear,
-        RegistrationType registrationType,
+        int? obligationYear,
+        IReadOnlyCollection<RegistrationType>? registrationTypes,
         string? search,
         IReadOnlyCollection<UnsubmittedOrganisationSort>? sort,
         int page,
