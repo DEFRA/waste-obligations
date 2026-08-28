@@ -234,6 +234,19 @@ Names below are provisional. New collection names, indexes, schema files, migrat
 
 The delivery adds purpose-specific persistence for eligibility rows, snapshot metadata, and a single per-organisation/year obligation summary that contains both display metrics and its own hydration state. The eligibility row itself carries the direct inferred-list membership field and the Account-reference result; snapshot metadata is control data. Refresh and hydration leases are two documents, identified by separate lease IDs, in the private `_unsubmitted_organisation_worker_leases` collection. They use the shared `BackgroundWorkerLeaseService` lifecycle implementation and are accessed through purpose-specific adapters rather than the query-data `IDbContext`; the shared collection is not a work queue.
 
+### Writer-neutral projection principle
+
+The persisted query aggregates represent domain state for the unsubmitted view; they are **not owned by the polling workers**. Polling is the current acquisition mechanism because the available upstream interfaces are pull-only. A future Waste Organisations consumer, Recycling-data consumer, or other authoritative domain-event consumer must be able to materialise the same business fields through the same projection rules without adding a new list/query collection.
+
+Consequently, a materialiser must distinguish the fields' domain meaning from their current polling mechanics:
+
+- `OrganisationComplianceDeclarationEligibility` is the organisation/type/year query aggregate. Its registration, reference, visibility, name and copied obligation-metric fields are writer-neutral business state. `generation` is only the current full-snapshot publication mechanism; it is not part of the organisation business identity.
+- `OrganisationObligationSummary` is the organisation/year calculation aggregate. Its totals and two public metrics are writer-neutral calculation state. `nextRefreshAt`, `priority`, retry counters and lease activity are the present polling mechanism; a future event can replace the decision to schedule a read without changing the result shape.
+- `sourceFingerprint`, `refreshedAt`, `lastSuccessfulReadAt`, and `lastAttemptedAt` record an observation or application of state, not an assertion that polling is the only writer. A consumer must calculate the same canonical fingerprint after it applies an authoritative source state.
+- No consumer writes the public aggregate directly from a transport payload. It calls a shared materialiser that validates the source, applies per-source ordering/idempotency rules, recalculates visibility where appropriate, and writes the affected aggregate atomically with its consumer checkpoint/inbox state.
+
+Polling and events must never be concurrent uncontrolled writers of the same logical state. The cutover rules below select one authoritative writer per aggregate/key, retain polling only as explicit reconciliation, and record source provenance so stale/replayed events cannot overwrite a newer result.
+
 ### 1. Organisation eligibility snapshot
 
 This is the refreshable Waste Organisations copy. Its job is to decide whether a row is eligible to submit and to provide the locally available row data.
@@ -259,8 +272,8 @@ OrganisationComplianceDeclarationEligibility
   registrationStatus             REGISTERED | CANCELLED
   referenceNumber                string?          // Account value; preserve leading zeroes
   referenceResolutionState       Resolved | Pending | NotFound | Ambiguous | AwaitingLookupKey | Failed
-  sourceFingerprint              string           // Waste Organisations fields only
-  refreshedAt                    UTC timestamp
+  sourceFingerprint              string           // canonical organisation source state, regardless of poll or event acquisition
+  refreshedAt                    UTC timestamp    // state applied/observed time; currently the poll time
   isVisibleInUnsubmittedView     bool             // direct membership for the active endpoint query
   recyclingObligationsMet        bool?            // copied from the last successful local obligation summary
   obligationCoveragePercentage   decimal          // copied from the last successful local obligation summary; defaults to 0
@@ -271,7 +284,7 @@ The unique key is `{ generation, obligationYear, organisationId, registrationTyp
 
 An empty result must never silently mean “every organisation has submitted” when source rows are being excluded for missing references. Persist the excluded count in snapshot metadata and emit it as an operational metric. The public endpoint deliberately returns only usable list data; a future administration/operational-insight endpoint will expose reference coverage, freshness, and other diagnostic state. The initial bootstrap should normally remain unavailable until its required reference coverage is reached; the policy for later newly-unresolved rows is an explicit open decision.
 
-The eligibility row is the query aggregate. It contains the two obligation display metrics as a small write-time copy of the separately retained hydration summary, so the regulator query can match, sort, and page one indexed collection. The copy is updated in the same Mongo transaction that persists a successful hydration result, and is copied forward into a newly staged generation from the current summary. This avoids a request-time `$lookup` and avoids a third projection collection.
+The eligibility row is the query aggregate. It contains the two obligation display metrics as a small write-time copy of the separately retained hydration summary, so the regulator query can match, sort, and page one indexed collection. The copy is updated in the same Mongo transaction that persists a successful hydration result, and is copied forward into a newly staged generation from the current summary. This avoids a request-time `$lookup` and avoids a third projection collection. It also means a future event consumer has one established place to apply changed organisation or calculation state; it must not create a competing list projection.
 
 For an all-years refresh, `generation` is global to the refresh, rather than one generation per year. This ensures an endpoint for any year sees rows derived from the same upstream response. `OrganisationEligibilitySnapshot` is control metadata for the eligibility data set. The query reads the eligibility aggregate; the independently refreshed organisation-obligation summary is its polling-state source.
 
@@ -395,7 +408,7 @@ OrganisationObligationSummary
   recyclingObligationsMet        bool?           // exact current frontend/domain semantics
   obligationCoveragePercentage   decimal?        // whole number; 0 for a successful empty result
   sourceFingerprint              string           // canonical mapped organisation-obligation result, for no-op writes/telemetry
-  lastSuccessfulReadAt           UTC timestamp   // when Waste Obligations observed the calculation endpoint
+  lastSuccessfulReadAt           UTC timestamp   // when Waste Obligations last applied the canonical calculation result
   dailyCalculationRunId          string?          // populated when the source later supplies a run-completion watermark
   lastAttemptedAt                UTC timestamp
   nextRefreshAt                  UTC timestamp
@@ -407,7 +420,21 @@ OrganisationObligationSummary
   lastFailure                    optional, bounded diagnostic
 ```
 
+When a suitable event contract is introduced, expand this same document with optional calculation-trigger source state rather than adding an event-only summary or queue collection:
+
+```text
+OrganisationObligationSummary (future event activation)
+  calculationTriggerSources      one state per source: source name, source version/sequence,
+                                  event ID, occurredAt, appliedAt
+  calculationRequestedAt         UTC timestamp of the latest accepted trigger
+  priority                       adds EventTriggered; it coalesces to one due key with scheduled/retry work
+```
+
+Those fields let a Recycling-data consumer reject a stale/replayed trigger while still asking the existing canonical calculation materialiser for the result. They are operational provenance, not public endpoint data. They must be introduced by an additive migration before the consumer is enabled; existing polling documents remain valid without them.
+
 There is exactly one summary document for an organisation/year. It combines the local last result and bounded polling state so a second Mongo work-queue collection is not required. Use the unique index on `{ organisationId, obligationYear }` and a due-work index on `{ isHydrationActive, nextRefreshAt, priority }`. The worker deactivates a summary when its organisation is no longer an active registered row with a resolved reference; retained metrics then remain available for diagnostics but that document cannot be selected for a PRN call. On a successful summary write, the worker atomically copies the two public display metrics to every matching eligibility row (including a staged generation). The public endpoint consequently reads no summary collection. Neither path is joined to Account or any remote service at request time.
+
+This key is already event-ready: a future Recycling-data event identifies the same `{ organisationId, obligationYear }` record. It must record that a canonical calculation is required and coalesce with any already-due work; it must not try to derive or overwrite totals from the event itself. The existing calculation materialiser remains the only writer of calculated totals/metrics, regardless of whether its read was initiated by a periodic due time or an accepted event.
 
 Persisting material-level obligations is not required for this list. The totals, status, percentage, source fingerprint, and timestamps are enough to render today's columns and diagnose the calculation. If a later API must return a material breakdown, add a deliberately versioned nested snapshot then; do not turn this list projection into an unbounded PRN archive.
 
@@ -720,39 +747,54 @@ If a serious issue is found in `g2` before `g1` expires, rollback is another ato
 
 The direct visibility field is updated transactionally with each declaration mutation. That means an organisation submission or cancellation takes effect immediately, while organisation registration changes take effect at the next successful snapshot promotion.
 
-### If polling is replaced by event consumption
+### Event-consumption evolution
 
 An event-driven source changes the **writer**, not the required result. The public query must still read one organisation/type/year row that contains its current registration data, materialised reference state/value, direct unsubmitted visibility, and source version; it must still locally obtain its organisation-obligation summary. The one-row-per-registration design, materialised reference number, distinct volatile obligation summary, and rule that unresolved references are excluded are therefore ratified by an event model.
 
-Do not create a complete `g(n+1)` generation for every event. That would turn a single organisation update or reference assignment into `O(M)` writes. Instead, use an active, individually mutable read model with the same fields as `OrganisationComplianceDeclarationEligibility`, except that it has no `generation` and adds durable event-processing metadata:
+Do not create a complete `g(n+1)` generation for every event. That would turn a single organisation update or reference assignment into `O(M)` writes. Equally, do **not** introduce a temporary `UnsubmittedOrganisationProjection` collection: it would be a third business query projection with an eventual cleanup/migration burden. Event mode evolves the existing `OrganisationComplianceDeclarationEligibility` collection into an individually mutable active projection after a deliberate expand/backfill/cutover migration.
+
+The current generated documents remain valid polling-mode documents. Before any event consumer is enabled, add the following **optional operational metadata** to the existing eligibility documents and active-snapshot metadata:
 
 ```text
-UnsubmittedOrganisationProjection
-  organisationId + obligationYear + reviewType   // unique business key
-  registrationStatus, name, tradingName, companiesHouseNumber
-  referenceNumber, referenceResolutionState
-  organisationSourceVersion / sourceOccurredAt
-  referenceSourceVersion / referenceResolvedAt
-  lastAppliedEventId / updatedAt
+OrganisationEligibilitySnapshot
+  projectionMode                PollingGeneration | EventConsumer
+  eventBootstrapWatermark       source cursor/version captured for the event bootstrap
+
+OrganisationComplianceDeclarationEligibility (EventConsumer mode)
+  generation                    absent for the active event-mode row; retained on historic polling rows
+  materialisationSources        one state per authoritative source:
+                                  source name, source entity/key, version or sequence,
+                                  event ID, occurredAt, appliedAt
 ```
+
+`materialisationSources` is deliberately one state per source rather than a single `lastAppliedEventId`: Waste Organisations, Account and Recycling-data events can be independently ordered and replayed. The fields are operational provenance, not public API fields. The existing business key remains `{ organisationId, obligationYear, registrationType }`; event mode needs a corresponding partial unique index for its active rows. The endpoint reads exactly the mode selected by `OrganisationEligibilitySnapshot`; it must never combine event-mode rows with a polling generation.
+
+The migration/cutover sequence is therefore:
+
+1. Expand the existing collection/indexes and snapshot metadata so both old polling hosts and the future consumer can read their own rows safely.
+2. Take an authoritative Waste Organisations snapshot at a supported event watermark, seed event-mode rows through the shared materialiser, then replay later events.
+3. Verify event-mode row count, references, visibility and obligation-summary keys against the current polling view. Only then atomically change `projectionMode` to `EventConsumer`.
+4. Retain polling-generation rows only for normal rollback/retention. Stop the periodic source poll as the primary writer; any later poll is an explicit reconciliation input and may not blindly overwrite a newer event state.
+5. After all old polling hosts are drained and the rollback window expires, remove superseded polling-only fields/indexes in a separate contract migration if they are no longer needed.
 
 The event handling rules are:
 
-1. An organisation-registration event upserts only its corresponding rows. It records a pending reference state when no resolved reference is known; a `REGISTERED` row becomes queryable only after the reference condition is also resolved.
-2. An Account reference-assignment event updates the matching local projection row to `Resolved` in the same transaction as the consumer checkpoint/inbox record. If the Account event arrives first, retain its event state with the inbox/checkpoint until the related organisation event can apply it; do not introduce a second query-time cache.
-3. **Future only:** a PRN-status event may enqueue only its affected `{ organisationId, obligationYear }` obligation-summary key when its year equals `currentObligationYear`. The worker calls the canonical organisation-obligation calculation endpoint and recomputes the summary; it does not recreate the calculation from the event. This is not an initial dependency and must not be approximated by polling individual PRNs.
+1. A Waste Organisations organisation/registration event upserts only its corresponding rows through the shared eligibility materialiser. It records a pending reference state when no resolved reference is known; a `REGISTERED` row becomes queryable only after the reference condition is also resolved. Its version/sequence is checked only against the Waste Organisations source state, never against an unrelated consumer's event ID.
+2. An Account reference-assignment event updates the matching eligibility row to `Resolved` through the same materialiser and transaction as its consumer checkpoint/inbox record. If the Account event arrives first, retain its event state with the inbox/checkpoint until the related organisation event can apply it; do not introduce a second query-time cache.
+3. **Future only:** a Recycling-data event, including a PRN-status or calculation-input change, may mark only its affected `{ organisationId, obligationYear }` summary as due for recalculation when its year equals `currentObligationYear`. Repeated events coalesce to one key. The calculation worker calls the canonical organisation-obligation calculation endpoint and is the sole writer of totals, `recyclingObligationsMet`, and `obligationCoveragePercentage`; it does not recreate the calculation from the event. This is not an initial dependency and must not be approximated by polling individual PRNs.
 4. A daily obligation-calculation-run-completed event, containing at least the compliance year and durable run ID/watermark, may later be recorded against summaries to prove which calculation run was observed. The initial rolling poll does not depend on it or create a separate daily burst.
 5. A cancellation, deletion, or registration-status event updates only the row concerned; it is immediately excluded when no longer `REGISTERED`.
-6. Each consumer stores an inbox/checkpoint and rejects duplicate event IDs. Per-source monotonic version or sequence checks are required because Account, organisation, and any future PRN events can be delayed, replayed, or arrive out of order.
+6. Each consumer stores an inbox/checkpoint and rejects duplicate event IDs. Per-source monotonic version or sequence checks are required because Account, Waste Organisations and Recycling-data events can be delayed, replayed, or arrive out of order. A consumer records the accepted source state in the aggregate with the write so a retry cannot regress it.
 7. The existing declaration mutation transaction continues to update `isVisibleInUnsubmittedView` locally. It does not need to wait for any external event stream.
+8. The low-frequency reconciliation poll, when retained, maps its source response through the same materialiser. It records a reconciliation provenance entry and reports conflicts; it does not overwrite a state whose authoritative event version is newer.
 
 The broker's consumer-group/lock/checkpoint semantics should own multi-host concurrency for this path, rather than the periodic Mongo lease. A local lease remains appropriate for the retained reconciliation job, but should not compete with event consumers to apply the same row without a single-writer/version rule.
 
 Bootstrap is the critical event design problem: take a full source snapshot at a defined event watermark, persist it, then replay events after that watermark before declaring the projection ready. The initial obligation-summary backfill then runs for active current-year eligible organisation keys. Without a supported snapshot-plus-offset contract, retain the periodic full organisation poll as a low-frequency reconciliation/repair job even after events are introduced. It detects missed events, source corrections, and projection drift. Retain a less-frequent current-year obligation-summary reconciliation too.
 
-Event consumption gives per-organisation atomicity, not a globally atomic all-organisations point-in-time view. That is appropriate only if the upstream event contract represents independent organisation changes. The pull model's complete-generation promotion remains the right design while the only trustworthy input is a full, unversioned `GET /organisations`; do not mix in-place event writes into that active generation. The organisation-obligation summary is intentionally different: it is already a per-key mutable projection, so a PRN event updates or queues only one summary and never creates an organisation generation. Both writers may share mapping, reference-resolution, row-validation, and query code behind a projector interface, but only one owns the active organisation read model at a time.
+Event consumption gives per-organisation atomicity, not a globally atomic all-organisations point-in-time view. That is appropriate only if the upstream event contract represents independent organisation changes. The pull model's complete-generation promotion remains the right design while the only trustworthy input is a full, unversioned `GET /organisations`; do not mix in-place event writes into that active generation. The organisation-obligation summary is intentionally different: it is already a per-key mutable projection, so a Recycling-data event updates or queues only one summary and never creates an organisation generation. Polling and event consumers share mapping, reference-resolution, row-validation, visibility recalculation, and calculation-projection code behind writer-neutral materialiser interfaces, but the snapshot's `projectionMode` selects one primary owner of the active organisation read model at a time.
 
-No suitable PRN-state event is emitted by the inspected `epr-prn-common-backend` code today. Its `GET /api/v2/prn/modified-prns` route is a date-window pull response intended for another integration and returns PRN number, status, status date, accreditation year, source-system ID, and obligation year. It omits the recipient `organisationId`, has no durable ordered cursor, and is not used by this design. Waste Obligations must not poll it as a substitute for an event. If lower-latency updates become a future requirement, the suitable contract is an at-least-once PRN-status event with the fields in rule 3. A separate daily calculation-run-completed event would improve observability, but is not needed for the 30-minute rolling poll.
+No suitable PRN-state or Recycling-data event is emitted by the inspected `epr-prn-common-backend` code today. Its `GET /api/v2/prn/modified-prns` route is a date-window pull response intended for another integration and returns PRN number, status, status date, accreditation year, source-system ID, and obligation year. It omits the recipient `organisationId`, has no durable ordered cursor, and is not used by this design. Waste Obligations must not poll it as a substitute for an event. If lower-latency updates become a future requirement, the suitable contract is an at-least-once Recycling-data event with the fields in rule 3. A separate daily calculation-run-completed event would improve observability, but is not needed for the 30-minute rolling poll.
 
 Recommended configuration (values to agree operationally):
 
@@ -1088,7 +1130,7 @@ The organisation-obligation summary is deliberately separate from the query aggr
 5. Delivered the organisation-obligation summary with embedded hydration state, lease worker, non-blocking initial backfill, calculator parity tests, stale sweep, pending/stale metrics, and downstream-failure handling.
 6. Delivered the direct indexed match/count/page query, including copied zero/default and last-known metrics, generic search, and name/reference/recycling/percentage sorting.
 7. Delivered the public review endpoint. Regulator frontend adoption for the Not submitted list/count/CSV remains a separate frontend change.
-8. A PRN status/calculation change event or safe cursor contract remains a future improvement before replacing the periodic stale sweep.
+8. A versioned Waste Organisations event contract and a Recycling-data status/calculation-trigger event remain future improvements. Their consumers must evolve the existing aggregates through the documented source-provenance and projection-mode cutover, before they replace periodic polling as the primary writers.
 
 ## Open decisions
 
@@ -1101,5 +1143,5 @@ The organisation-obligation summary is deliberately separate from the query aggr
 7. Is there a guaranteed single active `isComplianceScheme=true` Account organisation for a Companies House number? If not, who owns resolving an ambiguous match?
 8. What reference-coverage policy applies: must initial bootstrap reach 100% before the endpoint is available, and should later unresolved new rows cause `503`, a visible exclusion warning, or both?
 9. Side requirement: a future administration endpoint should expose organisation-obligation state and successful-read timestamps/counts for operational insight. The public list contract exposes only usable obligation metrics.
-10. Can PRN provide an at-least-once status/calculation-change event (or cursor) with recipient `organisationId`, obligation year, event ID, per-key version, and a replay/bootstrap watermark?
-11. If events replace polling, which source/version/offset guarantees are available for the bootstrap watermark, organisation registrations, Account reference assignment, and PRN changes?
+10. Can Recycling data provide an at-least-once status/calculation-trigger event (or cursor) with recipient `organisationId`, obligation year, event ID, per-key version, and a replay/bootstrap watermark?
+11. Can Waste Organisations provide organisation/registration events with a durable source version/sequence and a snapshot watermark? If events replace polling, which source/version/offset guarantees are available for the bootstrap watermark, organisation registrations, Account reference assignment, and Recycling changes?
