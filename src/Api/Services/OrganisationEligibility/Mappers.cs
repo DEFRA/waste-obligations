@@ -50,7 +50,7 @@ public static class Mappers
                         ObligationYear = registration.RegistrationYear,
                         RegistrationType = registrationType.Value,
                         RegistrationStatus = registrationStatus,
-                        Name = organisation.Name,
+                        Name = organisation.CompanyName(registration),
                         TradingName = organisation.TradingName,
                         CompaniesHouseNumber = organisation.CompaniesHouseNumber,
                         ReferenceNumber = null,

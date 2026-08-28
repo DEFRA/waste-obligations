@@ -49,16 +49,16 @@ public class MappersTests
                     new
                     {
                         OrganisationId = organisationId,
-                        ObligationYear = 2025,
+                        ObligationYear = 2026,
                         RegistrationType = EntityRegistrationType.DirectProducer,
-                        RegistrationStatus = OrganisationRegistrationStatus.Registered,
+                        RegistrationStatus = OrganisationRegistrationStatus.Cancelled,
                     },
                     new
                     {
                         OrganisationId = organisationId,
-                        ObligationYear = 2026,
+                        ObligationYear = 2025,
                         RegistrationType = EntityRegistrationType.DirectProducer,
-                        RegistrationStatus = OrganisationRegistrationStatus.Cancelled,
+                        RegistrationStatus = OrganisationRegistrationStatus.Registered,
                     },
                     new
                     {
@@ -73,13 +73,21 @@ public class MappersTests
         rows.Should()
             .OnlyContain(x =>
                 x.Generation == "g1"
-                && x.Name == "Example Organisation"
                 && x.TradingName == "Example Trading Name"
                 && x.CompaniesHouseNumber == "12345678"
                 && x.ReferenceNumber == null
                 && x.ReferenceNumberResolutionState == OrganisationReferenceNumberResolutionState.Pending
                 && x.RefreshedAt == s_refreshedAt.UtcDateTime
             );
+        rows.Single(x => x.ObligationYear == 2025 && x.RegistrationType == EntityRegistrationType.DirectProducer)
+            .Name.Should()
+            .Be("Example Organisation");
+        rows.Single(x => x.ObligationYear == 2026 && x.RegistrationType == EntityRegistrationType.DirectProducer)
+            .Name.Should()
+            .Be("Example Organisation");
+        rows.Single(x => x.RegistrationType == EntityRegistrationType.ComplianceScheme)
+            .Name.Should()
+            .Be("Example Trading Name");
     }
 
     [Fact]
@@ -136,6 +144,50 @@ public class MappersTests
             .Single();
 
         changedRow.SourceFingerprint.Should().NotBe(initialRow.SourceFingerprint);
+    }
+
+    [Fact]
+    public void ToEligibilityRows_WhenOrganisationChangesTypeWithinAYear_ShouldRetainBothRegistrations()
+    {
+        var latestUpdated = s_refreshedAt.AddMinutes(1);
+        var organisation = CreateOrganisation(
+            Guid.NewGuid(),
+            [
+                CreateRegistration(
+                    WasteOrganisationsRegistrationType.LargeProducer,
+                    WasteOrganisationsRegistrationStatus.Cancelled,
+                    2026,
+                    s_refreshedAt
+                ),
+                CreateRegistration(
+                    WasteOrganisationsRegistrationType.ComplianceScheme,
+                    WasteOrganisationsRegistrationStatus.Registered,
+                    2026,
+                    latestUpdated
+                ),
+            ]
+        );
+
+        var rows = Mappers.ToEligibilityRows([organisation], "g1", s_refreshedAt);
+
+        rows.Should()
+            .BeEquivalentTo(
+                [
+                    new
+                    {
+                        RegistrationType = EntityRegistrationType.DirectProducer,
+                        RegistrationStatus = OrganisationRegistrationStatus.Cancelled,
+                        Name = "Example Organisation",
+                    },
+                    new
+                    {
+                        RegistrationType = EntityRegistrationType.ComplianceScheme,
+                        RegistrationStatus = OrganisationRegistrationStatus.Registered,
+                        Name = "Example Trading Name",
+                    },
+                ],
+                options => options.ExcludingMissingMembers()
+            );
     }
 
     [Fact]
@@ -212,11 +264,17 @@ public class MappersTests
             Registrations = registrations,
         };
 
-    private static Registration CreateRegistration(string type, string status, int registrationYear) =>
+    private static Registration CreateRegistration(
+        string type,
+        string status,
+        int registrationYear,
+        DateTimeOffset? updated = null
+    ) =>
         new()
         {
             Type = type,
             Status = status,
             RegistrationYear = registrationYear,
+            Updated = updated ?? DateTimeOffset.MinValue,
         };
 }
