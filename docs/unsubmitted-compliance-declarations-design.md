@@ -257,6 +257,7 @@ OrganisationEligibilitySnapshot
   activeGeneration               GUID
   activeContentFingerprint       SHA-256 of the canonical derived eligibility set
   activeRowCount                 int
+  materialisedStateVersion       monotonic version of in-place visibility and metric writes
   activeGenerationPromotedAt     UTC timestamp of a changed snapshot becoming active
   lastVerifiedAt                 UTC timestamp of the latest successful source read, including no-change polls
   retainedGenerations            bounded rollback/read-safety metadata
@@ -284,7 +285,7 @@ The unique key is `{ generation, obligationYear, organisationId, registrationTyp
 
 An empty result must never silently mean “every organisation has submitted” when source rows are being excluded for missing references. Persist the excluded count in snapshot metadata and emit it as an operational metric. The public endpoint deliberately returns only usable list data; a future administration/operational-insight endpoint will expose reference coverage, freshness, and other diagnostic state. The initial bootstrap should normally remain unavailable until its required reference coverage is reached; the policy for later newly-unresolved rows is an explicit open decision.
 
-The eligibility row is the query aggregate. It contains the two obligation display metrics as a small write-time copy of the separately retained hydration summary, so the regulator query can match, sort, and page one indexed collection. The copy is updated in the same Mongo transaction that persists a successful hydration result, and is copied forward into a newly staged generation from the current summary. This avoids a request-time `$lookup` and avoids a third projection collection. It also means a future event consumer has one established place to apply changed organisation or calculation state; it must not create a competing list projection.
+The eligibility row is the query aggregate. It contains the two obligation display metrics as a small write-time copy of the separately retained hydration summary, so the regulator query can match, sort, and page one indexed collection. The copy is updated in the same Mongo transaction that persists a successful hydration result, and is copied forward into a newly staged generation from the current summary. This avoids a request-time `$lookup` and avoids a third projection collection. It also means a future event consumer has one established place to apply changed organisation or calculation state; it must not create a competing list projection. Each in-place visibility or metric transaction increments `materialisedStateVersion`. A generation promotion matches the version it observed while staging, so it cannot replace a concurrent local mutation with an older staged value.
 
 For an all-years refresh, `generation` is global to the refresh, rather than one generation per year. This ensures an endpoint for any year sees rows derived from the same upstream response. `OrganisationEligibilitySnapshot` is control metadata for the eligibility data set. The query reads the eligibility aggregate; the independently refreshed organisation-obligation summary is its polling-state source.
 
@@ -292,7 +293,7 @@ For an all-years refresh, `generation` is global to the refresh, rather than one
 
 `OrganisationComplianceDeclarationEligibility.isVisibleInUnsubmittedView` replaces the separate declaration-review-state collection. It is the single persisted endpoint membership field, and is set to false for a Submitted or Accepted declaration and true only when the row is Registered, has a resolved non-empty reference number, and has no such declaration for the same organisation/year/type.
 
-The declaration create, status-update, and delete paths recalculate the affected organisation/year/type inside the same Mongo transaction as the declaration mutation and audit-event write. This preserves the required immediate change to the list without a request-time `$lookup` or an additional stored projection. A full eligibility refresh also evaluates all Submitted and Accepted declarations before staging a new generation, so newly promoted rows carry the current visibility result.
+The declaration create, status-update, and delete paths recalculate the affected organisation/year/type inside the same Mongo transaction as the declaration mutation and audit-event write, and increment `materialisedStateVersion`. This preserves the required immediate change to the list without a request-time `$lookup` or an additional stored projection. A full eligibility refresh also evaluates all Submitted and Accepted declarations before staging a new generation. Its promotion is fenced by the observed materialised-state version: a declaration committed before promotion prevents the stale stage from becoming active, while one committed after the staged rows exist updates those rows transactionally.
 
 The boolean is deliberately an endpoint read-model field, not a declaration status or public diagnostic field. Operational counts, stale visibility diagnostics, and any future reconciliation endpoint belong to the future administration/operational-insight work.
 
@@ -718,7 +719,7 @@ An in-place design can be made safe only by adding pending fields, a refresh/run
 
 This decision applies only to the periodically loaded organisation fields. The direct visibility field is updated in place inside the same Mongo transaction as a live declaration mutation, because membership must take effect immediately and is not sourced from a periodic snapshot.
 
-During a refresh whose fingerprint differs, all new documents are written with `generation: g2` while snapshot metadata still says `activeGeneration: g1`. Query code first reads that metadata and uses the generation value it read throughout the query. Therefore requests during the write continue to read only complete `g1` data. An identical source response writes no `g2` at all.
+During a refresh whose fingerprint differs, all new documents are written with `generation: g2` while snapshot metadata still says `activeGeneration: g1`. Query code first reads that metadata and uses the generation value it read throughout the query. Therefore requests during the write continue to read only complete `g1` data. An identical source response writes no `g2` at all. The worker records the snapshot's `materialisedStateVersion` before it stages `g2`; promotion also requires that value. This fences local declaration visibility and obligation-metric writes that are not represented in the source fingerprint.
 
 After validation and the final bulk-write verification, promotion is one atomic update of the small snapshot-metadata document:
 

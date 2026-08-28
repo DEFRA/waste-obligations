@@ -195,6 +195,11 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
             .SingleAsync(TestContext.Current.CancellationToken);
         eligibility.RecyclingObligationsMet.Should().BeFalse();
         eligibility.ObligationCoveragePercentage.Should().Be(88);
+        var snapshot = await OrganisationEligibilitySnapshots
+            .Find(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId)
+            .SingleAsync(TestContext.Current.CancellationToken);
+
+        snapshot.MaterialisedStateVersion.Should().Be(1);
         await ObligationSource
             .Received(1)
             .ReadObligations(organisationId, ObligationYear, Arg.Any<CancellationToken>());

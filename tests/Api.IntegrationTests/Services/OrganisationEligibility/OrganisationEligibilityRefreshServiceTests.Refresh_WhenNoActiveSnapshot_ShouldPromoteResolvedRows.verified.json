@@ -4,6 +4,7 @@
     "activeGeneration": "{Generated}",
     "activeContentFingerprint": "{Calculated}",
     "activeRowCount": 1,
+    "materialisedStateVersion": 0,
     "activeGenerationPromotedAt": "DateTimeOffset_1",
     "lastVerifiedAt": "DateTimeOffset_1",
     "retainedGenerations": []

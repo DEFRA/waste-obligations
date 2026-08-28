@@ -247,7 +247,7 @@ public class OrganisationEligibilityRefreshService(
         }
 
         var result = await dbContext.OrganisationEligibilitySnapshots.ReplaceOneAsync(
-            ActiveGenerationFilter(activeSnapshot.ActiveGeneration),
+            ActiveGenerationAndMaterialisedStateVersionFilter(activeSnapshot),
             replacement,
             cancellationToken: cancellationToken
         );
@@ -259,6 +259,15 @@ public class OrganisationEligibilityRefreshService(
         Builders<OrganisationEligibilitySnapshot>.Filter.And(
             Builders<OrganisationEligibilitySnapshot>.Filter.Eq(x => x.Id, OrganisationEligibilitySnapshot.SnapshotId),
             Builders<OrganisationEligibilitySnapshot>.Filter.Eq(x => x.ActiveGeneration, activeGeneration)
+        );
+
+    private static FilterDefinition<OrganisationEligibilitySnapshot> ActiveGenerationAndMaterialisedStateVersionFilter(
+        OrganisationEligibilitySnapshot snapshot
+    ) =>
+        ActiveGenerationFilter(snapshot.ActiveGeneration)
+        & Builders<OrganisationEligibilitySnapshot>.Filter.Eq(
+            x => x.MaterialisedStateVersion,
+            snapshot.MaterialisedStateVersion
         );
 
     private static void EnsureActiveGenerationUnchanged(long matchedCount)

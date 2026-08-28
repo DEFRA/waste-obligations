@@ -136,6 +136,11 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         );
 
         (await FindEligibility(cancelled)).IsVisibleInUnsubmittedView.Should().BeTrue();
+        var snapshot = await OrganisationEligibilitySnapshots
+            .Find(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId)
+            .SingleAsync(TestContext.Current.CancellationToken);
+
+        snapshot.MaterialisedStateVersion.Should().Be(3);
     }
 
     [Fact]

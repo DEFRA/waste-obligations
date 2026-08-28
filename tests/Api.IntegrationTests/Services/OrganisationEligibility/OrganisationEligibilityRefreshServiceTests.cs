@@ -466,6 +466,53 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Refresh_WhenMaterialisedStateChangesBeforePromotion_ShouldNotReplaceIt()
+    {
+        var organisationId = Guid.NewGuid();
+        ArrangeSource(organisationId);
+        ArrangeDirectProducerReference(organisationId, "051829");
+        var initial = await CreateSubject().Refresh(TestContext.Current.CancellationToken);
+        ArrangeSource(organisationId, name: "Changed organisation name");
+        var competingDatabase = GetMongoDatabase();
+        var stateVersionUpdated = 0;
+        var monitoredDatabase = CreateMonitoredDatabase(@event =>
+        {
+            if (
+                !IsCommandForCollection(@event, "update", nameof(OrganisationEligibilitySnapshot))
+                || Interlocked.Exchange(ref stateVersionUpdated, 1) != 0
+            )
+            {
+                return;
+            }
+
+            competingDatabase
+                .GetCollection<OrganisationEligibilitySnapshot>(nameof(OrganisationEligibilitySnapshot))
+                .UpdateOne(
+                    x => x.Id == OrganisationEligibilitySnapshot.SnapshotId,
+                    Builders<OrganisationEligibilitySnapshot>.Update.Inc(x => x.MaterialisedStateVersion, 1)
+                );
+        });
+        var subject = CreateSubject(
+            monitoredDatabase,
+            OrganisationEligibilitySource,
+            OrganisationReferenceSearchService,
+            _timeProvider
+        );
+
+        var act = async () => await subject.Refresh(TestContext.Current.CancellationToken);
+
+        await act.Should()
+            .ThrowAsync<InvalidOperationException>()
+            .WithMessage("The active organisation eligibility generation changed during refresh");
+        stateVersionUpdated.Should().Be(1);
+        var snapshot = await OrganisationEligibilitySnapshots
+            .Find(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        snapshot.ActiveGeneration.Should().Be(initial.ActiveGeneration);
+        snapshot.MaterialisedStateVersion.Should().Be(1);
+    }
+
+    [Fact]
     public async Task Refresh_WhenActiveGenerationChangesBeforeVerification_ShouldNotUpdateIt()
     {
         var organisationId = Guid.NewGuid();

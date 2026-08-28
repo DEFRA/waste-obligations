@@ -245,6 +245,7 @@ public class OrganisationObligationHydrationService(
                         .Set(x => x.ObligationCoveragePercentage, summary.ObligationCoveragePercentage ?? 0),
                     cancellationToken: token
                 );
+                await OrganisationEligibilitySnapshotState.IncrementMaterialisedStateVersion(dbContext, session, token);
 
                 return true;
             },

@@ -94,6 +94,12 @@ public class UnsubmittedEligibilityVisibilityService(IDbContext dbContext) : IUn
                 cancellationToken: cancellationToken
             );
         }
+
+        await OrganisationEligibilitySnapshotState.IncrementMaterialisedStateVersion(
+            dbContext,
+            transactionSession,
+            cancellationToken
+        );
     }
 
     private async Task<HashSet<UnsubmittedEligibilityKey>> ReadExcludedKeys(CancellationToken cancellationToken)

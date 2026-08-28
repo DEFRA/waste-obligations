@@ -11,6 +11,7 @@ public record OrganisationEligibilitySnapshot
     public string? ActiveGeneration { get; init; }
     public string? ActiveContentFingerprint { get; init; }
     public int ActiveRowCount { get; init; }
+    public long MaterialisedStateVersion { get; init; }
 
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime? ActiveGenerationPromotedAt { get; init; }
