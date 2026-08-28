@@ -21,7 +21,7 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
     private IOrganisationObligationSource ObligationSource { get; } = Substitute.For<IOrganisationObligationSource>();
 
     [Fact]
-    public async Task EnqueueNewEligible_WhenNoActiveGenerationExists_ShouldNotCreateWork()
+    public async Task EnqueueNewEligible_WhenNoActiveGenerationExists_ShouldNotCreateSummary()
     {
         var subject = CreateSubject();
 
@@ -53,17 +53,19 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
         var enqueuedCount = await subject.EnqueueNewEligible(ObligationYear, TestContext.Current.CancellationToken);
 
         enqueuedCount.Should().Be(1);
-        var work = await OrganisationObligationHydrationWork
-            .Find(Builders<OrganisationObligationHydrationWork>.Filter.Empty)
+        var summary = await OrganisationObligationSummaries
+            .Find(Builders<OrganisationObligationSummary>.Filter.Empty)
             .SingleAsync(TestContext.Current.CancellationToken);
-        work.OrganisationId.Should().Be(organisationId);
-        work.ObligationYear.Should().Be(ObligationYear);
-        work.Priority.Should().Be(OrganisationObligationHydrationPriority.NewEligible);
-        work.NextAttemptAt.Should().Be(_timeProvider.GetUtcNow().UtcDateTime);
+        summary.OrganisationId.Should().Be(organisationId);
+        summary.ObligationYear.Should().Be(ObligationYear);
+        summary.Priority.Should().Be(OrganisationObligationHydrationPriority.NewEligible);
+        summary.NextRefreshAt.Should().Be(_timeProvider.GetUtcNow().UtcDateTime);
+        summary.RefreshState.Should().Be(OrganisationObligationRefreshState.Pending);
+        summary.IsHydrationActive.Should().BeTrue();
     }
 
     [Fact]
-    public async Task EnqueueNewEligible_WhenASuccessfulSummaryExists_ShouldNotCreateMoreWork()
+    public async Task EnqueueNewEligible_WhenASuccessfulSummaryExists_ShouldActivateItsExistingSummary()
     {
         var organisationId = Guid.NewGuid();
         await InsertActiveSnapshot();
@@ -78,27 +80,23 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
         var enqueuedCount = await subject.EnqueueNewEligible(ObligationYear, TestContext.Current.CancellationToken);
 
         enqueuedCount.Should().Be(0);
-        (
-            await OrganisationObligationHydrationWork.CountDocumentsAsync(
-                Builders<OrganisationObligationHydrationWork>.Filter.Empty,
-                cancellationToken: TestContext.Current.CancellationToken
-            )
-        )
-            .Should()
-            .Be(0);
+        var summary = await OrganisationObligationSummaries
+            .Find(Builders<OrganisationObligationSummary>.Filter.Empty)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        summary.IsHydrationActive.Should().BeTrue();
     }
 
     [Theory]
     [InlineData(OrganisationRegistrationStatus.Cancelled, OrganisationReferenceNumberResolutionState.Resolved)]
     [InlineData(OrganisationRegistrationStatus.Registered, OrganisationReferenceNumberResolutionState.NotFound)]
-    public async Task HydrateDue_WhenQueuedOrganisationIsNoLongerEligible_ShouldRemoveWorkWithoutCallingSource(
+    public async Task HydrateDue_WhenQueuedOrganisationIsNoLongerEligible_ShouldDeactivateSummaryWithoutCallingSource(
         OrganisationRegistrationStatus registrationStatus,
         OrganisationReferenceNumberResolutionState referenceResolutionState
     )
     {
         var organisationId = Guid.NewGuid();
         await InsertEligibility(organisationId, RegistrationType.DirectProducer, generation: "previous");
-        await InsertWork(organisationId);
+        await InsertHydrationSummary(organisationId);
         await InsertEligibility(
             organisationId,
             RegistrationType.DirectProducer,
@@ -115,14 +113,10 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
         await ObligationSource
             .DidNotReceive()
             .ReadObligations(organisationId, ObligationYear, Arg.Any<CancellationToken>());
-        (
-            await OrganisationObligationHydrationWork.CountDocumentsAsync(
-                Builders<OrganisationObligationHydrationWork>.Filter.Empty,
-                cancellationToken: TestContext.Current.CancellationToken
-            )
-        )
-            .Should()
-            .Be(0);
+        var summary = await OrganisationObligationSummaries
+            .Find(x => x.OrganisationId == organisationId && x.ObligationYear == ObligationYear)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        summary.IsHydrationActive.Should().BeFalse();
     }
 
     [Fact]
@@ -135,14 +129,14 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
         await InsertActiveSnapshot();
         await InsertEligibility(organisationId, RegistrationType.DirectProducer);
         await InsertEligibility(readAfterCutoverOrganisationId, RegistrationType.DirectProducer);
-        await InsertWork(
+        await InsertHydrationSummary(
             organisationId,
-            nextAttemptAt: _timeProvider.GetUtcNow().AddHours(1).UtcDateTime,
+            nextRefreshAt: _timeProvider.GetUtcNow().AddHours(1).UtcDateTime,
             lastSuccessfulReadAt: readBeforeCutover
         );
-        await InsertWork(
+        await InsertHydrationSummary(
             readAfterCutoverOrganisationId,
-            nextAttemptAt: _timeProvider.GetUtcNow().AddHours(1).UtcDateTime,
+            nextRefreshAt: _timeProvider.GetUtcNow().AddHours(1).UtcDateTime,
             lastSuccessfulReadAt: _timeProvider.GetUtcNow().UtcDateTime
         );
         var subject = CreateSubject();
@@ -154,16 +148,16 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
         );
 
         enqueuedCount.Should().Be(1);
-        var reconciledWork = await OrganisationObligationHydrationWork
+        var reconciledSummary = await OrganisationObligationSummaries
             .Find(x => x.OrganisationId == organisationId)
             .SingleAsync(TestContext.Current.CancellationToken);
-        reconciledWork.Priority.Should().Be(OrganisationObligationHydrationPriority.Reconciliation);
-        reconciledWork.NextAttemptAt.Should().Be(_timeProvider.GetUtcNow().UtcDateTime);
-        var recentWork = await OrganisationObligationHydrationWork
+        reconciledSummary.Priority.Should().Be(OrganisationObligationHydrationPriority.Reconciliation);
+        reconciledSummary.NextRefreshAt.Should().Be(_timeProvider.GetUtcNow().UtcDateTime);
+        var recentSummary = await OrganisationObligationSummaries
             .Find(x => x.OrganisationId == readAfterCutoverOrganisationId)
             .SingleAsync(TestContext.Current.CancellationToken);
-        recentWork.Priority.Should().Be(OrganisationObligationHydrationPriority.ScheduledRefresh);
-        recentWork.NextAttemptAt.Should().Be(_timeProvider.GetUtcNow().AddHours(1).UtcDateTime);
+        recentSummary.Priority.Should().Be(OrganisationObligationHydrationPriority.ScheduledRefresh);
+        recentSummary.NextRefreshAt.Should().Be(_timeProvider.GetUtcNow().AddHours(1).UtcDateTime);
     }
 
     [Fact]
@@ -194,11 +188,8 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
         summary.RefreshState.Should().Be(OrganisationObligationRefreshState.Ready);
         summary.LastSuccessfulReadAt.Should().Be(_timeProvider.GetUtcNow().UtcDateTime);
         summary.NextRefreshAt.Should().BeAfter(_timeProvider.GetUtcNow().UtcDateTime);
-        var work = await OrganisationObligationHydrationWork
-            .Find(x => x.OrganisationId == organisationId && x.ObligationYear == ObligationYear)
-            .SingleAsync(TestContext.Current.CancellationToken);
-        work.Priority.Should().Be(OrganisationObligationHydrationPriority.ScheduledRefresh);
-        work.NextAttemptAt.Should().Be(summary.NextRefreshAt);
+        summary.Priority.Should().Be(OrganisationObligationHydrationPriority.ScheduledRefresh);
+        summary.IsHydrationActive.Should().BeTrue();
         await ObligationSource
             .Received(1)
             .ReadObligations(organisationId, ObligationYear, Arg.Any<CancellationToken>());
@@ -244,12 +235,9 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
         summary.RefreshState.Should().Be(OrganisationObligationRefreshState.Failed);
         summary.LastSuccessfulReadAt.Should().BeNull();
         summary.LastFailure.Should().Be("PRN is unavailable");
-        var work = await OrganisationObligationHydrationWork
-            .Find(x => x.OrganisationId == organisationId && x.ObligationYear == ObligationYear)
-            .SingleAsync(TestContext.Current.CancellationToken);
-        work.Priority.Should().Be(OrganisationObligationHydrationPriority.Retry);
-        work.AttemptCount.Should().Be(1);
-        work.NextAttemptAt.Should().Be(_timeProvider.GetUtcNow().AddMinutes(1).UtcDateTime);
+        summary.Priority.Should().Be(OrganisationObligationHydrationPriority.Retry);
+        summary.AttemptCount.Should().Be(1);
+        summary.NextRefreshAt.Should().Be(_timeProvider.GetUtcNow().AddMinutes(1).UtcDateTime);
     }
 
     [Fact]
@@ -259,8 +247,12 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
         var successfulReadAt = _timeProvider.GetUtcNow().AddMinutes(-30).UtcDateTime;
         await InsertActiveSnapshot();
         await InsertEligibility(organisationId, RegistrationType.DirectProducer);
-        await InsertSummary(organisationId, OrganisationObligationRefreshState.Ready, successfulReadAt);
-        await InsertWork(organisationId);
+        await InsertSummary(
+            organisationId,
+            OrganisationObligationRefreshState.Ready,
+            successfulReadAt,
+            isHydrationActive: true
+        );
         ObligationSource
             .ReadObligations(organisationId, ObligationYear, Arg.Any<CancellationToken>())
             .Returns(Task.FromException<IEnumerable<PrnObligation>>(new HttpRequestException("PRN is unavailable")));
@@ -340,7 +332,8 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
     private Task InsertSummary(
         Guid organisationId,
         OrganisationObligationRefreshState refreshState,
-        DateTime? lastSuccessfulReadAt
+        DateTime? lastSuccessfulReadAt,
+        bool isHydrationActive = false
     ) =>
         OrganisationObligationSummaries.InsertOneAsync(
             new OrganisationObligationSummary
@@ -356,25 +349,30 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
                 LastSuccessfulReadAt = lastSuccessfulReadAt,
                 LastAttemptedAt = _timeProvider.GetUtcNow().UtcDateTime,
                 NextRefreshAt = _timeProvider.GetUtcNow().UtcDateTime,
+                Priority = OrganisationObligationHydrationPriority.ScheduledRefresh,
+                RequestedAt = _timeProvider.GetUtcNow().UtcDateTime,
+                IsHydrationActive = isHydrationActive,
                 RefreshState = refreshState,
             },
             cancellationToken: TestContext.Current.CancellationToken
         );
 
-    private Task InsertWork(
+    private Task InsertHydrationSummary(
         Guid organisationId,
-        DateTime? nextAttemptAt = null,
+        DateTime? nextRefreshAt = null,
         DateTime? lastSuccessfulReadAt = null
     ) =>
-        OrganisationObligationHydrationWork.InsertOneAsync(
-            new OrganisationObligationHydrationWork
+        OrganisationObligationSummaries.InsertOneAsync(
+            new OrganisationObligationSummary
             {
                 OrganisationId = organisationId,
                 ObligationYear = ObligationYear,
                 Priority = OrganisationObligationHydrationPriority.ScheduledRefresh,
-                NextAttemptAt = nextAttemptAt ?? _timeProvider.GetUtcNow().UtcDateTime,
+                NextRefreshAt = nextRefreshAt ?? _timeProvider.GetUtcNow().UtcDateTime,
                 RequestedAt = _timeProvider.GetUtcNow().UtcDateTime,
                 LastSuccessfulReadAt = lastSuccessfulReadAt,
+                RefreshState = OrganisationObligationRefreshState.Pending,
+                IsHydrationActive = true,
             },
             cancellationToken: TestContext.Current.CancellationToken
         );

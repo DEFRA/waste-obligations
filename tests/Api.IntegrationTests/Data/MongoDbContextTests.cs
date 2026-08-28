@@ -184,16 +184,13 @@ public class MongoDbContextTests
     }
 
     [Fact]
-    public void OrganisationObligationCollections_ShouldUseTheirEntityCollectionNames()
+    public void OrganisationObligationSummary_ShouldUseItsEntityCollectionName()
     {
         var subject = CreateSubject(new RecordingLogger<MongoDbContext>(), 1);
 
         subject
             .OrganisationObligationSummaries.CollectionNamespace.CollectionName.Should()
             .Be(nameof(OrganisationObligationSummary));
-        subject
-            .OrganisationObligationHydrationWork.CollectionNamespace.CollectionName.Should()
-            .Be(nameof(OrganisationObligationHydrationWork));
     }
 
     private MongoDbContext CreateSubject(

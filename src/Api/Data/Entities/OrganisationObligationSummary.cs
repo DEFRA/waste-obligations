@@ -30,6 +30,13 @@ public record OrganisationObligationSummary
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime NextRefreshAt { get; init; }
 
+    public OrganisationObligationHydrationPriority Priority { get; init; }
+
+    [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
+    public DateTime RequestedAt { get; init; }
+
+    public bool IsHydrationActive { get; init; }
+
     public OrganisationObligationRefreshState RefreshState { get; init; }
     public int AttemptCount { get; init; }
     public string? LastFailure { get; init; }

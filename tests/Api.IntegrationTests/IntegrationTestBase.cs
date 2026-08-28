@@ -40,7 +40,6 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     public required IMongoCollection<OrganisationComplianceDeclarationEligibility> OrganisationComplianceDeclarationEligibilities { get; set; }
     public required IMongoCollection<OrganisationEligibilitySnapshot> OrganisationEligibilitySnapshots { get; set; }
     public required IMongoCollection<BackgroundWorkerLease> OrganisationWorkerLeases { get; set; }
-    public required IMongoCollection<OrganisationObligationHydrationWork> OrganisationObligationHydrationWork { get; set; }
     public required IMongoCollection<OrganisationObligationSummary> OrganisationObligationSummaries { get; set; }
 
     [ModuleInitializer]
@@ -69,7 +68,6 @@ public abstract class IntegrationTestBase : IAsyncLifetime
             GetMongoCollection<OrganisationComplianceDeclarationEligibility>();
         OrganisationEligibilitySnapshots = GetMongoCollection<OrganisationEligibilitySnapshot>();
         OrganisationWorkerLeases = GetMongoCollection<BackgroundWorkerLease>(BackgroundWorkerLease.CollectionName);
-        OrganisationObligationHydrationWork = GetMongoCollection<OrganisationObligationHydrationWork>();
         OrganisationObligationSummaries = GetMongoCollection<OrganisationObligationSummary>();
 
         await DeleteMany(ComplianceDeclarations);
@@ -80,7 +78,6 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         await DeleteMany(OrganisationComplianceDeclarationEligibilities);
         await DeleteMany(OrganisationEligibilitySnapshots);
         await DeleteMany(OrganisationWorkerLeases);
-        await DeleteMany(OrganisationObligationHydrationWork);
         await DeleteMany(OrganisationObligationSummaries);
 
         using var sqsClient = CreateSqsClient();

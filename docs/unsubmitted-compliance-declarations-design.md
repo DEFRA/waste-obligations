@@ -232,7 +232,7 @@ Names below are provisional. New collection names, indexes, schema files, migrat
 }
 ```
 
-The delivery adds purpose-specific persistence for eligibility rows, snapshot metadata, the organisation-obligation summary, and its hydration work. The eligibility row itself carries the direct inferred-list membership field; snapshot metadata is control data. The Account reference cache and the obligation-hydration work queue are internal work/provenance stores, not request-time joins. Refresh and hydration leases are two documents, identified by separate lease IDs, in the private `_unsubmitted_organisation_worker_leases` collection. They use the shared `BackgroundWorkerLeaseService` lifecycle implementation and are accessed through purpose-specific adapters rather than the query-data `IDbContext`; the shared collection is not a work queue.
+The delivery adds purpose-specific persistence for eligibility rows, snapshot metadata, the Account reference cache, and a single per-organisation/year obligation summary that contains both display metrics and its own hydration state. The eligibility row itself carries the direct inferred-list membership field; snapshot metadata is control data. The Account cache is an internal work/provenance store, not a request-time join. Refresh and hydration leases are two documents, identified by separate lease IDs, in the private `_unsubmitted_organisation_worker_leases` collection. They use the shared `BackgroundWorkerLeaseService` lifecycle implementation and are accessed through purpose-specific adapters rather than the query-data `IDbContext`; the shared collection is not a work queue.
 
 ### 1. Organisation eligibility snapshot
 
@@ -373,8 +373,7 @@ Suggested indexes, subject to the repository's Mongo schema/migration process:
 - eligibility rows: `{ generation, obligationYear, registrationType, isVisibleInUnsubmittedView, name, organisationId }` for direct membership filtering and deterministic default ordering;
 - eligibility rows: unique `{ generation, obligationYear, organisationId, registrationType }`;
 - reference cache: unique `{ organisationId, reviewType }` and due-work `{ resolutionState, nextAttemptAt }`;
-- obligation summary: unique `{ organisationId, obligationYear }`; and
-- obligation hydration work: unique `{ organisationId, obligationYear }` plus due-work `{ nextAttemptAt, priority }`.
+- obligation summary: unique `{ organisationId, obligationYear }` and due-work `{ isHydrationActive, nextRefreshAt, priority }`.
 
 The inferred `unsubmitted` boolean is the deliberately materialised membership field on the eligibility row. No obligation calculation, current-obligation value, or Regulation 43 belongs there. The Account reference is also deliberately materialised there; its separate resolution cache remains internal work/provenance data. Organisation-obligation values are stored in the distinct projection below because a PRN's status can change them after the organisation generation has been promoted.
 
@@ -404,7 +403,7 @@ Consequently, a state change to an individual PRN is the **only real-time input*
 
 The new worker must calculate the display value in Waste Obligations, using the existing `ObligationCoveragePercentageCalculator`: sum the mapped material `accepted` and `obligated` tonnages, calculate `accepted / obligated * 100`, cap at 100, and round to a whole number away from zero. Extract/reuse this as a tested mapper or calculator method accepting the PRN response model, rather than copy the JavaScript frontend calculation. On an empty successful response, preserve today's Not submitted behaviour: `recyclingObligationsMet` is `null` and percentage met is `0`.
 
-#### Projection and work queue
+#### Projection and hydration state
 
 Add a per-organisation/year summary; `reviewType` is intentionally not part of its key because the PRN backend's organisation-obligation calculation endpoint is keyed only by organisation and obligation year. This lets one summary be reused if an organisation is represented by more than one review row.
 
@@ -422,40 +421,37 @@ OrganisationObligationSummary
   dailyCalculationRunId          string?          // populated when the source later supplies a run-completion watermark
   lastAttemptedAt                UTC timestamp
   nextRefreshAt                  UTC timestamp
+  priority                       NewEligible | ScheduledRefresh | Retry | Reconciliation
+  requestedAt                    UTC timestamp
+  isHydrationActive              bool            // false state is retained but cannot be selected for polling
   refreshState                   Ready | Pending | Failed
   attemptCount                   int
   lastFailure                    optional, bounded diagnostic
-
-OrganisationObligationHydrationWork
-  organisationId + obligationYear                // unique work key
-  priority                       NewEligible | ScheduledRefresh | Retry | Reconciliation
-  nextAttemptAt, attemptCount, lastFailure
-  requestedAt, lastSuccessfulReadAt
 ```
 
-Use a unique index on `{ organisationId, obligationYear }` for both collections, plus a due-work index on `{ nextAttemptAt, priority }`. The work record may instead be folded into the summary document if the repository's persistence conventions favour one collection; keeping it separate makes a `Ready` read model small and lets queue retries be retained without complicating query indexes. Neither is joined to Account or any remote service at request time.
+There is exactly one summary document for an organisation/year. It combines the local display metrics and bounded polling state so a second Mongo work-queue collection is not required. Use the unique index on `{ organisationId, obligationYear }` and a due-work index on `{ isHydrationActive, nextRefreshAt, priority }`. The worker deactivates a summary when its organisation is no longer an active registered row with a resolved reference; retained metrics then remain available for diagnostics but that document cannot be selected for a PRN call. The public endpoint makes only a bounded local lookup for the already selected page. Neither path is joined to Account or any remote service at request time.
 
 Persisting material-level obligations is not required for this list. The totals, status, percentage, source fingerprint, and timestamps are enough to render today's columns and diagnose the calculation. If a later API must return a material breakdown, add a deliberately versioned nested snapshot then; do not turn this list projection into an unbounded PRN archive.
 
 #### Hydration lifecycle
 
-The obligation hydrator is a second interval worker using the existing `AuditEventLeaseService` lifecycle, with its own private operational lease collection and lease ID such as `organisation-obligation-hydration`. Its lease is independent of the organisation-refresh and Account-reference leases. It acquires-or-skips, renews before/while a bounded batch is processed, and writes an atomic upsert of the summary and work outcome. A failed lease renewal cancels the remainder of that batch; another host can resume it after expiry. It uses the dedicated `IOrganisationObligationSource` integration client: the OAuth and resilience configuration is shared with the request client, but it intentionally does not propagate request-scoped trace headers from an inbound API request.
+The obligation hydrator is a second interval worker using the shared `BackgroundWorkerLeaseService` lifecycle, with its own lease ID, `organisation-obligation-hydration`, in the private worker-lease collection. Its lease is independent of the organisation-refresh lease. It acquires-or-skips, renews before/while a bounded batch is processed, and atomically updates the single summary document with the hydration outcome. A failed lease renewal cancels the remainder of that batch; another host can resume it after expiry. It uses the dedicated `IOrganisationObligationSource` integration client: the OAuth and resilience configuration is shared with the request client, but it intentionally does not propagate request-scoped trace headers from an inbound API request.
 
 On a changed organisation generation, restrict all obligation work to `obligationYear = currentObligationYear`:
 
-1. Identify active rows for the current obligation year that are `REGISTERED`, have a resolved reference, and have no current-enough `{ organisationId, obligationYear }` summary. Deduplicate to work keys and enqueue them with `NewEligible` priority.
-   Before selecting due work, remove current-year work keys that no longer satisfy those active-generation conditions. This prevents a cancellation or an unresolved reference in a later generation from continuing to generate PRN calculation calls.
-2. Reuse an existing summary for source-identical rows until its `nextRefreshAt` is due. A reference becoming resolved can enqueue the existing organisation/year without changing the PRN key.
-3. The obligation worker selects a bounded due batch, calls `IPrnCommonBackendService.ReadObligations` for each key with deliberately low, configurable concurrency, maps the result, calculates the summary, and upserts it. A result with an unchanged `sourceFingerprint` updates freshness timestamps but need not rewrite the metric fields.
+1. Identify active rows for the current obligation year that are `REGISTERED` and have a resolved reference. Deduplicate them to organisation/year keys. A newly eligible key inserts a `Pending`, `NewEligible` summary due immediately; an existing summary is reactivated without losing its metrics or next scheduled refresh.
+   Before selecting due summaries, deactivate active current-year summaries that no longer satisfy those active-generation conditions. This prevents a cancellation or an unresolved reference in a later generation from continuing to generate PRN calculation calls.
+2. Reuse an existing summary for source-identical rows until its `nextRefreshAt` is due. A reference becoming resolved reactivates the existing organisation/year summary without changing the PRN key.
+3. The obligation worker selects a bounded due summary batch, calls `IPrnCommonBackendService.ReadObligations` for each key with deliberately low, configurable concurrency, maps the result, and updates that same summary. A result with an unchanged `sourceFingerprint` updates freshness timestamps but need not rewrite the metric fields.
 4. A transient PRN failure records `Failed` and uses capped exponential back-off. It does not alter declaration presence or organisation eligibility. A successful empty response is `Ready`, not a failure.
 5. Schedule every `Ready` current-year summary for its next read at `lastSuccessfulReadAt + RefreshInterval`. Do **not** wait for, or poll for, a PRN-state signal. A change in either source input is picked up at that organisation's next scheduled read.
 6. Spread the due times deterministically over each interval, for example by using a stable hash of `{ organisationId, obligationYear }` as a slot within the interval. For the initial assumption of `K = 500` and a 30-minute interval this makes about 17 calls due each minute, rather than a 500-call burst at one clock time. The worker claims small due batches under its lease and uses the singleton `OrganisationObligationRequestPacer` to reserve one evenly spaced downstream slot at the shared 20-requests-per-minute limit. Low concurrency (initially two requests) separately bounds in-flight calls. New-organisation reads and retries pass through the same pacer; the limit cannot be bypassed by a separate retry path. A full batch starts the next batch without the normal idle wake delay, so pacing remains capable of 20 requests per minute.
 7. Do **not** poll individual PRNs or poll a PRN-change feed in this implementation. There is no suitable PRN-state trigger today, and such polling would create unacceptable volume. A PRN state change and a daily `ObligationCalculation` change are both reflected no later than the next rolling organisation-obligation read, subject to retry/failure handling.
-8. Retain a low-frequency full current-year `Reconciliation` sweep only as repair for failed work or projection drift. It is not an additional near-real-time polling mechanism.
+8. Retain a low-frequency full current-year `Reconciliation` sweep only as repair for failed hydration state or projection drift. It is not an additional near-real-time polling mechanism.
 
 At the 1 February UK-time boundary, the worker applies the dual-year handover described above: it has already pre-warmed the new current year, continues the previous year for its post-cutover grace, then stops scheduled work for that outgoing year. Previous-year summaries may be retained under a normal operational retention policy for diagnostics, but cannot make the current-year endpoint serve a historical request.
 
-**Side requirement — hydration-work retention.** The unique `{ organisationId, obligationYear }` work key prevents repeated polling and retries from creating duplicate work: there is one work record per organisation/year, and two years are active only during handover. The current implementation stops processing the outgoing year's work after the grace period but does not yet remove those old work records. Before long-term historical operation, add a bounded cleanup or expiry policy for obsolete hydration work. Retention of previous-year summaries is a separate diagnostic-data decision.
+**Side requirement — summary retention.** The unique `{ organisationId, obligationYear }` key prevents repeated polling and retries from creating duplicate state: there is one summary per organisation/year, and two years are active only during handover. The `isHydrationActive` flag removes ineligible and outgoing summaries from the polling path without discarding their last metrics. Before long-term historical operation, agree a bounded cleanup or expiry policy for obsolete summaries; retention remains a diagnostic-data decision and does not affect the current-year endpoint.
 
 Do not wait for this work as part of an organisation-generation promotion. The reference is a stable identity value and a hard membership condition; the current-obligation percentage is a volatile display metric. If a PRN status change rewrote the complete eligibility generation, it would cost `O(M)` eligibility writes and repeatedly invalidate otherwise unchanged organisation data. The selected split instead costs one organisation-obligation calculation read and one summary upsert per affected organisation/year, while the organisation generation remains unchanged.
 
@@ -1123,7 +1119,7 @@ The organisation-obligation summary is deliberately outside the organisation sna
 2. Implement the typed Waste Organisations search adapter and contract tests for the combined query.
 3. Add the snapshot and reference-resolution collections, indexes, migration documentation, lease, refresh job, immediate Account batch hydration, observability, and failure/staleness handling.
 4. Add the direct eligibility-row visibility evaluation to the staging refresh and transactional recalculation to declaration create/update/delete, with an operational reconciliation as future administration work.
-5. Add the organisation-obligation summary/work collections, lease worker, non-blocking initial backfill, calculator parity tests, stale sweep, pending/stale metrics, and downstream-failure handling.
+5. Add the organisation-obligation summary collection with embedded hydration state, lease worker, non-blocking initial backfill, calculator parity tests, stale sweep, pending/stale metrics, and downstream-failure handling.
 6. Implement the direct-match/page-summary query with production-like data/explain-plan tests, including pending/no-summary and stale-summary defaults.
 7. Add the public review endpoint and update the frontend Not submitted list/count/CSV to use it.
 8. Agree/obtain a PRN status/calculation change event or a safe cursor contract before replacing the periodic stale sweep.

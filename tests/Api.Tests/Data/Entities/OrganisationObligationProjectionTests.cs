@@ -49,19 +49,20 @@ public class OrganisationObligationProjectionTests
     }
 
     [Fact]
-    public void OrganisationObligationHydrationWork_ShouldRetainTheWorkValues()
+    public void OrganisationObligationSummary_ShouldRetainTheHydrationValues()
     {
         var organisationId = Guid.NewGuid();
         var requestedAt = new DateTime(2026, 8, 27, 10, 0, 0, DateTimeKind.Utc);
-        var subject = new OrganisationObligationHydrationWork
+        var subject = new OrganisationObligationSummary
         {
             OrganisationId = organisationId,
             ObligationYear = 2026,
             Priority = OrganisationObligationHydrationPriority.NewEligible,
-            NextAttemptAt = requestedAt,
+            NextRefreshAt = requestedAt,
             AttemptCount = 1,
             LastFailure = "downstream failure",
             RequestedAt = requestedAt,
+            IsHydrationActive = true,
             LastSuccessfulReadAt = null,
         };
 
@@ -69,10 +70,11 @@ public class OrganisationObligationProjectionTests
         subject.OrganisationId.Should().Be(organisationId);
         subject.ObligationYear.Should().Be(2026);
         subject.Priority.Should().Be(OrganisationObligationHydrationPriority.NewEligible);
-        subject.NextAttemptAt.Should().Be(requestedAt);
+        subject.NextRefreshAt.Should().Be(requestedAt);
         subject.AttemptCount.Should().Be(1);
         subject.LastFailure.Should().Be("downstream failure");
         subject.RequestedAt.Should().Be(requestedAt);
+        subject.IsHydrationActive.Should().BeTrue();
         subject.LastSuccessfulReadAt.Should().BeNull();
     }
 }

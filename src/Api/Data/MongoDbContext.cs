@@ -26,9 +26,6 @@ public class MongoDbContext(
     public IMongoCollection<OrganisationEligibilitySnapshot> OrganisationEligibilitySnapshots { get; } =
         database.GetCollection<OrganisationEligibilitySnapshot>(nameof(OrganisationEligibilitySnapshot));
 
-    public IMongoCollection<OrganisationObligationHydrationWork> OrganisationObligationHydrationWork { get; } =
-        database.GetCollection<OrganisationObligationHydrationWork>(nameof(OrganisationObligationHydrationWork));
-
     public IMongoCollection<OrganisationObligationSummary> OrganisationObligationSummaries { get; } =
         database.GetCollection<OrganisationObligationSummary>(nameof(OrganisationObligationSummary));
 

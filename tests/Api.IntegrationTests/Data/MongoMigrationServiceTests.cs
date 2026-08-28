@@ -39,8 +39,8 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         "OrganisationId_RegistrationType";
     private const string OrganisationReferenceCacheDueWorkIndexName = "ResolutionState_NextAttemptAt";
     private const string OrganisationObligationSummaryOrganisationYearIndexName = "OrganisationId_ObligationYear";
-    private const string OrganisationObligationHydrationWorkOrganisationYearIndexName = "OrganisationId_ObligationYear";
-    private const string OrganisationObligationHydrationWorkDueWorkIndexName = "NextAttemptAt_Priority";
+    private const string OrganisationObligationSummaryHydrationDueWorkIndexName =
+        "IsHydrationActive_NextRefreshAt_Priority";
 
     [Fact]
     public async Task Start_ShouldCreateIndex()
@@ -60,7 +60,7 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         await new OrganisationEligibilityVisibilityIndexes().DownAsync(context);
         await new OrganisationReferenceCacheIndexes().DownAsync(context);
         await new OrganisationObligationSummaryIndexes().DownAsync(context);
-        await new OrganisationObligationHydrationWorkIndexes().DownAsync(context);
+        await new OrganisationObligationSummaryHydrationIndexes().DownAsync(context);
 
         await subject.StartAsync(TestContext.Current.CancellationToken);
 
@@ -84,9 +84,6 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         ).ToListAsync(TestContext.Current.CancellationToken);
         var organisationObligationSummaryIndexes = await (
             await OrganisationObligationSummaries.Indexes.ListAsync(TestContext.Current.CancellationToken)
-        ).ToListAsync(TestContext.Current.CancellationToken);
-        var organisationObligationHydrationWorkIndexes = await (
-            await OrganisationObligationHydrationWork.Indexes.ListAsync(TestContext.Current.CancellationToken)
         ).ToListAsync(TestContext.Current.CancellationToken);
         var sequenceKeys = new BsonDocument("sequence", 1);
         var entityKeys = new BsonDocument
@@ -162,23 +159,13 @@ public class MongoMigrationServiceTests : IntegrationTestBase
                     unique: true
                 )
             );
-        organisationObligationHydrationWorkIndexes
+        organisationObligationSummaryIndexes
             .Should()
             .Contain(x =>
                 IsIndex(
                     x,
-                    OrganisationObligationHydrationWorkOrganisationYearIndexName,
-                    OrganisationObligationHydrationWorkOrganisationYearIndexKeys(),
-                    unique: true
-                )
-            );
-        organisationObligationHydrationWorkIndexes
-            .Should()
-            .Contain(x =>
-                IsIndex(
-                    x,
-                    OrganisationObligationHydrationWorkDueWorkIndexName,
-                    OrganisationObligationHydrationWorkDueWorkIndexKeys()
+                    OrganisationObligationSummaryHydrationDueWorkIndexName,
+                    OrganisationObligationSummaryHydrationDueWorkIndexKeys()
                 )
             );
     }
@@ -430,48 +417,35 @@ public class MongoMigrationServiceTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task OrganisationObligationHydrationWorkIndexes_ShouldCreateAndDropIndexes()
+    public async Task OrganisationObligationSummaryHydrationIndexes_ShouldCreateAndDropIndexes()
     {
         var database = GetMongoDatabase();
         var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
-        var subject = new OrganisationObligationHydrationWorkIndexes();
+        var subject = new OrganisationObligationSummaryHydrationIndexes();
         await subject.DownAsync(context);
 
         await subject.UpAsync(context);
 
         var indexes = await (
-            await OrganisationObligationHydrationWork.Indexes.ListAsync(TestContext.Current.CancellationToken)
+            await OrganisationObligationSummaries.Indexes.ListAsync(TestContext.Current.CancellationToken)
         ).ToListAsync(TestContext.Current.CancellationToken);
         indexes
             .Should()
             .Contain(x =>
                 IsIndex(
                     x,
-                    OrganisationObligationHydrationWorkOrganisationYearIndexName,
-                    OrganisationObligationHydrationWorkOrganisationYearIndexKeys(),
-                    unique: true
-                )
-            );
-        indexes
-            .Should()
-            .Contain(x =>
-                IsIndex(
-                    x,
-                    OrganisationObligationHydrationWorkDueWorkIndexName,
-                    OrganisationObligationHydrationWorkDueWorkIndexKeys()
+                    OrganisationObligationSummaryHydrationDueWorkIndexName,
+                    OrganisationObligationSummaryHydrationDueWorkIndexKeys()
                 )
             );
 
         await subject.DownAsync(context);
         await subject.DownAsync(context);
         indexes = await (
-            await OrganisationObligationHydrationWork.Indexes.ListAsync(TestContext.Current.CancellationToken)
+            await OrganisationObligationSummaries.Indexes.ListAsync(TestContext.Current.CancellationToken)
         ).ToListAsync(TestContext.Current.CancellationToken);
 
-        indexes
-            .Should()
-            .NotContain(x => x.GetValue("name") == OrganisationObligationHydrationWorkOrganisationYearIndexName);
-        indexes.Should().NotContain(x => x.GetValue("name") == OrganisationObligationHydrationWorkDueWorkIndexName);
+        indexes.Should().NotContain(x => x.GetValue("name") == OrganisationObligationSummaryHydrationDueWorkIndexName);
 
         await subject.UpAsync(context);
     }
@@ -1053,17 +1027,11 @@ public class MongoMigrationServiceTests : IntegrationTestBase
                 .Ascending(x => x.ObligationYear)
         );
 
-    private static BsonDocument OrganisationObligationHydrationWorkOrganisationYearIndexKeys() =>
+    private static BsonDocument OrganisationObligationSummaryHydrationDueWorkIndexKeys() =>
         RenderIndexKeys(
-            Builders<OrganisationObligationHydrationWork>
-                .IndexKeys.Ascending(x => x.OrganisationId)
-                .Ascending(x => x.ObligationYear)
-        );
-
-    private static BsonDocument OrganisationObligationHydrationWorkDueWorkIndexKeys() =>
-        RenderIndexKeys(
-            Builders<OrganisationObligationHydrationWork>
-                .IndexKeys.Ascending(x => x.NextAttemptAt)
+            Builders<OrganisationObligationSummary>
+                .IndexKeys.Ascending(x => x.IsHydrationActive)
+                .Ascending(x => x.NextRefreshAt)
                 .Ascending(x => x.Priority)
         );
 
@@ -1113,18 +1081,6 @@ public class MongoMigrationServiceTests : IntegrationTestBase
                     .DocumentSerializer,
                 GetMongoDatabase()
                     .GetCollection<OrganisationObligationSummary>(nameof(OrganisationObligationSummary))
-                    .Settings.SerializerRegistry
-            )
-        );
-
-    private static BsonDocument RenderIndexKeys(IndexKeysDefinition<OrganisationObligationHydrationWork> keys) =>
-        keys.Render(
-            new RenderArgs<OrganisationObligationHydrationWork>(
-                GetMongoDatabase()
-                    .GetCollection<OrganisationObligationHydrationWork>(nameof(OrganisationObligationHydrationWork))
-                    .DocumentSerializer,
-                GetMongoDatabase()
-                    .GetCollection<OrganisationObligationHydrationWork>(nameof(OrganisationObligationHydrationWork))
                     .Settings.SerializerRegistry
             )
         );

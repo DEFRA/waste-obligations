@@ -33,11 +33,11 @@ public class OrganisationObligationHydrationService(
         await EnqueueNewEligible(organisationIds, obligationYear, cancellationToken);
         var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
         var work = await dbContext
-            .OrganisationObligationHydrationWork.Find(x =>
-                x.ObligationYear == obligationYear && x.NextAttemptAt <= utcNow
+            .OrganisationObligationSummaries.Find(x =>
+                x.ObligationYear == obligationYear && x.IsHydrationActive && x.NextRefreshAt <= utcNow
             )
             .SortBy(x => x.Priority)
-            .ThenBy(x => x.NextAttemptAt)
+            .ThenBy(x => x.NextRefreshAt)
             .Limit(options.Value.BatchSize)
             .ToListAsync(cancellationToken);
         var processedCount = 0;
@@ -71,25 +71,23 @@ public class OrganisationObligationHydrationService(
             return 0;
 
         var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
-        var filter = Builders<OrganisationObligationHydrationWork>.Filter.And(
-            Builders<OrganisationObligationHydrationWork>.Filter.Eq(x => x.ObligationYear, obligationYear),
-            Builders<OrganisationObligationHydrationWork>.Filter.In(x => x.OrganisationId, organisationIds),
-            Builders<OrganisationObligationHydrationWork>.Filter.Eq(
+        var filter = Builders<OrganisationObligationSummary>.Filter.And(
+            Builders<OrganisationObligationSummary>.Filter.Eq(x => x.ObligationYear, obligationYear),
+            Builders<OrganisationObligationSummary>.Filter.In(x => x.OrganisationId, organisationIds),
+            Builders<OrganisationObligationSummary>.Filter.Eq(x => x.IsHydrationActive, true),
+            Builders<OrganisationObligationSummary>.Filter.Eq(
                 x => x.Priority,
                 OrganisationObligationHydrationPriority.ScheduledRefresh
             ),
-            Builders<OrganisationObligationHydrationWork>.Filter.Or(
-                Builders<OrganisationObligationHydrationWork>.Filter.Eq(x => x.LastSuccessfulReadAt, null),
-                Builders<OrganisationObligationHydrationWork>.Filter.Lt(
-                    x => x.LastSuccessfulReadAt,
-                    reconciliationSince
-                )
+            Builders<OrganisationObligationSummary>.Filter.Or(
+                Builders<OrganisationObligationSummary>.Filter.Eq(x => x.LastSuccessfulReadAt, null),
+                Builders<OrganisationObligationSummary>.Filter.Lt(x => x.LastSuccessfulReadAt, reconciliationSince)
             )
         );
-        var update = Builders<OrganisationObligationHydrationWork>
+        var update = Builders<OrganisationObligationSummary>
             .Update.Set(x => x.Priority, OrganisationObligationHydrationPriority.Reconciliation)
-            .Set(x => x.NextAttemptAt, utcNow);
-        var result = await dbContext.OrganisationObligationHydrationWork.UpdateManyAsync(
+            .Set(x => x.NextRefreshAt, utcNow);
+        var result = await dbContext.OrganisationObligationSummaries.UpdateManyAsync(
             filter,
             update,
             cancellationToken: cancellationToken
@@ -128,30 +126,22 @@ public class OrganisationObligationHydrationService(
         if (organisationIds.Length == 0)
             return 0;
 
-        var summaries = await dbContext
-            .OrganisationObligationSummaries.Find(x =>
-                x.ObligationYear == obligationYear && organisationIds.Contains(x.OrganisationId)
-            )
-            .ToListAsync(cancellationToken);
-        var successfulSummaryOrganisationIds = summaries
-            .Where(x => x.LastSuccessfulReadAt is not null)
-            .Select(x => x.OrganisationId)
-            .ToHashSet();
         var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
         var work = organisationIds
-            .Where(x => !successfulSummaryOrganisationIds.Contains(x))
-            .Select(organisationId => new UpdateOneModel<OrganisationObligationHydrationWork>(
-                Builders<OrganisationObligationHydrationWork>.Filter.And(
-                    Builders<OrganisationObligationHydrationWork>.Filter.Eq(x => x.OrganisationId, organisationId),
-                    Builders<OrganisationObligationHydrationWork>.Filter.Eq(x => x.ObligationYear, obligationYear)
+            .Select(organisationId => new UpdateOneModel<OrganisationObligationSummary>(
+                Builders<OrganisationObligationSummary>.Filter.And(
+                    Builders<OrganisationObligationSummary>.Filter.Eq(x => x.OrganisationId, organisationId),
+                    Builders<OrganisationObligationSummary>.Filter.Eq(x => x.ObligationYear, obligationYear)
                 ),
-                Builders<OrganisationObligationHydrationWork>
+                Builders<OrganisationObligationSummary>
                     .Update.SetOnInsert(x => x.OrganisationId, organisationId)
                     .SetOnInsert(x => x.ObligationYear, obligationYear)
                     .SetOnInsert(x => x.Priority, OrganisationObligationHydrationPriority.NewEligible)
-                    .SetOnInsert(x => x.NextAttemptAt, utcNow)
+                    .SetOnInsert(x => x.NextRefreshAt, utcNow)
                     .SetOnInsert(x => x.AttemptCount, 0)
                     .SetOnInsert(x => x.RequestedAt, utcNow)
+                    .SetOnInsert(x => x.RefreshState, OrganisationObligationRefreshState.Pending)
+                    .Set(x => x.IsHydrationActive, true)
             )
             {
                 IsUpsert = true,
@@ -160,7 +150,7 @@ public class OrganisationObligationHydrationService(
         if (work.Length == 0)
             return 0;
 
-        var result = await dbContext.OrganisationObligationHydrationWork.BulkWriteAsync(
+        var result = await dbContext.OrganisationObligationSummaries.BulkWriteAsync(
             work,
             cancellationToken: cancellationToken
         );
@@ -174,16 +164,23 @@ public class OrganisationObligationHydrationService(
         CancellationToken cancellationToken
     )
     {
-        var filter = Builders<OrganisationObligationHydrationWork>.Filter.Eq(x => x.ObligationYear, obligationYear);
+        var filter = Builders<OrganisationObligationSummary>.Filter.And(
+            Builders<OrganisationObligationSummary>.Filter.Eq(x => x.ObligationYear, obligationYear),
+            Builders<OrganisationObligationSummary>.Filter.Eq(x => x.IsHydrationActive, true)
+        );
         if (organisationIds.Length > 0)
         {
-            filter &= Builders<OrganisationObligationHydrationWork>.Filter.Nin(x => x.OrganisationId, organisationIds);
+            filter &= Builders<OrganisationObligationSummary>.Filter.Nin(x => x.OrganisationId, organisationIds);
         }
 
-        await dbContext.OrganisationObligationHydrationWork.DeleteManyAsync(filter, cancellationToken);
+        await dbContext.OrganisationObligationSummaries.UpdateManyAsync(
+            filter,
+            Builders<OrganisationObligationSummary>.Update.Set(x => x.IsHydrationActive, false),
+            cancellationToken: cancellationToken
+        );
     }
 
-    private async Task Hydrate(OrganisationObligationHydrationWork work, CancellationToken cancellationToken)
+    private async Task Hydrate(OrganisationObligationSummary work, CancellationToken cancellationToken)
     {
         try
         {
@@ -200,16 +197,8 @@ public class OrganisationObligationHydrationService(
             );
             var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
             var nextRefreshAt = NextRefreshAt(work.OrganisationId, work.ObligationYear, utcNow);
-            var existingSummary = await dbContext
-                .OrganisationObligationSummaries.Find(x =>
-                    x.OrganisationId == work.OrganisationId && x.ObligationYear == work.ObligationYear
-                )
-                .SingleOrDefaultAsync(cancellationToken);
-            var summary = new OrganisationObligationSummary
+            var summary = work with
             {
-                Id = existingSummary?.Id ?? MongoDB.Bson.ObjectId.GenerateNewId(),
-                OrganisationId = work.OrganisationId,
-                ObligationYear = work.ObligationYear,
                 ObligationCount = metrics.ObligationCount,
                 TotalAcceptedTonnage = metrics.TotalAcceptedTonnage,
                 TotalObligatedTonnage = metrics.TotalObligatedTonnage,
@@ -217,23 +206,16 @@ public class OrganisationObligationHydrationService(
                 ObligationCoveragePercentage = metrics.ObligationCoveragePercentage,
                 SourceFingerprint = metrics.SourceFingerprint,
                 LastSuccessfulReadAt = utcNow,
-                DailyCalculationRunId = existingSummary?.DailyCalculationRunId,
                 LastAttemptedAt = utcNow,
                 NextRefreshAt = nextRefreshAt,
                 RefreshState = OrganisationObligationRefreshState.Ready,
                 AttemptCount = 0,
                 LastFailure = null,
-            };
-            var nextWork = work with
-            {
                 Priority = OrganisationObligationHydrationPriority.ScheduledRefresh,
-                NextAttemptAt = nextRefreshAt,
-                AttemptCount = 0,
-                LastFailure = null,
-                LastSuccessfulReadAt = utcNow,
+                IsHydrationActive = true,
             };
 
-            await Persist(summary, nextWork, cancellationToken);
+            await Persist(summary, cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -245,11 +227,7 @@ public class OrganisationObligationHydrationService(
         }
     }
 
-    private async Task Persist(
-        OrganisationObligationSummary summary,
-        OrganisationObligationHydrationWork work,
-        CancellationToken cancellationToken
-    )
+    private async Task Persist(OrganisationObligationSummary summary, CancellationToken cancellationToken)
     {
         await dbContext.ExecuteTransaction(
             async (session, token) =>
@@ -261,14 +239,6 @@ public class OrganisationObligationHydrationService(
                     new ReplaceOptions { IsUpsert = true },
                     token
                 );
-                await dbContext.OrganisationObligationHydrationWork.ReplaceOneAsync(
-                    session,
-                    x => x.OrganisationId == work.OrganisationId && x.ObligationYear == work.ObligationYear,
-                    work,
-                    new ReplaceOptions { IsUpsert = true },
-                    token
-                );
-
                 return true;
             },
             "persist organisation obligation hydration result",
@@ -277,7 +247,7 @@ public class OrganisationObligationHydrationService(
     }
 
     private async Task RecordFailure(
-        OrganisationObligationHydrationWork work,
+        OrganisationObligationSummary work,
         Exception exception,
         CancellationToken cancellationToken
     )
@@ -289,36 +259,18 @@ public class OrganisationObligationHydrationService(
             exception.Message.Length > MaximumFailureLength
                 ? exception.Message[..MaximumFailureLength]
                 : exception.Message;
-        var existingSummary = await dbContext
-            .OrganisationObligationSummaries.Find(x =>
-                x.OrganisationId == work.OrganisationId && x.ObligationYear == work.ObligationYear
-            )
-            .SingleOrDefaultAsync(cancellationToken);
-        var summary = (
-            existingSummary
-            ?? new OrganisationObligationSummary
-            {
-                OrganisationId = work.OrganisationId,
-                ObligationYear = work.ObligationYear,
-            }
-        ) with
+        var summary = work with
         {
             LastAttemptedAt = utcNow,
             NextRefreshAt = nextAttemptAt,
             RefreshState = OrganisationObligationRefreshState.Failed,
             AttemptCount = attemptCount,
             LastFailure = failure,
-        };
-        var nextWork = work with
-        {
             Priority = OrganisationObligationHydrationPriority.Retry,
-            NextAttemptAt = nextAttemptAt,
-            AttemptCount = attemptCount,
-            LastFailure = failure,
-            LastSuccessfulReadAt = existingSummary?.LastSuccessfulReadAt,
+            IsHydrationActive = true,
         };
 
-        await Persist(summary, nextWork, cancellationToken);
+        await Persist(summary, cancellationToken);
     }
 
     private TimeSpan RetryDelay(int attemptCount)
