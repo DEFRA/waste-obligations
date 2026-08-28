@@ -21,7 +21,7 @@ public class UnsubmittedOrganisationsService(
         int obligationYear,
         RegistrationType registrationType,
         string? search,
-        UnsubmittedOrganisationSort? sort,
+        IReadOnlyCollection<UnsubmittedOrganisationSort>? sort,
         int page,
         int pageSize,
         CancellationToken cancellationToken
@@ -107,41 +107,78 @@ public class UnsubmittedOrganisationsService(
     }
 
     private static SortDefinition<OrganisationComplianceDeclarationEligibilityEntity> BuildSort(
-        UnsubmittedOrganisationSort? sort
+        IReadOnlyCollection<UnsubmittedOrganisationSort>? sort
     )
     {
-        var field = sort?.Field ?? UnsubmittedOrganisationSortField.OrganisationName;
-        var direction = sort?.Direction ?? UnsubmittedOrganisationSortDirection.Ascending;
         var sortBuilder = Builders<OrganisationComplianceDeclarationEligibilityEntity>.Sort;
-        var tieBreakers =
-            direction is UnsubmittedOrganisationSortDirection.Ascending
-                ? sortBuilder.Combine(sortBuilder.Ascending(x => x.Name), sortBuilder.Ascending(x => x.OrganisationId))
-                : sortBuilder.Combine(
-                    sortBuilder.Descending(x => x.Name),
-                    sortBuilder.Descending(x => x.OrganisationId)
-                );
-        if (field is UnsubmittedOrganisationSortField.OrganisationName)
-            return tieBreakers;
+        if (sort is not { Count: > 0 })
+            return sortBuilder.Combine(
+                sortBuilder.Ascending(x => x.Name),
+                sortBuilder.Ascending(x => x.OrganisationId)
+            );
 
-        var primary = field switch
+        var sortDefinitions = sort.Select(BuildSort).ToList();
+        var tieBreakerDirection = sort.Last().Direction;
+        if (!sort.Any(x => x.Field is UnsubmittedOrganisationSortField.OrganisationName))
         {
-            UnsubmittedOrganisationSortField.OrganisationReferenceNumber => direction
+            sortDefinitions.Add(
+                SortByDirection(
+                    tieBreakerDirection,
+                    sortBuilder.Ascending(x => x.Name),
+                    sortBuilder.Descending(x => x.Name)
+                )
+            );
+        }
+
+        sortDefinitions.Add(
+            SortByDirection(
+                tieBreakerDirection,
+                sortBuilder.Ascending(x => x.OrganisationId),
+                sortBuilder.Descending(x => x.OrganisationId)
+            )
+        );
+
+        return sortBuilder.Combine(sortDefinitions);
+    }
+
+    private static SortDefinition<OrganisationComplianceDeclarationEligibilityEntity> BuildSort(
+        UnsubmittedOrganisationSort sort
+    ) =>
+        sort.Field switch
+        {
+            UnsubmittedOrganisationSortField.OrganisationName => SortByDirection(
+                sort.Direction,
+                Builders<OrganisationComplianceDeclarationEligibilityEntity>.Sort.Ascending(x => x.Name),
+                Builders<OrganisationComplianceDeclarationEligibilityEntity>.Sort.Descending(x => x.Name)
+            ),
+            UnsubmittedOrganisationSortField.OrganisationReferenceNumber => sort.Direction
             is UnsubmittedOrganisationSortDirection.Ascending
-                ? sortBuilder.Ascending(x => x.ReferenceNumber)
-                : sortBuilder.Descending(x => x.ReferenceNumber),
-            UnsubmittedOrganisationSortField.RecyclingObligations => direction
+                ? Builders<OrganisationComplianceDeclarationEligibilityEntity>.Sort.Ascending(x => x.ReferenceNumber)
+                : Builders<OrganisationComplianceDeclarationEligibilityEntity>.Sort.Descending(x => x.ReferenceNumber),
+            UnsubmittedOrganisationSortField.RecyclingObligations => sort.Direction
             is UnsubmittedOrganisationSortDirection.Ascending
-                ? sortBuilder.Ascending(x => x.RecyclingObligationsMet)
-                : sortBuilder.Descending(x => x.RecyclingObligationsMet),
-            UnsubmittedOrganisationSortField.PercentageMet => direction
+                ? Builders<OrganisationComplianceDeclarationEligibilityEntity>.Sort.Ascending(x =>
+                    x.RecyclingObligationsMet
+                )
+                : Builders<OrganisationComplianceDeclarationEligibilityEntity>.Sort.Descending(x =>
+                    x.RecyclingObligationsMet
+                ),
+            UnsubmittedOrganisationSortField.PercentageMet => sort.Direction
             is UnsubmittedOrganisationSortDirection.Ascending
-                ? sortBuilder.Ascending(x => x.ObligationCoveragePercentage)
-                : sortBuilder.Descending(x => x.ObligationCoveragePercentage),
+                ? Builders<OrganisationComplianceDeclarationEligibilityEntity>.Sort.Ascending(x =>
+                    x.ObligationCoveragePercentage
+                )
+                : Builders<OrganisationComplianceDeclarationEligibilityEntity>.Sort.Descending(x =>
+                    x.ObligationCoveragePercentage
+                ),
             _ => throw new ArgumentOutOfRangeException(nameof(sort)),
         };
 
-        return sortBuilder.Combine(primary, tieBreakers);
-    }
+    private static SortDefinition<OrganisationComplianceDeclarationEligibilityEntity> SortByDirection(
+        UnsubmittedOrganisationSortDirection direction,
+        SortDefinition<OrganisationComplianceDeclarationEligibilityEntity> ascending,
+        SortDefinition<OrganisationComplianceDeclarationEligibilityEntity> descending
+    ) => direction is UnsubmittedOrganisationSortDirection.Ascending ? ascending : descending;
 
     private static UnsubmittedOrganisationSearchResult EmptyResult() => new() { Rows = [], Total = 0 };
 }

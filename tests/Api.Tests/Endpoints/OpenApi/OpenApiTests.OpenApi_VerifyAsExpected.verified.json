@@ -1014,7 +1014,7 @@
           {
             "name": "sort",
             "in": "query",
-            "description": "One of OrganisationName, OrganisationReferenceNumber, RecyclingObligations or PercentageMet, followed by [asc] or [desc]",
+            "description": "Comma separated sort fields in priority order. Each field must use the format Field[asc] or Field[desc]. Fields: OrganisationName, OrganisationReferenceNumber, RecyclingObligations, PercentageMet",
             "schema": {
               "type": "string"
             }

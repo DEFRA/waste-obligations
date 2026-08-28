@@ -55,11 +55,13 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
             2026,
             RegistrationType.DirectProducer,
             null,
-            new UnsubmittedOrganisationSort
-            {
-                Field = UnsubmittedOrganisationSortField.OrganisationName,
-                Direction = UnsubmittedOrganisationSortDirection.Descending,
-            },
+            [
+                new UnsubmittedOrganisationSort
+                {
+                    Field = UnsubmittedOrganisationSortField.OrganisationName,
+                    Direction = UnsubmittedOrganisationSortDirection.Descending,
+                },
+            ],
             page: 1,
             pageSize: 1,
             TestContext.Current.CancellationToken
@@ -249,11 +251,13 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
             2026,
             RegistrationType.DirectProducer,
             null,
-            new UnsubmittedOrganisationSort
-            {
-                Field = UnsubmittedOrganisationSortField.OrganisationReferenceNumber,
-                Direction = UnsubmittedOrganisationSortDirection.Ascending,
-            },
+            [
+                new UnsubmittedOrganisationSort
+                {
+                    Field = UnsubmittedOrganisationSortField.OrganisationReferenceNumber,
+                    Direction = UnsubmittedOrganisationSortDirection.Ascending,
+                },
+            ],
             page: 1,
             pageSize: 3,
             TestContext.Current.CancellationToken
@@ -262,11 +266,13 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
             2026,
             RegistrationType.DirectProducer,
             null,
-            new UnsubmittedOrganisationSort
-            {
-                Field = UnsubmittedOrganisationSortField.RecyclingObligations,
-                Direction = UnsubmittedOrganisationSortDirection.Ascending,
-            },
+            [
+                new UnsubmittedOrganisationSort
+                {
+                    Field = UnsubmittedOrganisationSortField.RecyclingObligations,
+                    Direction = UnsubmittedOrganisationSortDirection.Ascending,
+                },
+            ],
             page: 1,
             pageSize: 3,
             TestContext.Current.CancellationToken
@@ -275,11 +281,13 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
             2026,
             RegistrationType.DirectProducer,
             null,
-            new UnsubmittedOrganisationSort
-            {
-                Field = UnsubmittedOrganisationSortField.PercentageMet,
-                Direction = UnsubmittedOrganisationSortDirection.Descending,
-            },
+            [
+                new UnsubmittedOrganisationSort
+                {
+                    Field = UnsubmittedOrganisationSortField.PercentageMet,
+                    Direction = UnsubmittedOrganisationSortDirection.Descending,
+                },
+            ],
             page: 1,
             pageSize: 3,
             TestContext.Current.CancellationToken
@@ -288,6 +296,57 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
         byReference.Rows.Select(x => x.OrganisationId).Should().Equal(bravo, charlie, alpha);
         byRecycling.Rows.Select(x => x.OrganisationId).Should().Equal(bravo, alpha, charlie);
         byPercentage.Rows.Select(x => x.OrganisationId).Should().Equal(bravo, charlie, alpha);
+    }
+
+    [Fact]
+    public async Task Search_WhenMultipleSortFieldsAreRequested_ShouldApplyThemInPriorityOrder()
+    {
+        const string generation = "generation";
+        var alpha = Guid.NewGuid();
+        var bravo = Guid.NewGuid();
+        var charlie = Guid.NewGuid();
+        await SetReadySnapshot(generation);
+        await OrganisationComplianceDeclarationEligibilities.InsertManyAsync(
+            [
+                Eligibility(alpha, generation, "Alpha Packaging", "100003") with
+                {
+                    ObligationCoveragePercentage = 80,
+                },
+                Eligibility(bravo, generation, "Bravo Packaging", "100001") with
+                {
+                    ObligationCoveragePercentage = 80,
+                },
+                Eligibility(charlie, generation, "Charlie Packaging", "100002") with
+                {
+                    ObligationCoveragePercentage = 60,
+                },
+            ],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        var subject = CreateSubject();
+
+        var result = await subject.Search(
+            2026,
+            RegistrationType.DirectProducer,
+            null,
+            [
+                new UnsubmittedOrganisationSort
+                {
+                    Field = UnsubmittedOrganisationSortField.PercentageMet,
+                    Direction = UnsubmittedOrganisationSortDirection.Descending,
+                },
+                new UnsubmittedOrganisationSort
+                {
+                    Field = UnsubmittedOrganisationSortField.OrganisationReferenceNumber,
+                    Direction = UnsubmittedOrganisationSortDirection.Ascending,
+                },
+            ],
+            page: 1,
+            pageSize: 20,
+            TestContext.Current.CancellationToken
+        );
+
+        result.Rows.Select(x => x.OrganisationId).Should().Equal(bravo, alpha, charlie);
     }
 
     [Theory]

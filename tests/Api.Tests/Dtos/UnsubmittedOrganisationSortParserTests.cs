@@ -7,24 +7,24 @@ namespace Defra.WasteObligations.Api.Tests.Dtos;
 public class UnsubmittedOrganisationSortParserTests
 {
     [Fact]
-    public void Parse_WhenNotSpecified_ShouldReturnNull()
+    public void Parse_WhenNotSpecified_ShouldReturnAnEmptySort()
     {
         var sort = UnsubmittedOrganisationSortParser.Parse(null);
 
-        sort.Should().BeNull();
+        sort.Should().BeEmpty();
     }
 
     [Theory]
     [InlineData("")]
     [InlineData("OrganisationName[ascending]")]
-    [InlineData("OrganisationName[asc],PercentageMet[desc]")]
     [InlineData("DateSubmitted[asc]")]
+    [InlineData("OrganisationName[asc],OrganisationName[desc]")]
     public void TryParse_WhenSortIsInvalid_ShouldReturnFalse(string value)
     {
         var parsed = UnsubmittedOrganisationSortParser.TryParse(value, out var sort);
 
         parsed.Should().BeFalse();
-        sort.Should().BeNull();
+        sort.Should().BeEmpty();
     }
 
     [Theory]
@@ -39,8 +39,9 @@ public class UnsubmittedOrganisationSortParserTests
     {
         var sort = UnsubmittedOrganisationSortParser.Parse(value);
 
-        sort!
-            .Should()
+        sort.Should()
+            .ContainSingle()
+            .Which.Should()
             .BeEquivalentTo(
                 new UnsubmittedOrganisationSort
                 {
@@ -49,6 +50,36 @@ public class UnsubmittedOrganisationSortParserTests
                         ? UnsubmittedOrganisationSortDirection.Ascending
                         : UnsubmittedOrganisationSortDirection.Descending,
                 }
+            );
+    }
+
+    [Fact]
+    public void Parse_WhenMultipleSortFieldsAreValid_ShouldPreservePriorityOrder()
+    {
+        var sort = UnsubmittedOrganisationSortParser.Parse(
+            "PercentageMet[desc],OrganisationName[asc],OrganisationReferenceNumber[desc]"
+        );
+
+        sort.Should()
+            .BeEquivalentTo(
+                [
+                    new UnsubmittedOrganisationSort
+                    {
+                        Field = UnsubmittedOrganisationSortField.PercentageMet,
+                        Direction = UnsubmittedOrganisationSortDirection.Descending,
+                    },
+                    new UnsubmittedOrganisationSort
+                    {
+                        Field = UnsubmittedOrganisationSortField.OrganisationName,
+                        Direction = UnsubmittedOrganisationSortDirection.Ascending,
+                    },
+                    new UnsubmittedOrganisationSort
+                    {
+                        Field = UnsubmittedOrganisationSortField.OrganisationReferenceNumber,
+                        Direction = UnsubmittedOrganisationSortDirection.Descending,
+                    },
+                ],
+                options => options.WithStrictOrdering()
             );
     }
 }

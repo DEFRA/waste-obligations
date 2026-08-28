@@ -9,7 +9,7 @@ public interface IUnsubmittedOrganisationsService
         int obligationYear,
         RegistrationType registrationType,
         string? search,
-        UnsubmittedOrganisationSort? sort,
+        IReadOnlyCollection<UnsubmittedOrganisationSort>? sort,
         int page,
         int pageSize,
         CancellationToken cancellationToken

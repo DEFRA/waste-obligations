@@ -350,12 +350,12 @@ The unsubmitted query reads only the active generation and needs no Account call
 ```text
 1. Match active generation + obligation year + registration type + isVisibleInUnsubmittedView=true.
 2. Match escaped, case-insensitive contains regex over name OR tradingName OR referenceNumber.
-3. Use the selected indexed ordering, then page the matching rows; count the same filter separately.
+3. For a default or single-field sort, use the selected indexed ordering, then page the matching rows. For multiple sort fields, apply the requested priority order to the matching rows before paging; count the same filter separately.
 ```
 
 This is entirely local Mongo work. The same unanchored contains limitation remains, but no per-candidate join is required. During the day-one Account backfill, an organisation with a pending reference is excluded from the view altogether; it cannot be found by name or reference until a later promoted generation contains its resolved reference. Monitoring must expose the excluded unresolved-row count and oldest pending age. There is deliberately no request-time fallback to Account: that would make view membership depend on downstream availability and reintroduce HTTP calls into search.
 
-The endpoint has its own `UnsubmittedOrganisationSortField` and `UnsubmittedOrganisationSortDirection`; it does not reuse the declaration-search enums. It accepts one `Field[asc|desc]` term. `OrganisationName`, `OrganisationReferenceNumber`, `RecyclingObligations`, and `PercentageMet` are valid for both registration types. The endpoint contract is not constrained by the current frontend's displayed columns. Regulation 43 and date submitted are declaration fields and are not valid unsubmitted sorts.
+The endpoint has its own `UnsubmittedOrganisationSortField` and `UnsubmittedOrganisationSortDirection`; it does not reuse the declaration-search enums. Like declaration search, it accepts a comma-separated, priority-ordered list of distinct `Field[asc|desc]` terms. `OrganisationName`, `OrganisationReferenceNumber`, `RecyclingObligations`, and `PercentageMet` are valid for both registration types. The endpoint contract is not constrained by the current frontend's displayed columns. Regulation 43 and date submitted are declaration fields and are not valid unsubmitted sorts.
 
 Implemented by migration `012_OrganisationEligibilityObligationMetricSorting` (alongside the existing eligibility and summary indexes):
 
@@ -521,9 +521,9 @@ A future policy may assign a longer normal refresh interval to lower-impact orga
 
 #### Serving, CSV, and sortable metrics
 
-The endpoint directly matches visible eligibility rows, counts them, and uses a matching compound index to sort/page them. The CSV reads the same copied values in bounded Mongo batches. Neither path calls the PRN backend or looks up the summary collection. A row may hold a `null` recycling state and zero percentage before its first successful read; a failed refresh preserves its previously copied values.
+The endpoint directly matches visible eligibility rows, counts them, and uses a matching compound index to sort/page default and single-field requests. The CSV reads the same copied values in bounded Mongo batches. Neither path calls the PRN backend or looks up the summary collection. A row may hold a `null` recycling state and zero percentage before its first successful read; a failed refresh preserves its previously copied values.
 
-The contract accepts one unsubmitted-specific sort term. The primary field and both deterministic tie-breakers (`name`, then `organisationId`) use the requested direction, allowing the same compound index to serve ascending and descending scans. This intentionally differs from the legacy frontend's in-memory secondary name ordering, which is not an API contract. An unanchored generic-search regex still requires candidate scanning and in-memory sorting of the matching subset; the selected sort indexes serve the normal unfiltered list path.
+The contract accepts multiple unsubmitted-specific sort terms in priority order. A default or one-term request appends deterministic tie-breakers (`name`, then `organisationId`) using the requested direction, allowing the corresponding compound index to serve ascending and descending scans. Multiple terms preserve the requested order and append the same tie-breakers when absent. Indexing every field order and direction combination would create an unreasonable combinatorial index set, so Mongo performs a bounded in-memory sort of the already scoped membership set for those requests. An unanchored generic-search regex likewise requires candidate scanning and in-memory sorting of the matching subset; the selected sort indexes serve the normal unfiltered single-sort list path.
 
 Regulation 43 remains inapplicable for an unsubmitted scheme because it is declaration content, not PRN content. Date submitted is likewise not a field of this result.
 

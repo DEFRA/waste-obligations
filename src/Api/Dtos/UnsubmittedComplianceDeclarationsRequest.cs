@@ -26,10 +26,11 @@ public record UnsubmittedComplianceDeclarationsRequest
     public string? Search { get; init; }
 
     [Description(
-        "One of OrganisationName, OrganisationReferenceNumber, RecyclingObligations or PercentageMet, followed by [asc] or [desc]"
+        "Comma separated sort fields in priority order. Each field must use the format Field[asc] or Field[desc]. "
+            + "Fields: OrganisationName, OrganisationReferenceNumber, RecyclingObligations, PercentageMet"
     )]
     [FromQuery(Name = "sort")]
-    [UnsubmittedOrganisationSort(ErrorMessage = "Invalid unsubmitted compliance declaration sort")]
+    [UnsubmittedOrganisationSortList(ErrorMessage = "Invalid unsubmitted compliance declaration sort")]
     public string? Sort { get; init; }
 
     [Description("Page number (1-based), defaults to 1 if not specified")]
@@ -48,5 +49,5 @@ public record UnsubmittedComplianceDeclarationsRequest
     public Data.Entities.RegistrationType ParsedRegistrationType() =>
         RegistrationType!.FromJsonValue<RegistrationType>().ToEntity();
 
-    public Data.UnsubmittedOrganisationSort? ParsedSort() => UnsubmittedOrganisationSortParser.Parse(Sort);
+    public Data.UnsubmittedOrganisationSort[] ParsedSort() => UnsubmittedOrganisationSortParser.Parse(Sort);
 }

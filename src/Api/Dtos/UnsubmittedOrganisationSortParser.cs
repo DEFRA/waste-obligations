@@ -4,10 +4,10 @@ namespace Defra.WasteObligations.Api.Dtos;
 
 public static class UnsubmittedOrganisationSortParser
 {
-    public static UnsubmittedOrganisationSort? Parse(string? value)
+    public static UnsubmittedOrganisationSort[] Parse(string? value)
     {
         if (value is null)
-            return null;
+            return [];
 
         if (!TryParse(value, out var sort))
             throw new ArgumentException("Invalid unsubmitted organisation sort", nameof(value));
@@ -15,34 +15,43 @@ public static class UnsubmittedOrganisationSortParser
         return sort;
     }
 
-    public static bool TryParse(string value, out UnsubmittedOrganisationSort? sort)
+    public static bool TryParse(string value, out UnsubmittedOrganisationSort[] sort)
     {
-        sort = null;
-        if (string.IsNullOrWhiteSpace(value) || value.Contains(','))
+        sort = [];
+        if (string.IsNullOrWhiteSpace(value))
             return false;
 
-        var openingBracket = value.IndexOf('[');
-        if (openingBracket <= 0 || !value.EndsWith(']'))
-            return false;
+        var fields = new HashSet<UnsubmittedOrganisationSortField>();
+        var parsedSort = new List<UnsubmittedOrganisationSort>();
 
-        var fieldValue = value[..openingBracket];
-        if (
-            !Enum.TryParse<UnsubmittedOrganisationSortField>(fieldValue, out var field)
-            || !Enum.IsDefined(field)
-            || fieldValue != field.ToString()
-        )
-            return false;
-
-        var direction = value[(openingBracket + 1)..^1] switch
+        foreach (var term in value.Split(','))
         {
-            "asc" => UnsubmittedOrganisationSortDirection.Ascending,
-            "desc" => UnsubmittedOrganisationSortDirection.Descending,
-            _ => (UnsubmittedOrganisationSortDirection?)null,
-        };
-        if (direction is null)
-            return false;
+            var openingBracket = term.IndexOf('[');
+            if (openingBracket <= 0 || !term.EndsWith(']'))
+                return false;
 
-        sort = new UnsubmittedOrganisationSort { Field = field, Direction = direction.Value };
+            var fieldValue = term[..openingBracket];
+            if (
+                !Enum.TryParse<UnsubmittedOrganisationSortField>(fieldValue, out var field)
+                || !Enum.IsDefined(field)
+                || fieldValue != field.ToString()
+                || !fields.Add(field)
+            )
+                return false;
+
+            var direction = term[(openingBracket + 1)..^1] switch
+            {
+                "asc" => UnsubmittedOrganisationSortDirection.Ascending,
+                "desc" => UnsubmittedOrganisationSortDirection.Descending,
+                _ => (UnsubmittedOrganisationSortDirection?)null,
+            };
+            if (direction is null)
+                return false;
+
+            parsedSort.Add(new UnsubmittedOrganisationSort { Field = field, Direction = direction.Value });
+        }
+
+        sort = [.. parsedSort];
 
         return true;
     }

@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 namespace Defra.WasteObligations.Api.Dtos.Attributes;
 
 [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Parameter)]
-public class UnsubmittedOrganisationSortAttribute : ValidationAttribute
+public class UnsubmittedOrganisationSortListAttribute : ValidationAttribute
 {
     protected override ValidationResult? IsValid(object? value, ValidationContext validationContext)
     {

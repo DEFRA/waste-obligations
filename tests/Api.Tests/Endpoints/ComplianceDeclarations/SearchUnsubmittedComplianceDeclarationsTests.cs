@@ -31,9 +31,13 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
                 2026,
                 EntityRegistrationType.DirectProducer,
                 "alpha",
-                Arg.Is<UnsubmittedOrganisationSort?>(x =>
-                    x!.Field == UnsubmittedOrganisationSortField.OrganisationName
-                    && x.Direction == UnsubmittedOrganisationSortDirection.Descending
+                Arg.Is<IReadOnlyCollection<UnsubmittedOrganisationSort>?>(x =>
+                    x != null
+                    && x.Count == 2
+                    && x.ElementAt(0).Field == UnsubmittedOrganisationSortField.OrganisationName
+                    && x.ElementAt(0).Direction == UnsubmittedOrganisationSortDirection.Descending
+                    && x.ElementAt(1).Field == UnsubmittedOrganisationSortField.PercentageMet
+                    && x.ElementAt(1).Direction == UnsubmittedOrganisationSortDirection.Ascending
                 ),
                 page: 2,
                 pageSize: 5,
@@ -66,7 +70,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
                     .New.Where(EndpointFilter.ObligationYear(2026))
                     .Where(EndpointFilter.RegistrationType("DirectProducer"))
                     .Where(EndpointFilter.Search("alpha"))
-                    .Where(EndpointFilter.Sort("OrganisationName[desc]"))
+                    .Where(EndpointFilter.Sort("OrganisationName[desc],PercentageMet[asc]"))
                     .Where(EndpointFilter.Page(2))
                     .Where(EndpointFilter.PageSize(5))
             ),
@@ -86,7 +90,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
                 2026,
                 EntityRegistrationType.ComplianceScheme,
                 null,
-                Arg.Is<UnsubmittedOrganisationSort?>(x => x == null),
+                Arg.Is<IReadOnlyCollection<UnsubmittedOrganisationSort>?>(x => x != null && x.Count == 0),
                 page: 1,
                 pageSize: 20,
                 cancellationToken: Arg.Any<CancellationToken>()
@@ -131,9 +135,11 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
                 2026,
                 EntityRegistrationType.DirectProducer,
                 null,
-                Arg.Is<UnsubmittedOrganisationSort?>(x =>
-                    x!.Field == UnsubmittedOrganisationSortField.PercentageMet
-                    && x.Direction == UnsubmittedOrganisationSortDirection.Ascending
+                Arg.Is<IReadOnlyCollection<UnsubmittedOrganisationSort>?>(x =>
+                    x != null
+                    && x.Count == 1
+                    && x.Single().Field == UnsubmittedOrganisationSortField.PercentageMet
+                    && x.Single().Direction == UnsubmittedOrganisationSortDirection.Ascending
                 ),
                 page: 1,
                 pageSize: 20,
@@ -246,9 +252,11 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
                 2026,
                 EntityRegistrationType.ComplianceScheme,
                 null,
-                Arg.Is<UnsubmittedOrganisationSort?>(x =>
-                    x!.Field == UnsubmittedOrganisationSortField.PercentageMet
-                    && x.Direction == UnsubmittedOrganisationSortDirection.Ascending
+                Arg.Is<IReadOnlyCollection<UnsubmittedOrganisationSort>?>(x =>
+                    x != null
+                    && x.Count == 1
+                    && x.Single().Field == UnsubmittedOrganisationSortField.PercentageMet
+                    && x.Single().Direction == UnsubmittedOrganisationSortDirection.Ascending
                 ),
                 page: 1,
                 pageSize: 20,
@@ -274,9 +282,11 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
                 2026,
                 EntityRegistrationType.ComplianceScheme,
                 null,
-                Arg.Is<UnsubmittedOrganisationSort?>(x =>
-                    x!.Field == UnsubmittedOrganisationSortField.PercentageMet
-                    && x.Direction == UnsubmittedOrganisationSortDirection.Ascending
+                Arg.Is<IReadOnlyCollection<UnsubmittedOrganisationSort>?>(x =>
+                    x != null
+                    && x.Count == 1
+                    && x.Single().Field == UnsubmittedOrganisationSortField.PercentageMet
+                    && x.Single().Direction == UnsubmittedOrganisationSortDirection.Ascending
                 ),
                 1,
                 20,
@@ -294,7 +304,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
                 obligationYear,
                 EntityRegistrationType.DirectProducer,
                 null,
-                Arg.Is<UnsubmittedOrganisationSort?>(x => x == null),
+                Arg.Is<IReadOnlyCollection<UnsubmittedOrganisationSort>?>(x => x != null && x.Count == 0),
                 page: 1,
                 pageSize: 20,
                 cancellationToken: Arg.Any<CancellationToken>()
@@ -335,7 +345,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
                 obligationYear,
                 EntityRegistrationType.DirectProducer,
                 null,
-                Arg.Is<UnsubmittedOrganisationSort?>(x => x == null),
+                Arg.Is<IReadOnlyCollection<UnsubmittedOrganisationSort>?>(x => x != null && x.Count == 0),
                 page: 1,
                 pageSize: 20,
                 Arg.Any<CancellationToken>()
