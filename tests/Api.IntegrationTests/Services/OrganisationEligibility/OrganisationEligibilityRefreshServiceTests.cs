@@ -256,6 +256,29 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Refresh_WhenPromotingANewGeneration_ShouldRetainTheMaterialisedStateVersion()
+    {
+        var organisationId = Guid.NewGuid();
+        ArrangeSource(organisationId);
+        ArrangeDirectProducerReference(organisationId, "051829");
+        var subject = CreateSubject();
+        await subject.Refresh(TestContext.Current.CancellationToken);
+        await OrganisationEligibilitySnapshots.UpdateOneAsync(
+            x => x.Id == OrganisationEligibilitySnapshot.SnapshotId,
+            Builders<OrganisationEligibilitySnapshot>.Update.Inc(x => x.MaterialisedStateVersion, 3),
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        ArrangeSource(organisationId, name: "Changed organisation name");
+
+        await subject.Refresh(TestContext.Current.CancellationToken);
+
+        var snapshot = await OrganisationEligibilitySnapshots
+            .Find(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        snapshot.MaterialisedStateVersion.Should().Be(3);
+    }
+
+    [Fact]
     public async Task Refresh_WhenSeveralGenerationsArePromotedWithinRetentionPeriod_ShouldRetainEachSupersededGeneration()
     {
         var organisationId = Guid.NewGuid();

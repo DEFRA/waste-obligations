@@ -94,6 +94,7 @@ public class OrganisationEligibilityRefreshService(
             ActiveGeneration = generation,
             ActiveContentFingerprint = content.Fingerprint,
             ActiveRowCount = content.Rows.Count,
+            MaterialisedStateVersion = activeSnapshot?.MaterialisedStateVersion ?? 0,
             ActiveGenerationPromotedAt = utcNow,
             LastVerifiedAt = utcNow,
             RetainedGenerations = RetainedGenerationsAfterPromotion(activeSnapshot, utcNow),
