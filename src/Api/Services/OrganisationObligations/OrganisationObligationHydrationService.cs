@@ -147,8 +147,6 @@ public class OrganisationObligationHydrationService(
                 IsUpsert = true,
             })
             .ToArray();
-        if (work.Length == 0)
-            return 0;
 
         var result = await dbContext.OrganisationObligationSummaries.BulkWriteAsync(
             work,
