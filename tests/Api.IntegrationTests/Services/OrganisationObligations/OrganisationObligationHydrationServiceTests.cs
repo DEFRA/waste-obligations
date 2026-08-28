@@ -8,6 +8,7 @@ using Defra.WasteObligations.Api.Utils.Metrics;
 using Defra.WasteObligations.Testing.Fixtures.PrnCommonBackend;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
+using MongoDB.Bson;
 using MongoDB.Driver;
 using NSubstitute;
 using ObligationStatus = Defra.WasteObligations.Api.Dtos.ObligationStatus;
@@ -18,6 +19,7 @@ namespace Defra.WasteObligations.Api.IntegrationTests.Services.OrganisationOblig
 public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
 {
     private const int ObligationYear = 2026;
+    private const string HydrationDueWorkIndexName = "ObligationYear_IsHydrationActive_Priority_NextRefreshAt";
     private readonly FakeTimeProvider _timeProvider = new(new DateTimeOffset(2026, 8, 26, 12, 0, 0, TimeSpan.Zero));
     private IOrganisationObligationSource ObligationSource { get; } = Substitute.For<IOrganisationObligationSource>();
     private IOrganisationObligationHydrationMetrics HydrationMetrics { get; } =
@@ -207,6 +209,56 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
         await ObligationSource
             .Received(1)
             .ReadObligations(organisationId, ObligationYear, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task HydrateDuePlan_ShouldUseTheDueWorkIndexWithoutAnInMemorySort()
+    {
+        var utcNow = _timeProvider.GetUtcNow().UtcDateTime;
+        await OrganisationObligationSummaries.InsertManyAsync(
+            [
+                new OrganisationObligationSummary
+                {
+                    OrganisationId = Guid.NewGuid(),
+                    ObligationYear = ObligationYear,
+                    IsHydrationActive = true,
+                    Priority = OrganisationObligationHydrationPriority.NewEligible,
+                    NextRefreshAt = utcNow,
+                },
+                new OrganisationObligationSummary
+                {
+                    OrganisationId = Guid.NewGuid(),
+                    ObligationYear = ObligationYear,
+                    IsHydrationActive = true,
+                    Priority = OrganisationObligationHydrationPriority.ScheduledRefresh,
+                    NextRefreshAt = utcNow,
+                },
+            ],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        var command = new BsonDocument
+        {
+            ["explain"] = new BsonDocument
+            {
+                ["find"] = nameof(OrganisationObligationSummary),
+                ["filter"] = new BsonDocument
+                {
+                    ["obligationYear"] = ObligationYear,
+                    ["isHydrationActive"] = true,
+                    ["nextRefreshAt"] = new BsonDocument("$lte", utcNow),
+                },
+                ["sort"] = new BsonDocument { ["priority"] = 1, ["nextRefreshAt"] = 1 },
+                ["limit"] = 10,
+            },
+            ["verbosity"] = "queryPlanner",
+        };
+
+        var plan = await GetMongoDatabase()
+            .RunCommandAsync<BsonDocument>(command, cancellationToken: TestContext.Current.CancellationToken);
+        var renderedWinningPlan = plan["queryPlanner"]["winningPlan"].ToJson();
+
+        renderedWinningPlan.Should().Contain(HydrationDueWorkIndexName);
+        renderedWinningPlan.Should().NotContain("\"stage\" : \"SORT\"");
     }
 
     [Fact]

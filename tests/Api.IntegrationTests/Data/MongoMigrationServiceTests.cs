@@ -41,7 +41,7 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         "Generation_IsVisibleInUnsubmittedView_ReferenceNumber_Name_OrganisationId";
     private const string OrganisationObligationSummaryOrganisationYearIndexName = "OrganisationId_ObligationYear";
     private const string OrganisationObligationSummaryHydrationDueWorkIndexName =
-        "IsHydrationActive_NextRefreshAt_Priority";
+        "ObligationYear_IsHydrationActive_Priority_NextRefreshAt";
 
     [Fact]
     public async Task Start_ShouldCreateIndex()
@@ -955,9 +955,10 @@ public class MongoMigrationServiceTests : IntegrationTestBase
     private static BsonDocument OrganisationObligationSummaryHydrationDueWorkIndexKeys() =>
         RenderIndexKeys(
             Builders<OrganisationObligationSummary>
-                .IndexKeys.Ascending(x => x.IsHydrationActive)
-                .Ascending(x => x.NextRefreshAt)
+                .IndexKeys.Ascending(x => x.ObligationYear)
+                .Ascending(x => x.IsHydrationActive)
                 .Ascending(x => x.Priority)
+                .Ascending(x => x.NextRefreshAt)
         );
 
     private BsonDocument RenderIndexKeys(IndexKeysDefinition<ComplianceDeclaration> keys) =>
