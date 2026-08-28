@@ -25,10 +25,11 @@
 - Place new appsettings.json (and related environment variant files) config sections at the bottom of existing settings
 
 ## Change iterations
-- For every implementation cycle, run this portable end-to-end verification before committing. It rebuilds the Compose image (including CSharpier and container build checks), runs the complete test suite against the local environment, then tears the environment down. Do not substitute individual project build or test commands for this check:
+- For every implementation cycle, run this portable end-to-end verification before committing. An implementation cycle changes production or test code, runtime or container configuration, dependencies, schemas or migrations, or test fixtures. It rebuilds the Compose image (including CSharpier and container build checks), runs the complete test suite against the local environment, then tears the environment down. Do not substitute individual project build or test commands for this check:
   1. `docker compose up --build -d --wait`
   2. `dotnet test`
   3. `docker compose down -v --remove-orphans` (run this even if the test command fails)
+- Documentation-only changes (including `AGENTS.md`), comment-only changes, and other non-functional text edits do not require the full Compose/test cycle. Run a proportionate lightweight check instead, such as `git diff --check`; for changed C# files, also run CSharpier. Do not use this exception for changes that alter code, configuration, schemas, dependencies, test execution, or generated contract artefacts.
 - Integration clients should return their integration response models rather than public API DTOs; map to API DTOs in the consuming endpoint or application service
 - Before adding an endpoint, request DTO, validation rule, serialisation converter, or OpenAPI customisation, compare the nearest existing implementation. If the change needs a one-off pattern or would alter an established request, validation, error-response, or documentation convention, pause and ask the user before introducing it.
 - For every endpoint added or materially changed, add in-process endpoint tests through the API `WebApplicationFactory`. Cover the successful response and practical deliberate error branches, and use `VerifyJson` snapshots for JSON response bodies so field names, nesting, nullable/default values, and problem-details shapes remain contract-tested. Keep Docker integration tests focused on real cross-process wiring; they must not be the only coverage of an endpoint's response contract.
@@ -40,9 +41,7 @@
 - In tests, prefer the fixtures in the Testing support project for repeated valid entity, DTO, and service response shapes; direct instantiation is fine for intentionally malformed/null payloads or small one-off values where a fixture would add noise
 - Fixture location should follow the `tests/Testing/Fixtures` folder taxonomy: DTO fixtures in `Dtos`, entity fixtures in `Entities`, and service integration response fixtures in folders named for that integration
 - Attempt to mask use of ToString where possible
-- Check work has been successful by building the solution
-- Run Api.Tests after any change
-- Run Api.IntegrationTests after any change
+- The required Compose/test cycle above includes the build, API tests, and integration tests for implementation changes.
 
 ## Persisted entity and schema changes
 - Treat a change to a persisted entity, including any nested entity such as `User`, as a possible Mongo storage and analytics contract change; do not assess only the root entity file
