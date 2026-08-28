@@ -19,7 +19,7 @@ public record UnsubmittedComplianceDeclarationsRequest
     [EnumCommaSeparatedList<RegistrationType>(ErrorMessage = "Invalid organisation registration type(s)")]
     public string? RegistrationType { get; init; }
 
-    [Description("Case-insensitive partial match on organisation name, trading name or reference number")]
+    [Description("Case-insensitive partial match on organisation name or reference number")]
     [StringLength(SearchMaxLength)]
     [FromQuery(Name = "search")]
     public string? Search { get; init; }

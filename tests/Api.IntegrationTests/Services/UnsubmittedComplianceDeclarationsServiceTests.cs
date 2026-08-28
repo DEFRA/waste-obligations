@@ -177,23 +177,16 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task Search_WhenSearchMatchesNameTradingNameOrReference_ShouldReturnCaseInsensitivePartialMatches()
+    public async Task Search_WhenSearchMatchesNameOrReference_ShouldReturnCaseInsensitivePartialMatches()
     {
         const string generation = "generation";
         var nameMatchOrganisationId = Guid.NewGuid();
-        var tradingNameMatchOrganisationId = Guid.NewGuid();
         var referenceMatchOrganisationId = Guid.NewGuid();
         await SetReadySnapshot(generation);
         await OrganisationComplianceDeclarationEligibilities.InsertManyAsync(
             [
                 Eligibility(nameMatchOrganisationId, generation, "Alpha Packaging", "100001"),
-                Eligibility(
-                    tradingNameMatchOrganisationId,
-                    generation,
-                    "Bravo Scheme",
-                    "100002",
-                    tradingName: "Northern Operator"
-                ),
+                Eligibility(Guid.NewGuid(), generation, "Bravo Scheme", "100002", tradingName: "Northern Operator"),
                 Eligibility(referenceMatchOrganisationId, generation, "Charlie Recycling", "100003"),
             ],
             cancellationToken: TestContext.Current.CancellationToken
@@ -204,15 +197,6 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
             2026,
             [RegistrationType.DirectProducer],
             "PHA PAC",
-            null,
-            page: 1,
-            pageSize: 20,
-            TestContext.Current.CancellationToken
-        );
-        var tradingNameResult = await subject.Search(
-            2026,
-            [RegistrationType.DirectProducer],
-            "operator",
             null,
             page: 1,
             pageSize: 20,
@@ -230,14 +214,33 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
 
         nameResult.Total.Should().Be(1);
         nameResult.Rows.Should().ContainSingle().Which.OrganisationId.Should().Be(nameMatchOrganisationId);
-        tradingNameResult.Total.Should().Be(1);
-        tradingNameResult
-            .Rows.Should()
-            .ContainSingle()
-            .Which.OrganisationId.Should()
-            .Be(tradingNameMatchOrganisationId);
         referenceResult.Total.Should().Be(1);
         referenceResult.Rows.Should().ContainSingle().Which.OrganisationId.Should().Be(referenceMatchOrganisationId);
+    }
+
+    [Fact]
+    public async Task Search_WhenSearchMatchesOnlyTradingName_ShouldNotReturnTheOrganisation()
+    {
+        const string generation = "generation";
+        await SetReadySnapshot(generation);
+        await OrganisationComplianceDeclarationEligibilities.InsertOneAsync(
+            Eligibility(Guid.NewGuid(), generation, "Bravo Scheme", "100002", tradingName: "Northern Operator"),
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        var subject = CreateSubject();
+
+        var result = await subject.Search(
+            2026,
+            [RegistrationType.DirectProducer],
+            "operator",
+            null,
+            page: 1,
+            pageSize: 20,
+            TestContext.Current.CancellationToken
+        );
+
+        result.Total.Should().Be(0);
+        result.Rows.Should().BeEmpty();
     }
 
     [Fact]

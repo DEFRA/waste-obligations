@@ -267,7 +267,7 @@ OrganisationComplianceDeclarationEligibility
   organisationId                 GUID
   registrationType               DirectProducer | ComplianceScheme
   name                           string?
-  tradingName                    string?
+  tradingName                    string?          // source provenance; not a public query field
   companiesHouseNumber           string?
   registrationStatus             REGISTERED | CANCELLED
   referenceNumber                string?          // Account value; preserve leading zeroes
@@ -280,7 +280,7 @@ OrganisationComplianceDeclarationEligibility
   declarationStateUpdatedAt      UTC timestamp    // latest declaration-state evaluation
 ```
 
-The unique key is `{ generation, obligationYear, organisationId, registrationType }`. `generation` makes the active data set stable during a refresh. `isVisibleInUnsubmittedView` is the endpoint's complete membership decision: it is true only for a Registered row with a resolved non-empty reference number and no Submitted or Accepted declaration for the same organisation/year/type. Other reference states remain stored for retry/diagnostics but are never visible. The UI display-name rule for schemes must be explicitly agreed before the endpoint uses `name` versus `tradingName`; the current frontend receives the full organisation DTO and its scheme-name handling should not be copied accidentally.
+The unique key is `{ generation, obligationYear, organisationId, registrationType }`. `generation` makes the active data set stable during a refresh. `isVisibleInUnsubmittedView` is the endpoint's complete membership decision: it is true only for a Registered row with a resolved non-empty reference number and no Submitted or Accepted declaration for the same organisation/year/type. Other reference states remain stored for retry/diagnostics but are never visible. `name` is the established `CompanyName` value: Waste Organisations `name` for Direct Producers and `tradingName`, falling back to `name`, for Compliance Schemes. It is both the display and searchable organisation name. The separately retained source `tradingName` is not queried by the public endpoint.
 
 An empty result must never silently mean “every organisation has submitted” when source rows are being excluded for missing references. Persist the excluded count in snapshot metadata and emit it as an operational metric. The public endpoint deliberately returns only usable list data; a future administration/operational-insight endpoint will expose reference coverage, freshness, and other diagnostic state. The initial bootstrap should normally remain unavailable until its required reference coverage is reached; the policy for later newly-unresolved rows is an explicit open decision.
 
@@ -306,6 +306,8 @@ The Account service is authoritative for the organisation reference number used 
 | `ComplianceScheme` | `POST /api/organisations/organisations-by-companies-house-numbers` with `companiesHouseNumbers` | A scheme's Waste Organisations ID is **not** an Account external ID. Match by Companies House number, then retain only the returned organisation whose `isComplianceScheme` is true. |
 
 The Companies House route can return several Account organisations for one number. The frontend currently filters `isComplianceScheme` and puts the results into a JavaScript `Map`, so if two matching scheme rows were returned, the last response item would win accidentally. The eligibility refresh must not copy that behaviour: zero matching scheme rows is unresolved and more than one is `Ambiguous`, alerted and withheld until the Account-data rule is resolved. It must never choose an arbitrary reference number. A missing Companies House number is `AwaitingLookupKey`, not a request to Account.
+
+The Account response contracts used by this refresh do not provide a scheme name or scheme-operator name. This is evidenced by the client models: [`AccountOrganisation`](../src/Api/Services/AccountBackend/AccountOrganisation.cs), deserialised from both batch routes by [`AccountBackendService`](../src/Api/Services/AccountBackend/AccountBackendService.cs), has only `externalId`, `referenceNumber`, `companiesHouseNumber`, and `isComplianceScheme`; [`OrganisationWithPersons`](../src/Api/Services/AccountBackend/OrganisationWithPersons.cs), from the separately used `organisation-with-persons` route, has only people. Therefore scheme and operator names are not added to the eligibility aggregate or unsubmitted search. Supporting them needs an explicit Account API contract, data ownership, and change-propagation decision before an additive persisted-field and query change can be designed. A copied Account name would otherwise remain stale after an Account rename until the next eligibility refresh; avoiding that would require an Account change event, deliberately accepted polling staleness, or a request-time join. The latter would undermine the local query path.
 
 Reference numbers are strings, not numbers: preserve leading zeroes and the exact Account value. The expected six-digit format should be monitored, but it should not be silently coerced or truncated.
 
@@ -349,7 +351,7 @@ The unsubmitted query reads only the active generation and needs no Account call
 
 ```text
 1. Match active generation + isVisibleInUnsubmittedView=true, then optionally obligation year and one or more registration types.
-2. Match escaped, case-insensitive contains regex over name OR tradingName OR referenceNumber.
+2. Match escaped, case-insensitive contains regex over name OR referenceNumber.
 3. For a default or single-field sort, use the selected indexed ordering, then page the matching rows. For multiple sort fields, apply the requested priority order to the matching rows before paging; count the same filter separately.
 ```
 
@@ -985,19 +987,19 @@ The unsubmitted endpoint deliberately follows that existing, limited approach. I
 
 | Eligibility data available | Generic-search fields |
 | --- | --- |
-| Active materialised generation | `name`, `tradingName`, and `referenceNumber` |
+| Active materialised generation | `name` and `referenceNumber` |
 
 For an unsubmitted query with a term, apply the work in this order:
 
 ```text
 1. Match active generation + `isVisibleInUnsubmittedView=true`, then optionally obligation year and one or more registration types.
-2. Match escaped, case-insensitive contains regex over name OR tradingName OR referenceNumber.
+2. Match escaped, case-insensitive contains regex over name OR referenceNumber.
 3. Sort, count and page the retained rows.
 ```
 
 Contains regex has to inspect every visible base candidate `C`; total-count semantics mean it cannot stop once the visible page is full. Its normal operation is therefore `O(C)` candidate inspection followed by sorting the matching subset. This is the same fundamental limitation as current declaration search, but `C` for unsubmitted organisations may be substantially larger and needs production-cardinality load tests.
 
-The default-order eligibility index is `{ generation, isVisibleInUnsubmittedView, name, organisationId }`; the other supported single-sort indexes have the same required prefix. It bounds the scan to the active visible generation and supports raw-name candidate ordering regardless of whether year/type filters are supplied. It cannot make an unanchored search regex seekable. Do not add a speculative name/trading-name/reference-number index for this contains predicate; it adds write/storage cost without solving the scan. Request validation enforces the 100-character maximum; escape the term as a literal regex, debounce the frontend request, set server-side query timeouts, and measure `C`, scan duration, and result count.
+The default-order eligibility index is `{ generation, isVisibleInUnsubmittedView, name, organisationId }`; the other supported single-sort indexes have the same required prefix. It bounds the scan to the active visible generation and supports raw-name candidate ordering regardless of whether year/type filters are supplied. It cannot make an unanchored search regex seekable. Do not add a speculative name/reference-number index for this contains predicate; it adds write/storage cost without solving the scan. Request validation enforces the 100-character maximum; escape the term as a literal regex, debounce the frontend request, set server-side query timeouts, and measure `C`, scan duration, and result count.
 
 Any future improvement to generic search is deliberately a separate design decision for the wider system. An ordinary Mongo `$in` query is fast only for exact stored values; it cannot retain arbitrary partial contains behaviour. Prefix/token search, n-gram indexing, or a dedicated search capability each change the data/UX/operational trade-off and should be evaluated only if measurements show this current-style query is inadequate.
 
@@ -1139,7 +1141,6 @@ The organisation-obligation summary is deliberately separate from the query aggr
 
 1. What maximum end-to-end staleness is acceptable, accounting for both the upstream Synapse-to-Waste-Organisations schedule and this poller?
 2. Resolved: a snapshot older than the limit continues to serve the last complete active generation and logs an error. This preserves the implemented endpoint behaviour while refresh recovery proceeds.
-3. What is the definitive scheme display-name rule: Waste Organisations `tradingName`, `name`, or an Account-derived operator name?
 4. Should a Cancelled declaration continue to count as not submitted? The current frontend says yes.
 5. Resolved: the eligibility aggregate holds the two public obligation metrics and indexed sorting supports name, reference number, recycling status, and percentage for both registration types. Regulation 43 is excluded because it requires a declaration.
 6. Can Account provide and support an explicit maximum batch size and concurrency expectation for both lookup endpoints?
@@ -1148,3 +1149,4 @@ The organisation-obligation summary is deliberately separate from the query aggr
 9. Side requirement: a future administration endpoint should expose organisation-obligation state and successful-read timestamps/counts for operational insight. The public list contract exposes only usable obligation metrics.
 10. Can Recycling data provide an at-least-once status/calculation-trigger event (or cursor) with recipient `organisationId`, obligation year, event ID, per-key version, and a replay/bootstrap watermark?
 11. Can Waste Organisations provide organisation/registration events with a durable source version/sequence and a snapshot watermark? If events replace polling, which source/version/offset guarantees are available for the bootstrap watermark, organisation registrations, Account reference assignment, and Recycling changes?
+12. If scheme or scheme-operator name search becomes necessary, can Account provide authoritative values and a durable change event (or an agreed refresh-staleness contract) that keeps the eligibility aggregate current after a rename?
