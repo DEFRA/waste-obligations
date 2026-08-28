@@ -1,0 +1,31 @@
+{
+  "snapshot": {
+    "id": "{Scrubbed}",
+    "activeGeneration": "{Generated}",
+    "activeContentFingerprint": "{Calculated}",
+    "activeRowCount": 1,
+    "materialisedStateVersion": 0,
+    "activeGenerationPromotedAt": "DateTimeOffset_1",
+    "lastVerifiedAt": "DateTimeOffset_1",
+    "retainedGenerations": []
+  },
+  "row": {
+    "id": "{Scrubbed}",
+    "generation": "{Generated}",
+    "organisationId": "Guid_1",
+    "obligationYear": 2026,
+    "registrationType": 0,
+    "registrationStatus": 0,
+    "name": "Example organisation",
+    "tradingName": null,
+    "companiesHouseNumber": null,
+    "referenceNumber": "051829",
+    "referenceNumberResolutionState": 1,
+    "isVisibleInUnsubmittedView": true,
+    "recyclingObligationsMet": null,
+    "obligationCoveragePercentage": 0,
+    "declarationStateUpdatedAt": "DateTimeOffset_1",
+    "sourceFingerprint": "{Calculated}",
+    "refreshedAt": "DateTimeOffset_1"
+  }
+}

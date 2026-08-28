@@ -46,7 +46,8 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             TimeProvider.System,
             auditEventService,
             ComplianceDeclarationMetrics,
-            TraceIdReader()
+            TraceIdReader(),
+            new UnsubmittedEligibilityVisibilityService(dbContext)
         );
     }
 
@@ -94,6 +95,55 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task DeclarationMutation_ShouldUpdateMatchingEligibilityRowVisibility()
+    {
+        var declaration = ComplianceDeclarationFixture
+            .DirectProducer()
+            .With(x => x.Status, ComplianceDeclarationStatus.Cancelled)
+            .Create();
+        await OrganisationComplianceDeclarationEligibilities.InsertOneAsync(
+            OrganisationComplianceDeclarationEligibilityFixture
+                .Default(declaration.Organisation.Id)
+                .With(x => x.ObligationYear, declaration.ObligationYear)
+                .With(x => x.RegistrationType, declaration.Organisation.RegistrationType)
+                .With(x => x.IsVisibleInUnsubmittedView, false)
+                .Create(),
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+
+        var created = await Subject.Create(declaration, TestContext.Current.CancellationToken);
+
+        (await FindEligibility(created)).IsVisibleInUnsubmittedView.Should().BeTrue();
+
+        var submitted = await Subject.Update(
+            created,
+            created with
+            {
+                Status = ComplianceDeclarationStatus.Submitted,
+            },
+            TestContext.Current.CancellationToken
+        );
+
+        (await FindEligibility(submitted)).IsVisibleInUnsubmittedView.Should().BeFalse();
+
+        var cancelled = await Subject.Update(
+            submitted,
+            submitted with
+            {
+                Status = ComplianceDeclarationStatus.Cancelled,
+            },
+            TestContext.Current.CancellationToken
+        );
+
+        (await FindEligibility(cancelled)).IsVisibleInUnsubmittedView.Should().BeTrue();
+        var snapshot = await OrganisationEligibilitySnapshots
+            .Find(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId)
+            .SingleAsync(TestContext.Current.CancellationToken);
+
+        snapshot.MaterialisedStateVersion.Should().Be(3);
+    }
+
+    [Fact]
     public async Task Create_WhenInserted_WithAudit_ShouldBeValidAudit()
     {
         var initial = await Subject.Create(
@@ -138,13 +188,15 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
     {
         var database = GetMongoDatabase();
         var complianceDeclarationMetrics = Substitute.For<IComplianceDeclarationMetrics>();
+        var dbContext = CreateDbContext(database);
         var subject = new ComplianceDeclarationService(
-            CreateDbContext(database),
+            dbContext,
             Substitute.For<ILogger<ComplianceDeclarationService>>(),
             TimeProvider.System,
             new ThrowingAuditEventService(),
             complianceDeclarationMetrics,
-            TraceIdReader()
+            TraceIdReader(),
+            new UnsubmittedEligibilityVisibilityService(dbContext)
         );
         var complianceDeclaration = ComplianceDeclarationFixture.Default().Create();
         var act = async () => await subject.Create(complianceDeclaration, TestContext.Current.CancellationToken);
@@ -351,13 +403,15 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
     {
         var database = GetMongoDatabase();
         var complianceDeclarationMetrics = Substitute.For<IComplianceDeclarationMetrics>();
+        var dbContext = CreateDbContext(database);
         var subject = new ComplianceDeclarationService(
-            CreateDbContext(database),
+            dbContext,
             Substitute.For<ILogger<ComplianceDeclarationService>>(),
             TimeProvider.System,
             new ThrowingAuditEventService(),
             complianceDeclarationMetrics,
-            TraceIdReader()
+            TraceIdReader(),
+            new UnsubmittedEligibilityVisibilityService(dbContext)
         );
         var initial = await Subject.Create(
             ComplianceDeclarationFixture.DirectProducer().Create(),
@@ -1170,18 +1224,34 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
     private static TraceIdReader TraceIdReader() =>
         new(HeaderPropagationValues(), Options.Create(new TraceHeader { Name = TraceHeaderName }));
 
-    private static ComplianceDeclarationService CreateSubject(IMongoDatabase database) =>
-        new(
-            CreateDbContext(database),
+    private static ComplianceDeclarationService CreateSubject(IMongoDatabase database)
+    {
+        var dbContext = CreateDbContext(database);
+
+        return new(
+            dbContext,
             Substitute.For<ILogger<ComplianceDeclarationService>>(),
             TimeProvider.System,
             new AuditEventService(new AuditEventDbContext(database), TimeProvider.System, new FakeEventIdGenerator()),
             Substitute.For<IComplianceDeclarationMetrics>(),
-            TraceIdReader()
+            TraceIdReader(),
+            new UnsubmittedEligibilityVisibilityService(dbContext)
         );
+    }
 
     private static MongoDbContext CreateDbContext(IMongoDatabase database) =>
         new(database, Options.Create(new MongoDbOptions()), Substitute.For<ILogger<MongoDbContext>>());
+
+    private async Task<OrganisationComplianceDeclarationEligibility> FindEligibility(
+        ComplianceDeclaration declaration
+    ) =>
+        await OrganisationComplianceDeclarationEligibilities
+            .Find(x =>
+                x.OrganisationId == declaration.Organisation.Id
+                && x.ObligationYear == declaration.ObligationYear
+                && x.RegistrationType == declaration.Organisation.RegistrationType
+            )
+            .SingleAsync(TestContext.Current.CancellationToken);
 
     private static object? ToPlainDocument(BsonDocument? document)
     {
