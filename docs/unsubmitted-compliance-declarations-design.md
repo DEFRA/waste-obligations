@@ -232,7 +232,7 @@ Names below are provisional. New collection names, indexes, schema files, migrat
 }
 ```
 
-The delivery adds purpose-specific persistence for eligibility rows, declaration-review state, snapshot metadata, the organisation-obligation summary, and its hydration work. The first three support the main inferred-list query; snapshot metadata is control data. The Account reference cache and the obligation-hydration work queue are internal work/provenance stores, not request-time joins. Each refresh or hydration worker uses its own private operational lease collection, accessed by its lease service rather than the query-data `IDbContext`. The collections share the same lease document shape, but retain their own lease IDs and purpose-specific lifecycle services; this is not a shared cross-worker coordination queue.
+The delivery adds purpose-specific persistence for eligibility rows, declaration-review state, snapshot metadata, the organisation-obligation summary, and its hydration work. The first three support the main inferred-list query; snapshot metadata is control data. The Account reference cache and the obligation-hydration work queue are internal work/provenance stores, not request-time joins. Each refresh or hydration worker uses its own private operational lease collection, accessed through its purpose-specific lease-service adapter rather than the query-data `IDbContext`. The adapters share the `BackgroundWorkerLeaseService` Mongo lifecycle implementation and the same lease document shape, but retain their own collection names and lease IDs; this is not a shared cross-worker coordination queue.
 
 ### 1. Organisation eligibility snapshot
 
