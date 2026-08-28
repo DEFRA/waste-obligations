@@ -16,7 +16,7 @@ public class ComplianceDeclarationService(
     IAuditEventService auditEventService,
     IComplianceDeclarationMetrics complianceDeclarationMetrics,
     TraceIdReader traceIdReader,
-    IComplianceDeclarationReviewStateService complianceDeclarationReviewStateService
+    IUnsubmittedEligibilityVisibilityService unsubmittedEligibilityVisibilityService
 ) : IComplianceDeclarationService
 {
     private const string Actor = "service:waste-obligations";
@@ -39,7 +39,7 @@ public class ComplianceDeclarationService(
                     cancellationToken: transactionCancellationToken
                 );
 
-                await complianceDeclarationReviewStateService.Refresh(
+                await unsubmittedEligibilityVisibilityService.Refresh(
                     transactionSession,
                     [complianceDeclaration],
                     utcNow,
@@ -140,7 +140,7 @@ public class ComplianceDeclarationService(
                         $"Concurrency issue on delete, compliance declaration with id '{current.Id}' was not deleted"
                     );
 
-                await complianceDeclarationReviewStateService.Refresh(
+                await unsubmittedEligibilityVisibilityService.Refresh(
                     transactionSession,
                     [current],
                     timeProvider.GetUtcNowWithoutMicroseconds(),
@@ -262,7 +262,7 @@ public class ComplianceDeclarationService(
                         $"Concurrency issue on write, compliance declaration with id '{current.Id}' was not updated"
                     );
 
-                await complianceDeclarationReviewStateService.Refresh(
+                await unsubmittedEligibilityVisibilityService.Refresh(
                     transactionSession,
                     [current, updated],
                     updated.Updated,

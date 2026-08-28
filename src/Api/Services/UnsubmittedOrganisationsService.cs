@@ -38,18 +38,6 @@ public class UnsubmittedOrganisationsService(
             return EmptyResult();
         }
 
-        var reviewStateSnapshot = await dbContext
-            .ComplianceDeclarationReviewStateSnapshots.Find(x =>
-                x.Id == ComplianceDeclarationReviewStateSnapshot.SnapshotId
-            )
-            .SingleOrDefaultAsync(cancellationToken);
-        if (reviewStateSnapshot?.BackfillCompletedAt is null)
-        {
-            logger.LogError("Unsubmitted organisation query has no completed declaration review state backfill");
-
-            return EmptyResult();
-        }
-
         if (
             snapshot.LastVerifiedAt is null
             || timeProvider.GetUtcNow().UtcDateTime - snapshot.LastVerifiedAt.Value
@@ -73,12 +61,8 @@ public class UnsubmittedOrganisationsService(
                 registrationType
             ),
             Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Eq(
-                x => x.RegistrationStatus,
-                OrganisationRegistrationStatus.Registered
-            ),
-            Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Eq(
-                x => x.ReferenceNumberResolutionState,
-                OrganisationReferenceNumberResolutionState.Resolved
+                x => x.IsVisibleInUnsubmittedView,
+                true
             )
         );
         if (!string.IsNullOrWhiteSpace(search))
@@ -98,8 +82,6 @@ public class UnsubmittedOrganisationsService(
         var result = await dbContext
             .OrganisationComplianceDeclarationEligibilities.Aggregate()
             .Match(eligible)
-            .AppendStage<BsonDocument>(ReviewStateLookup())
-            .AppendStage<BsonDocument>(UnsubmittedMatch())
             .AppendStage<BsonDocument>(Project())
             .AppendStage<BsonDocument>(Facet(sortDefinition, page, pageSize))
             .SingleOrDefaultAsync(cancellationToken);
@@ -108,57 +90,6 @@ public class UnsubmittedOrganisationsService(
 
         return new UnsubmittedOrganisationSearchResult { Rows = rows, Total = total };
     }
-
-    private static BsonDocument ReviewStateLookup() =>
-        new(
-            "$lookup",
-            new BsonDocument
-            {
-                ["from"] = nameof(ComplianceDeclarationReviewState),
-                ["let"] = new BsonDocument
-                {
-                    ["organisationId"] = "$organisationId",
-                    ["obligationYear"] = "$obligationYear",
-                    ["registrationType"] = "$registrationType",
-                },
-                ["pipeline"] = new BsonArray
-                {
-                    new BsonDocument(
-                        "$match",
-                        new BsonDocument(
-                            "$expr",
-                            new BsonDocument(
-                                "$and",
-                                new BsonArray
-                                {
-                                    new BsonDocument("$eq", new BsonArray { "$organisationId", "$$organisationId" }),
-                                    new BsonDocument("$eq", new BsonArray { "$obligationYear", "$$obligationYear" }),
-                                    new BsonDocument(
-                                        "$eq",
-                                        new BsonArray { "$registrationType", "$$registrationType" }
-                                    ),
-                                }
-                            )
-                        )
-                    ),
-                    new BsonDocument("$limit", 1),
-                },
-                ["as"] = "reviewState",
-            }
-        );
-
-    private static BsonDocument UnsubmittedMatch() =>
-        new(
-            "$match",
-            new BsonDocument(
-                "$or",
-                new BsonArray
-                {
-                    new BsonDocument("reviewState", new BsonDocument("$eq", new BsonArray())),
-                    new BsonDocument("reviewState.unsubmittedExclusionCount", 0),
-                }
-            )
-        );
 
     private static BsonDocument Project() =>
         new(

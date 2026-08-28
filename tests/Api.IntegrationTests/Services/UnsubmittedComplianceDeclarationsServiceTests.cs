@@ -31,20 +31,21 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
             [
                 Eligibility(alpha, generation, "Alpha Packaging", "100001"),
                 Eligibility(beta, generation, "Beta Packaging", "100002"),
-                Eligibility(submitted, generation, "Submitted Packaging", "100003"),
+                Eligibility(submitted, generation, "Submitted Packaging", "100003") with
+                {
+                    IsVisibleInUnsubmittedView = false,
+                },
                 Eligibility(Guid.NewGuid(), generation, "Cancelled Packaging", "100004") with
                 {
                     RegistrationStatus = OrganisationRegistrationStatus.Cancelled,
+                    IsVisibleInUnsubmittedView = false,
                 },
                 Eligibility(Guid.NewGuid(), generation, "Unresolved Packaging", null) with
                 {
                     ReferenceNumberResolutionState = OrganisationReferenceNumberResolutionState.Pending,
+                    IsVisibleInUnsubmittedView = false,
                 },
             ],
-            cancellationToken: TestContext.Current.CancellationToken
-        );
-        await ComplianceDeclarationReviewStates.InsertManyAsync(
-            [ReviewState(beta, 0), ReviewState(submitted, 1)],
             cancellationToken: TestContext.Current.CancellationToken
         );
         var subject = CreateSubject();
@@ -276,14 +277,6 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
             },
             cancellationToken: TestContext.Current.CancellationToken
         );
-        await ComplianceDeclarationReviewStateSnapshots.InsertOneAsync(
-            new ComplianceDeclarationReviewStateSnapshot
-            {
-                Id = ComplianceDeclarationReviewStateSnapshot.SnapshotId,
-                BackfillCompletedAt = verifiedAt,
-            },
-            cancellationToken: TestContext.Current.CancellationToken
-        );
         await OrganisationComplianceDeclarationEligibilities.InsertOneAsync(
             Eligibility(organisationId, generation, "Alpha Packaging", "100001"),
             cancellationToken: TestContext.Current.CancellationToken
@@ -340,14 +333,6 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
             },
             cancellationToken: TestContext.Current.CancellationToken
         );
-        await ComplianceDeclarationReviewStateSnapshots.InsertOneAsync(
-            new ComplianceDeclarationReviewStateSnapshot
-            {
-                Id = ComplianceDeclarationReviewStateSnapshot.SnapshotId,
-                BackfillCompletedAt = now,
-            },
-            cancellationToken: TestContext.Current.CancellationToken
-        );
     }
 
     private static OrganisationComplianceDeclarationEligibilityEntity Eligibility(
@@ -365,16 +350,6 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
             .With(x => x.ReferenceNumber, referenceNumber)
             .With(x => x.SourceFingerprint, name)
             .Create();
-
-    private static ComplianceDeclarationReviewState ReviewState(Guid organisationId, int unsubmittedExclusionCount) =>
-        new()
-        {
-            OrganisationId = organisationId,
-            ObligationYear = 2026,
-            RegistrationType = RegistrationType.DirectProducer,
-            UnsubmittedExclusionCount = unsubmittedExclusionCount,
-            UpdatedAt = DateTime.UtcNow,
-        };
 
     private OrganisationObligationSummary Summary(
         Guid organisationId,

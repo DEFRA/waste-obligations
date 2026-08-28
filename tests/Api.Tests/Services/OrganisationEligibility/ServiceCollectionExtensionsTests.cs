@@ -20,12 +20,5 @@ public class ServiceCollectionExtensionsTests
                 descriptor.ServiceType == typeof(IHostedService)
                 && descriptor.ImplementationType == typeof(OrganisationEligibilityRefreshWorker)
             );
-        services
-            .Should()
-            .Contain(descriptor =>
-                descriptor.ServiceType == typeof(IHostedService)
-                && descriptor.ImplementationType
-                    == typeof(ComplianceDeclarationReviewStateInitialRolloutReconciliationWorker)
-            );
     }
 }

@@ -10,6 +10,7 @@ public class OrganisationEligibilityRefreshService(
     IDbContext dbContext,
     IOrganisationEligibilitySource organisationEligibilitySource,
     OrganisationReferenceCacheService organisationReferenceCacheService,
+    IUnsubmittedEligibilityVisibilityService unsubmittedEligibilityVisibilityService,
     IOptions<OrganisationEligibilityOptions> options,
     TimeProvider timeProvider
 ) : IOrganisationEligibilityRefreshService
@@ -29,6 +30,10 @@ public class OrganisationEligibilityRefreshService(
             cancellationToken
         );
         var content = OrganisationEligibilitySnapshotContentBuilder.Create(sourceRows, referenceCaches);
+        content = content with
+        {
+            Rows = await unsubmittedEligibilityVisibilityService.Apply(content.Rows, utcNow, cancellationToken),
+        };
         var activeSnapshot = await dbContext
             .OrganisationEligibilitySnapshots.Find(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId)
             .SingleOrDefaultAsync(cancellationToken);

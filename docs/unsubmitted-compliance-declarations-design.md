@@ -2,9 +2,9 @@
 
 ## Status and scope
 
-**Status:** the initial server-side delivery is implemented in this branch: the local eligibility snapshot, Account-reference materialisation, declaration-review-state projection, unsubmitted query endpoint with generic search, and organisation-obligation summary hydration/polling. The later event-driven and operational-insight sections remain future design considerations. `Unsubmitted` remains an inferred review state rather than a compliance-declaration status.
+**Status:** the initial server-side delivery is implemented in this branch: the local eligibility snapshot, Account-reference materialisation, direct unsubmitted-visibility fields on those rows, unsubmitted query endpoint with generic search, and organisation-obligation summary hydration/polling. The later event-driven and operational-insight sections remain future design considerations. `Unsubmitted` remains an inferred review state rather than a compliance-declaration status.
 
-The proposed delivery is a local, refreshable copy of the Waste Organisations eligibility data in Waste Obligations, a local declaration-presence projection maintained as declarations change, and a separately refreshed organisation-obligation summary. Together they support a server-side query for the **Not submitted** review tab and CSV download.
+The delivery is a local, refreshable copy of the Waste Organisations eligibility data in Waste Obligations, with an unsubmitted-visibility field maintained as declarations change, and a separately refreshed organisation-obligation summary. Together they support a server-side query for the **Not submitted** review tab and CSV download.
 
 Account reference resolution is a prerequisite for an individual organisation to enter the queryable unsubmitted view: a source row with no resolved reference is stored and retried, but is not considered. Its value is materialised into the organisation generation rather than hidden behind request-time calls. An organisation's current obligations have a materially different freshness contract, so percentage met is held in a separate, per-organisation/year projection rather than being folded into an organisation generation.
 
@@ -15,7 +15,7 @@ Account reference resolution is a prerequisite for an individual organisation to
 - The first source to bring into Waste Obligations is Waste Organisations.
 - Waste Organisations is unchanged: its existing, unpaged search endpoint is the source.
 - The initial public query route is `GET /compliance-declarations/unsubmitted`.
-- The new local review projection will track `LARGE_PRODUCER` as `DirectProducer` and `COMPLIANCE_SCHEME` as `ComplianceScheme`.
+- The local eligibility rows track `LARGE_PRODUCER` as `DirectProducer` and `COMPLIANCE_SCHEME` as `ComplianceScheme`.
 
 ## Current obligation year
 
@@ -154,7 +154,7 @@ The CSV endpoint repeats the same data construction rather than exporting the di
 
 ## Why the local organisation copy is needed
 
-Waste Obligations already has the declaration side of the anti-join locally. The missing left-hand side is the set of organisations eligible to submit for a given year and review type. Holding that set locally allows Mongo to page, count, and sort a stable candidate set without transferring every organisation and every matching declaration to the frontend on every request.
+Waste Obligations already has declarations locally. The missing input is the set of organisations eligible to submit for a given year and review type. Holding that set locally allows Mongo to persist direct membership, page, count, and sort a stable candidate set without transferring every organisation and every matching declaration to the frontend on every request.
 
 The snapshot is an eligibility projection, not a second system of record for organisations. It contains only fields required to establish eligibility and render/order an unsubmitted row.
 
@@ -212,11 +212,11 @@ This is an internal adapter contract, not a new public API. It must preserve sou
 
 ## Data to persist
 
-The query needs three local business projections. `ComplianceDeclaration` remains the authoritative declaration document, but the endpoint should not perform a full declaration anti-join for every page request when the same yes/no answer can be maintained at mutation time.
+The query needs two local business projections. `ComplianceDeclaration` remains the authoritative declaration document, but the endpoint does not perform a full declaration join for every page request because the yes/no answer is maintained on the eligibility row at mutation time.
 
 Names below are provisional. New collection names, indexes, schema files, migration scripts, and audit documentation must follow this repository's Mongo persistence process when implementation begins.
 
-`activeGeneration` must be persisted in Mongo, not application memory or configuration, so every API instance reads the same active view after a restart or deployment. The recommended physical home is a dedicated `ComplianceEligibilitySnapshot` metadata collection containing one document for the all-years scope:
+`activeGeneration` is persisted in Mongo, not application memory or configuration, so every API instance reads the same active view after a restart or deployment. Its physical home is the dedicated `OrganisationEligibilitySnapshot` metadata collection containing one document for the all-years scope:
 
 ```json
 {
@@ -232,31 +232,27 @@ Names below are provisional. New collection names, indexes, schema files, migrat
 }
 ```
 
-The delivery adds purpose-specific persistence for eligibility rows, declaration-review state, snapshot metadata, the organisation-obligation summary, and its hydration work. The first three support the main inferred-list query; snapshot metadata is control data. The Account reference cache and the obligation-hydration work queue are internal work/provenance stores, not request-time joins. Each refresh or hydration worker uses its own private operational lease collection, accessed through its purpose-specific lease-service adapter rather than the query-data `IDbContext`. The adapters share the `BackgroundWorkerLeaseService` Mongo lifecycle implementation and the same lease document shape, but retain their own collection names and lease IDs; this is not a shared cross-worker coordination queue.
+The delivery adds purpose-specific persistence for eligibility rows, snapshot metadata, the organisation-obligation summary, and its hydration work. The eligibility row itself carries the direct inferred-list membership field; snapshot metadata is control data. The Account reference cache and the obligation-hydration work queue are internal work/provenance stores, not request-time joins. Each refresh or hydration worker uses its own private operational lease collection, accessed through its purpose-specific lease-service adapter rather than the query-data `IDbContext`. The adapters share the `BackgroundWorkerLeaseService` Mongo lifecycle implementation and the same lease document shape, but retain their own collection names and lease IDs; this is not a shared cross-worker coordination queue.
 
 ### 1. Organisation eligibility snapshot
 
 This is the refreshable Waste Organisations copy. Its job is to decide whether a row is eligible to submit and to provide the locally available row data.
 
 ```text
-ComplianceEligibilitySnapshot
-  scope                          AllYears | Year
+OrganisationEligibilitySnapshot
+  id                             "active"
   activeGeneration               GUID
   activeContentFingerprint       SHA-256 of the canonical derived eligibility set
-  lastPromotedAt                 UTC timestamp of a changed snapshot becoming active
+  activeRowCount                 int
+  activeGenerationPromotedAt     UTC timestamp of a changed snapshot becoming active
   lastVerifiedAt                 UTC timestamp of the latest successful source read, including no-change polls
-  sourceOrganisationCount        int
-  resolvedReferenceRowCount      int
-  excludedUnresolvedReferenceRowCount int
-  lastReferenceResolutionAt      UTC timestamp? of the latest resolved value materialised
-  status                         Ready | Refreshing | Failed
-  lastFailureAt / lastFailure     optional diagnostics
+  retainedGenerations            bounded rollback/read-safety metadata
 
-ComplianceEligibilityOrganisation
+OrganisationComplianceDeclarationEligibility
   generation                     GUID
   obligationYear                 int
   organisationId                 GUID
-  reviewType                     DirectProducer | ComplianceScheme
+  registrationType               DirectProducer | ComplianceScheme
   name                           string?
   tradingName                    string?
   companiesHouseNumber           string?
@@ -264,47 +260,26 @@ ComplianceEligibilityOrganisation
   referenceNumber                string?          // Account value; preserve leading zeroes
   referenceResolutionState       Resolved | Pending | NotFound | Ambiguous | AwaitingLookupKey | Failed
   sourceFingerprint              string           // Waste Organisations fields only
-  materializedFingerprint        string           // source fields plus reference eligibility value
   refreshedAt                    UTC timestamp
+  isVisibleInUnsubmittedView     bool             // direct membership for the active endpoint query
+  declarationStateUpdatedAt      UTC timestamp    // latest declaration-state evaluation
 ```
 
-The unique key is `{ generation, obligationYear, organisationId, reviewType }`. `generation` makes the active data set immutable during a refresh. `registrationStatus` is the source's single current status for that key; `REGISTERED` is necessary but not sufficient for eligibility. A row is considered by the unsubmitted query only when `registrationStatus = REGISTERED` **and** `referenceResolutionState = Resolved` with a non-empty `referenceNumber`. Other reference states remain stored for retry/diagnostics but are never a candidate. The UI display-name rule for schemes must be explicitly agreed before the endpoint uses `name` versus `tradingName`; the current frontend receives the full organisation DTO and its scheme-name handling should not be copied accidentally.
+The unique key is `{ generation, obligationYear, organisationId, registrationType }`. `generation` makes the active data set stable during a refresh. `isVisibleInUnsubmittedView` is the endpoint's complete membership decision: it is true only for a Registered row with a resolved non-empty reference number and no Submitted or Accepted declaration for the same organisation/year/type. Other reference states remain stored for retry/diagnostics but are never visible. The UI display-name rule for schemes must be explicitly agreed before the endpoint uses `name` versus `tradingName`; the current frontend receives the full organisation DTO and its scheme-name handling should not be copied accidentally.
 
 An empty result must never silently mean “every organisation has submitted” when source rows are being excluded for missing references. Persist the excluded count in snapshot metadata and emit it as an operational metric. The public endpoint deliberately returns only usable list data; a future administration/operational-insight endpoint will expose reference coverage, freshness, and other diagnostic state. The initial bootstrap should normally remain unavailable until its required reference coverage is reached; the policy for later newly-unresolved rows is an explicit open decision.
 
 For this first delivery, sort raw `name` with `organisationId` as the required final tie-breaker. This deliberately follows the current `ComplianceDeclaration` approach: there is no shared search/sort projection, normalised sort key, or new schema migration for historic declarations. Raw Mongo string order is deterministic but is not an explicit case-insensitive or locale-aware alphabetisation contract; revisit that only if user-facing ordering requires it.
 
-For an all-years refresh, `generation` is global to the refresh, rather than one generation per year. This ensures an endpoint for any year sees rows derived from the same upstream response. `ComplianceEligibilitySnapshot` is control metadata for the eligibility data set. The query uses three business projections: eligibility rows, declaration-review state, and the independently refreshed organisation-obligation summary. Reference-resolution records are an auxiliary work/provenance store, not a query-time join.
+For an all-years refresh, `generation` is global to the refresh, rather than one generation per year. This ensures an endpoint for any year sees rows derived from the same upstream response. `OrganisationEligibilitySnapshot` is control metadata for the eligibility data set. The query uses two business projections: eligibility rows, including declaration visibility, and the independently refreshed organisation-obligation summary. Reference-resolution records are an auxiliary work/provenance store, not a query-time join.
 
-### 2. Unsubmitted-excluding declaration presence
+### 2. Unsubmitted visibility
 
-This is a compact projection of the only declaration fact that the inferred state needs. It is independent of eligibility, so it can exist before an organisation first appears in a Waste Organisations snapshot.
+`OrganisationComplianceDeclarationEligibility.isVisibleInUnsubmittedView` replaces the separate declaration-review-state collection. It is the single persisted endpoint membership field, and is set to false for a Submitted or Accepted declaration and true only when the row is Registered, has a resolved non-empty reference number, and has no such declaration for the same organisation/year/type.
 
-```text
-ComplianceDeclarationReviewState
-  organisationId                 GUID
-  obligationYear                 int
-  registrationType               DirectProducer | ComplianceScheme
-  unsubmittedExclusionCount      non-negative integer
-  updatedAt                      UTC timestamp
-```
+The declaration create, status-update, and delete paths recalculate the affected organisation/year/type inside the same Mongo transaction as the declaration mutation and audit-event write. This preserves the required immediate change to the list without a request-time `$lookup` or an additional stored projection. A full eligibility refresh also evaluates all Submitted and Accepted declarations before staging a new generation, so newly promoted rows carry the current visibility result.
 
-The unique key is `{ organisationId, obligationYear, registrationType }`.
-
-`unsubmittedExclusionCount` means the number of declarations that exclude an organisation from the inferred unsubmitted view. Today the set is `{ Submitted, Accepted }`, rather than every declaration. The use of a count rather than a boolean is important because the existing data model can contain more than one declaration for an organisation/year/type. A review row is unsubmitted exactly when this count is zero or no state row exists. Future statuses can join or leave the exclusion set without renaming the persisted field.
-
-This preserves current frontend behaviour:
-
-| Declaration state change | Exclusion count change | Is the organisation unsubmitted when no other qualifying declaration exists? |
-| --- | ---: | --- |
-| Create `Submitted` | `+1` | No |
-| `Submitted` → `Accepted` | `0` | No |
-| `Submitted` → `Cancelled` | `-1` | Yes |
-| `Accepted` → `Cancelled` | `-1` | Yes |
-| Delete `Submitted` or `Accepted` | `-1` | Yes |
-| Create/delete/change `Cancelled` | `0` | Yes |
-
-The create, status-update, and delete paths must update this projection in the **same Mongo transaction** as the declaration mutation and audit-event write. For a status update, calculate the delta from set membership before and after the transition; do not hard-code individual transitions. A count must never become negative: deployment needs a backfill from the existing `ComplianceDeclaration` collection before mutation code starts relying on it, and a periodic reconciliation should rebuild/compare the projection to detect drift.
+The boolean is deliberately an endpoint read-model field, not a declaration status or public diagnostic field. Operational counts, stale visibility diagnostics, and any future reconciliation endpoint belong to the future administration/operational-insight work.
 
 ### 3. Account organisation-reference resolution and materialisation
 
@@ -341,7 +316,7 @@ The unique key is `{ organisationId, reviewType }`, not year or generation: a re
 
 #### How it relates to generations
 
-Materialise `referenceNumber` and `referenceResolutionState` into each staged `ComplianceEligibilityOrganisation` row and include their eligibility-relevant values in `materializedFingerprint` / `activeContentFingerprint`. This is preferable to a query-time join because a reference number is now a hard condition for appearing in the view and a generic-search field.
+Materialise `referenceNumber` and `referenceResolutionState` into each staged `OrganisationComplianceDeclarationEligibility` row and include their eligibility-relevant values in the active-content fingerprint. This is preferable to a query-time join because a reference number is now a hard condition for appearing in the view and a generic-search field.
 
 | Design | Strength | Cost / weakness | Decision under the no-reference rule |
 | --- | --- | --- | --- |
@@ -383,12 +358,10 @@ No change is proposed to `GET /compliance-declarations`: its existing generic `s
 The unsubmitted query reads only the active generation and needs no Account call and no reference-cache join. Reference numbers are already on eligible rows, so both the normal page/CSV and generic search are one local Mongo query. The unsubmitted endpoint uses the same generic `search` parameter and case-insensitive partial-match semantics as the existing declaration endpoint. Its aggregation becomes:
 
 ```text
-1. Match active generation + obligation year + review type + registrationStatus=REGISTERED
-   + referenceResolutionState=Resolved.
+1. Match active generation + obligation year + registration type + isVisibleInUnsubmittedView=true.
 2. Match escaped, case-insensitive contains regex over name OR tradingName OR referenceNumber.
-3. Lookup ComplianceDeclarationReviewState and retain a zero/absent count.
-4. Sort, count, and page.
-5. Local-batch lookup `OrganisationObligationSummary` for page rows; map a missing or incomplete summary to the documented zero/default metric state.
+3. Sort, count, and page.
+4. Local-batch lookup `OrganisationObligationSummary` for page rows; map a missing or incomplete summary to the documented zero/default metric state.
 ```
 
 This is entirely local Mongo work. The same unanchored contains limitation remains, but no per-candidate join is required. During the day-one Account backfill, an organisation with a pending reference is excluded from the view altogether; it cannot be found by name or reference until a later promoted generation contains its resolved reference. Monitoring must expose the excluded unresolved-row count and oldest pending age. There is deliberately no request-time fallback to Account: that would make view membership depend on downstream availability and reintroduce HTTP calls into search.
@@ -397,14 +370,13 @@ Do not enable `OrganisationReferenceNumber` sorting in this phase merely because
 
 Suggested indexes, subject to the repository's Mongo schema/migration process:
 
-- eligibility rows: `{ generation, obligationYear, reviewType, registrationStatus, referenceResolutionState, name, organisationId }` for eligibility filtering and deterministic default ordering;
-- eligibility rows: unique `{ generation, obligationYear, organisationId, reviewType }`;
-- review state: unique `{ organisationId, obligationYear, registrationType }`;
+- eligibility rows: `{ generation, obligationYear, registrationType, isVisibleInUnsubmittedView, name, organisationId }` for direct membership filtering and deterministic default ordering;
+- eligibility rows: unique `{ generation, obligationYear, organisationId, registrationType }`;
 - reference cache: unique `{ organisationId, reviewType }` and due-work `{ resolutionState, nextAttemptAt }`;
 - obligation summary: unique `{ organisationId, obligationYear }`; and
 - obligation hydration work: unique `{ organisationId, obligationYear }` plus due-work `{ nextAttemptAt, priority }`.
 
-No obligation calculation, current-obligation value, Regulation 43, or inferred `unsubmitted` boolean belongs in the eligibility projection. The Account reference is deliberately materialised there; its separate resolution cache remains internal work/provenance data. Organisation-obligation values are stored in the distinct projection below because a PRN's status can change them after the organisation generation has been promoted.
+The inferred `unsubmitted` boolean is the deliberately materialised membership field on the eligibility row. No obligation calculation, current-obligation value, or Regulation 43 belongs there. The Account reference is also deliberately materialised there; its separate resolution cache remains internal work/provenance data. Organisation-obligation values are stored in the distinct projection below because a PRN's status can change them after the organisation generation has been promoted.
 
 ### 4. Organisation-obligation-summary hydration
 
@@ -506,7 +478,7 @@ Assume an initially empty Waste Obligations deployment and `K = 500` distinct ac
 | Organisation snapshot | `GET /organisations` to Waste Organisations, with no query parameters | **1** request | At the first acquired eligibility-refresh lease, after bounded startup jitter. |
 | Reference resolution — Direct Producers | Account external-ID batch endpoint | `ceil(D / B_d)` requests, where `D` is the number of direct-producer keys and `B_d` is the agreed batch size. | Immediately after source transformation, before `g1` is promoted. |
 | Reference resolution — Compliance Schemes | Account Companies-House-number batch endpoint | `ceil(H / B_s)` requests, where `H` is the number of distinct scheme Companies House numbers and `B_s` is its agreed batch size. | In the same initial resolution phase. |
-| Declaration state | Mongo backfill of `ComplianceDeclarationReviewState` | **0** external HTTP requests | Before the endpoint is enabled; an empty declaration collection produces zero state rows. |
+| Declaration state | Local evaluation of existing Submitted/Accepted declarations while the eligibility generation is staged | **0** external HTTP requests | Before the generation is promoted; an empty declaration collection leaves all otherwise eligible rows visible. |
 | Obligation hydration | Direct organisation-obligation calculation call through `IPrnCommonBackendService` | **500** requests: one for each distinct organisation/year key. | Immediately after `g1` is promoted and its work has been enqueued. |
 
 For illustration only, if Account accepts batches of 100 and all 500 are Direct Producers, the Account step is five requests. If 250 are Direct Producers and 250 are schemes with distinct Companies House numbers, it is three requests to each Account endpoint, six in total. The actual Account batch limit is not currently a published contract and must be agreed; it is deliberately configurable. Scheme lookups are deduplicated by Companies House number, so shared numbers reduce the request count.
@@ -548,7 +520,7 @@ A future policy may assign a longer normal refresh interval to lower-impact orga
 
 #### Serving, CSV, and future metric sorting
 
-For the initial name-sorted endpoint, apply the eligibility/declaration anti-join, count/page it, then local-lookup `OrganisationObligationSummary` for the selected page. The CSV streams the same local summaries in bounded Mongo batches. Neither path calls the PRN backend. A page can deliberately mix `Ready`, `Pending`, `Stale`, and `Failed` metric states: each row maps its own local summary or zero/default values, while eligibility remains consistent from one active generation.
+For the initial name-sorted endpoint, directly match visible eligibility rows, count/page them, then local-lookup `OrganisationObligationSummary` for the selected page. The CSV streams the same local summaries in bounded Mongo batches. Neither path calls the PRN backend. A page can deliberately mix `Ready`, `Pending`, `Stale`, and `Failed` metric states: each row maps its own local summary or zero/default values, while eligibility remains consistent from one active generation.
 
 Percentage met and recycling-obligations status are **not** in the first `sort` allow-list. A Mongo `$lookup` to a separate summary before globally sorting can serve a correct result, but it requires considering every unsubmitted candidate and cannot normally use the summary's percentage index to make the joined sort cheap. Enriching only an already paged name sort is never valid for a percentage sort.
 
@@ -747,7 +719,7 @@ Generations are the recommended design for the organisation projection because W
 
 An in-place design can be made safe only by adding pending fields, a refresh/run identifier, delayed removal, and a publish flag. That recreates the essential generation/promotion concept with more complex row-level state and weaker reasoning about mixed reads. The generation design costs temporary duplicate rows and a full bulk write, but that cost is justified because an incomplete eligibility population creates incorrect regulator outcomes.
 
-This decision applies only to the periodically loaded organisation projection. `ComplianceDeclarationReviewState` is different: it is updated in place inside the same Mongo transaction as a live declaration mutation, because its count must take effect immediately and is not sourced from a periodic snapshot.
+This decision applies only to the periodically loaded organisation fields. The direct visibility field is updated in place inside the same Mongo transaction as a live declaration mutation, because membership must take effect immediately and is not sourced from a periodic snapshot.
 
 During a refresh whose fingerprint differs, all new documents are written with `generation: g2` while snapshot metadata still says `activeGeneration: g1`. Query code first reads that metadata and uses the generation value it read throughout the query. Therefore requests during the write continue to read only complete `g1` data. An identical source response writes no `g2` at all.
 
@@ -780,13 +752,13 @@ The cleanup policy should be:
 
 If a serious issue is found in `g2` before `g1` expires, rollback is another atomic metadata update from `activeGeneration: g2` to `activeGeneration: g1`. No organisation documents need to be rewritten. Once `g1` has been cleaned up, rollback requires a new successful source load instead.
 
-The declaration-presence count is different: it is updated transactionally with each declaration mutation and is joined live to whichever organisation generation is active. That means an organisation submission or cancellation takes effect immediately, while organisation registration changes take effect at the next successful snapshot promotion.
+The direct visibility field is updated transactionally with each declaration mutation. That means an organisation submission or cancellation takes effect immediately, while organisation registration changes take effect at the next successful snapshot promotion.
 
 ### If polling is replaced by event consumption
 
-An event-driven source changes the **writer**, not the required result. The public query must still read one organisation/type/year row that contains its current registration data, materialised reference state/value, and source version; it must still anti-join the live `ComplianceDeclarationReviewState` and locally obtain its organisation-obligation summary. The one-row-per-registration design, materialised reference number, distinct volatile obligation summary, and rule that unresolved references are excluded are therefore ratified by an event model.
+An event-driven source changes the **writer**, not the required result. The public query must still read one organisation/type/year row that contains its current registration data, materialised reference state/value, direct unsubmitted visibility, and source version; it must still locally obtain its organisation-obligation summary. The one-row-per-registration design, materialised reference number, distinct volatile obligation summary, and rule that unresolved references are excluded are therefore ratified by an event model.
 
-Do not create a complete `g(n+1)` generation for every event. That would turn a single organisation update or reference assignment into `O(M)` writes. Instead, use an active, individually mutable read model with the same fields as `ComplianceEligibilityOrganisation`, except that it has no `generation` and adds durable event-processing metadata:
+Do not create a complete `g(n+1)` generation for every event. That would turn a single organisation update or reference assignment into `O(M)` writes. Instead, use an active, individually mutable read model with the same fields as `OrganisationComplianceDeclarationEligibility`, except that it has no `generation` and adds durable event-processing metadata:
 
 ```text
 UnsubmittedOrganisationProjection
@@ -806,7 +778,7 @@ The event handling rules are:
 4. A daily obligation-calculation-run-completed event, containing at least the compliance year and durable run ID/watermark, may later be recorded against summaries to prove which calculation run was observed. The initial rolling poll does not depend on it or create a separate daily burst.
 5. A cancellation, deletion, or registration-status event updates only the row concerned; it is immediately excluded when no longer `REGISTERED`.
 6. Each consumer stores an inbox/checkpoint and rejects duplicate event IDs. Per-source monotonic version or sequence checks are required because Account, organisation, and any future PRN events can be delayed, replayed, or arrive out of order.
-7. The existing declaration mutation transaction continues to update `ComplianceDeclarationReviewState` locally. It does not need to wait for any external event stream.
+7. The existing declaration mutation transaction continues to update `isVisibleInUnsubmittedView` locally. It does not need to wait for any external event stream.
 
 The broker's consumer-group/lock/checkpoint semantics should own multi-host concurrency for this path, rather than the periodic Mongo lease. A local lease remains appropriate for the retained reconciliation job, but should not compete with event consumers to apply the same row without a single-writer/version rule.
 
@@ -1009,16 +981,14 @@ The unsubmitted endpoint deliberately follows that existing, limited approach. I
 For an unsubmitted query with a term, apply the work in this order:
 
 ```text
-1. Match active generation + obligation year + review type + registrationStatus=REGISTERED.
-2. Match referenceResolutionState=Resolved with a non-empty referenceNumber.
-3. Match escaped, case-insensitive contains regex over name OR tradingName OR referenceNumber.
-4. Lookup ComplianceDeclarationReviewState and retain a zero/absent count.
-5. Sort, count and page the retained rows.
+1. Match active generation + obligation year + registration type + `isVisibleInUnsubmittedView=true`.
+2. Match escaped, case-insensitive contains regex over name OR tradingName OR referenceNumber.
+3. Sort, count and page the retained rows.
 ```
 
-The generic search filter comes before the declaration-state lookup, so a narrow term reduces downstream state lookups. However, contains regex has to inspect every base candidate `C` permitted by steps 1–2; total-count semantics mean it cannot stop once the visible page is full. Its normal operation is therefore `O(C)` candidate inspection, followed by sorting the matching subset and only then the declaration-state lookups. This is the same fundamental limitation as current declaration search, but `C` for unsubmitted organisations may be substantially larger and needs production-cardinality load tests.
+Contains regex has to inspect every visible base candidate `C`; total-count semantics mean it cannot stop once the visible page is full. Its normal operation is therefore `O(C)` candidate inspection followed by sorting the matching subset. This is the same fundamental limitation as current declaration search, but `C` for unsubmitted organisations may be substantially larger and needs production-cardinality load tests.
 
-The eligibility compound index is `{ generation, obligationYear, reviewType, registrationStatus, referenceResolutionState, name, organisationId }`. It narrows the base candidate set and supports raw-name candidate ordering. It cannot make an unanchored search regex seekable. Do not add a speculative name/trading-name/reference-number index for this contains predicate; it adds write/storage cost without solving the scan. Request validation enforces the 100-character maximum; escape the term as a literal regex, debounce the frontend request, set server-side query timeouts, and measure `C`, scan duration, and result count.
+The eligibility compound index is `{ generation, obligationYear, registrationType, isVisibleInUnsubmittedView, name, organisationId }`. It narrows the base candidate set and supports raw-name candidate ordering. It cannot make an unanchored search regex seekable. Do not add a speculative name/trading-name/reference-number index for this contains predicate; it adds write/storage cost without solving the scan. Request validation enforces the 100-character maximum; escape the term as a literal regex, debounce the frontend request, set server-side query timeouts, and measure `C`, scan duration, and result count.
 
 Any future improvement to generic search is deliberately a separate design decision for the wider system. An ordinary Mongo `$in` query is fast only for exact stored values; it cannot retain arbitrary partial contains behaviour. Prefix/token search, n-gram indexing, or a dedicated search capability each change the data/UX/operational trade-off and should be evaluated only if measurements show this current-style query is inadequate.
 
@@ -1026,23 +996,17 @@ Reference number is a materialised eligibility field in this design, so it can p
 
 ## Mongo query shape
 
-Conceptually the primary query is an anti-join from the active eligibility generation to the compact declaration-presence projection. For the initial name sort, it then joins the local organisation-obligation summary only for the selected page:
+Conceptually the primary query is a direct indexed match on the active eligibility generation's persisted visibility field. For the initial name sort, it then joins the local organisation-obligation summary only for the selected page:
 
 ```text
-active eligibility rows where year + review type + registrationStatus = REGISTERED
-  + referenceResolutionState = Resolved + referenceNumber is non-empty
-  LEFT JOIN ComplianceDeclarationReviewState where
-    organisationId = eligibility.organisationId
-    obligationYear = requested year
-    registrationType = requested review type
-  WHERE unsubmittedExclusionCount is absent or zero
+active eligibility rows where year + registration type + isVisibleInUnsubmittedView = true
   ORDER BY materialised sort fields, organisationId
   COUNT and PAGE in Mongo
   LEFT JOIN OrganisationObligationSummary on organisationId + obligationYear
     for the selected page; map absence to Pending and map stale/failed state to its last successful value or the zero/default metric
 ```
 
-Mongo aggregation can express the primary part with `$match`, `$lookup` with a pipeline and `$limit: 1`, a zero/absent-count filter, then `$facet` for the total and page. A second local batch lookup by `{ organisationId, obligationYear }` is usually simpler than a third aggregation lookup for the page rows. The endpoint must query only the active eligibility generation. The compact state avoids scanning or materialising every Submitted/Accepted declaration on every request; the raw declaration collection remains the source for backfill and reconciliation. Pending/stale/failed summary counts should be exposed as metrics, but must not determine whether a valid page is returned.
+Mongo aggregation expresses the primary part with `$match` and `$facet` for the total and page. A local batch lookup by `{ organisationId, obligationYear }` enriches the page rows. The endpoint queries only the active eligibility generation. The persisted visibility field avoids scanning or joining every Submitted/Accepted declaration on every request; the raw declaration collection remains the source for transactional recalculation and a future operational reconciliation. Pending/stale/failed summary counts should be exposed as metrics, but must not determine whether a valid page is returned.
 
 ## Worked example: load, source change, and unsubmitted query
 
@@ -1094,19 +1058,7 @@ Promotion enqueues the distinct active organisation/year keys for obligation hyd
 
 Immediately after `g1` is promoted, Acme can be returned with `obligationCoveragePercentage: 0` and `recyclingObligationsMet: null`; the obligation worker is independent of eligibility and progressively replaces that default with the calculated summary. Thereafter the organisation-obligation summary changes independently: a PRN status change for Acme is observed at its next scheduled organisation-obligation refresh and updates this one document; it does not create `g2`.
 
-The declaration-presence projection is separate. Suppose Beta already has a submitted declaration:
-
-```json
-{
-  "organisationId": "b2",
-  "obligationYear": 2026,
-  "registrationType": "DirectProducer",
-  "unsubmittedExclusionCount": 1,
-  "updatedAt": "2026-08-25T10:00:00Z"
-}
-```
-
-Acme has no corresponding state document, which is equivalent to a count of zero.
+Suppose Beta already has a submitted declaration. Its eligibility row has `isVisibleInUnsubmittedView: false`; Acme's equivalent row has `isVisibleInUnsubmittedView: true`.
 
 ### Querying Direct Producer unsubmitted rows
 
@@ -1120,18 +1072,16 @@ the endpoint does the following in Mongo:
 
 ```mermaid
 flowchart LR
-    A["Active generation g1"] --> B["Match year 2026, DirectProducer, registrationStatus=REGISTERED"]
-    B --> C["Match referenceResolutionState=Resolved"]
-    C --> D["Lookup declaration-review state by organisation/year/type"]
-    D --> E{"unsubmittedExclusionCount > 0?"}
-    E -- "Yes" --> F["Exclude Beta"]
-    E -- "No / absent" --> G["Include Acme"]
-    G --> H["Sort, count and page"]
+    A["Active generation g1"] --> B["Match year 2026, DirectProducer"]
+    B --> C{"isVisibleInUnsubmittedView?"}
+    C -- "No" --> D["Exclude Beta"]
+    C -- "Yes" --> E["Include Acme"]
+    E --> F["Sort, count and page"]
 ```
 
 The response contains Acme and has `total: 1`. SchemeCo is not considered because the request selected `DirectProducer`.
 
-If Acme then submits a declaration, the declaration transaction inserts the declaration and increments its `ComplianceDeclarationReviewState` count to `1` together. The next query excludes Acme immediately; it does not wait for an organisation refresh. If the declaration is subsequently cancelled and no other Submitted/Accepted declaration exists, the count returns to `0` and Acme appears again.
+If Acme then submits a declaration, the declaration transaction inserts the declaration and sets the matching eligibility rows' `isVisibleInUnsubmittedView` to false together. The next query excludes Acme immediately; it does not wait for an organisation refresh. If the declaration is subsequently cancelled and no other Submitted/Accepted declaration exists, it becomes true and Acme appears again.
 
 ### Picking up an organisation status change
 
@@ -1172,9 +1122,9 @@ The organisation-obligation summary is deliberately outside the organisation sna
 1. Agree this source-of-truth behaviour, the eligibility and organisation-obligation refresh windows, zero/default pending-metric behaviour, scheme display-name rule, and sort-field allow-list.
 2. Implement the typed Waste Organisations search adapter and contract tests for the combined query.
 3. Add the snapshot and reference-resolution collections, indexes, migration documentation, lease, refresh job, immediate Account batch hydration, observability, and failure/staleness handling.
-4. Backfill `ComplianceDeclarationReviewState`, add transactional count updates to declaration create/update/delete, and add a reconciliation job/test suite.
+4. Add the direct eligibility-row visibility evaluation to the staging refresh and transactional recalculation to declaration create/update/delete, with an operational reconciliation as future administration work.
 5. Add the organisation-obligation summary/work collections, lease worker, non-blocking initial backfill, calculator parity tests, stale sweep, pending/stale metrics, and downstream-failure handling.
-6. Implement the internal anti-join/page-summary query with production-like data/explain-plan tests, including pending/no-summary and stale-summary defaults.
+6. Implement the direct-match/page-summary query with production-like data/explain-plan tests, including pending/no-summary and stale-summary defaults.
 7. Add the public review endpoint and update the frontend Not submitted list/count/CSV to use it.
 8. Agree/obtain a PRN status/calculation change event or a safe cursor contract before replacing the periodic stale sweep.
 

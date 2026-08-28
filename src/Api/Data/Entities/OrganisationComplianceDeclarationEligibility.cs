@@ -20,6 +20,11 @@ public record OrganisationComplianceDeclarationEligibility
     public string? CompaniesHouseNumber { get; init; }
     public string? ReferenceNumber { get; init; }
     public OrganisationReferenceNumberResolutionState ReferenceNumberResolutionState { get; init; }
+    public bool IsVisibleInUnsubmittedView { get; init; }
+
+    [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
+    public DateTime DeclarationStateUpdatedAt { get; init; }
+
     public required string SourceFingerprint { get; init; }
 
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]

@@ -6,8 +6,6 @@ namespace Defra.WasteObligations.Api.Data;
 public interface IDbContext
 {
     IMongoCollection<ComplianceDeclaration> ComplianceDeclarations { get; }
-    IMongoCollection<ComplianceDeclarationReviewState> ComplianceDeclarationReviewStates { get; }
-    IMongoCollection<ComplianceDeclarationReviewStateSnapshot> ComplianceDeclarationReviewStateSnapshots { get; }
     IMongoCollection<OrganisationComplianceDeclarationEligibility> OrganisationComplianceDeclarationEligibilities { get; }
     IMongoCollection<OrganisationEligibilitySnapshot> OrganisationEligibilitySnapshots { get; }
     IMongoCollection<OrganisationObligationHydrationWork> OrganisationObligationHydrationWork { get; }

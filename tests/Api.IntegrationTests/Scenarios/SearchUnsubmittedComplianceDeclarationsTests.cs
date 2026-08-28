@@ -31,35 +31,20 @@ public class SearchUnsubmittedComplianceDeclarationsTests : IntegrationTestBase
             },
             cancellationToken: TestContext.Current.CancellationToken
         );
-        await ComplianceDeclarationReviewStateSnapshots.InsertOneAsync(
-            new ComplianceDeclarationReviewStateSnapshot
-            {
-                Id = ComplianceDeclarationReviewStateSnapshot.SnapshotId,
-                BackfillCompletedAt = verifiedAt,
-            },
-            cancellationToken: TestContext.Current.CancellationToken
-        );
         await OrganisationComplianceDeclarationEligibilities.InsertManyAsync(
             [
                 Eligibility(includedOrganisationId, generation, "Alpha Packaging", "100001"),
                 Eligibility(secondIncludedOrganisationId, generation, "Zeta Packaging", "100004"),
-                Eligibility(submittedOrganisationId, generation, "Beta Packaging", "100002"),
+                Eligibility(submittedOrganisationId, generation, "Beta Packaging", "100002") with
+                {
+                    IsVisibleInUnsubmittedView = false,
+                },
                 Eligibility(Guid.NewGuid(), generation, "Cancelled Packaging", "100003") with
                 {
                     RegistrationStatus = OrganisationRegistrationStatus.Cancelled,
+                    IsVisibleInUnsubmittedView = false,
                 },
             ],
-            cancellationToken: TestContext.Current.CancellationToken
-        );
-        await ComplianceDeclarationReviewStates.InsertOneAsync(
-            new ComplianceDeclarationReviewState
-            {
-                OrganisationId = submittedOrganisationId,
-                ObligationYear = 2026,
-                RegistrationType = Defra.WasteObligations.Api.Data.Entities.RegistrationType.DirectProducer,
-                UnsubmittedExclusionCount = 1,
-                UpdatedAt = verifiedAt,
-            },
             cancellationToken: TestContext.Current.CancellationToken
         );
         await OrganisationObligationSummaries.InsertOneAsync(
@@ -150,14 +135,6 @@ public class SearchUnsubmittedComplianceDeclarationsTests : IntegrationTestBase
                 ActiveRowCount = 1,
                 ActiveGenerationPromotedAt = verifiedAt,
                 LastVerifiedAt = verifiedAt,
-            },
-            cancellationToken: TestContext.Current.CancellationToken
-        );
-        await ComplianceDeclarationReviewStateSnapshots.InsertOneAsync(
-            new ComplianceDeclarationReviewStateSnapshot
-            {
-                Id = ComplianceDeclarationReviewStateSnapshot.SnapshotId,
-                BackfillCompletedAt = verifiedAt,
             },
             cancellationToken: TestContext.Current.CancellationToken
         );

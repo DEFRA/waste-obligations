@@ -47,7 +47,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             auditEventService,
             ComplianceDeclarationMetrics,
             TraceIdReader(),
-            new ComplianceDeclarationReviewStateService(dbContext)
+            new UnsubmittedEligibilityVisibilityService(dbContext)
         );
     }
 
@@ -91,44 +91,42 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         auditEvent.After.Should().NotBeNull();
         auditEvent.After!["_id"].Should().Be(initial.Id);
         auditEvent.After["version"].Should().Be(1);
-        var reviewState = await FindReviewState(initial);
-        reviewState.UnsubmittedExclusionCount.Should().Be(1);
         ComplianceDeclarationMetrics.Received(1).Created();
     }
 
     [Fact]
-    public async Task RefreshReviewState_ShouldCountSubmittedAndAcceptedButNotCancelled()
+    public async Task DeclarationMutation_ShouldUpdateMatchingEligibilityRowVisibility()
     {
-        var organisation = OrganisationFixture.DirectProducer().Create();
-        var cancelled = await Subject.Create(
-            ComplianceDeclarationFixture
-                .Default()
-                .With(x => x.Organisation, organisation)
-                .With(x => x.Status, ComplianceDeclarationStatus.Cancelled)
+        var declaration = ComplianceDeclarationFixture
+            .DirectProducer()
+            .With(x => x.Status, ComplianceDeclarationStatus.Cancelled)
+            .Create();
+        await OrganisationComplianceDeclarationEligibilities.InsertOneAsync(
+            OrganisationComplianceDeclarationEligibilityFixture
+                .Default(declaration.Organisation.Id)
+                .With(x => x.ObligationYear, declaration.ObligationYear)
+                .With(x => x.RegistrationType, declaration.Organisation.RegistrationType)
+                .With(x => x.IsVisibleInUnsubmittedView, false)
                 .Create(),
-            TestContext.Current.CancellationToken
+            cancellationToken: TestContext.Current.CancellationToken
         );
-        var accepted = await Subject.Create(
-            ComplianceDeclarationFixture
-                .Default()
-                .With(x => x.Organisation, organisation)
-                .With(x => x.Status, ComplianceDeclarationStatus.Accepted)
-                .Create(),
-            TestContext.Current.CancellationToken
-        );
-        var submitted = await Subject.Create(
-            ComplianceDeclarationFixture
-                .Default()
-                .With(x => x.Organisation, organisation)
-                .With(x => x.Status, ComplianceDeclarationStatus.Submitted)
-                .Create(),
+
+        var created = await Subject.Create(declaration, TestContext.Current.CancellationToken);
+
+        (await FindEligibility(created)).IsVisibleInUnsubmittedView.Should().BeTrue();
+
+        var submitted = await Subject.Update(
+            created,
+            created with
+            {
+                Status = ComplianceDeclarationStatus.Submitted,
+            },
             TestContext.Current.CancellationToken
         );
 
-        var reviewState = await FindReviewState(cancelled);
-        reviewState.UnsubmittedExclusionCount.Should().Be(2);
+        (await FindEligibility(submitted)).IsVisibleInUnsubmittedView.Should().BeFalse();
 
-        await Subject.Update(
+        var cancelled = await Subject.Update(
             submitted,
             submitted with
             {
@@ -137,8 +135,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             TestContext.Current.CancellationToken
         );
 
-        reviewState = await FindReviewState(accepted);
-        reviewState.UnsubmittedExclusionCount.Should().Be(1);
+        (await FindEligibility(cancelled)).IsVisibleInUnsubmittedView.Should().BeTrue();
     }
 
     [Fact]
@@ -194,7 +191,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             new ThrowingAuditEventService(),
             complianceDeclarationMetrics,
             TraceIdReader(),
-            new ComplianceDeclarationReviewStateService(dbContext)
+            new UnsubmittedEligibilityVisibilityService(dbContext)
         );
         var complianceDeclaration = ComplianceDeclarationFixture.Default().Create();
         var act = async () => await subject.Create(complianceDeclaration, TestContext.Current.CancellationToken);
@@ -349,8 +346,6 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         auditEvents[1].TraceId.Should().Be(TraceId);
         auditEvents[1].Before.Should().NotBeNull();
         auditEvents[1].After.Should().BeNull();
-        var reviewState = await FindReviewState(initial);
-        reviewState.UnsubmittedExclusionCount.Should().Be(0);
         ComplianceDeclarationMetrics.Received(1).Deleted();
     }
 
@@ -411,7 +406,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             new ThrowingAuditEventService(),
             complianceDeclarationMetrics,
             TraceIdReader(),
-            new ComplianceDeclarationReviewStateService(dbContext)
+            new UnsubmittedEligibilityVisibilityService(dbContext)
         );
         var initial = await Subject.Create(
             ComplianceDeclarationFixture.DirectProducer().Create(),
@@ -470,10 +465,6 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         auditEvents[1].After.Should().NotBeNull();
         auditEvents[1].After!["version"].Should().Be(2);
         auditEvents[1].After!["obligationYear"].Should().Be(2027);
-        var previousReviewState = await FindReviewState(initial);
-        previousReviewState.UnsubmittedExclusionCount.Should().Be(0);
-        var updatedReviewState = await FindReviewState(retrieved);
-        updatedReviewState.UnsubmittedExclusionCount.Should().Be(1);
         ComplianceDeclarationMetrics.Received(1).Updated(retrieved.Status);
     }
 
@@ -1201,15 +1192,17 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             new AuditEventService(new AuditEventDbContext(database), TimeProvider.System, new FakeEventIdGenerator()),
             Substitute.For<IComplianceDeclarationMetrics>(),
             TraceIdReader(),
-            new ComplianceDeclarationReviewStateService(dbContext)
+            new UnsubmittedEligibilityVisibilityService(dbContext)
         );
     }
 
     private static MongoDbContext CreateDbContext(IMongoDatabase database) =>
         new(database, Options.Create(new MongoDbOptions()), Substitute.For<ILogger<MongoDbContext>>());
 
-    private async Task<ComplianceDeclarationReviewState> FindReviewState(ComplianceDeclaration declaration) =>
-        await ComplianceDeclarationReviewStates
+    private async Task<OrganisationComplianceDeclarationEligibility> FindEligibility(
+        ComplianceDeclaration declaration
+    ) =>
+        await OrganisationComplianceDeclarationEligibilities
             .Find(x =>
                 x.OrganisationId == declaration.Organisation.Id
                 && x.ObligationYear == declaration.ObligationYear

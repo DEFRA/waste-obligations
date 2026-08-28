@@ -31,13 +31,13 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         "Dispatch_analytics_Status_NextAttemptAt_Sequence";
     private const string OrganisationEligibilityQueryIndexName =
         "Generation_ObligationYear_RegistrationType_RegistrationStatus_ReferenceNumberResolutionState_Name_OrganisationId";
+    private const string OrganisationEligibilityVisibilityQueryIndexName =
+        "Generation_ObligationYear_RegistrationType_IsVisibleInUnsubmittedView_Name_OrganisationId";
     private const string OrganisationEligibilityGenerationRowIndexName =
         "Generation_OrganisationId_ObligationYear_RegistrationType";
     private const string OrganisationReferenceCacheOrganisationRegistrationTypeIndexName =
         "OrganisationId_RegistrationType";
     private const string OrganisationReferenceCacheDueWorkIndexName = "ResolutionState_NextAttemptAt";
-    private const string ComplianceDeclarationReviewStateOrganisationYearRegistrationTypeIndexName =
-        "OrganisationId_ObligationYear_RegistrationType";
     private const string OrganisationObligationSummaryOrganisationYearIndexName = "OrganisationId_ObligationYear";
     private const string OrganisationObligationHydrationWorkOrganisationYearIndexName = "OrganisationId_ObligationYear";
     private const string OrganisationObligationHydrationWorkDueWorkIndexName = "NextAttemptAt_Priority";
@@ -57,8 +57,8 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         await new ComplianceDeclarationIndexes().DownAsync(context);
         await new AuditEventIndexesMigration().DownAsync(context);
         await new OrganisationEligibilityIndexes().DownAsync(context);
+        await new OrganisationEligibilityVisibilityIndexes().DownAsync(context);
         await new OrganisationReferenceCacheIndexes().DownAsync(context);
-        await new ComplianceDeclarationReviewStateIndexes().DownAsync(context);
         await new OrganisationObligationSummaryIndexes().DownAsync(context);
         await new OrganisationObligationHydrationWorkIndexes().DownAsync(context);
 
@@ -80,11 +80,6 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         var organisationReferenceCacheIndexes = await (
             await database
                 .GetCollection<OrganisationReferenceCache>(nameof(OrganisationReferenceCache))
-                .Indexes.ListAsync(TestContext.Current.CancellationToken)
-        ).ToListAsync(TestContext.Current.CancellationToken);
-        var complianceDeclarationReviewStateIndexes = await (
-            await database
-                .GetCollection<ComplianceDeclarationReviewState>(nameof(ComplianceDeclarationReviewState))
                 .Indexes.ListAsync(TestContext.Current.CancellationToken)
         ).ToListAsync(TestContext.Current.CancellationToken);
         var organisationObligationSummaryIndexes = await (
@@ -125,7 +120,13 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             );
         organisationEligibilityIndexes
             .Should()
-            .Contain(x => IsIndex(x, OrganisationEligibilityQueryIndexName, OrganisationEligibilityQueryIndexKeys()));
+            .Contain(x =>
+                IsIndex(
+                    x,
+                    OrganisationEligibilityVisibilityQueryIndexName,
+                    OrganisationEligibilityVisibilityQueryIndexKeys()
+                )
+            );
         organisationEligibilityIndexes
             .Should()
             .Contain(x =>
@@ -150,16 +151,6 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             .Should()
             .Contain(x =>
                 IsIndex(x, OrganisationReferenceCacheDueWorkIndexName, OrganisationReferenceCacheDueWorkIndexKeys())
-            );
-        complianceDeclarationReviewStateIndexes
-            .Should()
-            .Contain(x =>
-                IsIndex(
-                    x,
-                    ComplianceDeclarationReviewStateOrganisationYearRegistrationTypeIndexName,
-                    ComplianceDeclarationReviewStateOrganisationYearRegistrationTypeIndexKeys(),
-                    unique: true
-                )
             );
         organisationObligationSummaryIndexes
             .Should()
@@ -322,6 +313,44 @@ public class MongoMigrationServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task OrganisationEligibilityVisibilityIndexes_ShouldReplaceAndRestoreTheQueryIndex()
+    {
+        var database = GetMongoDatabase();
+        var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
+        var collection = database.GetCollection<OrganisationComplianceDeclarationEligibility>(
+            nameof(OrganisationComplianceDeclarationEligibility)
+        );
+        var subject = new OrganisationEligibilityVisibilityIndexes();
+        await new OrganisationEligibilityIndexes().UpAsync(context);
+
+        await subject.UpAsync(context);
+
+        var indexes = await (await collection.Indexes.ListAsync(TestContext.Current.CancellationToken)).ToListAsync(
+            TestContext.Current.CancellationToken
+        );
+        indexes
+            .Should()
+            .Contain(x =>
+                IsIndex(
+                    x,
+                    OrganisationEligibilityVisibilityQueryIndexName,
+                    OrganisationEligibilityVisibilityQueryIndexKeys()
+                )
+            );
+        indexes.Should().NotContain(x => x.GetValue("name") == OrganisationEligibilityQueryIndexName);
+
+        await subject.DownAsync(context);
+
+        indexes = await (await collection.Indexes.ListAsync(TestContext.Current.CancellationToken)).ToListAsync(
+            TestContext.Current.CancellationToken
+        );
+        indexes
+            .Should()
+            .Contain(x => IsIndex(x, OrganisationEligibilityQueryIndexName, OrganisationEligibilityQueryIndexKeys()));
+        indexes.Should().NotContain(x => x.GetValue("name") == OrganisationEligibilityVisibilityQueryIndexName);
+    }
+
+    [Fact]
     public async Task OrganisationReferenceCacheIndexes_ShouldCreateAndDropIndexes()
     {
         var database = GetMongoDatabase();
@@ -361,48 +390,6 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             .Should()
             .NotContain(x => x.GetValue("name") == OrganisationReferenceCacheOrganisationRegistrationTypeIndexName);
         indexes.Should().NotContain(x => x.GetValue("name") == OrganisationReferenceCacheDueWorkIndexName);
-
-        await subject.UpAsync(context);
-    }
-
-    [Fact]
-    public async Task ComplianceDeclarationReviewStateIndexes_ShouldCreateAndDropIndexes()
-    {
-        var database = GetMongoDatabase();
-        var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
-        var subject = new ComplianceDeclarationReviewStateIndexes();
-        var collection = database.GetCollection<ComplianceDeclarationReviewState>(
-            nameof(ComplianceDeclarationReviewState)
-        );
-        await subject.DownAsync(context);
-
-        await subject.UpAsync(context);
-
-        var indexes = await (await collection.Indexes.ListAsync(TestContext.Current.CancellationToken)).ToListAsync(
-            TestContext.Current.CancellationToken
-        );
-        indexes
-            .Should()
-            .Contain(x =>
-                IsIndex(
-                    x,
-                    ComplianceDeclarationReviewStateOrganisationYearRegistrationTypeIndexName,
-                    ComplianceDeclarationReviewStateOrganisationYearRegistrationTypeIndexKeys(),
-                    unique: true
-                )
-            );
-
-        await subject.DownAsync(context);
-        await subject.DownAsync(context);
-        indexes = await (await collection.Indexes.ListAsync(TestContext.Current.CancellationToken)).ToListAsync(
-            TestContext.Current.CancellationToken
-        );
-
-        indexes
-            .Should()
-            .NotContain(x =>
-                x.GetValue("name") == ComplianceDeclarationReviewStateOrganisationYearRegistrationTypeIndexName
-            );
 
         await subject.UpAsync(context);
     }
@@ -1025,6 +1012,17 @@ public class MongoMigrationServiceTests : IntegrationTestBase
                 .Ascending(x => x.OrganisationId)
         );
 
+    private static BsonDocument OrganisationEligibilityVisibilityQueryIndexKeys() =>
+        RenderIndexKeys(
+            Builders<OrganisationComplianceDeclarationEligibility>
+                .IndexKeys.Ascending(x => x.Generation)
+                .Ascending(x => x.ObligationYear)
+                .Ascending(x => x.RegistrationType)
+                .Ascending(x => x.IsVisibleInUnsubmittedView)
+                .Ascending(x => x.Name)
+                .Ascending(x => x.OrganisationId)
+        );
+
     private static BsonDocument OrganisationEligibilityGenerationRowIndexKeys() =>
         RenderIndexKeys(
             Builders<OrganisationComplianceDeclarationEligibility>
@@ -1046,14 +1044,6 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             Builders<OrganisationReferenceCache>
                 .IndexKeys.Ascending(x => x.ResolutionState)
                 .Ascending(x => x.NextAttemptAt)
-        );
-
-    private static BsonDocument ComplianceDeclarationReviewStateOrganisationYearRegistrationTypeIndexKeys() =>
-        RenderIndexKeys(
-            Builders<ComplianceDeclarationReviewState>
-                .IndexKeys.Ascending(x => x.OrganisationId)
-                .Ascending(x => x.ObligationYear)
-                .Ascending(x => x.RegistrationType)
         );
 
     private static BsonDocument OrganisationObligationSummaryOrganisationYearIndexKeys() =>
@@ -1111,18 +1101,6 @@ public class MongoMigrationServiceTests : IntegrationTestBase
                     .DocumentSerializer,
                 GetMongoDatabase()
                     .GetCollection<OrganisationReferenceCache>(nameof(OrganisationReferenceCache))
-                    .Settings.SerializerRegistry
-            )
-        );
-
-    private static BsonDocument RenderIndexKeys(IndexKeysDefinition<ComplianceDeclarationReviewState> keys) =>
-        keys.Render(
-            new RenderArgs<ComplianceDeclarationReviewState>(
-                GetMongoDatabase()
-                    .GetCollection<ComplianceDeclarationReviewState>(nameof(ComplianceDeclarationReviewState))
-                    .DocumentSerializer,
-                GetMongoDatabase()
-                    .GetCollection<ComplianceDeclarationReviewState>(nameof(ComplianceDeclarationReviewState))
                     .Settings.SerializerRegistry
             )
         );

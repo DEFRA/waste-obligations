@@ -2,6 +2,7 @@ using System.Text.Json;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
+using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.AccountBackend;
 using Defra.WasteObligations.Api.Services.OrganisationEligibility;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
@@ -513,7 +514,14 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
             Microsoft.Extensions.Logging.Abstractions.NullLogger<OrganisationReferenceCacheService>.Instance
         );
 
-        return new OrganisationEligibilityRefreshService(dbContext, source, cacheService, options, timeProvider);
+        return new OrganisationEligibilityRefreshService(
+            dbContext,
+            source,
+            cacheService,
+            new UnsubmittedEligibilityVisibilityService(dbContext),
+            options,
+            timeProvider
+        );
     }
 
     private void ArrangeSource(Guid organisationId, string name = "Example organisation") =>

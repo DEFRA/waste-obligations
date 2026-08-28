@@ -46,7 +46,7 @@ public class SearchComplianceDeclarationTests : IntegrationTestBase
                 new HeaderPropagationValues(),
                 Options.Create(new TraceHeader { Name = TraceHeaderName })
             ),
-            new ComplianceDeclarationReviewStateService(dbContext)
+            new UnsubmittedEligibilityVisibilityService(dbContext)
         );
     }
 

@@ -57,7 +57,7 @@ public class ComplianceDeclarationTransactionTimeoutTests : IAsyncLifetime
                 new HeaderPropagationValues(),
                 Options.Create(new TraceHeader { Name = "x-cdp-request-id" })
             ),
-            new ComplianceDeclarationReviewStateService(dbContext)
+            new UnsubmittedEligibilityVisibilityService(dbContext)
         );
         var complianceDeclaration = ComplianceDeclarationFixture.Default().Create();
         var act = async () => await subject.Create(complianceDeclaration, TestContext.Current.CancellationToken);

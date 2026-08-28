@@ -3,8 +3,14 @@ using MongoDB.Driver;
 
 namespace Defra.WasteObligations.Api.Services;
 
-public interface IComplianceDeclarationReviewStateService
+public interface IUnsubmittedEligibilityVisibilityService
 {
+    Task<IReadOnlyList<OrganisationComplianceDeclarationEligibility>> Apply(
+        IReadOnlyList<OrganisationComplianceDeclarationEligibility> rows,
+        DateTime utcNow,
+        CancellationToken cancellationToken
+    );
+
     Task Refresh(
         IClientSessionHandle transactionSession,
         IReadOnlyCollection<ComplianceDeclaration> declarations,

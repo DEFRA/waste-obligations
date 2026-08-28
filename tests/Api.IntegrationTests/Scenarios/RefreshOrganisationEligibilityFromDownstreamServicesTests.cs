@@ -3,6 +3,7 @@ using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Dtos;
+using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.AccountBackend;
 using Defra.WasteObligations.Api.Services.OrganisationEligibility;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
@@ -88,14 +89,6 @@ public class RefreshOrganisationEligibilityFromDownstreamServicesTests : Integra
         caches.Should().HaveCount(2);
         caches.Should().OnlyContain(x => x.Id != ObjectId.Empty);
         caches.Should().OnlyContain(x => x.ResolutionState == OrganisationReferenceNumberResolutionState.Resolved);
-        await ComplianceDeclarationReviewStateSnapshots.InsertOneAsync(
-            new ComplianceDeclarationReviewStateSnapshot
-            {
-                Id = ComplianceDeclarationReviewStateSnapshot.SnapshotId,
-                BackfillCompletedAt = DateTime.UtcNow,
-            },
-            cancellationToken: TestContext.Current.CancellationToken
-        );
         var client = CreateClient();
 
         var response = await client.GetFromJsonAsync<UnsubmittedOrganisationsPaged>(
@@ -163,6 +156,7 @@ public class RefreshOrganisationEligibilityFromDownstreamServicesTests : Integra
             dbContext,
             serviceProvider.GetRequiredService<IOrganisationEligibilitySource>(),
             cacheService,
+            new UnsubmittedEligibilityVisibilityService(dbContext),
             options,
             TimeProvider.System
         );
