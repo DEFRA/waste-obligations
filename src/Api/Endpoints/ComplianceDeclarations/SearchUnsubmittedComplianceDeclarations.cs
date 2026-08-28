@@ -1,5 +1,4 @@
 using Defra.WasteObligations.Api.Authentication;
-using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.Api.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -33,14 +32,6 @@ public static class SearchUnsubmittedComplianceDeclarations
     {
         var registrationType = request.ParsedRegistrationType();
         var sort = request.ParsedSort();
-        if (
-            sort?.Field is UnsubmittedOrganisationSortField.PercentageMet
-            && registrationType is not Data.Entities.RegistrationType.DirectProducer
-        )
-        {
-            return Results.BadRequest("PercentageMet sorting is only supported for direct producers");
-        }
-
         var page = request.EffectivePage;
         var pageSize = request.EffectivePageSize;
         var result = await service.Search(

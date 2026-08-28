@@ -239,8 +239,22 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
     }
 
     [Fact]
-    public async Task WhenPercentageMetSortIsRequestedByComplianceScheme_ShouldBeBadRequest()
+    public async Task WhenPercentageMetSortIsRequestedByComplianceScheme_ShouldPassTheDedicatedSortToTheService()
     {
+        UnsubmittedOrganisationsService
+            .Search(
+                2026,
+                EntityRegistrationType.ComplianceScheme,
+                null,
+                Arg.Is<UnsubmittedOrganisationSort?>(x =>
+                    x!.Field == UnsubmittedOrganisationSortField.PercentageMet
+                    && x.Direction == UnsubmittedOrganisationSortDirection.Ascending
+                ),
+                page: 1,
+                pageSize: 20,
+                cancellationToken: Arg.Any<CancellationToken>()
+            )
+            .Returns(new UnsubmittedOrganisationSearchResult { Rows = [], Total = 0 });
         var client = CreateClient(testUser: TestUser.ReadOnly);
 
         var response = await client.GetAsync(
@@ -253,17 +267,19 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
             TestContext.Current.CancellationToken
         );
 
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        await VerifyJson(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
         await UnsubmittedOrganisationsService
-            .DidNotReceive()
+            .Received(1)
             .Search(
-                Arg.Any<int>(),
-                Arg.Any<EntityRegistrationType>(),
-                Arg.Any<string?>(),
-                Arg.Any<UnsubmittedOrganisationSort?>(),
-                Arg.Any<int>(),
-                Arg.Any<int>(),
+                2026,
+                EntityRegistrationType.ComplianceScheme,
+                null,
+                Arg.Is<UnsubmittedOrganisationSort?>(x =>
+                    x!.Field == UnsubmittedOrganisationSortField.PercentageMet
+                    && x.Direction == UnsubmittedOrganisationSortDirection.Ascending
+                ),
+                1,
+                20,
                 Arg.Any<CancellationToken>()
             );
     }

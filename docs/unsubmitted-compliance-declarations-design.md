@@ -342,14 +342,14 @@ The unsubmitted query reads only the active generation and needs no Account call
 
 This is entirely local Mongo work. The same unanchored contains limitation remains, but no per-candidate join is required. During the day-one Account backfill, an organisation with a pending reference is excluded from the view altogether; it cannot be found by name or reference until a later promoted generation contains its resolved reference. Monitoring must expose the excluded unresolved-row count and oldest pending age. There is deliberately no request-time fallback to Account: that would make view membership depend on downstream availability and reintroduce HTTP calls into search.
 
-The endpoint has its own `UnsubmittedOrganisationSortField` and `UnsubmittedOrganisationSortDirection`; it does not reuse the declaration-search enums. It accepts one `Field[asc|desc]` term. `OrganisationName`, `OrganisationReferenceNumber`, and `RecyclingObligations` are valid for both registration types. `PercentageMet` is valid only for Direct Producers. Regulation 43 and date submitted are declaration fields and are not valid unsubmitted sorts.
+The endpoint has its own `UnsubmittedOrganisationSortField` and `UnsubmittedOrganisationSortDirection`; it does not reuse the declaration-search enums. It accepts one `Field[asc|desc]` term. `OrganisationName`, `OrganisationReferenceNumber`, `RecyclingObligations`, and `PercentageMet` are valid for both registration types. The endpoint contract is not constrained by the current frontend's displayed columns. Regulation 43 and date submitted are declaration fields and are not valid unsubmitted sorts.
 
 Implemented by migration `012_OrganisationEligibilityObligationMetricSorting` (alongside the existing eligibility and summary indexes):
 
 - eligibility rows: `{ generation, obligationYear, registrationType, isVisibleInUnsubmittedView, name, organisationId }` for direct membership filtering and deterministic default ordering;
 - eligibility rows: `{ generation, obligationYear, registrationType, isVisibleInUnsubmittedView, referenceNumber, name, organisationId }` for reference-number ordering;
 - eligibility rows: `{ generation, obligationYear, registrationType, isVisibleInUnsubmittedView, recyclingObligationsMet, name, organisationId }` for recycling-status ordering;
-- eligibility rows: `{ generation, obligationYear, registrationType, isVisibleInUnsubmittedView, obligationCoveragePercentage, name, organisationId }` for Direct Producer percentage ordering;
+- eligibility rows: `{ generation, obligationYear, registrationType, isVisibleInUnsubmittedView, obligationCoveragePercentage, name, organisationId }` for percentage ordering;
 - eligibility rows: unique `{ generation, obligationYear, organisationId, registrationType }`;
 - obligation summary: unique `{ organisationId, obligationYear }` and due-work `{ isHydrationActive, nextRefreshAt, priority }`.
 
@@ -890,7 +890,7 @@ The endpoint accepts only these query parameters in this first design:
 | `search` | Optional generic organisation search, limited to 100 characters. It follows the current declaration search pattern: escaped, case-insensitive contains matching across raw fields available in this projection. An empty or whitespace-only term is treated as no search filter. |
 | `page` | Optional 1-based page number; default `1`. |
 | `pageSize` | Optional; default `20`, range `1`–`100`, matching declaration search. |
-| `sort` | Optional single `Field[asc|desc]` term using the endpoint-specific unsubmitted sort enums. `OrganisationName`, `OrganisationReferenceNumber`, and `RecyclingObligations` are valid for both types; `PercentageMet` is valid only for `DirectProducer`. The default is `OrganisationName[asc]`. |
+| `sort` | Optional single `Field[asc|desc]` term using the endpoint-specific unsubmitted sort enums. `OrganisationName`, `OrganisationReferenceNumber`, `RecyclingObligations`, and `PercentageMet` are valid for both types. The default is `OrganisationName[asc]`. |
 
 It does not accept `status` because status is an internal input to the inference, not a filter users may override.
 
@@ -1067,14 +1067,14 @@ After `g2` is atomically promoted, Acme no longer passes the `registrationStatus
 
 ## Sorting
 
-The present Not submitted table has organisation name, organisation reference number, recycling obligations, and percentage met for Direct Producers. The endpoint supports server-side sorting for each usable displayed value. Compliance-scheme Regulation 43 is intentionally excluded: an unsubmitted organisation has no declaration from which that value can exist.
+The present Not submitted table has organisation name, organisation reference number, recycling obligations, and percentage met for Direct Producers. The endpoint supports server-side sorting for all of its materialised public fields, independently of which subset the current frontend displays. Compliance-scheme Regulation 43 is intentionally excluded: an unsubmitted organisation has no declaration from which that value can exist.
 
 | Field | Sort rule |
 | --- | --- |
 | Organisation name | `OrganisationName[asc|desc]` for both types. |
 | Organisation reference number | `OrganisationReferenceNumber[asc|desc]` for both types. The frontend's current label/key should be corrected from “Organisation ID”. |
 | Recycling obligations | `RecyclingObligations[asc|desc]` for both types. |
-| Percentage met | `PercentageMet[asc|desc]` for Direct Producers only. |
+| Percentage met | `PercentageMet[asc|desc]` for both types. |
 | Regulation 43 / date submitted | Not valid for this derived result. |
 
 The organisation-obligation summary is deliberately separate from the query aggregate because it is the one-per-organisation/year polling record. Its two public metrics are intentionally copied into the eligibility aggregate for direct query performance. An event-driven PRN status/calculation change feed is the best future trigger, while the initial bounded-staleness sweep is the fallback. Calling the organisation-obligation calculation once per row is not acceptable for either the list or the complete CSV.
@@ -1086,7 +1086,7 @@ The organisation-obligation summary is deliberately separate from the query aggr
 3. Delivered the snapshot, materialised reference-resolution fields, indexes, migrations, lease, refresh job, Account batch hydration, observability, and failure/staleness handling.
 4. Delivered the direct eligibility-row visibility evaluation in staging refreshes and transactional recalculation for declaration changes; operational reconciliation remains future administration work.
 5. Delivered the organisation-obligation summary with embedded hydration state, lease worker, non-blocking initial backfill, calculator parity tests, stale sweep, pending/stale metrics, and downstream-failure handling.
-6. Delivered the direct indexed match/count/page query, including copied zero/default and last-known metrics, generic search, and name/reference/recycling/Direct Producer percentage sorting.
+6. Delivered the direct indexed match/count/page query, including copied zero/default and last-known metrics, generic search, and name/reference/recycling/percentage sorting.
 7. Delivered the public review endpoint. Regulator frontend adoption for the Not submitted list/count/CSV remains a separate frontend change.
 8. A PRN status/calculation change event or safe cursor contract remains a future improvement before replacing the periodic stale sweep.
 
@@ -1096,7 +1096,7 @@ The organisation-obligation summary is deliberately separate from the query aggr
 2. Resolved: a snapshot older than the limit continues to serve the last complete active generation and logs an error. This preserves the implemented endpoint behaviour while refresh recovery proceeds.
 3. What is the definitive scheme display-name rule: Waste Organisations `tradingName`, `name`, or an Account-derived operator name?
 4. Should a Cancelled declaration continue to count as not submitted? The current frontend says yes.
-5. Resolved: the eligibility aggregate holds the two public obligation metrics and indexed sorting supports name, reference number, recycling status, and Direct Producer percentage. Regulation 43 is excluded because it requires a declaration.
+5. Resolved: the eligibility aggregate holds the two public obligation metrics and indexed sorting supports name, reference number, recycling status, and percentage for both registration types. Regulation 43 is excluded because it requires a declaration.
 6. Can Account provide and support an explicit maximum batch size and concurrency expectation for both lookup endpoints?
 7. Is there a guaranteed single active `isComplianceScheme=true` Account organisation for a Companies House number? If not, who owns resolving an ambiguous match?
 8. What reference-coverage policy applies: must initial bootstrap reach 100% before the endpoint is available, and should later unresolved new rows cause `503`, a visible exclusion warning, or both?
