@@ -6,16 +6,25 @@ using MigrationVersion = AdaskoTheBeAsT.MongoDbMigrations.Abstractions.Version;
 namespace Defra.WasteObligations.Api.Data.Migrations;
 
 [MigrationCollection(nameof(OrganisationObligationSummary), MigrationDirection.Both)]
-public class OrganisationObligationSummaryHydrationIndexes : MongoMigration
+public class OrganisationObligationSummaryIndexes : MongoMigration
 {
     private const string DueWorkIndexName = "IsHydrationActive_NextRefreshAt_Priority";
+    private const string OrganisationYearIndexName = "OrganisationId_ObligationYear";
 
-    public override MigrationVersion Version => new(1, 0, 10);
+    public override MigrationVersion Version => new(1, 0, 8);
 
-    public override string Name => "011 - Organisation obligation summary hydration indexes";
+    public override string Name => "009 - Organisation obligation summary indexes";
 
     public override async Task UpAsync(MigrationContext context)
     {
+        await CreateIndex(
+            context,
+            OrganisationYearIndexName,
+            Builders<OrganisationObligationSummary>
+                .IndexKeys.Ascending(x => x.OrganisationId)
+                .Ascending(x => x.ObligationYear),
+            unique: true
+        );
         await CreateIndex(
             context,
             DueWorkIndexName,
@@ -26,6 +35,9 @@ public class OrganisationObligationSummaryHydrationIndexes : MongoMigration
         );
     }
 
-    public override async Task DownAsync(MigrationContext context) =>
+    public override async Task DownAsync(MigrationContext context)
+    {
+        await DropIndex<OrganisationObligationSummary>(context, OrganisationYearIndexName);
         await DropIndex<OrganisationObligationSummary>(context, DueWorkIndexName);
+    }
 }

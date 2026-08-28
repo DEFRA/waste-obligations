@@ -8,9 +8,14 @@ namespace Defra.WasteObligations.Api.Data.Migrations;
 [MigrationCollection(nameof(OrganisationComplianceDeclarationEligibility), MigrationDirection.Both)]
 public class OrganisationEligibilityIndexes : MongoMigration
 {
-    private const string QueryIndexName =
-        "Generation_ObligationYear_RegistrationType_RegistrationStatus_ReferenceNumberResolutionState_Name_OrganisationId";
     private const string GenerationRowIndexName = "Generation_OrganisationId_ObligationYear_RegistrationType";
+    private const string NameIndexName = "Generation_IsVisibleInUnsubmittedView_Name_OrganisationId";
+    private const string PercentageMetIndexName =
+        "Generation_IsVisibleInUnsubmittedView_ObligationCoveragePercentage_Name_OrganisationId";
+    private const string RecyclingObligationsIndexName =
+        "Generation_IsVisibleInUnsubmittedView_RecyclingObligationsMet_Name_OrganisationId";
+    private const string ReferenceNumberIndexName =
+        "Generation_IsVisibleInUnsubmittedView_ReferenceNumber_Name_OrganisationId";
 
     public override MigrationVersion Version => new(1, 0, 7);
 
@@ -18,18 +23,6 @@ public class OrganisationEligibilityIndexes : MongoMigration
 
     public override async Task UpAsync(MigrationContext context)
     {
-        await CreateIndex(
-            context,
-            QueryIndexName,
-            Builders<OrganisationComplianceDeclarationEligibility>
-                .IndexKeys.Ascending(x => x.Generation)
-                .Ascending(x => x.ObligationYear)
-                .Ascending(x => x.RegistrationType)
-                .Ascending(x => x.RegistrationStatus)
-                .Ascending(x => x.ReferenceNumberResolutionState)
-                .Ascending(x => x.Name)
-                .Ascending(x => x.OrganisationId)
-        );
         await CreateIndex(
             context,
             GenerationRowIndexName,
@@ -40,11 +33,53 @@ public class OrganisationEligibilityIndexes : MongoMigration
                 .Ascending(x => x.RegistrationType),
             unique: true
         );
+        await CreateIndex(
+            context,
+            NameIndexName,
+            Builders<OrganisationComplianceDeclarationEligibility>
+                .IndexKeys.Ascending(x => x.Generation)
+                .Ascending(x => x.IsVisibleInUnsubmittedView)
+                .Ascending(x => x.Name)
+                .Ascending(x => x.OrganisationId)
+        );
+        await CreateIndex(
+            context,
+            ReferenceNumberIndexName,
+            Builders<OrganisationComplianceDeclarationEligibility>
+                .IndexKeys.Ascending(x => x.Generation)
+                .Ascending(x => x.IsVisibleInUnsubmittedView)
+                .Ascending(x => x.ReferenceNumber)
+                .Ascending(x => x.Name)
+                .Ascending(x => x.OrganisationId)
+        );
+        await CreateIndex(
+            context,
+            RecyclingObligationsIndexName,
+            Builders<OrganisationComplianceDeclarationEligibility>
+                .IndexKeys.Ascending(x => x.Generation)
+                .Ascending(x => x.IsVisibleInUnsubmittedView)
+                .Ascending(x => x.RecyclingObligationsMet)
+                .Ascending(x => x.Name)
+                .Ascending(x => x.OrganisationId)
+        );
+        await CreateIndex(
+            context,
+            PercentageMetIndexName,
+            Builders<OrganisationComplianceDeclarationEligibility>
+                .IndexKeys.Ascending(x => x.Generation)
+                .Ascending(x => x.IsVisibleInUnsubmittedView)
+                .Ascending(x => x.ObligationCoveragePercentage)
+                .Ascending(x => x.Name)
+                .Ascending(x => x.OrganisationId)
+        );
     }
 
     public override async Task DownAsync(MigrationContext context)
     {
-        await DropIndex<OrganisationComplianceDeclarationEligibility>(context, QueryIndexName);
         await DropIndex<OrganisationComplianceDeclarationEligibility>(context, GenerationRowIndexName);
+        await DropIndex<OrganisationComplianceDeclarationEligibility>(context, NameIndexName);
+        await DropIndex<OrganisationComplianceDeclarationEligibility>(context, ReferenceNumberIndexName);
+        await DropIndex<OrganisationComplianceDeclarationEligibility>(context, RecyclingObligationsIndexName);
+        await DropIndex<OrganisationComplianceDeclarationEligibility>(context, PercentageMetIndexName);
     }
 }

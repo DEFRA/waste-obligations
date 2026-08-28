@@ -29,25 +29,15 @@ public class MongoMigrationServiceTests : IntegrationTestBase
     private const string DispatchAnalyticsIndexName = "Dispatch_analytics";
     private const string DispatchAnalyticsStatusNextAttemptAtSequenceIndexName =
         "Dispatch_analytics_Status_NextAttemptAt_Sequence";
-    private const string OrganisationEligibilityQueryIndexName =
-        "Generation_ObligationYear_RegistrationType_RegistrationStatus_ReferenceNumberResolutionState_Name_OrganisationId";
-    private const string OrganisationEligibilityVisibilityQueryIndexName =
-        "Generation_ObligationYear_RegistrationType_IsVisibleInUnsubmittedView_Name_OrganisationId";
-    private const string OrganisationEligibilityOptionalScopeNameIndexName =
+    private const string OrganisationEligibilityNameIndexName =
         "Generation_IsVisibleInUnsubmittedView_Name_OrganisationId";
     private const string OrganisationEligibilityGenerationRowIndexName =
         "Generation_OrganisationId_ObligationYear_RegistrationType";
     private const string OrganisationEligibilityPercentageMetIndexName =
-        "Generation_ObligationYear_RegistrationType_IsVisibleInUnsubmittedView_ObligationCoveragePercentage_Name_OrganisationId";
-    private const string OrganisationEligibilityRecyclingObligationsIndexName =
-        "Generation_ObligationYear_RegistrationType_IsVisibleInUnsubmittedView_RecyclingObligationsMet_Name_OrganisationId";
-    private const string OrganisationEligibilityReferenceNumberIndexName =
-        "Generation_ObligationYear_RegistrationType_IsVisibleInUnsubmittedView_ReferenceNumber_Name_OrganisationId";
-    private const string OrganisationEligibilityOptionalScopePercentageMetIndexName =
         "Generation_IsVisibleInUnsubmittedView_ObligationCoveragePercentage_Name_OrganisationId";
-    private const string OrganisationEligibilityOptionalScopeRecyclingObligationsIndexName =
+    private const string OrganisationEligibilityRecyclingObligationsIndexName =
         "Generation_IsVisibleInUnsubmittedView_RecyclingObligationsMet_Name_OrganisationId";
-    private const string OrganisationEligibilityOptionalScopeReferenceNumberIndexName =
+    private const string OrganisationEligibilityReferenceNumberIndexName =
         "Generation_IsVisibleInUnsubmittedView_ReferenceNumber_Name_OrganisationId";
     private const string OrganisationObligationSummaryOrganisationYearIndexName = "OrganisationId_ObligationYear";
     private const string OrganisationObligationSummaryHydrationDueWorkIndexName =
@@ -68,11 +58,7 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         await new ComplianceDeclarationIndexes().DownAsync(context);
         await new AuditEventIndexesMigration().DownAsync(context);
         await new OrganisationEligibilityIndexes().DownAsync(context);
-        await new OrganisationEligibilityVisibilityIndexes().DownAsync(context);
-        await new OrganisationEligibilityOptionalScopeIndexes().DownAsync(context);
-        await new OrganisationEligibilityObligationMetricSorting().DownAsync(context);
         await new OrganisationObligationSummaryIndexes().DownAsync(context);
-        await new OrganisationObligationSummaryHydrationIndexes().DownAsync(context);
 
         await subject.StartAsync(TestContext.Current.CancellationToken);
 
@@ -124,13 +110,7 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             );
         organisationEligibilityIndexes
             .Should()
-            .Contain(x =>
-                IsIndex(
-                    x,
-                    OrganisationEligibilityOptionalScopeNameIndexName,
-                    OrganisationEligibilityOptionalScopeNameIndexKeys()
-                )
-            );
+            .Contain(x => IsIndex(x, OrganisationEligibilityNameIndexName, OrganisationEligibilityNameIndexKeys()));
         organisationEligibilityIndexes
             .Should()
             .Contain(x =>
@@ -146,8 +126,8 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             .Contain(x =>
                 IsIndex(
                     x,
-                    OrganisationEligibilityOptionalScopeReferenceNumberIndexName,
-                    OrganisationEligibilityOptionalScopeReferenceNumberIndexKeys()
+                    OrganisationEligibilityReferenceNumberIndexName,
+                    OrganisationEligibilityReferenceNumberIndexKeys()
                 )
             );
         organisationEligibilityIndexes
@@ -155,8 +135,8 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             .Contain(x =>
                 IsIndex(
                     x,
-                    OrganisationEligibilityOptionalScopeRecyclingObligationsIndexName,
-                    OrganisationEligibilityOptionalScopeRecyclingObligationsIndexKeys()
+                    OrganisationEligibilityRecyclingObligationsIndexName,
+                    OrganisationEligibilityRecyclingObligationsIndexKeys()
                 )
             );
         organisationEligibilityIndexes
@@ -164,8 +144,8 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             .Contain(x =>
                 IsIndex(
                     x,
-                    OrganisationEligibilityOptionalScopePercentageMetIndexName,
-                    OrganisationEligibilityOptionalScopePercentageMetIndexKeys()
+                    OrganisationEligibilityPercentageMetIndexName,
+                    OrganisationEligibilityPercentageMetIndexKeys()
                 )
             );
         organisationObligationSummaryIndexes
@@ -294,7 +274,7 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         );
         indexes
             .Should()
-            .Contain(x => IsIndex(x, OrganisationEligibilityQueryIndexName, OrganisationEligibilityQueryIndexKeys()));
+            .Contain(x => IsIndex(x, OrganisationEligibilityNameIndexName, OrganisationEligibilityNameIndexKeys()));
         indexes
             .Should()
             .Contain(x =>
@@ -303,185 +283,6 @@ public class MongoMigrationServiceTests : IntegrationTestBase
                     OrganisationEligibilityGenerationRowIndexName,
                     OrganisationEligibilityGenerationRowIndexKeys(),
                     unique: true
-                )
-            );
-
-        await subject.DownAsync(context);
-        await subject.DownAsync(context);
-        indexes = await (await collection.Indexes.ListAsync(TestContext.Current.CancellationToken)).ToListAsync(
-            TestContext.Current.CancellationToken
-        );
-
-        indexes.Should().NotContain(x => x.GetValue("name") == OrganisationEligibilityQueryIndexName);
-        indexes.Should().NotContain(x => x.GetValue("name") == OrganisationEligibilityGenerationRowIndexName);
-
-        await subject.UpAsync(context);
-    }
-
-    [Fact]
-    public async Task OrganisationEligibilityVisibilityIndexes_ShouldReplaceAndRestoreTheQueryIndex()
-    {
-        var database = GetMongoDatabase();
-        var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
-        var collection = database.GetCollection<OrganisationComplianceDeclarationEligibility>(
-            nameof(OrganisationComplianceDeclarationEligibility)
-        );
-        var subject = new OrganisationEligibilityVisibilityIndexes();
-        await new OrganisationEligibilityIndexes().UpAsync(context);
-
-        await subject.UpAsync(context);
-
-        var indexes = await (await collection.Indexes.ListAsync(TestContext.Current.CancellationToken)).ToListAsync(
-            TestContext.Current.CancellationToken
-        );
-        indexes
-            .Should()
-            .Contain(x =>
-                IsIndex(
-                    x,
-                    OrganisationEligibilityVisibilityQueryIndexName,
-                    OrganisationEligibilityVisibilityQueryIndexKeys()
-                )
-            );
-        indexes.Should().NotContain(x => x.GetValue("name") == OrganisationEligibilityQueryIndexName);
-
-        await subject.DownAsync(context);
-
-        indexes = await (await collection.Indexes.ListAsync(TestContext.Current.CancellationToken)).ToListAsync(
-            TestContext.Current.CancellationToken
-        );
-        indexes
-            .Should()
-            .Contain(x => IsIndex(x, OrganisationEligibilityQueryIndexName, OrganisationEligibilityQueryIndexKeys()));
-        indexes.Should().NotContain(x => x.GetValue("name") == OrganisationEligibilityVisibilityQueryIndexName);
-    }
-
-    [Fact]
-    public async Task OrganisationEligibilityObligationMetricSorting_ShouldBackfillMetricsAndCreateIndexes()
-    {
-        const string recyclingObligationsMetField = "recyclingObligationsMet";
-        const string obligationCoveragePercentageField = "obligationCoveragePercentage";
-        var organisationId = Guid.NewGuid();
-        var database = GetMongoDatabase();
-        var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
-        var eligibility = database.GetCollection<BsonDocument>(nameof(OrganisationComplianceDeclarationEligibility));
-        var summaries = database.GetCollection<BsonDocument>(nameof(OrganisationObligationSummary));
-        var subject = new OrganisationEligibilityObligationMetricSorting();
-        var rowId = ObjectId.GenerateNewId();
-        await eligibility.InsertOneAsync(
-            new BsonDocument
-            {
-                ["_id"] = rowId,
-                ["organisationId"] = new BsonBinaryData(organisationId, GuidRepresentation.Standard),
-                ["obligationYear"] = 2026,
-            },
-            cancellationToken: TestContext.Current.CancellationToken
-        );
-        await summaries.InsertOneAsync(
-            new BsonDocument
-            {
-                ["organisationId"] = new BsonBinaryData(organisationId, GuidRepresentation.Standard),
-                ["obligationYear"] = 2026,
-                [recyclingObligationsMetField] = true,
-                [obligationCoveragePercentageField] = new BsonDecimal128(80),
-            },
-            cancellationToken: TestContext.Current.CancellationToken
-        );
-
-        await subject.UpAsync(context);
-
-        var row = await eligibility
-            .Find(Builders<BsonDocument>.Filter.Eq("_id", rowId))
-            .SingleAsync(TestContext.Current.CancellationToken);
-        row[recyclingObligationsMetField].AsBoolean.Should().BeTrue();
-        row[obligationCoveragePercentageField].ToDecimal().Should().Be(80);
-        var indexes = await (await eligibility.Indexes.ListAsync(TestContext.Current.CancellationToken)).ToListAsync(
-            TestContext.Current.CancellationToken
-        );
-        indexes.Should().Contain(x => x["name"] == OrganisationEligibilityReferenceNumberIndexName);
-        indexes.Should().Contain(x => x["name"] == OrganisationEligibilityRecyclingObligationsIndexName);
-        indexes.Should().Contain(x => x["name"] == OrganisationEligibilityPercentageMetIndexName);
-
-        await subject.DownAsync(context);
-
-        row = await eligibility
-            .Find(Builders<BsonDocument>.Filter.Eq("_id", rowId))
-            .SingleAsync(TestContext.Current.CancellationToken);
-        row.Contains(recyclingObligationsMetField).Should().BeFalse();
-        row.Contains(obligationCoveragePercentageField).Should().BeFalse();
-
-        await subject.UpAsync(context);
-    }
-
-    [Fact]
-    public async Task OrganisationEligibilityOptionalScopeIndexes_ShouldReplaceAndRestoreSortIndexes()
-    {
-        var database = GetMongoDatabase();
-        var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
-        var collection = database.GetCollection<OrganisationComplianceDeclarationEligibility>(
-            nameof(OrganisationComplianceDeclarationEligibility)
-        );
-        var subject = new OrganisationEligibilityOptionalScopeIndexes();
-
-        await subject.DownAsync(context);
-        await subject.UpAsync(context);
-
-        var indexes = await (await collection.Indexes.ListAsync(TestContext.Current.CancellationToken)).ToListAsync(
-            TestContext.Current.CancellationToken
-        );
-        indexes
-            .Should()
-            .Contain(x =>
-                IsIndex(
-                    x,
-                    OrganisationEligibilityOptionalScopeNameIndexName,
-                    OrganisationEligibilityOptionalScopeNameIndexKeys()
-                )
-            );
-        indexes
-            .Should()
-            .Contain(x =>
-                IsIndex(
-                    x,
-                    OrganisationEligibilityOptionalScopeReferenceNumberIndexName,
-                    OrganisationEligibilityOptionalScopeReferenceNumberIndexKeys()
-                )
-            );
-        indexes
-            .Should()
-            .Contain(x =>
-                IsIndex(
-                    x,
-                    OrganisationEligibilityOptionalScopeRecyclingObligationsIndexName,
-                    OrganisationEligibilityOptionalScopeRecyclingObligationsIndexKeys()
-                )
-            );
-        indexes
-            .Should()
-            .Contain(x =>
-                IsIndex(
-                    x,
-                    OrganisationEligibilityOptionalScopePercentageMetIndexName,
-                    OrganisationEligibilityOptionalScopePercentageMetIndexKeys()
-                )
-            );
-        indexes.Should().NotContain(x => x.GetValue("name") == OrganisationEligibilityVisibilityQueryIndexName);
-        indexes.Should().NotContain(x => x.GetValue("name") == OrganisationEligibilityReferenceNumberIndexName);
-        indexes.Should().NotContain(x => x.GetValue("name") == OrganisationEligibilityRecyclingObligationsIndexName);
-        indexes.Should().NotContain(x => x.GetValue("name") == OrganisationEligibilityPercentageMetIndexName);
-
-        await subject.DownAsync(context);
-
-        indexes = await (await collection.Indexes.ListAsync(TestContext.Current.CancellationToken)).ToListAsync(
-            TestContext.Current.CancellationToken
-        );
-        indexes
-            .Should()
-            .Contain(x =>
-                IsIndex(
-                    x,
-                    OrganisationEligibilityVisibilityQueryIndexName,
-                    OrganisationEligibilityVisibilityQueryIndexKeys()
                 )
             );
         indexes
@@ -512,6 +313,18 @@ public class MongoMigrationServiceTests : IntegrationTestBase
                 )
             );
 
+        await subject.DownAsync(context);
+        await subject.DownAsync(context);
+        indexes = await (await collection.Indexes.ListAsync(TestContext.Current.CancellationToken)).ToListAsync(
+            TestContext.Current.CancellationToken
+        );
+
+        indexes.Should().NotContain(x => x.GetValue("name") == OrganisationEligibilityNameIndexName);
+        indexes.Should().NotContain(x => x.GetValue("name") == OrganisationEligibilityGenerationRowIndexName);
+        indexes.Should().NotContain(x => x.GetValue("name") == OrganisationEligibilityReferenceNumberIndexName);
+        indexes.Should().NotContain(x => x.GetValue("name") == OrganisationEligibilityRecyclingObligationsIndexName);
+        indexes.Should().NotContain(x => x.GetValue("name") == OrganisationEligibilityPercentageMetIndexName);
+
         await subject.UpAsync(context);
     }
 
@@ -538,31 +351,6 @@ public class MongoMigrationServiceTests : IntegrationTestBase
                     unique: true
                 )
             );
-
-        await subject.DownAsync(context);
-        await subject.DownAsync(context);
-        indexes = await (
-            await OrganisationObligationSummaries.Indexes.ListAsync(TestContext.Current.CancellationToken)
-        ).ToListAsync(TestContext.Current.CancellationToken);
-
-        indexes.Should().NotContain(x => x.GetValue("name") == OrganisationObligationSummaryOrganisationYearIndexName);
-
-        await subject.UpAsync(context);
-    }
-
-    [Fact]
-    public async Task OrganisationObligationSummaryHydrationIndexes_ShouldCreateAndDropIndexes()
-    {
-        var database = GetMongoDatabase();
-        var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
-        var subject = new OrganisationObligationSummaryHydrationIndexes();
-        await subject.DownAsync(context);
-
-        await subject.UpAsync(context);
-
-        var indexes = await (
-            await OrganisationObligationSummaries.Indexes.ListAsync(TestContext.Current.CancellationToken)
-        ).ToListAsync(TestContext.Current.CancellationToken);
         indexes
             .Should()
             .Contain(x =>
@@ -579,6 +367,7 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             await OrganisationObligationSummaries.Indexes.ListAsync(TestContext.Current.CancellationToken)
         ).ToListAsync(TestContext.Current.CancellationToken);
 
+        indexes.Should().NotContain(x => x.GetValue("name") == OrganisationObligationSummaryOrganisationYearIndexName);
         indexes.Should().NotContain(x => x.GetValue("name") == OrganisationObligationSummaryHydrationDueWorkIndexName);
 
         await subject.UpAsync(context);
@@ -1108,30 +897,7 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             Builders<ComplianceDeclaration>.IndexKeys.Ascending(x => x.Organisation.Id).Ascending(x => x.ObligationYear)
         );
 
-    private static BsonDocument OrganisationEligibilityQueryIndexKeys() =>
-        RenderIndexKeys(
-            Builders<OrganisationComplianceDeclarationEligibility>
-                .IndexKeys.Ascending(x => x.Generation)
-                .Ascending(x => x.ObligationYear)
-                .Ascending(x => x.RegistrationType)
-                .Ascending(x => x.RegistrationStatus)
-                .Ascending(x => x.ReferenceNumberResolutionState)
-                .Ascending(x => x.Name)
-                .Ascending(x => x.OrganisationId)
-        );
-
-    private static BsonDocument OrganisationEligibilityVisibilityQueryIndexKeys() =>
-        RenderIndexKeys(
-            Builders<OrganisationComplianceDeclarationEligibility>
-                .IndexKeys.Ascending(x => x.Generation)
-                .Ascending(x => x.ObligationYear)
-                .Ascending(x => x.RegistrationType)
-                .Ascending(x => x.IsVisibleInUnsubmittedView)
-                .Ascending(x => x.Name)
-                .Ascending(x => x.OrganisationId)
-        );
-
-    private static BsonDocument OrganisationEligibilityOptionalScopeNameIndexKeys() =>
+    private static BsonDocument OrganisationEligibilityNameIndexKeys() =>
         RenderIndexKeys(
             Builders<OrganisationComplianceDeclarationEligibility>
                 .IndexKeys.Ascending(x => x.Generation)
@@ -1153,18 +919,6 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         RenderIndexKeys(
             Builders<OrganisationComplianceDeclarationEligibility>
                 .IndexKeys.Ascending(x => x.Generation)
-                .Ascending(x => x.ObligationYear)
-                .Ascending(x => x.RegistrationType)
-                .Ascending(x => x.IsVisibleInUnsubmittedView)
-                .Ascending(x => x.ReferenceNumber)
-                .Ascending(x => x.Name)
-                .Ascending(x => x.OrganisationId)
-        );
-
-    private static BsonDocument OrganisationEligibilityOptionalScopeReferenceNumberIndexKeys() =>
-        RenderIndexKeys(
-            Builders<OrganisationComplianceDeclarationEligibility>
-                .IndexKeys.Ascending(x => x.Generation)
                 .Ascending(x => x.IsVisibleInUnsubmittedView)
                 .Ascending(x => x.ReferenceNumber)
                 .Ascending(x => x.Name)
@@ -1175,18 +929,6 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         RenderIndexKeys(
             Builders<OrganisationComplianceDeclarationEligibility>
                 .IndexKeys.Ascending(x => x.Generation)
-                .Ascending(x => x.ObligationYear)
-                .Ascending(x => x.RegistrationType)
-                .Ascending(x => x.IsVisibleInUnsubmittedView)
-                .Ascending(x => x.RecyclingObligationsMet)
-                .Ascending(x => x.Name)
-                .Ascending(x => x.OrganisationId)
-        );
-
-    private static BsonDocument OrganisationEligibilityOptionalScopeRecyclingObligationsIndexKeys() =>
-        RenderIndexKeys(
-            Builders<OrganisationComplianceDeclarationEligibility>
-                .IndexKeys.Ascending(x => x.Generation)
                 .Ascending(x => x.IsVisibleInUnsubmittedView)
                 .Ascending(x => x.RecyclingObligationsMet)
                 .Ascending(x => x.Name)
@@ -1194,18 +936,6 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         );
 
     private static BsonDocument OrganisationEligibilityPercentageMetIndexKeys() =>
-        RenderIndexKeys(
-            Builders<OrganisationComplianceDeclarationEligibility>
-                .IndexKeys.Ascending(x => x.Generation)
-                .Ascending(x => x.ObligationYear)
-                .Ascending(x => x.RegistrationType)
-                .Ascending(x => x.IsVisibleInUnsubmittedView)
-                .Ascending(x => x.ObligationCoveragePercentage)
-                .Ascending(x => x.Name)
-                .Ascending(x => x.OrganisationId)
-        );
-
-    private static BsonDocument OrganisationEligibilityOptionalScopePercentageMetIndexKeys() =>
         RenderIndexKeys(
             Builders<OrganisationComplianceDeclarationEligibility>
                 .IndexKeys.Ascending(x => x.Generation)
