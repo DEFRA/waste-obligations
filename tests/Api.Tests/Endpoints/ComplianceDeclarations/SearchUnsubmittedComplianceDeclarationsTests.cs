@@ -31,9 +31,9 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
                 2026,
                 EntityRegistrationType.DirectProducer,
                 "alpha",
-                Arg.Is<IReadOnlyCollection<ComplianceDeclarationSort>>(x =>
-                    x.Single().Field == ComplianceDeclarationSortField.OrganisationName
-                    && x.Single().Direction == ComplianceDeclarationSortDirection.Descending
+                Arg.Is<UnsubmittedOrganisationSort?>(x =>
+                    x!.Field == UnsubmittedOrganisationSortField.OrganisationName
+                    && x.Direction == UnsubmittedOrganisationSortDirection.Descending
                 ),
                 page: 2,
                 pageSize: 5,
@@ -86,7 +86,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
                 2026,
                 EntityRegistrationType.ComplianceScheme,
                 null,
-                Arg.Is<IReadOnlyCollection<ComplianceDeclarationSort>>(x => x.Count == 0),
+                Arg.Is<UnsubmittedOrganisationSort?>(x => x == null),
                 page: 1,
                 pageSize: 20,
                 cancellationToken: Arg.Any<CancellationToken>()
@@ -121,6 +121,38 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         await VerifyJson(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task WhenPercentageMetSortIsValidForDirectProducer_ShouldPassTheDedicatedSortToTheService()
+    {
+        UnsubmittedOrganisationsService
+            .Search(
+                2026,
+                EntityRegistrationType.DirectProducer,
+                null,
+                Arg.Is<UnsubmittedOrganisationSort?>(x =>
+                    x!.Field == UnsubmittedOrganisationSortField.PercentageMet
+                    && x.Direction == UnsubmittedOrganisationSortDirection.Ascending
+                ),
+                page: 1,
+                pageSize: 20,
+                cancellationToken: Arg.Any<CancellationToken>()
+            )
+            .Returns(new UnsubmittedOrganisationSearchResult { Rows = [], Total = 0 });
+        var client = CreateClient(testUser: TestUser.ReadOnly);
+
+        var response = await client.GetAsync(
+            Testing.Endpoints.ComplianceDeclarations.Unsubmitted(
+                EndpointQuery
+                    .New.Where(EndpointFilter.ObligationYear(2026))
+                    .Where(EndpointFilter.RegistrationType("DirectProducer"))
+                    .Where(EndpointFilter.Sort("PercentageMet[asc]"))
+            ),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Fact]
@@ -207,7 +239,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
     }
 
     [Fact]
-    public async Task WhenSortIsUnsupported_ShouldBeBadRequest()
+    public async Task WhenPercentageMetSortIsRequestedByComplianceScheme_ShouldBeBadRequest()
     {
         var client = CreateClient(testUser: TestUser.ReadOnly);
 
@@ -215,7 +247,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
             Testing.Endpoints.ComplianceDeclarations.Unsubmitted(
                 EndpointQuery
                     .New.Where(EndpointFilter.ObligationYear(2026))
-                    .Where(EndpointFilter.RegistrationType("DirectProducer"))
+                    .Where(EndpointFilter.RegistrationType("ComplianceScheme"))
                     .Where(EndpointFilter.Sort("PercentageMet[asc]"))
             ),
             TestContext.Current.CancellationToken
@@ -229,7 +261,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
                 Arg.Any<int>(),
                 Arg.Any<EntityRegistrationType>(),
                 Arg.Any<string?>(),
-                Arg.Any<IReadOnlyCollection<ComplianceDeclarationSort>>(),
+                Arg.Any<UnsubmittedOrganisationSort?>(),
                 Arg.Any<int>(),
                 Arg.Any<int>(),
                 Arg.Any<CancellationToken>()
@@ -246,7 +278,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
                 obligationYear,
                 EntityRegistrationType.DirectProducer,
                 null,
-                Arg.Is<IReadOnlyCollection<ComplianceDeclarationSort>>(x => x.Count == 0),
+                Arg.Is<UnsubmittedOrganisationSort?>(x => x == null),
                 page: 1,
                 pageSize: 20,
                 cancellationToken: Arg.Any<CancellationToken>()
@@ -287,7 +319,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
                 obligationYear,
                 EntityRegistrationType.DirectProducer,
                 null,
-                Arg.Is<IReadOnlyCollection<ComplianceDeclarationSort>>(x => x.Count == 0),
+                Arg.Is<UnsubmittedOrganisationSort?>(x => x == null),
                 page: 1,
                 pageSize: 20,
                 Arg.Any<CancellationToken>()

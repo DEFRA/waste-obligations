@@ -5,7 +5,6 @@ using Defra.WasteObligations.Api.Services.OrganisationEligibility;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
-using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
 using OrganisationComplianceDeclarationEligibilityEntity = Defra.WasteObligations.Api.Data.Entities.OrganisationComplianceDeclarationEligibility;
 
@@ -22,7 +21,7 @@ public class UnsubmittedOrganisationsService(
         int obligationYear,
         RegistrationType registrationType,
         string? search,
-        IReadOnlyCollection<ComplianceDeclarationSort> sort,
+        UnsubmittedOrganisationSort? sort,
         int page,
         int pageSize,
         CancellationToken cancellationToken
@@ -78,101 +77,69 @@ public class UnsubmittedOrganisationsService(
             );
         }
 
-        var sortDefinition = BuildSort(sort);
-        var result = await dbContext
-            .OrganisationComplianceDeclarationEligibilities.Aggregate()
-            .Match(eligible)
-            .AppendStage<BsonDocument>(Project())
-            .AppendStage<BsonDocument>(Facet(sortDefinition, page, pageSize))
-            .SingleOrDefaultAsync(cancellationToken);
-        var rows = result is null ? [] : await EnrichRows(ReadRows(result), obligationYear, cancellationToken);
-        var total = result is null ? 0 : ReadTotal(result);
+        var rowsTask = dbContext
+            .OrganisationComplianceDeclarationEligibilities.Find(eligible)
+            .Sort(BuildSort(sort))
+            .Skip((page - 1) * pageSize)
+            .Limit(pageSize)
+            .Project(x => new UnsubmittedOrganisationSearchRow
+            {
+                OrganisationId = x.OrganisationId,
+                ObligationYear = x.ObligationYear,
+                RegistrationType = x.RegistrationType,
+                Name = x.Name,
+                ReferenceNumber = x.ReferenceNumber!,
+                RecyclingObligationsMet = x.RecyclingObligationsMet,
+                ObligationCoveragePercentage = x.ObligationCoveragePercentage,
+            })
+            .ToListAsync(cancellationToken);
+        var totalTask = dbContext.OrganisationComplianceDeclarationEligibilities.CountDocumentsAsync(
+            eligible,
+            cancellationToken: cancellationToken
+        );
+        await Task.WhenAll(rowsTask, totalTask);
+        var rows = await rowsTask;
+        var total = checked((int)await totalTask);
 
         return new UnsubmittedOrganisationSearchResult { Rows = rows, Total = total };
     }
 
-    private static BsonDocument Project() =>
-        new(
-            "$project",
-            new BsonDocument
-            {
-                ["_id"] = 0,
-                ["organisationId"] = 1,
-                ["obligationYear"] = 1,
-                ["registrationType"] = 1,
-                ["name"] = 1,
-                ["referenceNumber"] = 1,
-            }
-        );
-
-    private static BsonDocument Facet(BsonDocument sort, int page, int pageSize) =>
-        new(
-            "$facet",
-            new BsonDocument
-            {
-                ["rows"] = new BsonArray
-                {
-                    new BsonDocument("$sort", sort),
-                    new BsonDocument("$skip", (long)(page - 1) * pageSize),
-                    new BsonDocument("$limit", pageSize),
-                },
-                ["total"] = new BsonArray { new BsonDocument("$count", "value") },
-            }
-        );
-
-    private static BsonDocument BuildSort(IReadOnlyCollection<ComplianceDeclarationSort> sort)
-    {
-        var direction = sort.SingleOrDefault()?.Direction ?? ComplianceDeclarationSortDirection.Ascending;
-
-        return new BsonDocument
-        {
-            ["name"] = direction is ComplianceDeclarationSortDirection.Ascending ? 1 : -1,
-            ["organisationId"] = 1,
-        };
-    }
-
-    private static List<UnsubmittedOrganisationSearchRow> ReadRows(BsonDocument document) =>
-        document["rows"]
-            .AsBsonArray.Select(x => BsonSerializer.Deserialize<UnsubmittedOrganisationSearchRow>(x.AsBsonDocument))
-            .ToList();
-
-    private async Task<List<UnsubmittedOrganisationSearchRow>> EnrichRows(
-        List<UnsubmittedOrganisationSearchRow> rows,
-        int obligationYear,
-        CancellationToken cancellationToken
+    private static SortDefinition<OrganisationComplianceDeclarationEligibilityEntity> BuildSort(
+        UnsubmittedOrganisationSort? sort
     )
     {
-        if (rows.Count == 0)
-            return rows;
+        var field = sort?.Field ?? UnsubmittedOrganisationSortField.OrganisationName;
+        var direction = sort?.Direction ?? UnsubmittedOrganisationSortDirection.Ascending;
+        var sortBuilder = Builders<OrganisationComplianceDeclarationEligibilityEntity>.Sort;
+        var tieBreakers =
+            direction is UnsubmittedOrganisationSortDirection.Ascending
+                ? sortBuilder.Combine(sortBuilder.Ascending(x => x.Name), sortBuilder.Ascending(x => x.OrganisationId))
+                : sortBuilder.Combine(
+                    sortBuilder.Descending(x => x.Name),
+                    sortBuilder.Descending(x => x.OrganisationId)
+                );
+        if (field is UnsubmittedOrganisationSortField.OrganisationName)
+            return tieBreakers;
 
-        var summaries = await dbContext
-            .OrganisationObligationSummaries.Find(x =>
-                x.ObligationYear == obligationYear && rows.Select(row => row.OrganisationId).Contains(x.OrganisationId)
-            )
-            .ToListAsync(cancellationToken);
-        var summariesByOrganisationId = summaries.ToDictionary(x => x.OrganisationId);
-        return rows.Select(row =>
-            {
-                if (!summariesByOrganisationId.TryGetValue(row.OrganisationId, out var summary))
-                {
-                    return row with { ObligationCoveragePercentage = 0 };
-                }
+        var primary = field switch
+        {
+            UnsubmittedOrganisationSortField.OrganisationReferenceNumber => direction
+            is UnsubmittedOrganisationSortDirection.Ascending
+                ? sortBuilder.Ascending(x => x.ReferenceNumber)
+                : sortBuilder.Descending(x => x.ReferenceNumber),
+            UnsubmittedOrganisationSortField.RecyclingObligations => direction
+            is UnsubmittedOrganisationSortDirection.Ascending
+                ? sortBuilder.Ascending(x => x.RecyclingObligationsMet)
+                : sortBuilder.Descending(x => x.RecyclingObligationsMet),
+            UnsubmittedOrganisationSortField.PercentageMet => direction
+            is UnsubmittedOrganisationSortDirection.Ascending
+                ? sortBuilder.Ascending(x => x.ObligationCoveragePercentage)
+                : sortBuilder.Descending(x => x.ObligationCoveragePercentage),
+            _ => throw new ArgumentOutOfRangeException(nameof(sort)),
+        };
 
-                return row with
-                {
-                    RecyclingObligationsMet = summary.RecyclingObligationsMet,
-                    ObligationCoveragePercentage = summary.ObligationCoveragePercentage ?? 0,
-                };
-            })
-            .ToList();
+        return sortBuilder.Combine(primary, tieBreakers);
     }
 
     private static UnsubmittedOrganisationSearchResult EmptyResult() => new() { Rows = [], Total = 0 };
-
-    private static int ReadTotal(BsonDocument document)
-    {
-        var total = document["total"].AsBsonArray;
-
-        return total.Count == 0 ? 0 : total[0].AsBsonDocument["value"].ToInt32();
-    }
 }

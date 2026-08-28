@@ -1014,7 +1014,7 @@
           {
             "name": "sort",
             "in": "query",
-            "description": "Only OrganisationName[asc] or OrganisationName[desc] is currently supported",
+            "description": "One of OrganisationName, OrganisationReferenceNumber, RecyclingObligations or PercentageMet, followed by [asc] or [desc]",
             "schema": {
               "type": "string"
             }

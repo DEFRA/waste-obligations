@@ -34,7 +34,11 @@ public class SearchUnsubmittedComplianceDeclarationsTests : IntegrationTestBase
         await OrganisationComplianceDeclarationEligibilities.InsertManyAsync(
             [
                 Eligibility(includedOrganisationId, generation, "Alpha Packaging", "100001"),
-                Eligibility(secondIncludedOrganisationId, generation, "Zeta Packaging", "100004"),
+                Eligibility(secondIncludedOrganisationId, generation, "Zeta Packaging", "100004") with
+                {
+                    RecyclingObligationsMet = true,
+                    ObligationCoveragePercentage = 80,
+                },
                 Eligibility(submittedOrganisationId, generation, "Beta Packaging", "100002") with
                 {
                     IsVisibleInUnsubmittedView = false,
@@ -45,24 +49,6 @@ public class SearchUnsubmittedComplianceDeclarationsTests : IntegrationTestBase
                     IsVisibleInUnsubmittedView = false,
                 },
             ],
-            cancellationToken: TestContext.Current.CancellationToken
-        );
-        await OrganisationObligationSummaries.InsertOneAsync(
-            new OrganisationObligationSummary
-            {
-                OrganisationId = secondIncludedOrganisationId,
-                ObligationYear = 2026,
-                ObligationCount = 1,
-                TotalAcceptedTonnage = 4,
-                TotalObligatedTonnage = 5,
-                RecyclingObligationsMet = true,
-                ObligationCoveragePercentage = 80,
-                SourceFingerprint = "fingerprint",
-                LastSuccessfulReadAt = verifiedAt,
-                LastAttemptedAt = verifiedAt,
-                NextRefreshAt = verifiedAt.AddMinutes(30),
-                RefreshState = OrganisationObligationRefreshState.Ready,
-            },
             cancellationToken: TestContext.Current.CancellationToken
         );
         var client = CreateClient();

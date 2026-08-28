@@ -11,6 +11,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
+using MongoDB.Bson;
 using OrganisationComplianceDeclarationEligibilityEntity = Defra.WasteObligations.Api.Data.Entities.OrganisationComplianceDeclarationEligibility;
 
 namespace Defra.WasteObligations.Api.IntegrationTests.Services;
@@ -54,13 +55,11 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
             2026,
             RegistrationType.DirectProducer,
             null,
-            [
-                new ComplianceDeclarationSort
-                {
-                    Field = ComplianceDeclarationSortField.OrganisationName,
-                    Direction = ComplianceDeclarationSortDirection.Descending,
-                },
-            ],
+            new UnsubmittedOrganisationSort
+            {
+                Field = UnsubmittedOrganisationSortField.OrganisationName,
+                Direction = UnsubmittedOrganisationSortDirection.Descending,
+            },
             page: 1,
             pageSize: 1,
             TestContext.Current.CancellationToken
@@ -69,7 +68,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
             2026,
             RegistrationType.DirectProducer,
             null,
-            [],
+            null,
             page: 2,
             pageSize: 1,
             TestContext.Current.CancellationToken
@@ -92,7 +91,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
             2026,
             RegistrationType.DirectProducer,
             null,
-            [],
+            null,
             page: 1,
             pageSize: 20,
             TestContext.Current.CancellationToken
@@ -130,7 +129,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
             2026,
             RegistrationType.DirectProducer,
             "PHA PAC",
-            [],
+            null,
             page: 1,
             pageSize: 20,
             TestContext.Current.CancellationToken
@@ -139,7 +138,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
             2026,
             RegistrationType.DirectProducer,
             "operator",
-            [],
+            null,
             page: 1,
             pageSize: 20,
             TestContext.Current.CancellationToken
@@ -148,7 +147,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
             2026,
             RegistrationType.DirectProducer,
             "0003",
-            [],
+            null,
             page: 1,
             pageSize: 20,
             TestContext.Current.CancellationToken
@@ -167,47 +166,30 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task Search_WhenObligationSummariesHaveDifferentRefreshStates_ShouldReturnTheirLastKnownMetrics()
+    public async Task Search_ShouldReturnMetricsStoredOnTheEligibilityRows()
     {
         const string generation = "generation";
         var readyOrganisationId = Guid.NewGuid();
         var failedOrganisationId = Guid.NewGuid();
         var staleOrganisationId = Guid.NewGuid();
-        var readyAsOf = _timeProvider.GetUtcNow().UtcDateTime;
-        var failedAsOf = _timeProvider.GetUtcNow().AddMinutes(-30).UtcDateTime;
-        var staleAsOf = _timeProvider.GetUtcNow().AddHours(-3).UtcDateTime;
         await SetReadySnapshot(generation);
         await OrganisationComplianceDeclarationEligibilities.InsertManyAsync(
             [
-                Eligibility(readyOrganisationId, generation, "Ready Packaging", "100001"),
-                Eligibility(failedOrganisationId, generation, "Failed Packaging", "100002"),
-                Eligibility(staleOrganisationId, generation, "Stale Packaging", "100003"),
-            ],
-            cancellationToken: TestContext.Current.CancellationToken
-        );
-        await OrganisationObligationSummaries.InsertManyAsync(
-            [
-                Summary(
-                    readyOrganisationId,
-                    OrganisationObligationRefreshState.Ready,
-                    readyAsOf,
-                    recyclingObligationsMet: true,
-                    obligationCoveragePercentage: 80
-                ),
-                Summary(
-                    failedOrganisationId,
-                    OrganisationObligationRefreshState.Failed,
-                    failedAsOf,
-                    recyclingObligationsMet: false,
-                    obligationCoveragePercentage: 40
-                ),
-                Summary(
-                    staleOrganisationId,
-                    OrganisationObligationRefreshState.Ready,
-                    staleAsOf,
-                    recyclingObligationsMet: true,
-                    obligationCoveragePercentage: 60
-                ),
+                Eligibility(readyOrganisationId, generation, "Ready Packaging", "100001") with
+                {
+                    RecyclingObligationsMet = true,
+                    ObligationCoveragePercentage = 80,
+                },
+                Eligibility(failedOrganisationId, generation, "Failed Packaging", "100002") with
+                {
+                    RecyclingObligationsMet = false,
+                    ObligationCoveragePercentage = 40,
+                },
+                Eligibility(staleOrganisationId, generation, "Stale Packaging", "100003") with
+                {
+                    RecyclingObligationsMet = true,
+                    ObligationCoveragePercentage = 60,
+                },
             ],
             cancellationToken: TestContext.Current.CancellationToken
         );
@@ -217,7 +199,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
             2026,
             RegistrationType.DirectProducer,
             null,
-            [],
+            null,
             page: 1,
             pageSize: 20,
             TestContext.Current.CancellationToken
@@ -234,6 +216,135 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Search_WhenRowsHaveDifferentSortValues_ShouldUseTheRequestedIndexedOrder()
+    {
+        const string generation = "generation";
+        var alpha = Guid.NewGuid();
+        var bravo = Guid.NewGuid();
+        var charlie = Guid.NewGuid();
+        await SetReadySnapshot(generation);
+        await OrganisationComplianceDeclarationEligibilities.InsertManyAsync(
+            [
+                Eligibility(alpha, generation, "Alpha Packaging", "100003") with
+                {
+                    RecyclingObligationsMet = true,
+                    ObligationCoveragePercentage = 40,
+                },
+                Eligibility(bravo, generation, "Bravo Packaging", "100001") with
+                {
+                    RecyclingObligationsMet = false,
+                    ObligationCoveragePercentage = 80,
+                },
+                Eligibility(charlie, generation, "Charlie Packaging", "100002") with
+                {
+                    RecyclingObligationsMet = true,
+                    ObligationCoveragePercentage = 60,
+                },
+            ],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        var subject = CreateSubject();
+
+        var byReference = await subject.Search(
+            2026,
+            RegistrationType.DirectProducer,
+            null,
+            new UnsubmittedOrganisationSort
+            {
+                Field = UnsubmittedOrganisationSortField.OrganisationReferenceNumber,
+                Direction = UnsubmittedOrganisationSortDirection.Ascending,
+            },
+            page: 1,
+            pageSize: 3,
+            TestContext.Current.CancellationToken
+        );
+        var byRecycling = await subject.Search(
+            2026,
+            RegistrationType.DirectProducer,
+            null,
+            new UnsubmittedOrganisationSort
+            {
+                Field = UnsubmittedOrganisationSortField.RecyclingObligations,
+                Direction = UnsubmittedOrganisationSortDirection.Ascending,
+            },
+            page: 1,
+            pageSize: 3,
+            TestContext.Current.CancellationToken
+        );
+        var byPercentage = await subject.Search(
+            2026,
+            RegistrationType.DirectProducer,
+            null,
+            new UnsubmittedOrganisationSort
+            {
+                Field = UnsubmittedOrganisationSortField.PercentageMet,
+                Direction = UnsubmittedOrganisationSortDirection.Descending,
+            },
+            page: 1,
+            pageSize: 3,
+            TestContext.Current.CancellationToken
+        );
+
+        byReference.Rows.Select(x => x.OrganisationId).Should().Equal(bravo, charlie, alpha);
+        byRecycling.Rows.Select(x => x.OrganisationId).Should().Equal(bravo, alpha, charlie);
+        byPercentage.Rows.Select(x => x.OrganisationId).Should().Equal(bravo, charlie, alpha);
+    }
+
+    [Theory]
+    [InlineData(
+        "referenceNumber",
+        "Generation_ObligationYear_RegistrationType_IsVisibleInUnsubmittedView_ReferenceNumber_Name_OrganisationId"
+    )]
+    [InlineData(
+        "recyclingObligationsMet",
+        "Generation_ObligationYear_RegistrationType_IsVisibleInUnsubmittedView_RecyclingObligationsMet_Name_OrganisationId"
+    )]
+    [InlineData(
+        "obligationCoveragePercentage",
+        "Generation_ObligationYear_RegistrationType_IsVisibleInUnsubmittedView_ObligationCoveragePercentage_Name_OrganisationId"
+    )]
+    public async Task SearchPlan_WhenUsingAnObligationSort_ShouldUseTheDedicatedIndex(
+        string sortField,
+        string indexName
+    )
+    {
+        const string generation = "generation";
+        await SetReadySnapshot(generation);
+        await OrganisationComplianceDeclarationEligibilities.InsertOneAsync(
+            Eligibility(Guid.NewGuid(), generation, "Alpha Packaging", "100001"),
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        var command = new BsonDocument
+        {
+            ["explain"] = new BsonDocument
+            {
+                ["find"] = nameof(OrganisationComplianceDeclarationEligibility),
+                ["filter"] = new BsonDocument
+                {
+                    ["generation"] = generation,
+                    ["obligationYear"] = 2026,
+                    ["registrationType"] = (int)RegistrationType.DirectProducer,
+                    ["isVisibleInUnsubmittedView"] = true,
+                },
+                ["sort"] = new BsonDocument
+                {
+                    [sortField] = 1,
+                    ["name"] = 1,
+                    ["organisationId"] = 1,
+                },
+            },
+            ["verbosity"] = "queryPlanner",
+        };
+
+        var plan = await GetMongoDatabase()
+            .RunCommandAsync<BsonDocument>(command, cancellationToken: TestContext.Current.CancellationToken);
+        var renderedWinningPlan = plan["queryPlanner"]["winningPlan"].ToJson();
+
+        renderedWinningPlan.Should().Contain(indexName);
+        renderedWinningPlan.Should().NotContain("\"stage\" : \"SORT\"");
+    }
+
+    [Fact]
     public async Task Search_WhenNoActiveGeneration_ShouldReturnAnEmptyPageAndLogAnError()
     {
         var logger = new RecordingLogger<UnsubmittedOrganisationsService>();
@@ -243,7 +354,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
             2026,
             RegistrationType.DirectProducer,
             null,
-            [],
+            null,
             page: 1,
             pageSize: 20,
             TestContext.Current.CancellationToken
@@ -288,7 +399,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
             2026,
             RegistrationType.DirectProducer,
             null,
-            [],
+            null,
             page: 1,
             pageSize: 20,
             TestContext.Current.CancellationToken
@@ -350,27 +461,4 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
             .With(x => x.ReferenceNumber, referenceNumber)
             .With(x => x.SourceFingerprint, name)
             .Create();
-
-    private OrganisationObligationSummary Summary(
-        Guid organisationId,
-        OrganisationObligationRefreshState refreshState,
-        DateTime lastSuccessfulReadAt,
-        bool recyclingObligationsMet,
-        decimal obligationCoveragePercentage
-    ) =>
-        new()
-        {
-            OrganisationId = organisationId,
-            ObligationYear = 2026,
-            ObligationCount = 1,
-            TotalAcceptedTonnage = 4,
-            TotalObligatedTonnage = 5,
-            RecyclingObligationsMet = recyclingObligationsMet,
-            ObligationCoveragePercentage = obligationCoveragePercentage,
-            SourceFingerprint = "summary-fingerprint",
-            LastSuccessfulReadAt = lastSuccessfulReadAt,
-            LastAttemptedAt = _timeProvider.GetUtcNow().UtcDateTime,
-            NextRefreshAt = _timeProvider.GetUtcNow().UtcDateTime,
-            RefreshState = refreshState,
-        };
 }

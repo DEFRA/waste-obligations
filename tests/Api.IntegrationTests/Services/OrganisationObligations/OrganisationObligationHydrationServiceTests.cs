@@ -190,6 +190,11 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
         summary.NextRefreshAt.Should().BeAfter(_timeProvider.GetUtcNow().UtcDateTime);
         summary.Priority.Should().Be(OrganisationObligationHydrationPriority.ScheduledRefresh);
         summary.IsHydrationActive.Should().BeTrue();
+        var eligibility = await OrganisationComplianceDeclarationEligibilities
+            .Find(x => x.OrganisationId == organisationId && x.ObligationYear == ObligationYear)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        eligibility.RecyclingObligationsMet.Should().BeFalse();
+        eligibility.ObligationCoveragePercentage.Should().Be(88);
         await ObligationSource
             .Received(1)
             .ReadObligations(organisationId, ObligationYear, Arg.Any<CancellationToken>());

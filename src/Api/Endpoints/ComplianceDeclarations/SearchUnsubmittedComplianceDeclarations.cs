@@ -31,17 +31,21 @@ public static class SearchUnsubmittedComplianceDeclarations
         CancellationToken cancellationToken
     )
     {
+        var registrationType = request.ParsedRegistrationType();
         var sort = request.ParsedSort();
-        if (sort.Any(x => x.Field is not ComplianceDeclarationSortField.OrganisationName))
+        if (
+            sort?.Field is UnsubmittedOrganisationSortField.PercentageMet
+            && registrationType is not Data.Entities.RegistrationType.DirectProducer
+        )
         {
-            return Results.BadRequest("Only OrganisationName sorting is currently supported");
+            return Results.BadRequest("PercentageMet sorting is only supported for direct producers");
         }
 
         var page = request.EffectivePage;
         var pageSize = request.EffectivePageSize;
         var result = await service.Search(
             request.ObligationYear.GetValueOrDefault(),
-            request.ParsedRegistrationType(),
+            registrationType,
             request.Search,
             sort,
             page,

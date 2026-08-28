@@ -30,6 +30,7 @@ public class OrganisationEligibilityRefreshService(
             .SingleOrDefaultAsync(cancellationToken);
         var activeRows = await ActiveRows(activeSnapshot, cancellationToken);
         var resolvedRows = await organisationReferenceResolver.Resolve(sourceRows, activeRows, cancellationToken);
+        resolvedRows = await ApplyCurrentObligationMetrics(resolvedRows, cancellationToken);
         var content = OrganisationEligibilitySnapshotContentBuilder.Create(resolvedRows);
         content = content with
         {
@@ -138,6 +139,37 @@ public class OrganisationEligibilityRefreshService(
         return await dbContext
             .OrganisationComplianceDeclarationEligibilities.Find(x => x.Generation == activeSnapshot.ActiveGeneration)
             .ToListAsync(cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<OrganisationComplianceDeclarationEligibility>> ApplyCurrentObligationMetrics(
+        IReadOnlyList<OrganisationComplianceDeclarationEligibility> rows,
+        CancellationToken cancellationToken
+    )
+    {
+        if (rows.Count == 0)
+            return rows;
+
+        var organisationIds = rows.Select(x => x.OrganisationId).Distinct().ToArray();
+        var obligationYears = rows.Select(x => x.ObligationYear).Distinct().ToArray();
+        var summaries = await dbContext
+            .OrganisationObligationSummaries.Find(x =>
+                organisationIds.Contains(x.OrganisationId) && obligationYears.Contains(x.ObligationYear)
+            )
+            .ToListAsync(cancellationToken);
+        var summariesByKey = summaries.ToDictionary(x => (x.OrganisationId, x.ObligationYear));
+
+        return rows.Select(row =>
+            {
+                if (!summariesByKey.TryGetValue((row.OrganisationId, row.ObligationYear), out var summary))
+                    return row;
+
+                return row with
+                {
+                    RecyclingObligationsMet = summary.RecyclingObligationsMet,
+                    ObligationCoveragePercentage = summary.ObligationCoveragePercentage ?? 0,
+                };
+            })
+            .ToArray();
     }
 
     private async Task CollectGarbage(

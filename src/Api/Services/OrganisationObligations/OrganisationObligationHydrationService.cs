@@ -239,6 +239,15 @@ public class OrganisationObligationHydrationService(
                     new ReplaceOptions { IsUpsert = true },
                     token
                 );
+                await dbContext.OrganisationComplianceDeclarationEligibilities.UpdateManyAsync(
+                    session,
+                    x => x.OrganisationId == summary.OrganisationId && x.ObligationYear == summary.ObligationYear,
+                    Builders<OrganisationComplianceDeclarationEligibility>
+                        .Update.Set(x => x.RecyclingObligationsMet, summary.RecyclingObligationsMet)
+                        .Set(x => x.ObligationCoveragePercentage, summary.ObligationCoveragePercentage ?? 0),
+                    cancellationToken: token
+                );
+
                 return true;
             },
             "persist organisation obligation hydration result",

@@ -2,11 +2,11 @@
 
 ## Status and scope
 
-**Status:** the initial server-side delivery is implemented in this branch: the local eligibility snapshot, Account-reference materialisation, direct unsubmitted-visibility fields on those rows, unsubmitted query endpoint with generic search, and organisation-obligation summary hydration/polling. The later event-driven and operational-insight sections remain future design considerations. `Unsubmitted` remains an inferred review state rather than a compliance-declaration status.
+**Status:** the initial server-side delivery is implemented in this branch: the local eligibility snapshot, Account-reference materialisation, direct unsubmitted-visibility and sortable obligation fields on those rows, unsubmitted query endpoint with generic search and indexed sorting, and organisation-obligation summary hydration/polling. The later event-driven and operational-insight sections remain future design considerations. `Unsubmitted` remains an inferred review state rather than a compliance-declaration status.
 
 The delivery is a local, refreshable copy of the Waste Organisations eligibility data in Waste Obligations, with an unsubmitted-visibility field maintained as declarations change, and a separately refreshed organisation-obligation summary. Together they support a server-side query for the **Not submitted** review tab and CSV download.
 
-Account reference resolution is a prerequisite for an individual organisation to enter the queryable unsubmitted view: a source row with no resolved reference is stored and retried, but is not considered. Its value is materialised into the organisation generation rather than hidden behind request-time calls. An organisation's current obligations have a materially different freshness contract, so percentage met is held in a separate, per-organisation/year projection rather than being folded into an organisation generation.
+Account reference resolution is a prerequisite for an individual organisation to enter the queryable unsubmitted view: a source row with no resolved reference is stored and retried, but is not considered. Its value is materialised into the organisation generation rather than hidden behind request-time calls. An organisation's current obligations have a materially different freshness contract, so their full polling state is held in a separate per-organisation/year summary while the two public display metrics are copied into the query aggregate.
 
 ## Decisions already made
 
@@ -141,7 +141,7 @@ POST /api/organisations/organisations-by-companies-house-numbers
 
 The obligations call is currently made once per visible Not submitted row. The Waste Obligations route reads the organisation and calls `epr-prn-common-backend` for that organisation/year, then maps material-level obligations into its public DTO. It does **not** return percentage met. The frontend calculates percentage from the returned accepted and obligated tonnages. Waste Obligations does have an equivalent `ObligationCoveragePercentageCalculator`, but currently uses it when a submitted declaration is written (and in the corresponding migration), rather than in this read route. This is why percentage/recycling values are not safe to treat as static organisation data.
 
-The page displays organisation name, organisation reference number, recycling obligations, and either Regulation 43 (schemes) or percentage met (direct producers). Not submitted rows have no declaration ID and no submission date. The frontend currently disables table sorting for this tab; it locally defaults to organisation-name order before page enrichment.
+The page displays organisation name, organisation reference number, recycling obligations, and either Regulation 43 (schemes) or percentage met (direct producers). Not submitted rows have no declaration ID and no submission date. The frontend currently disables table sorting for this tab; when it adopts this endpoint it should enable the supported server-side fields and correct its reference-number label/key.
 
 ### CSV path
 
@@ -262,6 +262,8 @@ OrganisationComplianceDeclarationEligibility
   sourceFingerprint              string           // Waste Organisations fields only
   refreshedAt                    UTC timestamp
   isVisibleInUnsubmittedView     bool             // direct membership for the active endpoint query
+  recyclingObligationsMet        bool?            // copied from the last successful local obligation summary
+  obligationCoveragePercentage   decimal          // copied from the last successful local obligation summary; defaults to 0
   declarationStateUpdatedAt      UTC timestamp    // latest declaration-state evaluation
 ```
 
@@ -269,9 +271,9 @@ The unique key is `{ generation, obligationYear, organisationId, registrationTyp
 
 An empty result must never silently mean “every organisation has submitted” when source rows are being excluded for missing references. Persist the excluded count in snapshot metadata and emit it as an operational metric. The public endpoint deliberately returns only usable list data; a future administration/operational-insight endpoint will expose reference coverage, freshness, and other diagnostic state. The initial bootstrap should normally remain unavailable until its required reference coverage is reached; the policy for later newly-unresolved rows is an explicit open decision.
 
-For this first delivery, sort raw `name` with `organisationId` as the required final tie-breaker. This deliberately follows the current `ComplianceDeclaration` approach: there is no shared search/sort projection, normalised sort key, or new schema migration for historic declarations. Raw Mongo string order is deterministic but is not an explicit case-insensitive or locale-aware alphabetisation contract; revisit that only if user-facing ordering requires it.
+The eligibility row is the query aggregate. It contains the two obligation display metrics as a small write-time copy of the separately retained hydration summary, so the regulator query can match, sort, and page one indexed collection. The copy is updated in the same Mongo transaction that persists a successful hydration result, and is copied forward into a newly staged generation from the current summary. This avoids a request-time `$lookup` and avoids a third projection collection.
 
-For an all-years refresh, `generation` is global to the refresh, rather than one generation per year. This ensures an endpoint for any year sees rows derived from the same upstream response. `OrganisationEligibilitySnapshot` is control metadata for the eligibility data set. The query uses two business projections: eligibility rows, including Account-reference resolution and declaration visibility, and the independently refreshed organisation-obligation summary.
+For an all-years refresh, `generation` is global to the refresh, rather than one generation per year. This ensures an endpoint for any year sees rows derived from the same upstream response. `OrganisationEligibilitySnapshot` is control metadata for the eligibility data set. The query reads the eligibility aggregate; the independently refreshed organisation-obligation summary is its polling-state source.
 
 ### 2. Unsubmitted visibility
 
@@ -330,26 +332,28 @@ The Account endpoints are already batch interfaces, but the service has no publi
 
 No change is proposed to `GET /compliance-declarations`: its existing generic `search` already includes its persisted `organisation.referenceNumber`. Account resolution is used only while refreshing the new unsubmitted projection.
 
-The unsubmitted query reads only the active generation and needs no Account call or reference join. Reference numbers are already on eligible rows, so both the normal page/CSV and generic search are one local Mongo query. The unsubmitted endpoint uses the same generic `search` parameter and case-insensitive partial-match semantics as the existing declaration endpoint. Its aggregation becomes:
+The unsubmitted query reads only the active generation and needs no Account call, reference join, summary lookup, or downstream call. Reference numbers and the sortable obligation metrics are already on eligible rows. The page and total are separate local Mongo operations so the page query can use the selected sort index. The unsubmitted endpoint uses the same generic `search` parameter and case-insensitive partial-match semantics as the existing declaration endpoint:
 
 ```text
 1. Match active generation + obligation year + registration type + isVisibleInUnsubmittedView=true.
 2. Match escaped, case-insensitive contains regex over name OR tradingName OR referenceNumber.
-3. Sort, count, and page.
-4. Local-batch lookup `OrganisationObligationSummary` for page rows; map a missing or incomplete summary to the documented zero/default metric state.
+3. Use the selected indexed ordering, then page the matching rows; count the same filter separately.
 ```
 
 This is entirely local Mongo work. The same unanchored contains limitation remains, but no per-candidate join is required. During the day-one Account backfill, an organisation with a pending reference is excluded from the view altogether; it cannot be found by name or reference until a later promoted generation contains its resolved reference. Monitoring must expose the excluded unresolved-row count and oldest pending age. There is deliberately no request-time fallback to Account: that would make view membership depend on downstream availability and reintroduce HTTP calls into search.
 
-Do not enable `OrganisationReferenceNumber` sorting in this phase merely because it is now materialised. It would be technically possible with a dedicated index and an agreed order/null contract, but no current UI requires it.
+The endpoint has its own `UnsubmittedOrganisationSortField` and `UnsubmittedOrganisationSortDirection`; it does not reuse the declaration-search enums. It accepts one `Field[asc|desc]` term. `OrganisationName`, `OrganisationReferenceNumber`, and `RecyclingObligations` are valid for both registration types. `PercentageMet` is valid only for Direct Producers. Regulation 43 and date submitted are declaration fields and are not valid unsubmitted sorts.
 
-Suggested indexes, subject to the repository's Mongo schema/migration process:
+Implemented by migration `012_OrganisationEligibilityObligationMetricSorting` (alongside the existing eligibility and summary indexes):
 
 - eligibility rows: `{ generation, obligationYear, registrationType, isVisibleInUnsubmittedView, name, organisationId }` for direct membership filtering and deterministic default ordering;
+- eligibility rows: `{ generation, obligationYear, registrationType, isVisibleInUnsubmittedView, referenceNumber, name, organisationId }` for reference-number ordering;
+- eligibility rows: `{ generation, obligationYear, registrationType, isVisibleInUnsubmittedView, recyclingObligationsMet, name, organisationId }` for recycling-status ordering;
+- eligibility rows: `{ generation, obligationYear, registrationType, isVisibleInUnsubmittedView, obligationCoveragePercentage, name, organisationId }` for Direct Producer percentage ordering;
 - eligibility rows: unique `{ generation, obligationYear, organisationId, registrationType }`;
 - obligation summary: unique `{ organisationId, obligationYear }` and due-work `{ isHydrationActive, nextRefreshAt, priority }`.
 
-The inferred `unsubmitted` boolean is the deliberately materialised membership field on the eligibility row. No obligation calculation, current-obligation value, or Regulation 43 belongs there. The Account reference is also materialised there. Organisation-obligation values are stored in the distinct projection below because a PRN's status can change them after the organisation generation has been promoted.
+The inferred `unsubmitted` boolean is the deliberately materialised membership field on the eligibility row. The Account reference and two scalar obligation display metrics are also materialised there. Regulation 43 does not belong there: it is declaration content and is inapplicable when no declaration exists. The complete hydration state remains in the distinct summary below because a PRN's status can change it after an eligibility generation has been promoted.
 
 ### 4. Organisation-obligation-summary hydration
 
@@ -403,7 +407,7 @@ OrganisationObligationSummary
   lastFailure                    optional, bounded diagnostic
 ```
 
-There is exactly one summary document for an organisation/year. It combines the local display metrics and bounded polling state so a second Mongo work-queue collection is not required. Use the unique index on `{ organisationId, obligationYear }` and a due-work index on `{ isHydrationActive, nextRefreshAt, priority }`. The worker deactivates a summary when its organisation is no longer an active registered row with a resolved reference; retained metrics then remain available for diagnostics but that document cannot be selected for a PRN call. The public endpoint makes only a bounded local lookup for the already selected page. Neither path is joined to Account or any remote service at request time.
+There is exactly one summary document for an organisation/year. It combines the local last result and bounded polling state so a second Mongo work-queue collection is not required. Use the unique index on `{ organisationId, obligationYear }` and a due-work index on `{ isHydrationActive, nextRefreshAt, priority }`. The worker deactivates a summary when its organisation is no longer an active registered row with a resolved reference; retained metrics then remain available for diagnostics but that document cannot be selected for a PRN call. On a successful summary write, the worker atomically copies the two public display metrics to every matching eligibility row (including a staged generation). The public endpoint consequently reads no summary collection. Neither path is joined to Account or any remote service at request time.
 
 Persisting material-level obligations is not required for this list. The totals, status, percentage, source fingerprint, and timestamps are enough to render today's columns and diagnose the calculation. If a later API must return a material breakdown, add a deliberately versioned nested snapshot then; do not turn this list projection into an unbounded PRN archive.
 
@@ -416,7 +420,7 @@ On a changed organisation generation, restrict all obligation work to `obligatio
 1. Identify active rows for the current obligation year that are `REGISTERED` and have a resolved reference. Deduplicate them to organisation/year keys. A newly eligible key inserts a `Pending`, `NewEligible` summary due immediately; an existing summary is reactivated without losing its metrics or next scheduled refresh.
    Before selecting due summaries, deactivate active current-year summaries that no longer satisfy those active-generation conditions. This prevents a cancellation or an unresolved reference in a later generation from continuing to generate PRN calculation calls.
 2. Reuse an existing summary for source-identical rows until its `nextRefreshAt` is due. A reference becoming resolved reactivates the existing organisation/year summary without changing the PRN key.
-3. The obligation worker selects a bounded due summary batch, calls `IPrnCommonBackendService.ReadObligations` for each key with deliberately low, configurable concurrency, maps the result, and updates that same summary. A result with an unchanged `sourceFingerprint` updates freshness timestamps but need not rewrite the metric fields.
+3. The obligation worker selects a bounded due summary batch, calls `IPrnCommonBackendService.ReadObligations` for each key with deliberately low, configurable concurrency, maps the result, and atomically updates that same summary and the matching eligibility-row display metrics. A result with an unchanged `sourceFingerprint` updates freshness timestamps but still preserves the direct query projection.
 4. A transient PRN failure records `Failed` and uses capped exponential back-off. It does not alter declaration presence or organisation eligibility. A successful empty response is `Ready`, not a failure.
 5. Schedule every `Ready` current-year summary for its next read at `lastSuccessfulReadAt + RefreshInterval`. Do **not** wait for, or poll for, a PRN-state signal. A change in either source input is picked up at that organisation's next scheduled read.
 6. Spread the due times deterministically over each interval, for example by using a stable hash of `{ organisationId, obligationYear }` as a slot within the interval. For the initial assumption of `K = 500` and a 30-minute interval this makes about 17 calls due each minute, rather than a 500-call burst at one clock time. The worker claims small due batches under its lease and uses the singleton `OrganisationObligationRequestPacer` to reserve one evenly spaced downstream slot at the shared 20-requests-per-minute limit. Low concurrency (initially two requests) separately bounds in-flight calls. New-organisation reads and retries pass through the same pacer; the limit cannot be bypassed by a separate retry path. A full batch starts the next batch without the normal idle wake delay, so pacing remains capable of 20 requests per minute.
@@ -488,21 +492,13 @@ The initial policy intentionally gives every current-year organisation the same 
 
 A future policy may assign a longer normal refresh interval to lower-impact organisations while retaining a global cap. It should be based on agreed local inputs, such as the registration type and the annual obligated tonnage from the last successful summary, rather than a guess based on organisation type alone. The business must define the bucket thresholds, maximum staleness per bucket, bootstrap treatment before a first successful read, reclassification rules, fairness/starvation guarantees, and how the policy is exposed in monitoring. Until that work is agreed, every organisation uses the same interval and a state-changing retry continues to use the shared capped quota.
 
-#### Serving, CSV, and future metric sorting
+#### Serving, CSV, and sortable metrics
 
-For the initial name-sorted endpoint, directly match visible eligibility rows, count/page them, then local-lookup `OrganisationObligationSummary` for the selected page. The CSV streams the same local summaries in bounded Mongo batches. Neither path calls the PRN backend. A page can deliberately mix `Ready`, `Pending`, `Stale`, and `Failed` metric states: each row maps its own local summary or zero/default values, while eligibility remains consistent from one active generation.
+The endpoint directly matches visible eligibility rows, counts them, and uses a matching compound index to sort/page them. The CSV reads the same copied values in bounded Mongo batches. Neither path calls the PRN backend or looks up the summary collection. A row may hold a `null` recycling state and zero percentage before its first successful read; a failed refresh preserves its previously copied values.
 
-Percentage met and recycling-obligations status are **not** in the first `sort` allow-list. A Mongo `$lookup` to a separate summary before globally sorting can serve a correct result, but it requires considering every unsubmitted candidate and cannot normally use the summary's percentage index to make the joined sort cheap. Enriching only an already paged name sort is never valid for a percentage sort.
+The contract accepts one unsubmitted-specific sort term. The primary field and both deterministic tie-breakers (`name`, then `organisationId`) use the requested direction, allowing the same compound index to serve ascending and descending scans. This intentionally differs from the legacy frontend's in-memory secondary name ordering, which is not an API contract. An unanchored generic-search regex still requires candidate scanning and in-memory sorting of the matching subset; the selected sort indexes serve the normal unfiltered list path.
 
-If product later requires server-side percentage sorting, choose one of these explicit designs:
-
-| Design | Correctness and cost | Recommendation |
-| --- | --- | --- |
-| Aggregate lookup then sort all candidates | Correct, but performs a summary lookup and sort over the entire inferred population for every request/export. | Accept only after production-cardinality measurement and if the population is small. |
-| Denormalise the metric into a final `UnsubmittedOrganisationProjection` row | The summary worker updates the one matching active organisation/year/type row when the PRN result changes; a compound index can then support percentage ordering. Requires per-row versioning and a clear writer/consistency rule. | Preferred if percentage sorting becomes a real requirement. |
-| Call PRN after pagination | Cheap only for display. It produces incorrect global order and CSV disagreement. | Never use for a sortable field. |
-
-The first endpoint can therefore return `recyclingObligationsMet` and `obligationCoveragePercentage` without expanding the agreed `sort` set. Regulation 43 remains `null` for an unsubmitted scheme because it is declaration content, not PRN content.
+Regulation 43 remains inapplicable for an unsubmitted scheme because it is declaration content, not PRN content. Date submitted is likewise not a field of this result.
 
 ## Refresh design
 
@@ -894,7 +890,7 @@ The endpoint accepts only these query parameters in this first design:
 | `search` | Optional generic organisation search, limited to 100 characters. It follows the current declaration search pattern: escaped, case-insensitive contains matching across raw fields available in this projection. An empty or whitespace-only term is treated as no search filter. |
 | `page` | Optional 1-based page number; default `1`. |
 | `pageSize` | Optional; default `20`, range `1`–`100`, matching declaration search. |
-| `sort` | Optional and uses the existing `Field[asc|desc]` syntax. Its field allow-list is deliberately **TBD**. Until fields are agreed, use a deterministic default of raw organisation name then organisation ID. |
+| `sort` | Optional single `Field[asc|desc]` term using the endpoint-specific unsubmitted sort enums. `OrganisationName`, `OrganisationReferenceNumber`, and `RecyclingObligations` are valid for both types; `PercentageMet` is valid only for `DirectProducer`. The default is `OrganisationName[asc]`. |
 
 It does not accept `status` because status is an internal input to the inference, not a filter users may override.
 
@@ -904,7 +900,7 @@ Required endpoint behaviour:
 - page-number pagination follows the existing 1–100 page-size convention;
 - the active eligibility snapshot is selected for the requested year; if it is older than `MaximumAllowedStaleness`, log the condition and continue to serve the last complete active generation;
 - a candidate is returned only when it has a `REGISTERED` eligibility row with a resolved non-empty reference number and its `unsubmittedExclusionCount` is zero or absent;
-- a missing, pending, or stale organisation-obligation summary never excludes an otherwise eligible candidate and never makes a current-obligation calculation request in the handler; return the last successful value when one exists, otherwise the zero/default metric described below;
+- a missing, pending, or stale organisation-obligation summary never excludes an otherwise eligible candidate and never makes a current-obligation calculation request in the handler; eligibility rows hold the last successful copied values, or the zero/default metric described below;
 - return `total`, `page`, and `pageSize`;
 - use a deterministic final tie-breaker of `organisationId`.
 
@@ -960,21 +956,19 @@ The eligibility compound index is `{ generation, obligationYear, registrationTyp
 
 Any future improvement to generic search is deliberately a separate design decision for the wider system. An ordinary Mongo `$in` query is fast only for exact stored values; it cannot retain arbitrary partial contains behaviour. Prefix/token search, n-gram indexing, or a dedicated search capability each change the data/UX/operational trade-off and should be evaluated only if measurements show this current-style query is inadequate.
 
-Reference number is a materialised eligibility field in this design, so it can participate in filtering, search, count, paging, CSV, and any later explicitly-designed sort. Obligation values are also local but are independently mutable and freshness-bounded: the endpoint must not page a list by organisation name and then enrich/sort it by percentage, because that produces a page that is not globally sorted and makes CSV disagree with the UI.
+Reference number and the two public obligation metrics are materialised eligibility fields in this design, so they can participate in filtering, search, count, paging, CSV, and the supported sorts. They remain independently mutable and freshness-bounded; copying them during hydration prevents page-by-name-then-enrich behaviour, which would produce an incorrectly global-sorted page and CSV disagreement.
 
 ## Mongo query shape
 
-Conceptually the primary query is a direct indexed match on the active eligibility generation's persisted visibility field. For the initial name sort, it then joins the local organisation-obligation summary only for the selected page:
+Conceptually the primary query is a direct indexed match on the active eligibility generation's persisted visibility field:
 
 ```text
 active eligibility rows where year + registration type + isVisibleInUnsubmittedView = true
-  ORDER BY materialised sort fields, organisationId
-  COUNT and PAGE in Mongo
-  LEFT JOIN OrganisationObligationSummary on organisationId + obligationYear
-    for the selected page; map absence to Pending and map stale/failed state to its last successful value or the zero/default metric
+  ORDER BY selected materialised sort field, name, organisationId
+  PAGE with Find().Sort().Skip().Limit(); COUNT with CountDocuments()
 ```
 
-Mongo aggregation expresses the primary part with `$match` and `$facet` for the total and page. A local batch lookup by `{ organisationId, obligationYear }` enriches the page rows. The endpoint queries only the active eligibility generation. The persisted visibility field avoids scanning or joining every Submitted/Accepted declaration on every request; the raw declaration collection remains the source for transactional recalculation and a future operational reconciliation. Pending/stale/failed summary counts should be exposed as metrics, but must not determine whether a valid page is returned.
+The endpoint queries only the active eligibility generation. The persisted visibility and copied metrics avoid scanning or joining every Submitted/Accepted declaration or obligation summary on every request; the raw declaration collection remains the source for transactional recalculation and a future operational reconciliation. Pending/stale/failed summary counts should be exposed as metrics, but must not determine whether a valid page is returned.
 
 ## Worked example: load, source change, and unsubmitted query
 
@@ -1071,30 +1065,30 @@ The next run writes a new `g2` document for the same organisation/year/review ty
 
 After `g2` is atomically promoted, Acme no longer passes the `registrationStatus=REGISTERED` eligibility match and is excluded from the unsubmitted view, regardless of its declaration count. Until promotion, requests consistently use `g1`; they never see a partly written `g2`. The job can compare the `g1` and `g2` fingerprints to log the Registered-to-Cancelled transition, but the query does not depend on that comparison.
 
-## Sorting and later enrichment
+## Sorting
 
-The present Not submitted table has organisation name, organisation reference number, recycling obligations, and percentage met or Regulation 43. It currently provides no interactive sort headers for that tab, but the new endpoint must still have deterministic ordering.
+The present Not submitted table has organisation name, organisation reference number, recycling obligations, and percentage met for Direct Producers. The endpoint supports server-side sorting for each usable displayed value. Compliance-scheme Regulation 43 is intentionally excluded: an unsubmitted organisation has no declaration from which that value can exist.
 
-| Field | First organisation-snapshot phase | Rule for future sortable use |
-| --- | --- | --- |
-| Organisation name | Store and sort raw `name`, with `organisationId` as tie-breaker. | Matches current declaration approach; deterministic but not an explicit locale-aware order. |
-| Organisation reference number | A resolved Account value is materialised into the generation and is required for a row to appear; it can participate in generic search. | Do not enable server sorting until an explicit sort contract and dedicated index are agreed. |
-| Recycling obligations / percentage met | Locally hydrated from `OrganisationObligationSummary`; before a first successful read the endpoint returns `null` / `0`, and a stale/failed refresh retains the last successful value when available. The CSV reads the same local values. | Do not enable sort in the first endpoint. If needed, use a final denormalised read model or measure a full aggregate lookup/sort. |
-| Regulation 43 | No declaration exists for an unsubmitted row. | Return `null`/no data; it is not an eligibility attribute. |
-| Date submitted | Not applicable. | Do not expose for this result. |
+| Field | Sort rule |
+| --- | --- |
+| Organisation name | `OrganisationName[asc|desc]` for both types. |
+| Organisation reference number | `OrganisationReferenceNumber[asc|desc]` for both types. The frontend's current label/key should be corrected from “Organisation ID”. |
+| Recycling obligations | `RecyclingObligations[asc|desc]` for both types. |
+| Percentage met | `PercentageMet[asc|desc]` for Direct Producers only. |
+| Regulation 43 / date submitted | Not valid for this derived result. |
 
-The organisation-obligation summary is deliberately outside the organisation snapshot. An event-driven PRN status/calculation change feed is the best future trigger, while the initial bounded-staleness sweep is the fallback. Calling the organisation-obligation calculation once per row is not an acceptable implementation for either the list or the complete CSV.
+The organisation-obligation summary is deliberately separate from the query aggregate because it is the one-per-organisation/year polling record. Its two public metrics are intentionally copied into the eligibility aggregate for direct query performance. An event-driven PRN status/calculation change feed is the best future trigger, while the initial bounded-staleness sweep is the fallback. Calling the organisation-obligation calculation once per row is not acceptable for either the list or the complete CSV.
 
-## Delivery sequence
+## Initial delivery sequence
 
-1. Agree this source-of-truth behaviour, the eligibility and organisation-obligation refresh windows, zero/default pending-metric behaviour, scheme display-name rule, and sort-field allow-list.
-2. Implement the typed Waste Organisations search adapter and contract tests for the combined query.
-3. Add the snapshot and materialised reference-resolution fields, indexes, migration documentation, lease, refresh job, immediate Account batch hydration, observability, and failure/staleness handling.
-4. Add the direct eligibility-row visibility evaluation to the staging refresh and transactional recalculation to declaration create/update/delete, with an operational reconciliation as future administration work.
-5. Add the organisation-obligation summary collection with embedded hydration state, lease worker, non-blocking initial backfill, calculator parity tests, stale sweep, pending/stale metrics, and downstream-failure handling.
-6. Implement the direct-match/page-summary query with production-like data/explain-plan tests, including pending/no-summary and stale-summary defaults.
-7. Add the public review endpoint and update the frontend Not submitted list/count/CSV to use it.
-8. Agree/obtain a PRN status/calculation change event or a safe cursor contract before replacing the periodic stale sweep.
+1. Agreed the source-of-truth behaviour, eligibility and organisation-obligation refresh windows, zero/default pending-metric behaviour, and the unsubmitted sort-field allow-list.
+2. Delivered the typed Waste Organisations search adapter and contract tests for the combined query.
+3. Delivered the snapshot, materialised reference-resolution fields, indexes, migrations, lease, refresh job, Account batch hydration, observability, and failure/staleness handling.
+4. Delivered the direct eligibility-row visibility evaluation in staging refreshes and transactional recalculation for declaration changes; operational reconciliation remains future administration work.
+5. Delivered the organisation-obligation summary with embedded hydration state, lease worker, non-blocking initial backfill, calculator parity tests, stale sweep, pending/stale metrics, and downstream-failure handling.
+6. Delivered the direct indexed match/count/page query, including copied zero/default and last-known metrics, generic search, and name/reference/recycling/Direct Producer percentage sorting.
+7. Delivered the public review endpoint. Regulator frontend adoption for the Not submitted list/count/CSV remains a separate frontend change.
+8. A PRN status/calculation change event or safe cursor contract remains a future improvement before replacing the periodic stale sweep.
 
 ## Open decisions
 
@@ -1102,7 +1096,7 @@ The organisation-obligation summary is deliberately outside the organisation sna
 2. Resolved: a snapshot older than the limit continues to serve the last complete active generation and logs an error. This preserves the implemented endpoint behaviour while refresh recovery proceeds.
 3. What is the definitive scheme display-name rule: Waste Organisations `tradingName`, `name`, or an Account-derived operator name?
 4. Should a Cancelled declaration continue to count as not submitted? The current frontend says yes.
-5. Which materialised fields should be in the first `sort` allow-list? Organisation name is available; percentage/recycling sorting needs a further read-model or measured full lookup design.
+5. Resolved: the eligibility aggregate holds the two public obligation metrics and indexed sorting supports name, reference number, recycling status, and Direct Producer percentage. Regulation 43 is excluded because it requires a declaration.
 6. Can Account provide and support an explicit maximum batch size and concurrency expectation for both lookup endpoints?
 7. Is there a guaranteed single active `isComplianceScheme=true` Account organisation for a Companies House number? If not, who owns resolving an ambiguous match?
 8. What reference-coverage policy applies: must initial bootstrap reach 100% before the endpoint is available, and should later unresolved new rows cause `503`, a visible exclusion warning, or both?

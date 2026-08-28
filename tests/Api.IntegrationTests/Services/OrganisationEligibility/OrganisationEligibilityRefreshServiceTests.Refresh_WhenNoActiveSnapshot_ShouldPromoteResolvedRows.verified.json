@@ -21,6 +21,8 @@
     "referenceNumber": "051829",
     "referenceNumberResolutionState": 1,
     "isVisibleInUnsubmittedView": true,
+    "recyclingObligationsMet": null,
+    "obligationCoveragePercentage": 0,
     "declarationStateUpdatedAt": "DateTimeOffset_1",
     "sourceFingerprint": "{Calculated}",
     "refreshedAt": "DateTimeOffset_1"

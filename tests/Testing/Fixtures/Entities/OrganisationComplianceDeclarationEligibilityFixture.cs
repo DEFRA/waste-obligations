@@ -31,6 +31,8 @@ public static class OrganisationComplianceDeclarationEligibilityFixture
             .With(x => x.ReferenceNumber, "100001")
             .With(x => x.ReferenceNumberResolutionState, OrganisationReferenceNumberResolutionState.Resolved)
             .With(x => x.IsVisibleInUnsubmittedView, true)
+            .With(x => x.RecyclingObligationsMet, (bool?)null)
+            .With(x => x.ObligationCoveragePercentage, 0)
             .With(x => x.DeclarationStateUpdatedAt, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc))
             .With(x => x.SourceFingerprint, "source-fingerprint")
             .With(x => x.RefreshedAt, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
