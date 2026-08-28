@@ -49,6 +49,8 @@ public class UnsubmittedOrganisationsService(
             );
         }
 
+        // This materialised membership field already requires a Registered row, resolved reference,
+        // and no Submitted or Accepted declaration for the organisation/year/registration type.
         var eligible = Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.And(
             Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Eq(x => x.Generation, activeGeneration),
             Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Eq(
