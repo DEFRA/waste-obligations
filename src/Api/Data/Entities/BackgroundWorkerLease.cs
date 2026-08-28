@@ -13,17 +13,22 @@ public record BackgroundWorkerLease
     [BsonId]
     public required string Id { get; init; }
 
+    [BsonElement("owner")]
     public string? Owner { get; init; }
 
+    [BsonElement("expiresAt")]
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime ExpiresAt { get; init; }
 
+    [BsonElement("createdAt")]
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime CreatedAt { get; init; }
 
+    [BsonElement("updatedAt")]
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime UpdatedAt { get; init; }
 
+    [BsonElement("lastReleasedAt")]
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime? LastReleasedAt { get; init; }
 }
