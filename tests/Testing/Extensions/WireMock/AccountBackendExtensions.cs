@@ -12,6 +12,72 @@ namespace Defra.WasteObligations.Testing.Extensions.WireMock;
 
 public static class AccountBackendExtensions
 {
+    public static void StubAccountBackendOrganisationsByExternalIdsRequest(
+        this WireMockServer wireMock,
+        string? accessToken = null,
+        OrganisationsByExternalIdsResponse? response = null
+    )
+    {
+        var request = Request.Create().UsingPost().WithPath("/api/organisations/organisations-by-externalIds");
+
+        if (accessToken is not null)
+            request = request.WithHeader("Authorization", $"Bearer {accessToken}");
+
+        wireMock
+            .Given(request)
+            .RespondWith(
+                Response
+                    .Create()
+                    .WithStatusCode(HttpStatusCode.OK)
+                    .WithBodyAsJson(response ?? new OrganisationsByExternalIdsResponse())
+            );
+    }
+
+    public static async Task StubAccountBackendOrganisationsByExternalIdsRequest(
+        this IWireMockAdminApi wireMock,
+        string? accessToken = null,
+        OrganisationsByExternalIdsResponse? response = null
+    )
+    {
+        var builder = wireMock.GetMappingBuilder();
+
+        builder.Given(x =>
+            x.WithRequest(r =>
+                {
+                    r.UsingPost().WithPath("/api/organisations/organisations-by-externalIds");
+
+                    if (accessToken is not null)
+                        r.WithHeader("Authorization", $"Bearer {accessToken}");
+                })
+                .WithResponse(r =>
+                    r.WithStatusCode(HttpStatusCode.OK)
+                        .WithBodyAsJson(response ?? new OrganisationsByExternalIdsResponse())
+                )
+        );
+
+        var status = await builder.BuildAndPostAsync(TestContext.Current.CancellationToken);
+        status.Guid.Should().NotBeNull();
+    }
+
+    public static void StubAccountBackendOrganisationsByCompaniesHouseNumbersRequest(
+        this WireMockServer wireMock,
+        string? accessToken = null,
+        IReadOnlyList<AccountOrganisation>? response = null
+    )
+    {
+        var request = Request
+            .Create()
+            .UsingPost()
+            .WithPath("/api/organisations/organisations-by-companies-house-numbers");
+
+        if (accessToken is not null)
+            request = request.WithHeader("Authorization", $"Bearer {accessToken}");
+
+        wireMock
+            .Given(request)
+            .RespondWith(Response.Create().WithStatusCode(HttpStatusCode.OK).WithBodyAsJson(response ?? []));
+    }
+
     public static async Task StubAccountBackendAdminHealth(this IWireMockAdminApi wireMock, string? accessToken = null)
     {
         var builder = wireMock.GetMappingBuilder();

@@ -46,4 +46,12 @@ public class FakeWasteOrganisationsService : IWasteOrganisationsService
 
         return Task.FromResult(s_organisations.TryGetValue(organisationId, out var value) ? value : null);
     }
+
+    public Task<OrganisationSearch> Search(CancellationToken cancellationToken)
+    {
+        if (Throws)
+            throw new InvalidOperationException("The operation failed");
+
+        return Task.FromResult(new OrganisationSearch { Organisations = [.. s_organisations.Values] });
+    }
 }

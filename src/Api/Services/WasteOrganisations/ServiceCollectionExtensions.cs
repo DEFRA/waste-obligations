@@ -28,6 +28,17 @@ public static class ServiceCollectionExtensions
             .AddHeaderPropagation()
             .AddResiliencePipeline(addResiliencePipeline, name);
 
+        services
+            .AddHttpClient<IOrganisationEligibilitySource, WasteOrganisationsService>()
+            .ConfigureHttpClient(
+                (sp, httpClient) =>
+                {
+                    sp.GetRequiredService<IOptions<WasteOrganisationsOptions>>().Value.Configure(httpClient);
+                    httpClient.ConfigureForResiliencePipeline(addResiliencePipeline);
+                }
+            )
+            .AddResiliencePipeline(addResiliencePipeline, name);
+
         return services;
     }
 }

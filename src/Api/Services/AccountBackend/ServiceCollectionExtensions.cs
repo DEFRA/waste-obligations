@@ -31,6 +31,19 @@ public static class ServiceCollectionExtensions
             .AddHeaderPropagation()
             .AddResiliencePipeline(addResiliencePipeline, name);
 
+        services
+            .AddHttpClient<IOrganisationReferenceSearchService, AccountBackendService>()
+            .AddHttpMessageHandler(sp => sp.GetRequiredKeyedService<OAuth2Handler>(name))
+            .ConfigurePrimaryHttpMessageHandler<ProxyHttpMessageHandler>()
+            .ConfigureHttpClient(
+                (sp, httpClient) =>
+                {
+                    sp.GetRequiredService<IOptions<AccountBackendOptions>>().Value.Configure(httpClient);
+                    httpClient.ConfigureForResiliencePipeline(addResiliencePipeline);
+                }
+            )
+            .AddResiliencePipeline(addResiliencePipeline, name);
+
         return services;
     }
 }
