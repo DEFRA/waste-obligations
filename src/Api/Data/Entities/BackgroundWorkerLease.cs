@@ -5,9 +5,8 @@ namespace Defra.WasteObligations.Api.Data.Entities;
 [BsonIgnoreExtraElements]
 public record BackgroundWorkerLease
 {
-    public const string OrganisationEligibilityRefreshCollectionName = "_organisation_eligibility_refresh_lease";
+    public const string CollectionName = "_unsubmitted_organisation_worker_leases";
     public const string OrganisationEligibilityRefreshLeaseId = "organisation-eligibility-refresh";
-    public const string OrganisationObligationHydrationCollectionName = "_organisation_obligation_hydration_lease";
     public const string OrganisationObligationHydrationLeaseId = "organisation-obligation-hydration";
 
     [BsonId]

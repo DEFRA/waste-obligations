@@ -15,7 +15,7 @@ public class OrganisationObligationHydrationLeaseService(
         database,
         timeProvider,
         logger,
-        BackgroundWorkerLease.OrganisationObligationHydrationCollectionName,
+        BackgroundWorkerLease.CollectionName,
         BackgroundWorkerLease.OrganisationObligationHydrationLeaseId,
         "organisation obligation hydration"
     );

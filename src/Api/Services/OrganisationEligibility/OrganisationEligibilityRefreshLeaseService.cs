@@ -15,7 +15,7 @@ public class OrganisationEligibilityRefreshLeaseService(
         database,
         timeProvider,
         logger,
-        BackgroundWorkerLease.OrganisationEligibilityRefreshCollectionName,
+        BackgroundWorkerLease.CollectionName,
         BackgroundWorkerLease.OrganisationEligibilityRefreshLeaseId,
         "organisation eligibility refresh"
     );

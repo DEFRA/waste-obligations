@@ -17,7 +17,7 @@ public class OrganisationEligibilityRefreshLeaseServiceTests : IntegrationTestBa
         var result = await subject.TryAcquire(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
 
         result.Should().BeTrue();
-        var lease = await OrganisationEligibilityRefreshLeases
+        var lease = await OrganisationWorkerLeases
             .Find(x => x.Id == BackgroundWorkerLease.OrganisationEligibilityRefreshLeaseId)
             .SingleAsync(TestContext.Current.CancellationToken);
         lease.Owner.Should().NotBeNullOrWhiteSpace();
@@ -67,7 +67,7 @@ public class OrganisationEligibilityRefreshLeaseServiceTests : IntegrationTestBa
 
         nonOwnerResult.Should().BeFalse();
         ownerResult.Should().BeTrue();
-        var lease = await OrganisationEligibilityRefreshLeases
+        var lease = await OrganisationWorkerLeases
             .Find(x => x.Id == BackgroundWorkerLease.OrganisationEligibilityRefreshLeaseId)
             .SingleAsync(TestContext.Current.CancellationToken);
         lease.ExpiresAt.Should().Be(timeProvider.GetUtcNow().AddSeconds(60).UtcDateTime);
@@ -86,7 +86,7 @@ public class OrganisationEligibilityRefreshLeaseServiceTests : IntegrationTestBa
         var result = await nextOwner.TryAcquire(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
 
         result.Should().BeTrue();
-        var lease = await OrganisationEligibilityRefreshLeases
+        var lease = await OrganisationWorkerLeases
             .Find(x => x.Id == BackgroundWorkerLease.OrganisationEligibilityRefreshLeaseId)
             .SingleAsync(TestContext.Current.CancellationToken);
         lease.Owner.Should().NotBeNullOrWhiteSpace();

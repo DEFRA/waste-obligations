@@ -39,8 +39,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     public required IMongoCollection<OrganisationReferenceCache> OrganisationReferenceCaches { get; set; }
     public required IMongoCollection<OrganisationComplianceDeclarationEligibility> OrganisationComplianceDeclarationEligibilities { get; set; }
     public required IMongoCollection<OrganisationEligibilitySnapshot> OrganisationEligibilitySnapshots { get; set; }
-    public required IMongoCollection<BackgroundWorkerLease> OrganisationEligibilityRefreshLeases { get; set; }
-    public required IMongoCollection<BackgroundWorkerLease> OrganisationObligationHydrationLeases { get; set; }
+    public required IMongoCollection<BackgroundWorkerLease> OrganisationWorkerLeases { get; set; }
     public required IMongoCollection<OrganisationObligationHydrationWork> OrganisationObligationHydrationWork { get; set; }
     public required IMongoCollection<OrganisationObligationSummary> OrganisationObligationSummaries { get; set; }
 
@@ -69,12 +68,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         OrganisationComplianceDeclarationEligibilities =
             GetMongoCollection<OrganisationComplianceDeclarationEligibility>();
         OrganisationEligibilitySnapshots = GetMongoCollection<OrganisationEligibilitySnapshot>();
-        OrganisationEligibilityRefreshLeases = GetMongoCollection<BackgroundWorkerLease>(
-            BackgroundWorkerLease.OrganisationEligibilityRefreshCollectionName
-        );
-        OrganisationObligationHydrationLeases = GetMongoCollection<BackgroundWorkerLease>(
-            BackgroundWorkerLease.OrganisationObligationHydrationCollectionName
-        );
+        OrganisationWorkerLeases = GetMongoCollection<BackgroundWorkerLease>(BackgroundWorkerLease.CollectionName);
         OrganisationObligationHydrationWork = GetMongoCollection<OrganisationObligationHydrationWork>();
         OrganisationObligationSummaries = GetMongoCollection<OrganisationObligationSummary>();
 
@@ -85,8 +79,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         await DeleteMany(OrganisationReferenceCaches);
         await DeleteMany(OrganisationComplianceDeclarationEligibilities);
         await DeleteMany(OrganisationEligibilitySnapshots);
-        await DeleteMany(OrganisationEligibilityRefreshLeases);
-        await DeleteMany(OrganisationObligationHydrationLeases);
+        await DeleteMany(OrganisationWorkerLeases);
         await DeleteMany(OrganisationObligationHydrationWork);
         await DeleteMany(OrganisationObligationSummaries);
 

@@ -17,7 +17,7 @@ public class OrganisationObligationHydrationLeaseServiceTests : IntegrationTestB
         var result = await subject.TryAcquire(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
 
         result.Should().BeTrue();
-        var lease = await OrganisationObligationHydrationLeases
+        var lease = await OrganisationWorkerLeases
             .Find(x => x.Id == BackgroundWorkerLease.OrganisationObligationHydrationLeaseId)
             .SingleAsync(TestContext.Current.CancellationToken);
         lease.Owner.Should().NotBeNullOrWhiteSpace();
@@ -67,7 +67,7 @@ public class OrganisationObligationHydrationLeaseServiceTests : IntegrationTestB
 
         nonOwnerResult.Should().BeFalse();
         ownerResult.Should().BeTrue();
-        var lease = await OrganisationObligationHydrationLeases
+        var lease = await OrganisationWorkerLeases
             .Find(x => x.Id == BackgroundWorkerLease.OrganisationObligationHydrationLeaseId)
             .SingleAsync(TestContext.Current.CancellationToken);
         lease.ExpiresAt.Should().Be(timeProvider.GetUtcNow().AddSeconds(60).UtcDateTime);
@@ -86,7 +86,7 @@ public class OrganisationObligationHydrationLeaseServiceTests : IntegrationTestB
         var result = await nextOwner.TryAcquire(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
 
         result.Should().BeTrue();
-        var lease = await OrganisationObligationHydrationLeases
+        var lease = await OrganisationWorkerLeases
             .Find(x => x.Id == BackgroundWorkerLease.OrganisationObligationHydrationLeaseId)
             .SingleAsync(TestContext.Current.CancellationToken);
         lease.Owner.Should().NotBeNullOrWhiteSpace();
