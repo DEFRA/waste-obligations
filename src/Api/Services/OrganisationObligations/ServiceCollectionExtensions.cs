@@ -19,6 +19,7 @@ public static class ServiceCollectionExtensions
                     && options.RefreshInterval > TimeSpan.Zero
                     && options.InitialRetryDelay > TimeSpan.Zero
                     && options.MaximumRetryDelay >= options.InitialRetryDelay
+                    && options.MaximumSummaryStaleness > TimeSpan.Zero
                     && options.OutgoingYearGracePeriod > TimeSpan.Zero,
                 "Organisation obligation hydration interval configuration is invalid"
             )

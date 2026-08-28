@@ -840,7 +840,9 @@ ComplianceObligationHydration
   LeaseRenewalInterval
 ```
 
-The job should emit success/failure, `NoChange`/`Promoted` outcome, duration, source count, rows written, last-verified age, and lease outcome. When an active generation is older than `MaximumAllowedStaleness`, the query endpoint logs an error for platform alerting but continues to return that last known generation. If no active generation exists, it logs an error and returns an empty page because no correct result can be derived.
+The organisation eligibility job emits `NoChange`/`Promoted` outcome, duration, source count, rows written, last-verified age, and lease outcome. The organisation-obligation worker emits success and failure counters and, after each hydration sweep, records the count and oldest age of active summaries that are older than `MaximumSummaryStaleness`. A summary without a successful read is measured from `requestedAt`; a summary with one is measured from `lastSuccessfulReadAt`. It logs a warning while that count is non-zero. These are operational signals only: the public endpoint continues to return the copied zero/default or last-known metrics and never triggers a calculation read.
+
+When an active eligibility generation is older than `MaximumAllowedStaleness`, the query endpoint logs an error for platform alerting but continues to return that last known generation. If no active generation exists, it logs an error and returns an empty page because no correct result can be derived.
 
 ### Freshness and worst-case staleness
 
@@ -1133,7 +1135,7 @@ The organisation-obligation summary is deliberately separate from the query aggr
 2. Delivered the typed Waste Organisations search adapter and contract tests for the combined query.
 3. Delivered the snapshot, materialised reference-resolution fields, indexes, migrations, lease, refresh job, Account batch hydration, observability, and failure/staleness handling.
 4. Delivered the direct eligibility-row visibility evaluation in staging refreshes and transactional recalculation for declaration changes; operational reconciliation remains future administration work.
-5. Delivered the organisation-obligation summary with embedded hydration state, lease worker, non-blocking initial backfill, calculator parity tests, stale sweep, pending/stale metrics, and downstream-failure handling.
+5. Delivered the organisation-obligation summary with embedded hydration state, lease worker, non-blocking initial backfill, calculator parity tests, stale-summary count/age and success/failure metrics, and downstream-failure handling.
 6. Delivered the direct indexed match/count/page query, including copied zero/default and last-known metrics, generic search, and name/reference/recycling/percentage sorting.
 7. Delivered the public review endpoint. Regulator frontend adoption for the Not submitted list/count/CSV remains a separate frontend change.
 8. A versioned Waste Organisations event contract and a Recycling-data status/calculation-trigger event remain future improvements. Their consumers must evolve the existing aggregates through the documented source-provenance and projection-mode cutover, before they replace periodic polling as the primary writers.

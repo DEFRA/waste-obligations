@@ -4,6 +4,7 @@ using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.OrganisationObligations;
 using Defra.WasteObligations.Api.Services.PrnCommonBackend;
+using Defra.WasteObligations.Api.Utils.Metrics;
 using Defra.WasteObligations.Testing.Fixtures.PrnCommonBackend;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
@@ -19,6 +20,8 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
     private const int ObligationYear = 2026;
     private readonly FakeTimeProvider _timeProvider = new(new DateTimeOffset(2026, 8, 26, 12, 0, 0, TimeSpan.Zero));
     private IOrganisationObligationSource ObligationSource { get; } = Substitute.For<IOrganisationObligationSource>();
+    private IOrganisationObligationHydrationMetrics HydrationMetrics { get; } =
+        Substitute.For<IOrganisationObligationHydrationMetrics>();
 
     [Fact]
     public async Task EnqueueNewEligible_WhenNoActiveGenerationExists_ShouldNotCreateSummary()
@@ -200,6 +203,7 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
             .SingleAsync(TestContext.Current.CancellationToken);
 
         snapshot.MaterialisedStateVersion.Should().Be(1);
+        HydrationMetrics.Received(1).Succeeded();
         await ObligationSource
             .Received(1)
             .ReadObligations(organisationId, ObligationYear, Arg.Any<CancellationToken>());
@@ -248,6 +252,67 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
         summary.Priority.Should().Be(OrganisationObligationHydrationPriority.Retry);
         summary.AttemptCount.Should().Be(1);
         summary.NextRefreshAt.Should().Be(_timeProvider.GetUtcNow().AddMinutes(1).UtcDateTime);
+        HydrationMetrics.Received(1).Failed();
+    }
+
+    [Fact]
+    public async Task HydrateDue_WhenAnActiveSummaryHasNoSuccessfulReadWithinTheThreshold_ShouldRecordStaleness()
+    {
+        var organisationId = Guid.NewGuid();
+        var requestedAt = _timeProvider.GetUtcNow().AddHours(-2).UtcDateTime;
+        await InsertActiveSnapshot();
+        await InsertEligibility(organisationId, RegistrationType.DirectProducer);
+        await InsertSummary(
+            organisationId,
+            OrganisationObligationRefreshState.Pending,
+            null,
+            isHydrationActive: true,
+            nextRefreshAt: _timeProvider.GetUtcNow().AddHours(1).UtcDateTime,
+            requestedAt: requestedAt
+        );
+        var subject = CreateSubject(
+            new OrganisationObligationHydrationOptions { MaximumSummaryStaleness = TimeSpan.FromHours(1) }
+        );
+
+        await subject.HydrateDue(ObligationYear, TestContext.Current.CancellationToken);
+
+        HydrationMetrics
+            .Received(1)
+            .StalenessObserved(
+                1,
+                Arg.Is<double>(x =>
+                    x >= TimeSpan.FromHours(2).TotalSeconds - 1 && x <= TimeSpan.FromHours(2).TotalSeconds + 1
+                )
+            );
+    }
+
+    [Fact]
+    public async Task HydrateDue_WhenAnActiveSummaryHasAnOldSuccessfulRead_ShouldRecordStaleness()
+    {
+        var organisationId = Guid.NewGuid();
+        await InsertActiveSnapshot();
+        await InsertEligibility(organisationId, RegistrationType.DirectProducer);
+        await InsertSummary(
+            organisationId,
+            OrganisationObligationRefreshState.Ready,
+            _timeProvider.GetUtcNow().AddHours(-2).UtcDateTime,
+            isHydrationActive: true,
+            nextRefreshAt: _timeProvider.GetUtcNow().AddHours(1).UtcDateTime
+        );
+        var subject = CreateSubject(
+            new OrganisationObligationHydrationOptions { MaximumSummaryStaleness = TimeSpan.FromHours(1) }
+        );
+
+        await subject.HydrateDue(ObligationYear, TestContext.Current.CancellationToken);
+
+        HydrationMetrics
+            .Received(1)
+            .StalenessObserved(
+                1,
+                Arg.Is<double>(x =>
+                    x >= TimeSpan.FromHours(2).TotalSeconds - 1 && x <= TimeSpan.FromHours(2).TotalSeconds + 1
+                )
+            );
     }
 
     [Fact]
@@ -280,7 +345,9 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
         summary.ObligationCoveragePercentage.Should().Be(80);
     }
 
-    private OrganisationObligationHydrationService CreateSubject()
+    private OrganisationObligationHydrationService CreateSubject(
+        OrganisationObligationHydrationOptions? hydrationOptions = null
+    )
     {
         var database = GetMongoDatabase();
         var dbContext = new MongoDbContext(
@@ -289,15 +356,16 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
             Substitute.For<Microsoft.Extensions.Logging.ILogger<MongoDbContext>>()
         );
 
+        var options = Options.Create(hydrationOptions ?? new OrganisationObligationHydrationOptions());
+
         return new OrganisationObligationHydrationService(
             dbContext,
             ObligationSource,
-            new OrganisationObligationRequestPacer(
-                Options.Create(new OrganisationObligationHydrationOptions()),
-                _timeProvider
-            ),
-            Options.Create(new OrganisationObligationHydrationOptions()),
-            _timeProvider
+            new OrganisationObligationRequestPacer(options, _timeProvider),
+            HydrationMetrics,
+            options,
+            _timeProvider,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<OrganisationObligationHydrationService>.Instance
         );
     }
 
@@ -343,7 +411,9 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
         Guid organisationId,
         OrganisationObligationRefreshState refreshState,
         DateTime? lastSuccessfulReadAt,
-        bool isHydrationActive = false
+        bool isHydrationActive = false,
+        DateTime? nextRefreshAt = null,
+        DateTime? requestedAt = null
     ) =>
         OrganisationObligationSummaries.InsertOneAsync(
             new OrganisationObligationSummary
@@ -358,9 +428,9 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
                 SourceFingerprint = "summary-fingerprint",
                 LastSuccessfulReadAt = lastSuccessfulReadAt,
                 LastAttemptedAt = _timeProvider.GetUtcNow().UtcDateTime,
-                NextRefreshAt = _timeProvider.GetUtcNow().UtcDateTime,
+                NextRefreshAt = nextRefreshAt ?? _timeProvider.GetUtcNow().UtcDateTime,
                 Priority = OrganisationObligationHydrationPriority.ScheduledRefresh,
-                RequestedAt = _timeProvider.GetUtcNow().UtcDateTime,
+                RequestedAt = requestedAt ?? _timeProvider.GetUtcNow().UtcDateTime,
                 IsHydrationActive = isHydrationActive,
                 RefreshState = refreshState,
             },

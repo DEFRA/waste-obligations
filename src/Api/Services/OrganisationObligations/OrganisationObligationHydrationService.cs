@@ -3,6 +3,8 @@ using System.Text;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.PrnCommonBackend;
+using Defra.WasteObligations.Api.Utils.Metrics;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 
@@ -12,8 +14,10 @@ public class OrganisationObligationHydrationService(
     IDbContext dbContext,
     IOrganisationObligationSource obligationSource,
     IOrganisationObligationRequestPacer requestPacer,
+    IOrganisationObligationHydrationMetrics metrics,
     IOptions<OrganisationObligationHydrationOptions> options,
-    TimeProvider timeProvider
+    TimeProvider timeProvider,
+    ILogger<OrganisationObligationHydrationService> logger
 ) : IOrganisationObligationHydrationService
 {
     private const int MaximumFailureLength = 1000;
@@ -56,6 +60,7 @@ public class OrganisationObligationHydrationService(
                 Interlocked.Increment(ref processedCount);
             }
         );
+        await ObserveStaleness(obligationYear, utcNow, cancellationToken);
 
         return processedCount;
     }
@@ -188,7 +193,7 @@ public class OrganisationObligationHydrationService(
                 work.ObligationYear,
                 cancellationToken
             );
-            var metrics = OrganisationObligationSummaryMapper.Map(
+            var summaryMetrics = OrganisationObligationSummaryMapper.Map(
                 work.OrganisationId,
                 work.ObligationYear,
                 obligations
@@ -197,12 +202,12 @@ public class OrganisationObligationHydrationService(
             var nextRefreshAt = NextRefreshAt(work.OrganisationId, work.ObligationYear, utcNow);
             var summary = work with
             {
-                ObligationCount = metrics.ObligationCount,
-                TotalAcceptedTonnage = metrics.TotalAcceptedTonnage,
-                TotalObligatedTonnage = metrics.TotalObligatedTonnage,
-                RecyclingObligationsMet = metrics.RecyclingObligationsMet,
-                ObligationCoveragePercentage = metrics.ObligationCoveragePercentage,
-                SourceFingerprint = metrics.SourceFingerprint,
+                ObligationCount = summaryMetrics.ObligationCount,
+                TotalAcceptedTonnage = summaryMetrics.TotalAcceptedTonnage,
+                TotalObligatedTonnage = summaryMetrics.TotalObligatedTonnage,
+                RecyclingObligationsMet = summaryMetrics.RecyclingObligationsMet,
+                ObligationCoveragePercentage = summaryMetrics.ObligationCoveragePercentage,
+                SourceFingerprint = summaryMetrics.SourceFingerprint,
                 LastSuccessfulReadAt = utcNow,
                 LastAttemptedAt = utcNow,
                 NextRefreshAt = nextRefreshAt,
@@ -214,6 +219,7 @@ public class OrganisationObligationHydrationService(
             };
 
             await Persist(summary, cancellationToken);
+            metrics.Succeeded();
         }
         catch (OperationCanceledException)
         {
@@ -222,6 +228,7 @@ public class OrganisationObligationHydrationService(
         catch (Exception exception)
         {
             await RecordFailure(work, exception, cancellationToken);
+            metrics.Failed();
         }
     }
 
@@ -290,6 +297,36 @@ public class OrganisationObligationHydrationService(
         );
 
         return TimeSpan.FromTicks(retryTicks);
+    }
+
+    private async Task ObserveStaleness(int obligationYear, DateTime utcNow, CancellationToken cancellationToken)
+    {
+        var staleBefore = utcNow.Subtract(options.Value.MaximumSummaryStaleness);
+        var staleSummaryTimes = await dbContext
+            .OrganisationObligationSummaries.Find(x =>
+                x.ObligationYear == obligationYear
+                && x.IsHydrationActive
+                && (
+                    (x.LastSuccessfulReadAt != null && x.LastSuccessfulReadAt < staleBefore)
+                    || (x.LastSuccessfulReadAt == null && x.RequestedAt < staleBefore)
+                )
+            )
+            .Project(x => x.LastSuccessfulReadAt ?? x.RequestedAt)
+            .ToListAsync(cancellationToken);
+        var oldestStaleSummaryAgeSeconds =
+            staleSummaryTimes.Count > 0 ? (utcNow - staleSummaryTimes.Min()).TotalSeconds : 0;
+
+        metrics.StalenessObserved(staleSummaryTimes.Count, oldestStaleSummaryAgeSeconds);
+        if (staleSummaryTimes.Count > 0)
+        {
+            logger.LogWarning(
+                "Organisation obligation hydration has {StaleSummaryCount} active summaries older than {MaximumSummaryStaleness}. The oldest is {OldestStaleSummaryAgeSeconds} seconds old for obligation year {ObligationYear}",
+                staleSummaryTimes.Count,
+                options.Value.MaximumSummaryStaleness,
+                oldestStaleSummaryAgeSeconds,
+                obligationYear
+            );
+        }
     }
 
     private DateTime NextRefreshAt(Guid organisationId, int obligationYear, DateTime utcNow)
