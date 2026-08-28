@@ -10,32 +10,15 @@ namespace Defra.WasteObligations.Api.Tests.Services.OrganisationEligibility;
 public class OrganisationEligibilitySnapshotContentBuilderTests
 {
     [Fact]
-    public void Create_WhenInputOrderOrUnresolvedRetryStateChanges_ShouldKeepFingerprint()
+    public void Create_WhenInputOrderOrUnresolvedStateChanges_ShouldKeepFingerprint()
     {
         var directProducer = CreateRow(Guid.Parse("11111111-1111-1111-1111-111111111111"));
         var complianceScheme = CreateRow(
             Guid.Parse("22222222-2222-2222-2222-222222222222"),
             RegistrationType.ComplianceScheme
         );
-        var firstCaches = new[]
-        {
-            CreateCache(directProducer, OrganisationReferenceNumberResolutionState.Pending, referenceNumber: null),
-            CreateCache(complianceScheme, OrganisationReferenceNumberResolutionState.NotFound, referenceNumber: null),
-        };
-        var secondCaches = new[]
-        {
-            CreateCache(complianceScheme, OrganisationReferenceNumberResolutionState.Failed, referenceNumber: null),
-            CreateCache(directProducer, OrganisationReferenceNumberResolutionState.Pending, referenceNumber: null),
-        };
-
-        var first = OrganisationEligibilitySnapshotContentBuilder.Create(
-            new[] { directProducer, complianceScheme },
-            firstCaches
-        );
-        var second = OrganisationEligibilitySnapshotContentBuilder.Create(
-            new[] { complianceScheme, directProducer },
-            secondCaches
-        );
+        var first = OrganisationEligibilitySnapshotContentBuilder.Create([directProducer, complianceScheme]);
+        var second = OrganisationEligibilitySnapshotContentBuilder.Create([complianceScheme, directProducer]);
 
         second.Fingerprint.Should().Be(first.Fingerprint);
         second.Rows.Should().BeInAscendingOrder(x => x.OrganisationId);
@@ -46,14 +29,14 @@ public class OrganisationEligibilitySnapshotContentBuilderTests
     {
         var row = CreateRow(Guid.NewGuid());
 
-        var unresolved = OrganisationEligibilitySnapshotContentBuilder.Create(
-            new[] { row },
-            new[] { CreateCache(row, OrganisationReferenceNumberResolutionState.Pending, referenceNumber: null) }
-        );
-        var resolved = OrganisationEligibilitySnapshotContentBuilder.Create(
-            new[] { row },
-            new[] { CreateCache(row, OrganisationReferenceNumberResolutionState.Resolved, referenceNumber: "051829") }
-        );
+        var unresolved = OrganisationEligibilitySnapshotContentBuilder.Create([row]);
+        var resolved = OrganisationEligibilitySnapshotContentBuilder.Create([
+            row with
+            {
+                ReferenceNumber = "051829",
+                ReferenceNumberResolutionState = OrganisationReferenceNumberResolutionState.Resolved,
+            },
+        ]);
 
         resolved.Fingerprint.Should().NotBe(unresolved.Fingerprint);
         resolved
@@ -71,11 +54,11 @@ public class OrganisationEligibilitySnapshotContentBuilderTests
     }
 
     [Fact]
-    public void Create_WhenReferenceCacheIsMissing_ShouldKeepTheSourceRowUnresolved()
+    public void Create_WhenSourceRowIsUnresolved_ShouldKeepItUnresolved()
     {
         var row = CreateRow(Guid.NewGuid());
 
-        var content = OrganisationEligibilitySnapshotContentBuilder.Create(new[] { row }, []);
+        var content = OrganisationEligibilitySnapshotContentBuilder.Create([row]);
 
         content.Rows.Single().ReferenceNumber.Should().BeNull();
         content
@@ -92,25 +75,8 @@ public class OrganisationEligibilitySnapshotContentBuilderTests
             .Default(organisationId)
             .With(x => x.Generation, "g1")
             .With(x => x.RegistrationType, registrationType)
-            .Without(x => x.ReferenceNumber)
+            .With(x => x.ReferenceNumber, (string?)null)
             .With(x => x.ReferenceNumberResolutionState, OrganisationReferenceNumberResolutionState.Pending)
             .With(x => x.SourceFingerprint, $"source-{organisationId:D}")
             .Create();
-
-    private static OrganisationReferenceCache CreateCache(
-        OrganisationComplianceDeclarationEligibilityEntity row,
-        OrganisationReferenceNumberResolutionState state,
-        string? referenceNumber
-    ) =>
-        new()
-        {
-            OrganisationId = row.OrganisationId,
-            RegistrationType = row.RegistrationType,
-            LookupMode =
-                row.RegistrationType == RegistrationType.DirectProducer
-                    ? OrganisationReferenceLookupMode.AccountExternalId
-                    : OrganisationReferenceLookupMode.CompaniesHouseNumber,
-            ReferenceNumber = referenceNumber,
-            ResolutionState = state,
-        };
 }

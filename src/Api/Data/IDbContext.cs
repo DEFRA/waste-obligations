@@ -9,7 +9,6 @@ public interface IDbContext
     IMongoCollection<OrganisationComplianceDeclarationEligibility> OrganisationComplianceDeclarationEligibilities { get; }
     IMongoCollection<OrganisationEligibilitySnapshot> OrganisationEligibilitySnapshots { get; }
     IMongoCollection<OrganisationObligationSummary> OrganisationObligationSummaries { get; }
-    IMongoCollection<OrganisationReferenceCache> OrganisationReferenceCaches { get; }
 
     Task<TResult> ExecuteTransaction<TResult>(
         Func<IClientSessionHandle, CancellationToken, Task<TResult>> callback,

@@ -16,7 +16,7 @@ public static class ServiceCollectionExtensions
                 "Refresh lease renewal interval must be less than the refresh lease duration"
             )
             .ValidateOnStart();
-        services.AddTransient<OrganisationReferenceCacheService>();
+        services.AddTransient<OrganisationReferenceResolver>();
         services.AddTransient<IOrganisationEligibilityRefreshService, OrganisationEligibilityRefreshService>();
         services.AddTransient<
             IOrganisationEligibilityRefreshLeaseService,

@@ -232,7 +232,7 @@ Names below are provisional. New collection names, indexes, schema files, migrat
 }
 ```
 
-The delivery adds purpose-specific persistence for eligibility rows, snapshot metadata, the Account reference cache, and a single per-organisation/year obligation summary that contains both display metrics and its own hydration state. The eligibility row itself carries the direct inferred-list membership field; snapshot metadata is control data. The Account cache is an internal work/provenance store, not a request-time join. Refresh and hydration leases are two documents, identified by separate lease IDs, in the private `_unsubmitted_organisation_worker_leases` collection. They use the shared `BackgroundWorkerLeaseService` lifecycle implementation and are accessed through purpose-specific adapters rather than the query-data `IDbContext`; the shared collection is not a work queue.
+The delivery adds purpose-specific persistence for eligibility rows, snapshot metadata, and a single per-organisation/year obligation summary that contains both display metrics and its own hydration state. The eligibility row itself carries the direct inferred-list membership field and the Account-reference result; snapshot metadata is control data. Refresh and hydration leases are two documents, identified by separate lease IDs, in the private `_unsubmitted_organisation_worker_leases` collection. They use the shared `BackgroundWorkerLeaseService` lifecycle implementation and are accessed through purpose-specific adapters rather than the query-data `IDbContext`; the shared collection is not a work queue.
 
 ### 1. Organisation eligibility snapshot
 
@@ -271,7 +271,7 @@ An empty result must never silently mean “every organisation has submitted” 
 
 For this first delivery, sort raw `name` with `organisationId` as the required final tie-breaker. This deliberately follows the current `ComplianceDeclaration` approach: there is no shared search/sort projection, normalised sort key, or new schema migration for historic declarations. Raw Mongo string order is deterministic but is not an explicit case-insensitive or locale-aware alphabetisation contract; revisit that only if user-facing ordering requires it.
 
-For an all-years refresh, `generation` is global to the refresh, rather than one generation per year. This ensures an endpoint for any year sees rows derived from the same upstream response. `OrganisationEligibilitySnapshot` is control metadata for the eligibility data set. The query uses two business projections: eligibility rows, including declaration visibility, and the independently refreshed organisation-obligation summary. Reference-resolution records are an auxiliary work/provenance store, not a query-time join.
+For an all-years refresh, `generation` is global to the refresh, rather than one generation per year. This ensures an endpoint for any year sees rows derived from the same upstream response. `OrganisationEligibilitySnapshot` is control metadata for the eligibility data set. The query uses two business projections: eligibility rows, including Account-reference resolution and declaration visibility, and the independently refreshed organisation-obligation summary.
 
 ### 2. Unsubmitted visibility
 
@@ -290,29 +290,11 @@ The Account service is authoritative for the organisation reference number used 
 | `DirectProducer` | `POST /api/organisations/organisations-by-externalIds` with `externalIds` | Waste Organisations `organisationId` is the Account `externalId`. The Account database has a unique `ExternalId` index. |
 | `ComplianceScheme` | `POST /api/organisations/organisations-by-companies-house-numbers` with `companiesHouseNumbers` | A scheme's Waste Organisations ID is **not** an Account external ID. Match by Companies House number, then retain only the returned organisation whose `isComplianceScheme` is true. |
 
-The Companies House route can return several Account organisations for one number. The frontend currently filters `isComplianceScheme` and puts the results into a JavaScript `Map`, so if two matching scheme rows were returned, the last response item would win accidentally. The cache worker must not copy that behaviour: zero matching scheme rows is unresolved and more than one is `Ambiguous`, alerted and withheld until the Account-data rule is resolved. It must never choose an arbitrary reference number. A missing Companies House number is `AwaitingLookupKey`, not a request to Account.
+The Companies House route can return several Account organisations for one number. The frontend currently filters `isComplianceScheme` and puts the results into a JavaScript `Map`, so if two matching scheme rows were returned, the last response item would win accidentally. The eligibility refresh must not copy that behaviour: zero matching scheme rows is unresolved and more than one is `Ambiguous`, alerted and withheld until the Account-data rule is resolved. It must never choose an arbitrary reference number. A missing Companies House number is `AwaitingLookupKey`, not a request to Account.
 
 Reference numbers are strings, not numbers: preserve leading zeroes and the exact Account value. The expected six-digit format should be monitored, but it should not be silently coerced or truncated.
 
-```text
-OrganisationReferenceCache
-  organisationId                 GUID
-  reviewType                     DirectProducer | ComplianceScheme
-  lookupMode                     AccountExternalId | CompaniesHouseNumber
-  companiesHouseNumber           string?          // current source key for schemes
-  referenceNumber                string?          // set only after a successful resolution
-  resolutionState                Pending | Resolved | NotFound | Ambiguous | AwaitingLookupKey | Failed
-  resolvedAccountExternalId      GUID?            // provenance, particularly useful for schemes
-  resolvedUsingCompaniesHouseNumber string?       // provenance for scheme result
-  firstSeenAt / lastSeenAt       UTC timestamp
-  lastAttemptedAt                UTC timestamp?
-  nextAttemptAt                  UTC timestamp?
-  attemptCount                   int
-  resolvedAt                     UTC timestamp?
-  lastFailure                    optional, bounded diagnostic
-```
-
-The unique key is `{ organisationId, reviewType }`, not year or generation: a reference is assigned to the organisation, then reused by every current and future eligibility row. Add a due-work index such as `{ resolutionState, nextAttemptAt }`. This collection is an internal resolution queue/cache; the public unsubmitted query does not join it. The `resolvedUsing...` fields make the value explainable without turning the Account response into a second organisation master.
+`referenceNumber` and `referenceResolutionState` are stored directly on the staged eligibility rows. At the start of a refresh, the resolver reads the active generation's rows by `{ organisationId, registrationType }`. A non-empty `Resolved` value is reused across every year in the new source response, preserving the invariant that Account references do not silently change. Other states are not separately persisted as work: each new eligibility refresh batches the unresolved keys through Account again. This removes a second cache/queue collection, retry timers, and cache indexes while keeping the public request path a single local query.
 
 #### How it relates to generations
 
@@ -321,41 +303,34 @@ Materialise `referenceNumber` and `referenceResolutionState` into each staged `O
 | Design | Strength | Cost / weakness | Decision under the no-reference rule |
 | --- | --- | --- | --- |
 | Separate reference cache joined by the API | Reference resolution can appear without rewriting a generation. | Generic search must join before count/page; a row with no reference still exists in the candidate population unless the query adds another exclusion. | Not selected. |
-| Reference materialised in the staged generation | One local query serves filtering, reference search, page and CSV; promotion atomically publishes the reference-bearing eligibility set. | The first successful reference for an organisation causes a later complete generation write; resolution must be available before the row appears. | **Selected.** The resolution cache remains only an internal queue/provenance store. |
+| Reference materialised in the staged generation and reused from the active generation | One local query serves filtering, reference search, page and CSV; promotion atomically publishes the reference-bearing eligibility set. | The first successful reference for an organisation causes a later complete generation write; unresolved keys are retried at the next eligibility refresh. | **Selected.** No separate reference-cache collection is retained. |
 
 The required rule is deliberately stronger than “show `No data`”: an organisation with an unresolved reference is stored for provenance and retry, but its row is excluded by `referenceResolutionState != Resolved`. It is not considered unsubmitted, appears in no page/count/CSV, and cannot be found by reference search. Do not omit the source row from the staged generation entirely: retaining it with its resolution state makes retry, source-change detection, and later event hydration possible.
 
 The initial `g1` flow is:
 
 1. Fetch and transform the complete Waste Organisations response into staged source rows.
-2. Seed/consult the reference-resolution cache for every distinct organisation/type and make bounded Account batch calls for cache misses.
+2. Reuse each active-generation `Resolved` reference for the same organisation/type and make bounded Account batch calls for all remaining distinct unresolved keys.
 3. Write every source row to `g1` with either a resolved reference or an unresolved state. Completion here means every Account batch has a recorded outcome; it does **not** mean every organisation has a reference.
 4. Validate and atomically promote `g1`. Only its resolved-reference rows are eligible to appear.
 
-For a later source refresh, compare each new row's **source** fingerprint to `g1`. A source-identical row copies its resolved reference or unresolved state forward; a changed row first reuses a resolved cache value for the same organisation/type, and only a cache miss needs an Account call. Thus a single genuinely new organisation normally creates one Account lookup, while all other references are copied into `g2`. Build the complete `g2` and promote it atomically only after the immediate lookup batch has outcomes.
+For a later source refresh, compare each new row's **source** fingerprint to `g1`. A resolved reference from the active generation is copied forward for the same organisation/type, including when the source row itself changes. Every remaining unresolved key is sent in the bounded Account batch for this refresh. Thus a single genuinely new organisation creates one Account lookup, while resolved organisations are copied into `g2` without a call. Build the complete `g2` and promote it atomically only after the immediate lookup batch has outcomes.
 
-An Account timeout, a not-found result, or an ambiguous scheme must not indefinitely hold an otherwise valid Waste Organisations snapshot hostage. Record `Failed`, `NotFound`, or `Ambiguous`, write that unresolved state into the staged generation, and promote the generation. The row is excluded, satisfying the no-reference rule, while the retry worker continues. When a retry later becomes `Resolved`, coalesce the changed resolutions and materialise a fresh complete generation on the next refresh cycle (or a deliberately scheduled materialisation cycle); do not mutate active generation rows in place.
+An Account timeout, a not-found result, or an ambiguous scheme must not indefinitely hold an otherwise valid Waste Organisations snapshot hostage. Record `Failed`, `NotFound`, or `Ambiguous` on the staged generation and promote it. The row is excluded, satisfying the no-reference rule, and is retried by the next eligibility refresh. When it later becomes `Resolved`, materialise a fresh complete generation on that refresh cycle; do not mutate active generation rows in place.
 
-This is safe because the stated business invariant is that a reference number never changes once assigned to an organisation ID. If Account ever returns a different non-empty reference for a `Resolved` cache key, retain the first value, record an integrity error, and investigate; do not silently overwrite it. For a compliance scheme, a change to the source Companies House number after resolution is likewise an integrity signal, not a reason to substitute a new reference automatically. An unresolved scheme may update its lookup key from the next source generation and become due again.
+This is safe because the stated business invariant is that a reference number never changes once assigned to an organisation ID. The resolver reuses the first non-empty `Resolved` value found in the active generation; conflicting active values fail the refresh rather than selecting one. For a compliance scheme, a change to the source Companies House number after resolution is an integrity signal, not a reason to substitute a new reference automatically. An unresolved scheme may update its lookup key in the next source generation and be retried then.
 
-#### Reference-resolution worker
+#### Reference resolution during eligibility refresh
 
-Run a separate interval worker using the existing `AuditEventLeaseService` lifecycle: atomic acquire-or-skip, renewal while a batch is being processed, owner-only release, and expiry recovery. It needs its own private operational lease collection and a distinct lease ID, for example `organisation-reference-resolution`. This lets it run independently of the 30-minute Waste Organisations poll and prevents multiple hosts from sending the same batch to Account.
+The active eligibility-refresh lease owns the Account calls. For every refresh it deduplicates unresolved Direct Producer organisation IDs and scheme Companies House numbers, calls the two Account batch interfaces in configurable chunks, then materialises the outcome on every affected staged row. A successful non-empty reference is `Resolved`; `notFoundExternalIds`, missing references, an absent scheme lookup key, ambiguous scheme results, and transient HTTP failures remain unresolved and are excluded from the promoted view.
 
-Each run selects a bounded number of due `Pending`, retryable `NotFound`, or `Failed` cache entries and groups them by lookup mode:
-
-1. Deduplicate Direct Producer organisation IDs and call the external-ID batch endpoint in configured chunks.
-2. Deduplicate scheme Companies House numbers and call the Companies House batch endpoint in configured chunks; one response may resolve several cache entries with the same number.
-3. Write only successful non-empty reference numbers as `Resolved`. `notFoundExternalIds`, a missing reference number, a source key not yet present, ambiguous scheme results, and transient HTTP failures each retain an unresolved state with an appropriate retry/back-off policy.
-4. Renew the lease before each downstream call and before writing its result. If renewal fails, stop without claiming the remaining work; it will be picked up after lease expiry.
-
-The Account endpoints are already batch interfaces, but the service has no published request-size contract in the code inspected. Use a conservative configurable chunk size and low configurable concurrency, load-test it with the Account team, then set an explicit contract/limit rather than sending the full initial population in one request. A positive cache entry is never polled again. Negative outcomes are not terminal: an organisation can exist before a reference is assigned, so retry them with capped exponential back-off and a much lower steady-state cadence. Track pending count, oldest unresolved age, retry/failure count, ambiguous schemes, and the number of new cache keys discovered per generation.
+The Account endpoints are already batch interfaces, but the service has no published request-size contract in the code inspected. Use a conservative configurable chunk size and load-test it with the Account team before increasing it. Resolved values are not polled again while present in the active generation. Negative outcomes are retried on the next eligibility refresh rather than retaining a separate retry queue; this deliberately trades a small, bounded batch call every 30 minutes for fewer persisted collections and moving parts. Track unresolved-row count, ambiguous schemes, batch failures, and the number of newly resolved references per generation through future administration/operational insight rather than adding diagnostic fields to the public contract.
 
 #### Serving the materialised unsubmitted view without HTTP fan-out
 
-No change is proposed to `GET /compliance-declarations`: its existing generic `search` already includes its persisted `organisation.referenceNumber`. This Account cache and its search logic exist only for the new unsubmitted projection.
+No change is proposed to `GET /compliance-declarations`: its existing generic `search` already includes its persisted `organisation.referenceNumber`. Account resolution is used only while refreshing the new unsubmitted projection.
 
-The unsubmitted query reads only the active generation and needs no Account call and no reference-cache join. Reference numbers are already on eligible rows, so both the normal page/CSV and generic search are one local Mongo query. The unsubmitted endpoint uses the same generic `search` parameter and case-insensitive partial-match semantics as the existing declaration endpoint. Its aggregation becomes:
+The unsubmitted query reads only the active generation and needs no Account call or reference join. Reference numbers are already on eligible rows, so both the normal page/CSV and generic search are one local Mongo query. The unsubmitted endpoint uses the same generic `search` parameter and case-insensitive partial-match semantics as the existing declaration endpoint. Its aggregation becomes:
 
 ```text
 1. Match active generation + obligation year + registration type + isVisibleInUnsubmittedView=true.
@@ -372,10 +347,9 @@ Suggested indexes, subject to the repository's Mongo schema/migration process:
 
 - eligibility rows: `{ generation, obligationYear, registrationType, isVisibleInUnsubmittedView, name, organisationId }` for direct membership filtering and deterministic default ordering;
 - eligibility rows: unique `{ generation, obligationYear, organisationId, registrationType }`;
-- reference cache: unique `{ organisationId, reviewType }` and due-work `{ resolutionState, nextAttemptAt }`;
 - obligation summary: unique `{ organisationId, obligationYear }` and due-work `{ isHydrationActive, nextRefreshAt, priority }`.
 
-The inferred `unsubmitted` boolean is the deliberately materialised membership field on the eligibility row. No obligation calculation, current-obligation value, or Regulation 43 belongs there. The Account reference is also deliberately materialised there; its separate resolution cache remains internal work/provenance data. Organisation-obligation values are stored in the distinct projection below because a PRN's status can change them after the organisation generation has been promoted.
+The inferred `unsubmitted` boolean is the deliberately materialised membership field on the eligibility row. No obligation calculation, current-obligation value, or Regulation 43 belongs there. The Account reference is also materialised there. Organisation-obligation values are stored in the distinct projection below because a PRN's status can change them after the organisation generation has been promoted.
 
 ### 4. Organisation-obligation-summary hydration
 
@@ -572,7 +546,7 @@ One refresh run should work as follows:
 1. Acquire an `eligibility-organisations` lease. If another instance holds it, skip this interval.
 2. Fetch the single combined Waste Organisations search response with a timeout and normal HTTP resilience policy.
 3. Validate the response, then expand every relevant source registration into one `{ organisationId, obligationYear, reviewType }` review row. Retain its current status for `LARGE_PRODUCER` and `COMPLIANCE_SCHEME`, including non-`REGISTERED` statuses; ignore unrelated registration types in the derived projection.
-4. For every derived row, calculate its Waste Organisations-only `sourceFingerprint`. Compare it with the same-key row in the active generation; copy any known reference state forward or obtain it from the resolution cache. Create `Pending` work and make bounded immediate Account batch calls only for cache misses.
+4. For every derived row, calculate its Waste Organisations-only `sourceFingerprint`. Reuse a known resolved reference from active-generation rows with the same organisation/type; make bounded immediate Account batch calls for every remaining unresolved key.
 5. Materialise the Account outcome on every staged row. A successful reference produces `Resolved` plus its string value; every other outcome produces an excluded unresolved state. Record source/row/duplicate/reference-outcome counts for diagnostics.
 6. Canonically sort the complete materialised set and calculate its semantic `activeContentFingerprint`. The fingerprint includes each row's `sourceFingerprint` and either its resolved reference value or one common `Unresolved` marker; it excludes retry timestamps and distinctions between non-eligible states such as `Pending` and `Failed`.
 7. Compare that fingerprint with the active generation in metadata.
@@ -613,7 +587,7 @@ Hashing row fingerprints rather than serialising a second giant JSON document av
 | --- | --- | --- |
 | Download and JSON parse | `O(source response bytes)` | Unavoidable with the current all-organisations endpoint. |
 | Transform and row hashing | `O(R + M)` | One pass over relevant registrations/derived rows. |
-| Reference cache lookup / new-key batches | `O(M)` local lookups; Account calls scale with cache misses | Existing references are copied forward. Batch and bound the initial / genuinely new-key Account work. |
+| Resolved-reference reuse / unresolved batches | `O(M)` local active-generation read; Account calls scale with unresolved keys | Existing resolved references are copied forward. Batch and bound all remaining Account work. |
 | Deterministic ordering | `O(M log M)` time, `O(M)` row-descriptor memory | Necessary because source ordering is not guaranteed. |
 | No-change Mongo work | `O(1)` eligibility writes | A metadata update plus the normal lease operations; no eligibility rows are touched. |
 | Changed Mongo work | `O(M)` eligibility writes | A complete `g(n+1)` is written to retain atomic simple-snapshot semantics. |
@@ -768,8 +742,8 @@ UnsubmittedOrganisationProjection
 
 The event handling rules are:
 
-1. An organisation-registration event upserts only its corresponding rows. It creates `Pending` reference work when no resolved reference is known; a `REGISTERED` row becomes queryable only after the reference condition is also resolved.
-2. An Account reference-assignment event first upserts the resolution cache. If the related organisation row already exists, it updates that one row to `Resolved` in the same local transaction as the consumer checkpoint/inbox record. If the Account event arrives first, the cache waits and the later organisation event hydrates the row.
+1. An organisation-registration event upserts only its corresponding rows. It records a pending reference state when no resolved reference is known; a `REGISTERED` row becomes queryable only after the reference condition is also resolved.
+2. An Account reference-assignment event updates the matching local projection row to `Resolved` in the same transaction as the consumer checkpoint/inbox record. If the Account event arrives first, retain its event state with the inbox/checkpoint until the related organisation event can apply it; do not introduce a second query-time cache.
 3. **Future only:** a PRN-status event may enqueue only its affected `{ organisationId, obligationYear }` obligation-summary key when its year equals `currentObligationYear`. The worker calls the canonical organisation-obligation calculation endpoint and recomputes the summary; it does not recreate the calculation from the event. This is not an initial dependency and must not be approximated by polling individual PRNs.
 4. A daily obligation-calculation-run-completed event, containing at least the compliance year and durable run ID/watermark, may later be recorded against summaries to prove which calculation run was observed. The initial rolling poll does not depend on it or create a separate daily burst.
 5. A cancellation, deletion, or registration-status event updates only the row concerned; it is immediately excluded when no longer `REGISTERED`.
@@ -778,7 +752,7 @@ The event handling rules are:
 
 The broker's consumer-group/lock/checkpoint semantics should own multi-host concurrency for this path, rather than the periodic Mongo lease. A local lease remains appropriate for the retained reconciliation job, but should not compete with event consumers to apply the same row without a single-writer/version rule.
 
-Bootstrap is the critical event design problem: take a full source snapshot at a defined event watermark, persist it, then replay events after that watermark before declaring the projection ready. The initial obligation-summary backfill then runs for active current-year eligible organisation keys. Without a supported snapshot-plus-offset contract, retain the periodic full organisation poll as a low-frequency reconciliation/repair job even after events are introduced. It detects missed events, source corrections, and cache/projection drift. Retain a less-frequent current-year obligation-summary reconciliation too.
+Bootstrap is the critical event design problem: take a full source snapshot at a defined event watermark, persist it, then replay events after that watermark before declaring the projection ready. The initial obligation-summary backfill then runs for active current-year eligible organisation keys. Without a supported snapshot-plus-offset contract, retain the periodic full organisation poll as a low-frequency reconciliation/repair job even after events are introduced. It detects missed events, source corrections, and projection drift. Retain a less-frequent current-year obligation-summary reconciliation too.
 
 Event consumption gives per-organisation atomicity, not a globally atomic all-organisations point-in-time view. That is appropriate only if the upstream event contract represents independent organisation changes. The pull model's complete-generation promotion remains the right design while the only trustworthy input is a full, unversioned `GET /organisations`; do not mix in-place event writes into that active generation. The organisation-obligation summary is intentionally different: it is already a per-key mutable projection, so a PRN event updates or queues only one summary and never creates an organisation generation. Both writers may share mapping, reference-resolution, row-validation, and query code behind a projector interface, but only one owns the active organisation read model at a time.
 
@@ -846,10 +820,8 @@ Define the following measured/configured values:
 | `U` | Upstream schedule wait: **16h 30m** under the current cron. |
 | `I` | Time from the chosen integration invocation starting until its final organisation update is visible in Waste Organisations. This includes the Common Data delta request, sequential organisation writes, retries, and Waste Organisations processing. |
 | `P` | `PollingIntervalMinutes` for Waste Obligations; **30m** is the initial proposal. |
-| `R` | Time from the Waste Obligations poll starting to its new generation being atomically promoted, including the source GET, reference-cache lookup/immediate Account batch attempts, transformation and bulk writes. |
+| `R` | Time from the Waste Obligations poll starting to its new generation being atomically promoted, including the source GET, active-reference reuse/immediate Account batch attempts, transformation and bulk writes. |
 | `J` | Bounded scheduler/startup jitter. |
-| `A` | Interval of the Account reference-resolution retry worker. |
-| `AR` | Time for one bounded Account-resolution batch and its cache write. |
 | `T` | `RefreshIntervalMinutes` for each current-year organisation's calculated obligations; **30 minutes** is the initial recommendation. |
 | `H` | Queue delay plus one bounded organisation-obligation calculation request, mapping, and local summary upsert after the row becomes due. |
 | `E` | Event-delivery and consumer delay, if a suitable PRN event contract exists. |
@@ -872,7 +844,7 @@ Waste Organisations change to active Waste Obligations generation <= P + R + J
 For an organisation whose Account reference is absent during the source poll but becomes available later, the normal additional path is:
 
 ```text
-Account reference available to queryable active generation <= A + AR + P + R + J
+Account reference available to queryable active generation <= P + R + J
 ```
 
 This is a local resolution cadence bound, not a guarantee that Account has assigned a reference. While no reference exists or Account repeatedly fails, the organisation remains deliberately excluded and the duration is unbounded; coverage metrics and the agreed fail-closed policy are therefore as important as the source-staleness limit.
@@ -962,7 +934,7 @@ The initial response contains the eligibility fields plus the locally hydrated o
 
 The public unsubmitted endpoint is a client-facing list contract and must contain only data required to render, page, and act on that list. It does not expose eligibility-generation freshness or counts of organisations withheld because their reference is unresolved.
 
-A future administration/operational-insight endpoint should provide the corresponding diagnostic state: active-generation promotion and verification times, source freshness, resolved/unresolved reference counts and ages, reference retry/failure/ambiguity counts, organisation-obligation summary state counts, and the oldest pending or stale work. Its authorisation, retention, response shape, and alerting/metric relationship are deliberately separate design work.
+A future administration/operational-insight endpoint should provide the corresponding diagnostic state: active-generation promotion and verification times, source freshness, resolved/unresolved reference counts and ages, Account batch failure/ambiguity counts, organisation-obligation summary state counts, and the oldest pending or stale summary. Its authorisation, retention, response shape, and alerting/metric relationship are deliberately separate design work.
 
 ### Generic search
 
@@ -1117,7 +1089,7 @@ The organisation-obligation summary is deliberately outside the organisation sna
 
 1. Agree this source-of-truth behaviour, the eligibility and organisation-obligation refresh windows, zero/default pending-metric behaviour, scheme display-name rule, and sort-field allow-list.
 2. Implement the typed Waste Organisations search adapter and contract tests for the combined query.
-3. Add the snapshot and reference-resolution collections, indexes, migration documentation, lease, refresh job, immediate Account batch hydration, observability, and failure/staleness handling.
+3. Add the snapshot and materialised reference-resolution fields, indexes, migration documentation, lease, refresh job, immediate Account batch hydration, observability, and failure/staleness handling.
 4. Add the direct eligibility-row visibility evaluation to the staging refresh and transactional recalculation to declaration create/update/delete, with an operational reconciliation as future administration work.
 5. Add the organisation-obligation summary collection with embedded hydration state, lease worker, non-blocking initial backfill, calculator parity tests, stale sweep, pending/stale metrics, and downstream-failure handling.
 6. Implement the direct-match/page-summary query with production-like data/explain-plan tests, including pending/no-summary and stale-summary defaults.

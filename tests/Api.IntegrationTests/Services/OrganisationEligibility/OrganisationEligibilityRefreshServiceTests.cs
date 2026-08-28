@@ -506,18 +506,16 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
             Substitute.For<Microsoft.Extensions.Logging.ILogger<MongoDbContext>>()
         );
         var options = Options.Create(new OrganisationEligibilityOptions { AccountReferenceNumberBatchSize = 10 });
-        var cacheService = new OrganisationReferenceCacheService(
-            dbContext,
+        var referenceResolver = new OrganisationReferenceResolver(
             referenceSearchService,
             options,
-            timeProvider,
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<OrganisationReferenceCacheService>.Instance
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<OrganisationReferenceResolver>.Instance
         );
 
         return new OrganisationEligibilityRefreshService(
             dbContext,
             source,
-            cacheService,
+            referenceResolver,
             new UnsubmittedEligibilityVisibilityService(dbContext),
             options,
             timeProvider

@@ -10,9 +10,9 @@ public class OrganisationObligationSummaryHydrationIndexes : MongoMigration
 {
     private const string DueWorkIndexName = "IsHydrationActive_NextRefreshAt_Priority";
 
-    public override MigrationVersion Version => new(1, 0, 11);
+    public override MigrationVersion Version => new(1, 0, 10);
 
-    public override string Name => "012 - Organisation obligation summary hydration indexes";
+    public override string Name => "011 - Organisation obligation summary hydration indexes";
 
     public override async Task UpAsync(MigrationContext context)
     {

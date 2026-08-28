@@ -8,49 +8,18 @@ namespace Defra.WasteObligations.Api.Services.OrganisationEligibility;
 public static class OrganisationEligibilitySnapshotContentBuilder
 {
     public static OrganisationEligibilitySnapshotContent Create(
-        IReadOnlyCollection<Data.Entities.OrganisationComplianceDeclarationEligibility> sourceRows,
-        IReadOnlyCollection<OrganisationReferenceCache> referenceCaches
+        IReadOnlyCollection<Data.Entities.OrganisationComplianceDeclarationEligibility> rows
     )
     {
-        var referenceCachesByKey = referenceCaches.ToDictionary(x => new OrganisationReferenceCacheKey(
-            x.OrganisationId,
-            x.RegistrationType
-        ));
-        var rows = sourceRows
-            .Select(row =>
-                Materialise(
-                    row,
-                    referenceCachesByKey.GetValueOrDefault(
-                        new OrganisationReferenceCacheKey(row.OrganisationId, row.RegistrationType)
-                    )
-                )
-            )
-            .OrderBy(x => x.OrganisationId)
+        var orderedRows = rows.OrderBy(x => x.OrganisationId)
             .ThenBy(x => x.ObligationYear)
             .ThenBy(x => x.RegistrationType)
             .ToArray();
 
-        return new OrganisationEligibilitySnapshotContent { Rows = rows, Fingerprint = CalculateFingerprint(rows) };
-    }
-
-    private static Data.Entities.OrganisationComplianceDeclarationEligibility Materialise(
-        Data.Entities.OrganisationComplianceDeclarationEligibility sourceRow,
-        OrganisationReferenceCache? referenceCache
-    )
-    {
-        var referenceNumber =
-            referenceCache?.ResolutionState == OrganisationReferenceNumberResolutionState.Resolved
-            && !string.IsNullOrWhiteSpace(referenceCache.ReferenceNumber)
-                ? referenceCache.ReferenceNumber
-                : null;
-        var resolutionState = referenceNumber is null
-            ? referenceCache?.ResolutionState ?? sourceRow.ReferenceNumberResolutionState
-            : OrganisationReferenceNumberResolutionState.Resolved;
-
-        return sourceRow with
+        return new OrganisationEligibilitySnapshotContent
         {
-            ReferenceNumber = referenceNumber,
-            ReferenceNumberResolutionState = resolutionState,
+            Rows = orderedRows,
+            Fingerprint = CalculateFingerprint(orderedRows),
         };
     }
 

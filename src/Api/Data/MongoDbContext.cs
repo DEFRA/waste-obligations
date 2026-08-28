@@ -29,9 +29,6 @@ public class MongoDbContext(
     public IMongoCollection<OrganisationObligationSummary> OrganisationObligationSummaries { get; } =
         database.GetCollection<OrganisationObligationSummary>(nameof(OrganisationObligationSummary));
 
-    public IMongoCollection<OrganisationReferenceCache> OrganisationReferenceCaches { get; } =
-        database.GetCollection<OrganisationReferenceCache>(nameof(OrganisationReferenceCache));
-
     public async Task<TResult> ExecuteTransaction<TResult>(
         Func<IClientSessionHandle, CancellationToken, Task<TResult>> callback,
         string transactionName,

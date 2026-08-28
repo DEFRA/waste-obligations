@@ -9,7 +9,7 @@ namespace Defra.WasteObligations.Api.Services.OrganisationEligibility;
 public class OrganisationEligibilityRefreshService(
     IDbContext dbContext,
     IOrganisationEligibilitySource organisationEligibilitySource,
-    OrganisationReferenceCacheService organisationReferenceCacheService,
+    OrganisationReferenceResolver organisationReferenceResolver,
     IUnsubmittedEligibilityVisibilityService unsubmittedEligibilityVisibilityService,
     IOptions<OrganisationEligibilityOptions> options,
     TimeProvider timeProvider
@@ -25,21 +25,21 @@ public class OrganisationEligibilityRefreshService(
         var utcNow = timeProvider.GetUtcNow().UtcDateTime;
         var generation = Guid.NewGuid().ToString("N");
         var sourceRows = Mappers.ToEligibilityRows(source.Organisations, generation, utcNow);
-        var referenceCaches = await organisationReferenceCacheService.SynchroniseAndResolve(
-            sourceRows,
-            cancellationToken
-        );
-        var content = OrganisationEligibilitySnapshotContentBuilder.Create(sourceRows, referenceCaches);
+        var activeSnapshot = await dbContext
+            .OrganisationEligibilitySnapshots.Find(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId)
+            .SingleOrDefaultAsync(cancellationToken);
+        var activeRows = await ActiveRows(activeSnapshot, cancellationToken);
+        var resolvedRows = await organisationReferenceResolver.Resolve(sourceRows, activeRows, cancellationToken);
+        var content = OrganisationEligibilitySnapshotContentBuilder.Create(resolvedRows);
         content = content with
         {
             Rows = await unsubmittedEligibilityVisibilityService.Apply(content.Rows, utcNow, cancellationToken),
         };
-        var activeSnapshot = await dbContext
-            .OrganisationEligibilitySnapshots.Find(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId)
-            .SingleOrDefaultAsync(cancellationToken);
         if (
             activeSnapshot?.ActiveGeneration is null
-            && referenceCaches.Any(x => x.ResolutionState == OrganisationReferenceNumberResolutionState.Failed)
+            && content.Rows.Any(x =>
+                x.ReferenceNumberResolutionState == OrganisationReferenceNumberResolutionState.Failed
+            )
         )
         {
             throw new InvalidOperationException(
@@ -125,6 +125,19 @@ public class OrganisationEligibilityRefreshService(
         );
 
         EnsureActiveGenerationUnchanged(result.MatchedCount);
+    }
+
+    private async Task<IReadOnlyList<OrganisationComplianceDeclarationEligibility>> ActiveRows(
+        OrganisationEligibilitySnapshot? activeSnapshot,
+        CancellationToken cancellationToken
+    )
+    {
+        if (activeSnapshot?.ActiveGeneration is null)
+            return [];
+
+        return await dbContext
+            .OrganisationComplianceDeclarationEligibilities.Find(x => x.Generation == activeSnapshot.ActiveGeneration)
+            .ToListAsync(cancellationToken);
     }
 
     private async Task CollectGarbage(

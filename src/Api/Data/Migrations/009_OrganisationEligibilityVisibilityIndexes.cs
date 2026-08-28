@@ -13,9 +13,9 @@ public class OrganisationEligibilityVisibilityIndexes : MongoMigration
     private const string QueryIndexName =
         "Generation_ObligationYear_RegistrationType_IsVisibleInUnsubmittedView_Name_OrganisationId";
 
-    public override MigrationVersion Version => new(1, 0, 9);
+    public override MigrationVersion Version => new(1, 0, 8);
 
-    public override string Name => "010 - Organisation eligibility visibility indexes";
+    public override string Name => "009 - Organisation eligibility visibility indexes";
 
     public override async Task UpAsync(MigrationContext context)
     {

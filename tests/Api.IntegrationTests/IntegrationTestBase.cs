@@ -36,7 +36,6 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     public required IMongoCollection<AuditEventCounter> AuditEventCounters { get; set; }
     public required IMongoCollection<AuditEvent> AuditEvents { get; set; }
     public required IMongoCollection<AuditEventDispatchLease> AuditEventDispatchLeases { get; set; }
-    public required IMongoCollection<OrganisationReferenceCache> OrganisationReferenceCaches { get; set; }
     public required IMongoCollection<OrganisationComplianceDeclarationEligibility> OrganisationComplianceDeclarationEligibilities { get; set; }
     public required IMongoCollection<OrganisationEligibilitySnapshot> OrganisationEligibilitySnapshots { get; set; }
     public required IMongoCollection<BackgroundWorkerLease> OrganisationWorkerLeases { get; set; }
@@ -63,7 +62,6 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         AuditEventDispatchLeases = GetMongoCollection<AuditEventDispatchLease>(
             AuditEventDbContext.AuditEventDispatchLeaseCollectionName
         );
-        OrganisationReferenceCaches = GetMongoCollection<OrganisationReferenceCache>();
         OrganisationComplianceDeclarationEligibilities =
             GetMongoCollection<OrganisationComplianceDeclarationEligibility>();
         OrganisationEligibilitySnapshots = GetMongoCollection<OrganisationEligibilitySnapshot>();
@@ -74,7 +72,6 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         await DeleteMany(AuditEventCounters);
         await DeleteMany(AuditEvents);
         await DeleteMany(AuditEventDispatchLeases);
-        await DeleteMany(OrganisationReferenceCaches);
         await DeleteMany(OrganisationComplianceDeclarationEligibilities);
         await DeleteMany(OrganisationEligibilitySnapshots);
         await DeleteMany(OrganisationWorkerLeases);

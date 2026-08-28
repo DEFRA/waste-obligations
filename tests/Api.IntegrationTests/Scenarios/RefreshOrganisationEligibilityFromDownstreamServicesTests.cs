@@ -83,12 +83,6 @@ public class RefreshOrganisationEligibilityFromDownstreamServicesTests : Integra
             .ContainSingle()
             .Which.ReferenceNumber.Should()
             .Be("100002");
-        var caches = await OrganisationReferenceCaches
-            .Find(Builders<OrganisationReferenceCache>.Filter.Empty)
-            .ToListAsync(TestContext.Current.CancellationToken);
-        caches.Should().HaveCount(2);
-        caches.Should().OnlyContain(x => x.Id != ObjectId.Empty);
-        caches.Should().OnlyContain(x => x.ResolutionState == OrganisationReferenceNumberResolutionState.Resolved);
         var client = CreateClient();
 
         var response = await client.GetFromJsonAsync<UnsubmittedOrganisationsPaged>(
@@ -144,18 +138,16 @@ public class RefreshOrganisationEligibilityFromDownstreamServicesTests : Integra
             NullLogger<MongoDbContext>.Instance
         );
         var options = Options.Create(new OrganisationEligibilityOptions { AccountReferenceNumberBatchSize = 10 });
-        var cacheService = new OrganisationReferenceCacheService(
-            dbContext,
+        var referenceResolver = new OrganisationReferenceResolver(
             serviceProvider.GetRequiredService<IOrganisationReferenceSearchService>(),
             options,
-            TimeProvider.System,
-            NullLogger<OrganisationReferenceCacheService>.Instance
+            NullLogger<OrganisationReferenceResolver>.Instance
         );
 
         return new OrganisationEligibilityRefreshService(
             dbContext,
             serviceProvider.GetRequiredService<IOrganisationEligibilitySource>(),
-            cacheService,
+            referenceResolver,
             new UnsubmittedEligibilityVisibilityService(dbContext),
             options,
             TimeProvider.System
