@@ -597,7 +597,7 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
         ILogger<OrganisationObligationHydrationService>? logger = null
     )
     {
-        var database = GetMongoDatabase();
+        var database = GetMongoApplicationDatabase();
         var dbContext = new MongoDbContext(
             database,
             Options.Create(new MongoDbOptions()),
