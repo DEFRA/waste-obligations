@@ -94,7 +94,7 @@ jobs:
 
   journey-tests:
     name: Run journey tests
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -104,7 +104,7 @@ jobs:
         id: journey-tests-ref
         shell: bash
         env:
-          JOURNEY_TESTS_BRANCH: ${{ github.head_ref }}
+          JOURNEY_TESTS_BRANCH: ${{ github.head_ref || github.ref_name }}
         run: |
           branch="$JOURNEY_TESTS_BRANCH"
           if git ls-remote --exit-code --heads https://github.com/DEFRA/waste-obligations-journey-tests.git "$branch" > /dev/null; then
@@ -117,7 +117,7 @@ jobs:
         uses: DEFRA/waste-obligations-journey-tests/run-journey-tests@main
         with:
           journey-tests-ref: ${{ steps.journey-tests-ref.outputs.ref }}
-          waste-obligations: ${{ github.event.pull_request.head.sha }}
+          waste-obligations: ${{ github.event.pull_request.head.sha || github.sha }}
         env:
           EPR_USER_EMAIL: ${{ secrets.EPR_USER_EMAIL }}
           EPR_USER_PASSWORD: ${{ secrets.EPR_USER_PASSWORD }}
