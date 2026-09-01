@@ -91,3 +91,37 @@ jobs:
     needs: pr-validator
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  journey-tests:
+    name: Run journey tests
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Resolve journey-test branch
+        id: journey-tests-ref
+        shell: bash
+        env:
+          JOURNEY_TESTS_BRANCH: ${{ github.head_ref }}
+        run: |
+          branch="$JOURNEY_TESTS_BRANCH"
+          if git ls-remote --exit-code --heads https://github.com/DEFRA/waste-obligations-journey-tests.git "$branch" > /dev/null; then
+            echo "ref=$branch" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=main" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run e2e journeys
+        uses: DEFRA/waste-obligations-journey-tests/run-journey-tests@main
+        with:
+          journey-tests-ref: ${{ steps.journey-tests-ref.outputs.ref }}
+          waste-obligations: ${{ github.event.pull_request.head.sha }}
+        env:
+          EPR_USER_EMAIL: ${{ secrets.EPR_USER_EMAIL }}
+          EPR_USER_PASSWORD: ${{ secrets.EPR_USER_PASSWORD }}
+          EPR_CSO_USER_EMAIL: ${{ secrets.EPR_CSO_USER_EMAIL }}
+          EPR_CSO_USER_PASSWORD: ${{ secrets.EPR_CSO_USER_PASSWORD }}
+          WASTE_OBLIGATIONS_FRONTEND_B2C_CLIENT_SECRET: ${{ secrets.WASTE_OBLIGATIONS_FRONTEND_B2C_CLIENT_SECRET }}
+          GOVUK_NOTIFY_API_KEY: ${{ secrets.GOVUK_NOTIFY_API_KEY }}
