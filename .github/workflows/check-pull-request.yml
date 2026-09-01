@@ -19,6 +19,12 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v7
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Run journey-test Compose helper tests
+        run: node --test compose/journey-tests/generate-wiremock-mappings.test.mjs
       - name: Test
         uses: actions/setup-dotnet@v5
         with:

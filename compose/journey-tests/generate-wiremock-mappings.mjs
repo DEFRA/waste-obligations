@@ -3,7 +3,10 @@ import { join } from "node:path";
 
 const required = (name) => {
     const value = process.env[name];
-    if (!value) throw new Error(`${name} must be set`);
+    if (!value) {
+        throw new Error(`${name} must be set`);
+    }
+
     return value;
 };
 
@@ -13,6 +16,7 @@ const directProducerId = required("WASTE_OBLIGATION_ORG_ID");
 const complianceSchemeId = required("WASTE_OBLIGATION_CSO_ORG_ID");
 const submitterId = required("WASTE_OBLIGATION_SUBMITTER_ID");
 const submitterEmail = required("WASTE_OBLIGATION_SUBMITTER_EMAIL");
+const delegatedPersonRole = "Delegated Person";
 
 await mkdir(outputDirectory, { recursive: true });
 
@@ -48,7 +52,7 @@ const directProducerPeople = [
         firstName: "SB FirstName",
         lastName: "SB LastName",
         email: "bmmmdmgz@sharklasers.com",
-        serviceRole: "Delegated Person",
+        serviceRole: delegatedPersonRole,
     },
 ];
 
@@ -65,7 +69,7 @@ const complianceSchemePeople = [
         firstName: "Francis",
         lastName: "Delegated",
         email: "francis.chelladurai+07042026@equalexperts.com",
-        serviceRole: "Delegated Person",
+        serviceRole: delegatedPersonRole,
     },
 ];
 
@@ -74,7 +78,7 @@ const scenarioSubmitter = {
     firstName: "Journey-test",
     lastName: "Submitter",
     email: submitterEmail,
-    serviceRole: "Delegated Person",
+    serviceRole: delegatedPersonRole,
 };
 
 const addScenarioSubmitter = (people) =>
