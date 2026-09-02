@@ -13,8 +13,13 @@ public class EnumValueAttribute<T> : ValidationAttribute
         if (value is null)
             return ValidationResult.Success;
 
-        if (value is not string stringValue || !IsDefined(stringValue))
+        if (value is not string stringValue)
             return new ValidationResult(ErrorMessage ?? $"Invalid {validationContext.DisplayName}");
+
+        if (!IsDefined(stringValue))
+            return new ValidationResult(
+                $"{ErrorMessage ?? $"Invalid {validationContext.DisplayName}"} - {stringValue}"
+            );
 
         return ValidationResult.Success;
     }
