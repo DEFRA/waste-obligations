@@ -114,7 +114,7 @@ jobs:
           fi
 
       - name: Run e2e journeys
-        uses: DEFRA/waste-obligations-journey-tests/run-journey-tests@main
+        uses: DEFRA/waste-obligations-journey-tests/run-journey-tests@407ab1fa608059732cc36d00ba1fc1cbae766c29
         with:
           journey-tests-ref: ${{ steps.journey-tests-ref.outputs.ref }}
           waste-obligations: ${{ github.event.pull_request.head.sha || github.sha }}
