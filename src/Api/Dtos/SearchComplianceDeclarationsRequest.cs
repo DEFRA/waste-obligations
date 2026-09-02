@@ -26,7 +26,7 @@ public record SearchComplianceDeclarationsRequest
 
     [Description("Business country of the submitting organisation")]
     [FromQuery(Name = "country")]
-    [RegularExpression("^(GB-ENG|GB-NIR|GB-SCT|GB-WLS)$", ErrorMessage = "Invalid country")]
+    [EnumValue<BusinessCountryFilter>(ErrorMessage = "Invalid country")]
     public string? Country { get; init; }
 
     [Description(
@@ -62,6 +62,8 @@ public record SearchComplianceDeclarationsRequest
 
     public RegistrationType[] ParsedRegistrationType() =>
         RegistrationType?.Split(',').NotNull().Select(x => x.FromJsonValue<RegistrationType>()).ToArray() ?? [];
+
+    public BusinessCountryFilter? ParsedCountry() => Country?.FromJsonValue<BusinessCountryFilter>();
 
     public Data.ComplianceDeclarationSort[] ParsedSort() => ComplianceDeclarationSortParser.Parse(Sort);
 }

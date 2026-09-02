@@ -4,6 +4,7 @@ using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Dtos;
+using Defra.WasteObligations.Api.Extensions;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
@@ -134,7 +135,7 @@ public class SearchComplianceDeclarationsTests(ApiWebApplicationFactory factory,
                             Api.Data.Entities.RegistrationType.ComplianceScheme,
                         }
                     )
-                    && x.BusinessCountry == "GB-WLS"
+                    && x.BusinessCountry == BusinessCountryFilter.Wales.ToJsonValue()
                     && x.Search == "zeina"
                     && x.Sort != null
                     && x.Sort.Length == 0
@@ -170,7 +171,7 @@ public class SearchComplianceDeclarationsTests(ApiWebApplicationFactory factory,
                             RegistrationType.ComplianceScheme,
                         ])
                     )
-                    .Where(EndpointFilter.Country("GB-WLS"))
+                    .Where(EndpointFilter.Country(BusinessCountryFilter.Wales))
                     .Where(EndpointFilter.Search("zeina"))
             ),
             TestContext.Current.CancellationToken

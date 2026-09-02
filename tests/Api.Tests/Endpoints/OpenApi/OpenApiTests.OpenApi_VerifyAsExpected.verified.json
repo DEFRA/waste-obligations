@@ -882,7 +882,12 @@
             "in": "query",
             "description": "Business country of the submitting organisation",
             "schema": {
-              "pattern": "^(GB-ENG|GB-NIR|GB-SCT|GB-WLS)$",
+              "enum": [
+                "GB-ENG",
+                "GB-NIR",
+                "GB-SCT",
+                "GB-WLS"
+              ],
               "type": "string"
             }
           },

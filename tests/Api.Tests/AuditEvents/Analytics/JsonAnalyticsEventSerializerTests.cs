@@ -67,6 +67,30 @@ public class JsonAnalyticsEventSerializerTests
     }
 
     [Fact]
+    public void Serialize_WhenBusinessCountryIsNotInSearchContract_ShouldSerialize()
+    {
+        var subject = CreateSubject();
+        var document = ComplianceDeclarationDocument(ComplianceDeclarationStatus.Submitted);
+        document["organisation"].AsBsonDocument["businessCountry"] = "GB-NEW";
+        var analyticsEvent = AnalyticsEventFixture
+            .ComplianceDeclaration("01JZ8RXBMTY2K15SJB3PCFN3D8", 125)
+            .With(x => x.After, document)
+            .With(x => x.SchemaVersion, AnalyticsEventSchemaVersion)
+            .Create();
+
+        var result = subject.Serialize(analyticsEvent);
+        using var resultDocument = JsonDocument.Parse(result);
+
+        resultDocument
+            .RootElement.GetProperty("after")
+            .GetProperty("organisation")
+            .GetProperty("businessCountry")
+            .GetString()
+            .Should()
+            .Be("GB-NEW");
+    }
+
+    [Fact]
     public async Task Serialize_WhenUpdateWithBeforeAndAfter_ShouldSerializeAsJson()
     {
         var subject = CreateSubject();

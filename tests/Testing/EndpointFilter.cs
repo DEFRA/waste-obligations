@@ -26,6 +26,8 @@ public class EndpointFilter
 
     public static EndpointFilter Country(string country) => new($"country={Uri.EscapeDataString(country)}");
 
+    public static EndpointFilter Country(BusinessCountryFilter country) => Country(country.ToJsonValue());
+
     public static EndpointFilter Search(string search) => new($"search={Uri.EscapeDataString(search)}");
 
     public static EndpointFilter Page(int page) => new($"page={page}");

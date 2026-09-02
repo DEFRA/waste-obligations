@@ -6,7 +6,7 @@ The current schema is [v1.3](compliance-declaration.v1.3.schema.json).
 
 ## v1.3
 
-- Added the optional `organisation.businessCountry` property, using the waste-organisations business-country codes: `GB-ENG`, `GB-NIR`, `GB-SCT`, or `GB-WLS`.
+- Added the optional `organisation.businessCountry` property. Values are stored verbatim from waste-organisations so newly introduced country codes remain persistable; the search API advertises its currently supported country values separately.
 - This is a backwards-compatible minor version: v1.2 payloads remain valid under v1.3.
 - Mongo migration `008_ComplianceDeclarationBusinessCountry` advances existing v1.2 declaration documents to v1.3 without attempting to infer a historical value. It preserves any country already written by a newer host. Historical audit-event snapshots remain on their recorded schema version.
 

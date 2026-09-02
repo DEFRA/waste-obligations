@@ -129,8 +129,7 @@
           ]
         },
         "businessCountry": {
-          "type": ["string", "null"],
-          "enum": ["GB-ENG", "GB-NIR", "GB-SCT", "GB-WLS", null]
+          "type": ["string", "null"]
         },
         "regulator": {
           "type": "string"

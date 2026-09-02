@@ -1,6 +1,7 @@
 using Defra.WasteObligations.Api.Authentication;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Dtos;
+using Defra.WasteObligations.Api.Extensions;
 using Defra.WasteObligations.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -39,7 +40,7 @@ public static class SearchComplianceDeclarations
                 ObligationYear = request.ObligationYear,
                 Status = [.. request.ParsedStatus().Select(x => x.ToEntity())],
                 RegistrationType = [.. request.ParsedRegistrationType().Select(x => x.ToEntity())],
-                BusinessCountry = request.Country,
+                BusinessCountry = request.ParsedCountry()?.ToJsonValue(),
                 Search = request.Search,
                 Sort = request.ParsedSort(),
             },
