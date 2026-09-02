@@ -53,6 +53,7 @@
           "postcode": "UK1",
           "town": "Town"
         },
+        "businessCountry": "GB-ENG",
         "complianceSchemeName": null,
         "name": "Org Name",
         "referenceNumber": "123456",
@@ -61,13 +62,13 @@
         "regulatorEmail": "regulator@email.com",
         "schemeOperatorName": null
       },
-      "schemaVersion": "v1.2",
+      "schemaVersion": "v1.3",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "{Scrubbed}",
       "version": 1
     },
-    "SchemaVersion": "v1.2"
+    "SchemaVersion": "v1.3"
   },
   {
     "EventId": "01HXYZ00000000000000000002",
@@ -123,6 +124,7 @@
           "postcode": "UK1",
           "town": "Town"
         },
+        "businessCountry": "GB-ENG",
         "complianceSchemeName": null,
         "name": "Org Name",
         "referenceNumber": "123456",
@@ -131,13 +133,13 @@
         "regulatorEmail": "regulator@email.com",
         "schemeOperatorName": null
       },
-      "schemaVersion": "v1.2",
+      "schemaVersion": "v1.3",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "{Scrubbed}",
       "version": 1
     },
-    "SchemaVersion": "v1.2"
+    "SchemaVersion": "v1.3"
   },
   {
     "EventId": "01HXYZ00000000000000000003",
@@ -193,6 +195,7 @@
           "postcode": "UK1",
           "town": "Town"
         },
+        "businessCountry": "GB-ENG",
         "complianceSchemeName": null,
         "name": "Org Name",
         "referenceNumber": "123456",
@@ -201,7 +204,7 @@
         "regulatorEmail": "regulator@email.com",
         "schemeOperatorName": null
       },
-      "schemaVersion": "v1.2",
+      "schemaVersion": "v1.3",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "{Scrubbed}",
@@ -250,6 +253,7 @@
           "postcode": "UK1",
           "town": "Town"
         },
+        "businessCountry": "GB-ENG",
         "complianceSchemeName": null,
         "name": "Org Name",
         "referenceNumber": "123456",
@@ -258,13 +262,13 @@
         "regulatorEmail": "regulator@email.com",
         "schemeOperatorName": null
       },
-      "schemaVersion": "v1.2",
+      "schemaVersion": "v1.3",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "{Scrubbed}",
       "version": 2
     },
-    "SchemaVersion": "v1.2"
+    "SchemaVersion": "v1.3"
   },
   {
     "EventId": "01HXYZ00000000000000000004",
@@ -320,6 +324,7 @@
           "postcode": "UK1",
           "town": "Town"
         },
+        "businessCountry": "GB-ENG",
         "complianceSchemeName": null,
         "name": "Org Name",
         "referenceNumber": "123456",
@@ -328,7 +333,7 @@
         "regulatorEmail": "regulator@email.com",
         "schemeOperatorName": null
       },
-      "schemaVersion": "v1.2",
+      "schemaVersion": "v1.3",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "{Scrubbed}",
@@ -377,6 +382,7 @@
           "postcode": "UK1",
           "town": "Town"
         },
+        "businessCountry": "GB-ENG",
         "complianceSchemeName": null,
         "name": "Org Name",
         "referenceNumber": "123456",
@@ -385,12 +391,12 @@
         "regulatorEmail": "regulator@email.com",
         "schemeOperatorName": null
       },
-      "schemaVersion": "v1.2",
+      "schemaVersion": "v1.3",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "{Scrubbed}",
       "version": 2
     },
-    "SchemaVersion": "v1.2"
+    "SchemaVersion": "v1.3"
   }
 ]

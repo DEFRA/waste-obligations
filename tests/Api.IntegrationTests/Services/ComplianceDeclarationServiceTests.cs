@@ -571,6 +571,44 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             .AllSatisfy(x => x.Organisation.RegistrationType.Should().BeOneOf(registrationTypes));
     }
 
+    [Fact]
+    public async Task Search_WhenFilteringByBusinessCountry_ShouldReturnMatchingResults()
+    {
+        const string businessCountry = "GB-WLS";
+
+        await Subject.Create(
+            ComplianceDeclarationFixture
+                .Default()
+                .With(
+                    x => x.Organisation,
+                    OrganisationFixture.DirectProducer().With(x => x.BusinessCountry, businessCountry).Create()
+                )
+                .Create(),
+            TestContext.Current.CancellationToken
+        );
+        await Subject.Create(
+            ComplianceDeclarationFixture
+                .Default()
+                .With(
+                    x => x.Organisation,
+                    OrganisationFixture.DirectProducer().With(x => x.BusinessCountry, "GB-ENG").Create()
+                )
+                .Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        var result = await Subject.Search(
+            new ComplianceDeclarationSearchQuery { BusinessCountry = businessCountry },
+            1,
+            10,
+            TestContext.Current.CancellationToken
+        );
+
+        result.ComplianceDeclarations.Should().ContainSingle();
+        result.Total.Should().Be(1);
+        result.ComplianceDeclarations.Single().Organisation.BusinessCountry.Should().Be(businessCountry);
+    }
+
     [Theory]
     [InlineData("zeina foods")] // organisation name
     [InlineData("ZEINA")] // partial name

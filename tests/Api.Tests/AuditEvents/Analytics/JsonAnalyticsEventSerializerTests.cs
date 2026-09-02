@@ -43,6 +43,30 @@ public class JsonAnalyticsEventSerializerTests
     }
 
     [Fact]
+    public void Serialize_WhenPreviousSchemaVersion_ShouldSerializeWithoutBusinessCountry()
+    {
+        var subject = CreateSubject();
+        var document = ComplianceDeclarationDocument(ComplianceDeclarationStatus.Submitted);
+        document["organisation"].AsBsonDocument.Remove("businessCountry");
+        var analyticsEvent = AnalyticsEventFixture
+            .ComplianceDeclaration("01JZ8RXBMTY2K15SJB3PCFN3D0", 122)
+            .With(x => x.After, document)
+            .With(x => x.SchemaVersion, "compliance_declaration.v1.2")
+            .Create();
+
+        var result = subject.Serialize(analyticsEvent);
+        using var resultDocument = JsonDocument.Parse(result);
+
+        resultDocument.RootElement.GetProperty("schemaVersion").GetString().Should().Be("compliance_declaration.v1.2");
+        resultDocument
+            .RootElement.GetProperty("after")
+            .GetProperty("organisation")
+            .TryGetProperty("businessCountry", out _)
+            .Should()
+            .BeFalse();
+    }
+
+    [Fact]
     public async Task Serialize_WhenUpdateWithBeforeAndAfter_ShouldSerializeAsJson()
     {
         var subject = CreateSubject();

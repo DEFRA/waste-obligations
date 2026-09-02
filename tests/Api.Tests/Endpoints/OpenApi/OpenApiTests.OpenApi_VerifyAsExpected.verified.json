@@ -878,6 +878,15 @@
             }
           },
           {
+            "name": "country",
+            "in": "query",
+            "description": "Business country of the submitting organisation",
+            "schema": {
+              "pattern": "^(GB-ENG|GB-NIR|GB-SCT|GB-WLS)$",
+              "type": "string"
+            }
+          },
+          {
             "name": "search",
             "in": "query",
             "description": "Case-insensitive partial match on organisation name, compliance scheme name, scheme operator name or reference number",
@@ -1393,6 +1402,13 @@
                 "$ref": "#/components/schemas/Address"
               }
             ]
+          },
+          "businessCountry": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Business country of the submitting organisation"
           },
           "regulator": {
             "type": "string"

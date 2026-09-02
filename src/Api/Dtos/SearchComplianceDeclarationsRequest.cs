@@ -24,6 +24,11 @@ public record SearchComplianceDeclarationsRequest
     [EnumCommaSeparatedList<RegistrationType>(ErrorMessage = "Invalid organisation registration type(s)")]
     public string? RegistrationType { get; init; }
 
+    [Description("Business country of the submitting organisation")]
+    [FromQuery(Name = "country")]
+    [RegularExpression("^(GB-ENG|GB-NIR|GB-SCT|GB-WLS)$", ErrorMessage = "Invalid country")]
+    public string? Country { get; init; }
+
     [Description(
         "Case-insensitive partial match on organisation name, compliance scheme name, scheme operator name or reference number"
     )]

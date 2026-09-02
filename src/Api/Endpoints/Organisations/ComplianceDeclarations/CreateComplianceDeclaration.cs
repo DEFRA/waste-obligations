@@ -41,7 +41,7 @@ public static class CreateComplianceDeclaration
             return Results.NotFound();
 
         var complianceDeclaration = await complianceDeclarationService.Create(
-            request.ToEntity(timeProvider),
+            request.ToEntity(organisation.BusinessCountry, timeProvider),
             cancellationToken
         );
 

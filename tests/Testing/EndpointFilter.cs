@@ -24,6 +24,8 @@ public class EndpointFilter
     public static EndpointFilter RegistrationType(string registrationType) =>
         new($"registrationType={registrationType}");
 
+    public static EndpointFilter Country(string country) => new($"country={Uri.EscapeDataString(country)}");
+
     public static EndpointFilter Search(string search) => new($"search={Uri.EscapeDataString(search)}");
 
     public static EndpointFilter Page(int page) => new($"page={page}");

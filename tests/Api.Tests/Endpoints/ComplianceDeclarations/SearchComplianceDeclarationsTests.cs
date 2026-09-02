@@ -68,6 +68,14 @@ public class SearchComplianceDeclarationsTests(ApiWebApplicationFactory factory,
     }
 
     [Fact]
+    public async Task Validation_WhenCountryUnknown_ShouldBeBadRequest()
+    {
+        var content = await RequestShouldBeBadRequest(EndpointQuery.New.Where(EndpointFilter.Country("GB-XXX")));
+
+        await VerifyJson(content);
+    }
+
+    [Fact]
     public async Task Validation_WhenSortFieldUnknown_ShouldBeBadRequest()
     {
         var content = await RequestShouldBeBadRequest(EndpointQuery.New.Where(EndpointFilter.Sort("Unknown[asc]")));
@@ -126,6 +134,7 @@ public class SearchComplianceDeclarationsTests(ApiWebApplicationFactory factory,
                             Api.Data.Entities.RegistrationType.ComplianceScheme,
                         }
                     )
+                    && x.BusinessCountry == "GB-WLS"
                     && x.Search == "zeina"
                     && x.Sort != null
                     && x.Sort.Length == 0
@@ -161,6 +170,7 @@ public class SearchComplianceDeclarationsTests(ApiWebApplicationFactory factory,
                             RegistrationType.ComplianceScheme,
                         ])
                     )
+                    .Where(EndpointFilter.Country("GB-WLS"))
                     .Where(EndpointFilter.Search("zeina"))
             ),
             TestContext.Current.CancellationToken

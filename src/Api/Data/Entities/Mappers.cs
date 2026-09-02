@@ -68,6 +68,7 @@ public static class Mappers
             SchemeOperatorName = entity.SchemeOperatorName,
             ReferenceNumber = entity.ReferenceNumber,
             Address = entity.Address?.ToDto(),
+            BusinessCountry = entity.BusinessCountry,
             Regulator = entity.Regulator,
             RegulatorEmail = entity.RegulatorEmail,
         };

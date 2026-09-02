@@ -113,7 +113,7 @@ flowchart TD
 | `version` | The entity version after the operation. Delete records `current.Version + 1`. |
 | `before` | The previous declaration BSON document, or `null` for create. |
 | `after` | The new declaration BSON document, or `null` for delete. |
-| `schemaVersion` | The declaration schema version, currently `v1.2`. |
+| `schemaVersion` | The declaration schema version, currently `v1.3`. |
 | `traceId` | The propagated trace header value, used for service logging and not included in the analytics envelope. |
 | `dispatches` | A per-process outcome map, initially empty. |
 
@@ -139,7 +139,7 @@ The declaration has two independent versions:
 
 When a declaration shape changes, a new embedded schema file is added and the entity default moves to that version. Existing schema files remain unchanged because an `AuditEvent` records the schema version that applied when its immutable `before` and `after` snapshots were created. The analytics serializer uses that recorded version to load the matching embedded schema, so an older undispatched event can still be published after a newer application version is deployed.
 
-Mongo migrations update live declarations that need backfilling, but do not rewrite historical audit events. The `v1.0` to `v1.1` locale change is the current example: `locale` was added as an optional, nullable property of an audit entry's `user`; the migration set missing submitted-user locales to `null` and advanced affected declaration documents to `v1.1`, while preserving an already-written locale and leaving old audit events on `v1.0`. The `v1.1` to `v1.2` obligation coverage change added optional `obligationCoveragePercentage` to submitted declarations; the migration calculated the value from stored obligations, advanced affected declaration documents to `v1.2`, and preserved an already-written percentage while leaving old audit events on `v1.1`. `obligationCoveragePercentage` is calculated as `sum(tonnages.accepted) / sum(tonnages.obligated) × 100`, capped at 100%, and rounded to the nearest whole number on submit and when backfilled by migration `005_ComplianceDeclarationObligationCoveragePercentagePrecision`.
+Mongo migrations update live declarations that need backfilling, but do not rewrite historical audit events. The `v1.0` to `v1.1` locale change is the current example: `locale` was added as an optional, nullable property of an audit entry's `user`; the migration set missing submitted-user locales to `null` and advanced affected declaration documents to `v1.1`, while preserving an already-written locale and leaving old audit events on `v1.0`. The `v1.1` to `v1.2` obligation coverage change added optional `obligationCoveragePercentage` to submitted declarations; the migration calculated the value from stored obligations, advanced affected declaration documents to `v1.2`, and preserved an already-written percentage while leaving old audit events on `v1.1`. `obligationCoveragePercentage` is calculated as `sum(tonnages.accepted) / sum(tonnages.obligated) × 100`, capped at 100%, and rounded to the nearest whole number on submit and when backfilled by migration `005_ComplianceDeclarationObligationCoveragePercentagePrecision`. The `v1.2` to `v1.3` business-country change adds optional `organisation.businessCountry`; migration `008_ComplianceDeclarationBusinessCountry` advances declarations to `v1.3` without inferring a value, so historical records remain nullable while newly submitted declarations retain the value returned by waste-organisations.
 
 ## Analytics event dispatch
 
@@ -186,7 +186,7 @@ The processor reads audit events where `dispatches.analytics` does not exist, or
 
 - `eventId`, `sequence`, `entity`, `operation`, `eventType`, timestamps, actor, version, `before`, and `after` are copied from the audit event.
 - `entityId` is changed from the raw ObjectId string to `compliance_declaration_{objectId}`.
-- `schemaVersion` is changed from `v1.2` to `compliance_declaration.v1.2`.
+- `schemaVersion` is changed from `v1.3` to `compliance_declaration.v1.3`.
 - `piiKeyRef` is currently set to `null`.
 
 The serializer loads the embedded compliance declaration JSON schema and uses it to write the `before` and `after` BSON documents with the expected field names and JSON value formats.
