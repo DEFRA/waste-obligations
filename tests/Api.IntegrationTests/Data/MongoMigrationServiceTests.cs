@@ -24,6 +24,8 @@ public class MongoMigrationServiceTests : IntegrationTestBase
     private const string SchemaVersionV1_3 = "v1.3";
     private const string OrganisationIdObligationYearIndexName = "OrganisationId_ObligationYear";
     private const string SearchIndexName = "ObligationYear_Status_OrganisationRegistrationType";
+    private const string BusinessCountrySearchIndexName =
+        "BusinessCountry_ObligationYear_Status_OrganisationRegistrationType";
     private const string OrganisationNameIndexName = "OrganisationName";
     private const string SequenceIndexName = "Sequence";
     private const string EntityEntityIdVersionIndexName = "Entity_EntityId_Version";
@@ -72,6 +74,9 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         complianceDeclarationIndexes
             .Should()
             .Contain(x => IsIndex(x, OrganisationIdObligationYearIndexName, OrganisationReadIndexKeys()));
+        complianceDeclarationIndexes
+            .Should()
+            .Contain(x => IsIndex(x, BusinessCountrySearchIndexName, BusinessCountrySearchIndexKeys()));
         auditEventIndexes.Should().Contain(x => IsIndex(x, SequenceIndexName, sequenceKeys, unique: true));
         auditEventIndexes.Should().Contain(x => IsIndex(x, EntityEntityIdVersionIndexName, entityKeys));
         auditEventIndexes.Should().Contain(x => IsIndex(x, DispatchAnalyticsIndexName, dispatchKeys));
@@ -147,6 +152,35 @@ public class MongoMigrationServiceTests : IntegrationTestBase
 
         indexes = await ListComplianceDeclarationIndexes();
         indexes.Should().Contain(x => IsIndex(x, OrganisationIdObligationYearIndexName, OrganisationYearIndexKeys()));
+
+        await subject.UpAsync(context);
+    }
+
+    [Fact]
+    public async Task ComplianceDeclarationBusinessCountrySearchIndex_ShouldCreateReplaceAndDropIndex()
+    {
+        var database = GetMongoDatabase();
+        var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
+        var subject = new ComplianceDeclarationBusinessCountrySearchIndex();
+        await subject.DownAsync(context);
+        await ComplianceDeclarations.Indexes.CreateOneAsync(
+            new CreateIndexModel<ComplianceDeclaration>(
+                Builders<ComplianceDeclaration>.IndexKeys.Ascending(x => x.Created),
+                new CreateIndexOptions { Name = BusinessCountrySearchIndexName }
+            ),
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+
+        await subject.UpAsync(context);
+
+        var indexes = await ListComplianceDeclarationIndexes();
+        indexes.Should().Contain(x => IsIndex(x, BusinessCountrySearchIndexName, BusinessCountrySearchIndexKeys()));
+
+        await subject.DownAsync(context);
+        await subject.DownAsync(context);
+        indexes = await ListComplianceDeclarationIndexes();
+
+        indexes.Should().NotContain(x => x.GetValue("name") == BusinessCountrySearchIndexName);
 
         await subject.UpAsync(context);
     }
@@ -779,6 +813,15 @@ public class MongoMigrationServiceTests : IntegrationTestBase
     private BsonDocument OrganisationYearIndexKeys() =>
         RenderIndexKeys(
             Builders<ComplianceDeclaration>.IndexKeys.Ascending(x => x.Organisation.Id).Ascending(x => x.ObligationYear)
+        );
+
+    private BsonDocument BusinessCountrySearchIndexKeys() =>
+        RenderIndexKeys(
+            Builders<ComplianceDeclaration>
+                .IndexKeys.Ascending(x => x.Organisation.BusinessCountry)
+                .Ascending(x => x.ObligationYear)
+                .Ascending(x => x.Status)
+                .Ascending(x => x.Organisation.RegistrationType)
         );
 
     private BsonDocument RenderIndexKeys(IndexKeysDefinition<ComplianceDeclaration> keys) =>
