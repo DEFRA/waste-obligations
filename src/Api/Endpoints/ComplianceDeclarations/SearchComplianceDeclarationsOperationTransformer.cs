@@ -126,7 +126,7 @@ public class SearchComplianceDeclarationsOperationTransformer : IOpenApiOperatio
             Schema = new OpenApiSchema
             {
                 Type = JsonSchemaType.String,
-                Enum = [.. Enum.GetValues<T>().Select(x => (JsonNode)JsonValue.Create(x.ToJsonValue())!)],
+                Enum = [.. Enum.GetValues<T>().Select(x => (JsonNode)JsonValue.Create(x.ToJsonValue()))],
             },
         };
     }
