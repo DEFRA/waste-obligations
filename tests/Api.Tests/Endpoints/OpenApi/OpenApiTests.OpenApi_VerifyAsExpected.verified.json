@@ -1229,6 +1229,20 @@
           }
         }
       },
+      "NotificationRequest": {
+        "type": "object",
+        "properties": {
+          "parameters": {
+            "type": [
+              "null",
+              "object"
+            ],
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "Obligation": {
         "required": [
           "material",
@@ -1742,6 +1756,16 @@
           },
           "user": {
             "$ref": "#/components/schemas/User"
+          },
+          "notification": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/NotificationRequest"
+              }
+            ]
           }
         }
       },

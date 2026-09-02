@@ -278,6 +278,19 @@ public class ComplianceDeclarationService(
         return updated;
     }
 
+    public Task<ComplianceDeclaration> UpdateStatus(
+        ComplianceDeclaration current,
+        ComplianceDeclarationStatus status,
+        string? reason,
+        User user,
+        CancellationToken cancellationToken
+    )
+    {
+        var updated = current.UpdateStatus(status, reason, user, timeProvider.GetUtcNowWithoutMicroseconds());
+
+        return Update(current, updated, cancellationToken);
+    }
+
     private async Task<ComplianceDeclarationPageResult> ReadPaged(
         FilterDefinition<ComplianceDeclaration> filter,
         SortDefinition<ComplianceDeclaration> sort,

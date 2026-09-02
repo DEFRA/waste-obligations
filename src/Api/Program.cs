@@ -9,6 +9,7 @@ using Defra.WasteObligations.Api.Endpoints.Organisations.Prns;
 using Defra.WasteObligations.Api.Extensions;
 using Defra.WasteObligations.Api.Schemas;
 using Defra.WasteObligations.Api.Services;
+using Defra.WasteObligations.Api.Services.AccountBackend;
 using Defra.WasteObligations.Api.Services.GovukNotify;
 using Defra.WasteObligations.Api.Services.PrnCommonBackend;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
@@ -55,12 +56,14 @@ try
     builder.Services.AddValidation();
     builder.Services.AddTransient<ProxyHttpMessageHandler>();
     builder.Services.AddPrnCommonBackendService();
+    builder.Services.AddAccountBackendService();
     builder.Services.AddWasteOrganisationsService();
     builder.Services.AddGovukNotify();
     builder.Services.AddAuditEvents(builder.Configuration, !integrationTest && !openApiBuild);
     builder.Services.AddConsumers(builder.Configuration, !integrationTest && !openApiBuild);
     builder.Services.AddSingleton<IEntityJsonSchemaProvider, EmbeddedEntityJsonSchemaProvider>();
     builder.Services.AddTransient<IComplianceDeclarationService, ComplianceDeclarationService>();
+    builder.Services.AddTransient<ICancellationEmailRecipientResolver, CancellationEmailRecipientResolver>();
     builder.Services.AddTransient<IEmailService, EmailService>();
 
     var app = builder.Build();

@@ -76,7 +76,7 @@ jobs:
         # Sonar does not like use of filter category so target each test project separately
         # in order to report code coverage
         run: |
-          ./.sonar/scanner/dotnet-sonarscanner begin /k:"DEFRA_waste-obligations" /o:"defra" /d:sonar.token="$SONAR_TOKEN" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.cs.vscoveragexml.reportsPaths=coverage*.xml
+          ./.sonar/scanner/dotnet-sonarscanner begin /k:"DEFRA_waste-obligations" /o:"defra" /d:sonar.token="$SONAR_TOKEN" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.cs.vscoveragexml.reportsPaths=coverage*.xml /d:sonar.coverage.exclusions=compose/journey-tests/**
           dotnet build --no-incremental
           ./.sonar/coverage/dotnet-coverage collect "dotnet test tests/Api.Tests" -f xml -o "coverage.Api.Tests.xml"
           ./.sonar/coverage/dotnet-coverage collect "dotnet test tests/Api.IntegrationTests" -f xml -o "coverage.Api.IntegrationTests.xml"

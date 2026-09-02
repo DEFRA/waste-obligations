@@ -19,6 +19,12 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v7
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Run journey-test Compose helper tests
+        run: node --test compose/journey-tests/generate-wiremock-mappings.test.mjs
       - name: Test
         uses: actions/setup-dotnet@v5
         with:
@@ -79,9 +85,47 @@ jobs:
         with:
           name: openapi.json
           path: src/Api/openapi.json
+
   sonarcloud-scan:
     name: CDP SonarCloud Scan
     uses: ./.github/workflows/sonarcloud.yml
-    needs: pr-validator
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  journey-tests:
+    name: Run journey tests
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Resolve journey-test branch
+        id: journey-tests-ref
+        shell: bash
+        env:
+          JOURNEY_TESTS_BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          branch="$JOURNEY_TESTS_BRANCH"
+          if git ls-remote --exit-code --heads https://github.com/DEFRA/waste-obligations-journey-tests.git "$branch" > /dev/null; then
+            echo "ref=$branch" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=main" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run e2e journeys
+        uses: DEFRA/waste-obligations-journey-tests/run-journey-tests@407ab1fa608059732cc36d00ba1fc1cbae766c29
+        with:
+          journey-tests-ref: ${{ steps.journey-tests-ref.outputs.ref }}
+          waste-obligations: ${{ github.event.pull_request.head.sha || github.sha }}
+        env:
+          EPR_USER_EMAIL: ${{ secrets.EPR_USER_EMAIL }}
+          EPR_USER_PASSWORD: ${{ secrets.EPR_USER_PASSWORD }}
+          EPR_CSO_USER_EMAIL: ${{ secrets.EPR_CSO_USER_EMAIL }}
+          EPR_CSO_USER_PASSWORD: ${{ secrets.EPR_CSO_USER_PASSWORD }}
+          WASTE_OBLIGATION_ORG_ID: e2316c5e-d434-41da-8274-494dc0762d20
+          WASTE_OBLIGATION_CSO_ORG_ID: d93376e3-0681-46be-aeb4-7450a2e784d8
+          WASTE_OBLIGATION_SUBMITTER_ID: 98b1e75b-5f36-4d0e-91ae-84fe9b6ce794
+          WASTE_OBLIGATION_SUBMITTER_EMAIL: submitter@example.com
+          WASTE_OBLIGATIONS_FRONTEND_B2C_CLIENT_SECRET: ${{ secrets.WASTE_OBLIGATIONS_FRONTEND_B2C_CLIENT_SECRET }}
+          GOVUK_NOTIFY_API_KEY: ${{ secrets.GOVUK_NOTIFY_API_KEY }}

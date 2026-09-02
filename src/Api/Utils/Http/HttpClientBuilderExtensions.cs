@@ -9,7 +9,8 @@ public static class HttpClientBuilderExtensions
     public static IHttpClientBuilder AddResiliencePipeline(
         this IHttpClientBuilder httpClientBuilder,
         bool addResiliencePipeline,
-        string name
+        string name,
+        bool retryUnsafeHttpMethods = false
     )
     {
         if (addResiliencePipeline)
@@ -21,6 +22,12 @@ public static class HttpClientBuilderExtensions
                     var options = context
                         .ServiceProvider.GetRequiredService<IOptionsMonitor<HttpStandardResilienceOptions>>()
                         .Get(name);
+
+                    if (retryUnsafeHttpMethods)
+                    {
+                        options.Retry.ShouldHandle = static args =>
+                            ValueTask.FromResult(HttpClientResiliencePredicates.IsTransient(args.Outcome));
+                    }
 
                     builder
                         .AddTimeout(options.TotalRequestTimeout)

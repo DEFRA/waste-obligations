@@ -1,0 +1,46 @@
+# Compose fragment for cross-repository journey tests.
+#
+# The journey-test action checks out this repository at the requested SHA, or
+# main when it runs the published latest image. This keeps the Floci topology
+# definition beside the Waste Obligations service that consumes it.
+services:
+  waste-obligations:
+    depends_on:
+      waste-obligations-floci-init:
+        condition: service_completed_successfully
+
+  wiremock:
+    depends_on:
+      waste-obligations-wiremock-init:
+        condition: service_completed_successfully
+
+  waste-obligations-floci-init:
+    image: amazon/aws-cli:latest
+    entrypoint: ["/bin/sh", "/compose/init-floci.sh"]
+    depends_on:
+      floci:
+        condition: service_healthy
+    environment:
+      AWS_ENDPOINT_URL: http://floci:4566
+      AWS_REGION: eu-west-2
+      AWS_DEFAULT_REGION: eu-west-2
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+    volumes:
+      - ${WASTE_OBLIGATIONS_SOURCE_DIR:?WASTE_OBLIGATIONS_SOURCE_DIR must identify a Waste Obligations checkout}/compose/init-floci.sh:/compose/init-floci.sh:ro
+
+  # The Account API and GOV.UK Notify are external to this CI stack. These
+  # mappings represent the epr-local-environment seed data used by the
+  # obligations service's notification flow.
+  waste-obligations-wiremock-init:
+    image: node:22-alpine
+    entrypoint: ["node", "/source/generate-wiremock-mappings.mjs"]
+    environment:
+      JOURNEY_TEST_WIREMOCK_MAPPINGS_DIR: /output
+      WASTE_OBLIGATION_ORG_ID: ${WASTE_OBLIGATION_ORG_ID:?WASTE_OBLIGATION_ORG_ID must be set}
+      WASTE_OBLIGATION_CSO_ORG_ID: ${WASTE_OBLIGATION_CSO_ORG_ID:?WASTE_OBLIGATION_CSO_ORG_ID must be set}
+      WASTE_OBLIGATION_SUBMITTER_ID: ${WASTE_OBLIGATION_SUBMITTER_ID:?WASTE_OBLIGATION_SUBMITTER_ID must be set}
+      WASTE_OBLIGATION_SUBMITTER_EMAIL: ${WASTE_OBLIGATION_SUBMITTER_EMAIL:?WASTE_OBLIGATION_SUBMITTER_EMAIL must be set}
+    volumes:
+      - ${WASTE_OBLIGATIONS_SOURCE_DIR:?WASTE_OBLIGATIONS_SOURCE_DIR must identify a Waste Obligations checkout}/compose/journey-tests/generate-wiremock-mappings.mjs:/source/generate-wiremock-mappings.mjs:ro
+      - ${CI_STACK_RUNTIME_DIR:?CI_STACK_RUNTIME_DIR must identify the generated CI stack directory}/wiremock:/output

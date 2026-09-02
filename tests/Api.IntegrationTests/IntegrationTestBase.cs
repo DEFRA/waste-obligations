@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using System.Runtime.CompilerServices;
 using System.Security.Claims;
 using System.Text.Json;
 using Amazon.Runtime;
@@ -35,6 +36,9 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     public required IMongoCollection<AuditEventCounter> AuditEventCounters { get; set; }
     public required IMongoCollection<AuditEvent> AuditEvents { get; set; }
     public required IMongoCollection<AuditEventDispatchLease> AuditEventDispatchLeases { get; set; }
+
+    [ModuleInitializer]
+    public static void RegisterMongoConventions() => ServiceCollectionExtensions.RegisterConventions();
 
     public ValueTask DisposeAsync()
     {
@@ -85,6 +89,9 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         return new AmazonSQSClient(credentials, config);
     }
 
+    protected static Task WaitForAsync(Func<Task> assertion, double? timeout = null, TimeSpan? delay = null) =>
+        AsyncWaiter.WaitForAsync(assertion, timeout, delay);
+
     protected static async Task DrainAnalyticsEventsQueue(IAmazonSQS sqsClient)
     {
         while (true)
@@ -113,9 +120,13 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         }
     }
 
-    protected static async Task<Message> ReceiveAnalyticsEventsQueueMessage(IAmazonSQS sqsClient)
+    protected static async Task<JsonDocument> ReceiveAnalyticsEventsQueueJsonMessage(
+        IAmazonSQS sqsClient,
+        Func<JsonElement, bool>? match = null
+    )
     {
-        Message? receivedMessage = null;
+        JsonDocument? deserializedMessage = null;
+
         await AsyncWaiter.WaitForAsync(
             async () =>
             {
@@ -123,45 +134,56 @@ public abstract class IntegrationTestBase : IAsyncLifetime
                     new ReceiveMessageRequest
                     {
                         QueueUrl = AnalyticsEventsQueueUrl,
-                        MaxNumberOfMessages = 1,
+                        MaxNumberOfMessages = 10,
                         MessageAttributeNames = ["All"],
                         WaitTimeSeconds = 1,
                     },
                     TestContext.Current.CancellationToken
                 );
 
-                response.Messages.Should().ContainSingle();
-                if (response.Messages is not { Count: 1 } messages)
-                    throw new InvalidOperationException("Expected a single analytics event message.");
+                if (response.Messages is not { Count: > 0 })
+                    throw new InvalidOperationException("Expected analytics event messages.");
 
-                receivedMessage = messages.Single();
-                receivedMessage.MessageAttributes.Should().ContainKey(ContentTypeHeader);
-                receivedMessage.MessageAttributes[ContentTypeHeader].StringValue.Should().Be(JsonContentType);
-                receivedMessage.MessageAttributes.Should().NotContainKey(ContentEncodingHeader);
+                foreach (var message in response.Messages)
+                {
+                    message.MessageAttributes.Should().ContainKey(ContentTypeHeader);
+                    message.MessageAttributes[ContentTypeHeader].StringValue.Should().Be(JsonContentType);
+                    message.MessageAttributes.Should().NotContainKey(ContentEncodingHeader);
+
+                    using var candidate = JsonSerializer.Deserialize<JsonDocument>(message.Body);
+                    candidate.Should().NotBeNull();
+
+                    if (match is not null && !match(candidate!.RootElement))
+                    {
+                        await sqsClient.DeleteMessageAsync(
+                            AnalyticsEventsQueueUrl,
+                            message.ReceiptHandle,
+                            TestContext.Current.CancellationToken
+                        );
+
+                        continue;
+                    }
+
+                    await sqsClient.DeleteMessageAsync(
+                        AnalyticsEventsQueueUrl,
+                        message.ReceiptHandle,
+                        TestContext.Current.CancellationToken
+                    );
+
+                    deserializedMessage = JsonDocument.Parse(message.Body);
+
+                    return;
+                }
+
+                throw new InvalidOperationException("Expected a matching analytics event message.");
             },
             timeout: 10,
             delay: TimeSpan.FromMilliseconds(100)
         );
 
-        receivedMessage.Should().NotBeNull();
-
-        await sqsClient.DeleteMessageAsync(
-            AnalyticsEventsQueueUrl,
-            receivedMessage.ReceiptHandle,
-            TestContext.Current.CancellationToken
-        );
-
-        return receivedMessage;
-    }
-
-    protected static async Task<JsonDocument> ReceiveAnalyticsEventsQueueJsonMessage(IAmazonSQS sqsClient)
-    {
-        var message = await ReceiveAnalyticsEventsQueueMessage(sqsClient);
-        var deserializedMessage = JsonSerializer.Deserialize<JsonDocument>(message.Body);
-
         deserializedMessage.Should().NotBeNull();
 
-        return deserializedMessage;
+        return deserializedMessage!;
     }
 
     protected static async Task AssertAnalyticsEventQueued(
@@ -172,10 +194,18 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         string? deletedReason = null
     )
     {
-        using var deserializedMessage = await ReceiveAnalyticsEventsQueueJsonMessage(sqsClient);
+        var expectedEntityId = $"compliance_declaration_{complianceDeclarationId}";
+
+        using var deserializedMessage = await ReceiveAnalyticsEventsQueueJsonMessage(
+            sqsClient,
+            root =>
+                root.GetProperty("entityId").GetString() == expectedEntityId
+                && root.GetProperty("operation").GetString() == operation
+                && root.GetProperty("eventType").GetString() == eventType
+        );
         var root = deserializedMessage.RootElement;
 
-        root.GetProperty("entityId").GetString().Should().Be($"compliance_declaration_{complianceDeclarationId}");
+        root.GetProperty("entityId").GetString().Should().Be(expectedEntityId);
         root.GetProperty("operation").GetString().Should().Be(operation);
         root.GetProperty("eventType").GetString().Should().Be(eventType);
         var deletedReasonProperty = root.GetProperty("deletedReason");
@@ -188,6 +218,20 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         {
             deletedReasonProperty.GetString().Should().Be(deletedReason);
         }
+    }
+
+    protected static Func<JsonElement, bool> MatchAnalyticsEvent(
+        string complianceDeclarationId,
+        string operation,
+        string eventType
+    )
+    {
+        var expectedEntityId = $"compliance_declaration_{complianceDeclarationId}";
+
+        return root =>
+            root.GetProperty("entityId").GetString() == expectedEntityId
+            && root.GetProperty("operation").GetString() == operation
+            && root.GetProperty("eventType").GetString() == eventType;
     }
 
     private static string GenerateJwt(string clientId)
@@ -216,9 +260,4 @@ public abstract class IntegrationTestBase : IAsyncLifetime
 
     private static async Task DeleteMany<T>(IMongoCollection<T> collection) =>
         await collection.DeleteManyAsync(FilterDefinition<T>.Empty, TestContext.Current.CancellationToken);
-
-    static IntegrationTestBase()
-    {
-        ServiceCollectionExtensions.RegisterConventions();
-    }
 }
