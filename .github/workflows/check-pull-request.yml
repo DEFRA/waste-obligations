@@ -94,7 +94,8 @@ jobs:
 
   journey-tests:
     name: Run journey tests
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+    # Dependabot-triggered workflows cannot access the Actions secrets required by E2E journeys.
+    if: github.actor != 'dependabot[bot]' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository))
     runs-on: ubuntu-latest
     permissions:
       contents: read
