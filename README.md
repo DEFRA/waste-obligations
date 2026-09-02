@@ -119,6 +119,7 @@ See [dependabot.yml](.github/dependabot.yml) for group configuration.
   - Build Docker image
   - Check image with Trivy
   - Sonar
+  - Run Waste Obligations journeys for trusted pull requests
 - [Publish](.github/workflows/publish.yml)
   - Merge PR to main
   - Build Docker image and publish to CDP
@@ -128,11 +129,19 @@ See [dependabot.yml](.github/dependabot.yml) for group configuration.
 
 Review CDP documentation and process for relevant portal operations.
 
+## Journey tests
+
+Trusted pull requests and manually dispatched **Check Pull Request** runs execute the Waste Obligations journey suite in a separate job. The job builds the selected source revision locally; it does not publish a test image. If a branch with the same name exists in `waste-obligations-journey-tests`, that branch supplies the journeys and dedicated CI stack; otherwise the suite uses `main`.
+
+The required GitHub Actions secrets and OIDC/CDP-role prerequisite are documented in the [journey-test CI contract](https://github.com/DEFRA/waste-obligations-journey-tests#github-actions-secrets). Configure that shared contract in this repository, or use organisation-level secrets restricted to the journey and service repositories. Fork pull requests do not run the job because repository secrets are unavailable to them.
+
 ## Github
 
 The following secrets are configured in the repository in Github:
 
-GOVUKNOTIFY_APIKEY - the API Key for Govuk Notify integration tests. Ensure it's a Test API Key as per guidance https://docs.notifications.service.gov.uk/java.html#test.
+GOVUKNOTIFY_APIKEY - the correct GOV.UK Notify Test API Key used by the API integration tests. Ensure it remains a Test API Key as per guidance https://docs.notifications.service.gov.uk/java.html#test.
+
+GOVUK_NOTIFY_API_KEY - a separate, format-valid dummy key used only by the journey-test stack's WireMock-backed GOV.UK Notify mapping. It must not replace `GOVUKNOTIFY_APIKEY` and does not call GOV.UK Notify. Its shared setup is documented in the [journey-test CI contract](https://github.com/DEFRA/waste-obligations-journey-tests#github-actions-secrets).
 
 Also ensure it's defined in the main repository secrets and also the Dependabot secrets.
 
