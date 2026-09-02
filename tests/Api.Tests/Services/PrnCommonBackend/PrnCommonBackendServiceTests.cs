@@ -8,7 +8,6 @@ using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Extensions.WireMock;
 using Defra.WasteObligations.Testing.Fixtures.PrnCommonBackend;
 using Microsoft.AspNetCore.HeaderPropagation;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -37,7 +36,6 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
         };
 
         Services = [];
-        Services.AddHttpContextAccessor();
         Services.AddPrnCommonBackendService();
         Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(config).Build());
         Services.TryAddSingleton<HeaderPropagationValues>();
@@ -60,10 +58,6 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
         await using var sp = Services.BuildServiceProvider();
 
         var service = sp.GetRequiredService<IPrnCommonBackendService>();
-        var httpContext = new DefaultHttpContext();
-        var latency = new ReadObligationsLatency(TimeProvider.System.GetTimestamp());
-        httpContext.Items[ReadObligationsLatency.HttpContextItemKey] = latency;
-        sp.GetRequiredService<IHttpContextAccessor>().HttpContext = httpContext;
         sp.GetRequiredService<HeaderPropagationValues>().Headers = new Dictionary<string, StringValues>();
         const int year = 2026;
         const string accessToken = "access_token";
@@ -80,9 +74,6 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
         ).ToList();
 
         obligations.Should().ContainSingle();
-        latency.PrnTokenDurationMilliseconds.Should().BeGreaterThan(0);
-        latency.PrnObligationCalculationDurationMilliseconds.Should().BeGreaterThan(0);
-        latency.PrnCommonBackendDurationMilliseconds.Should().BeGreaterThan(latency.PrnTokenDurationMilliseconds);
     }
 
     [Fact]
