@@ -89,7 +89,7 @@ public class WasteOrganisationsServiceTests : WireMockTestBase
             .LogEntries.Single(x => x.RequestMessage?.Path == $"/organisations/{OrganisationFixture.OrganisationId:D}")
             .RequestMessage;
         request.Should().NotBeNull();
-        request!.Headers.Should().ContainKey(TraceHeaderName).WhoseValue.Should().Contain(TraceId);
+        request.Headers.Should().ContainKey(TraceHeaderName).WhoseValue.Should().Contain(TraceId);
     }
 
     [Fact]
@@ -109,7 +109,7 @@ public class WasteOrganisationsServiceTests : WireMockTestBase
 
         var request = WireMock.LogEntries.Single(x => x.RequestMessage?.Path == "/organisations").RequestMessage;
         request.Should().NotBeNull();
-        request!.Headers.Should().NotContainKey(TraceHeaderName);
+        request.Headers.Should().NotContainKey(TraceHeaderName);
     }
 
     [Fact]

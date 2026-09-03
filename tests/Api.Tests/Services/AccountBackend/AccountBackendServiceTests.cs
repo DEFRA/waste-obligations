@@ -104,7 +104,7 @@ public class AccountBackendServiceTests : WireMockTestBase
             )
             .RequestMessage;
         request.Should().NotBeNull();
-        request!.Headers.Should().ContainKey(TraceHeaderName).WhoseValue.Should().Contain(TraceId);
+        request.Headers.Should().ContainKey(TraceHeaderName).WhoseValue.Should().Contain(TraceId);
     }
 
     [Fact]
@@ -128,7 +128,7 @@ public class AccountBackendServiceTests : WireMockTestBase
             .LogEntries.Single(x => x.RequestMessage?.Path == "/api/organisations/organisations-by-externalIds")
             .RequestMessage;
         request.Should().NotBeNull();
-        request!.Headers.Should().NotContainKey(TraceHeaderName);
+        request.Headers.Should().NotContainKey(TraceHeaderName);
     }
 
     [Fact]
@@ -160,7 +160,7 @@ public class AccountBackendServiceTests : WireMockTestBase
             .LogEntries.Single(x => x.RequestMessage?.Path == "/api/organisations/organisations-by-externalIds")
             .RequestMessage;
         request.Should().NotBeNull();
-        request!.Body.Should().Be($"{{\"externalIds\":[\"{externalIds[0]:D}\",\"{externalIds[1]:D}\"]}}");
+        request.Body.Should().Be($"{{\"externalIds\":[\"{externalIds[0]:D}\",\"{externalIds[1]:D}\"]}}");
     }
 
     [Fact]
@@ -199,7 +199,7 @@ public class AccountBackendServiceTests : WireMockTestBase
             )
             .RequestMessage;
         request.Should().NotBeNull();
-        request!.Body.Should().Be("{\"companiesHouseNumbers\":[\"12345678\",\"87654321\"]}");
+        request.Body.Should().Be("{\"companiesHouseNumbers\":[\"12345678\",\"87654321\"]}");
     }
 
     [Fact]

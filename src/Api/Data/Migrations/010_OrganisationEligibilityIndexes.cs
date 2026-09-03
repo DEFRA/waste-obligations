@@ -17,9 +17,9 @@ public class OrganisationEligibilityIndexes : MongoMigration
     private const string ReferenceNumberIndexName =
         "Generation_IsVisibleInUnsubmittedView_ReferenceNumber_Name_OrganisationId";
 
-    public override MigrationVersion Version => new(1, 0, 7);
+    public override MigrationVersion Version => new(1, 0, 9);
 
-    public override string Name => "008 - Organisation eligibility indexes";
+    public override string Name => "010 - Organisation eligibility indexes";
 
     public override async Task UpAsync(MigrationContext context)
     {
