@@ -104,6 +104,7 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
     {
         var organisationId = Guid.NewGuid();
         ArrangeSource(organisationId);
+        var unsubmittedEligibilityVisibilityService = Substitute.For<IUnsubmittedEligibilityVisibilityService>();
         OrganisationReferenceSearchService
             .SearchOrganisationsByExternalIds(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
             .Returns(
@@ -111,7 +112,13 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
                     new HttpRequestException("Account is unavailable")
                 )
             );
-        var subject = CreateSubject();
+        var subject = CreateSubject(
+            GetMongoDatabase(),
+            OrganisationEligibilitySource,
+            OrganisationReferenceSearchService,
+            _timeProvider,
+            unsubmittedEligibilityVisibilityService: unsubmittedEligibilityVisibilityService
+        );
 
         var act = async () => await subject.Refresh(TestContext.Current.CancellationToken);
 
@@ -126,6 +133,13 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
         )
             .Should()
             .Be(0);
+        await unsubmittedEligibilityVisibilityService
+            .DidNotReceive()
+            .Apply(
+                Arg.Any<IReadOnlyList<OrganisationComplianceDeclarationEligibility>>(),
+                Arg.Any<DateTime>(),
+                Arg.Any<CancellationToken>()
+            );
         (
             await OrganisationEligibilitySnapshots.CountDocumentsAsync(
                 Builders<OrganisationEligibilitySnapshot>.Filter.Empty,
@@ -626,7 +640,8 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
         IOrganisationEligibilitySource source,
         IOrganisationReferenceSearchService referenceSearchService,
         TimeProvider timeProvider,
-        ILogger<OrganisationEligibilityRefreshService>? logger = null
+        ILogger<OrganisationEligibilityRefreshService>? logger = null,
+        IUnsubmittedEligibilityVisibilityService? unsubmittedEligibilityVisibilityService = null
     )
     {
         var dbContext = new MongoDbContext(
@@ -645,7 +660,7 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
             dbContext,
             source,
             referenceResolver,
-            new UnsubmittedEligibilityVisibilityService(dbContext),
+            unsubmittedEligibilityVisibilityService ?? new UnsubmittedEligibilityVisibilityService(dbContext),
             options,
             timeProvider,
             logger

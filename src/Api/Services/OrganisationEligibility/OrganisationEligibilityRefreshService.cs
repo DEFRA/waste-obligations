@@ -33,14 +33,9 @@ public class OrganisationEligibilityRefreshService(
             .SingleOrDefaultAsync(cancellationToken);
         var activeRows = await ActiveRows(activeSnapshot, cancellationToken);
         var resolvedRows = await organisationReferenceResolver.Resolve(sourceRows, activeRows, cancellationToken);
-        var content = OrganisationEligibilitySnapshotContentBuilder.Create(resolvedRows);
-        content = content with
-        {
-            Rows = await unsubmittedEligibilityVisibilityService.Apply(content.Rows, utcNow, cancellationToken),
-        };
         if (
             activeSnapshot?.ActiveGeneration is null
-            && content.Rows.Any(x =>
+            && resolvedRows.Any(x =>
                 x.ReferenceNumberResolutionState == OrganisationReferenceNumberResolutionState.Failed
             )
         )
@@ -49,6 +44,12 @@ public class OrganisationEligibilityRefreshService(
                 "Initial organisation eligibility generation contains failed Account reference lookups"
             );
         }
+
+        var content = OrganisationEligibilitySnapshotContentBuilder.Create(resolvedRows);
+        content = content with
+        {
+            Rows = await unsubmittedEligibilityVisibilityService.Apply(content.Rows, utcNow, cancellationToken),
+        };
 
         if (
             activeSnapshot?.ActiveContentFingerprint == content.Fingerprint
