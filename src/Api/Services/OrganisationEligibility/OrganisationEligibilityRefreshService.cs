@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
+using Defra.WasteObligations.AuditEvents;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 
@@ -24,7 +25,7 @@ public class OrganisationEligibilityRefreshService(
     public async Task<OrganisationEligibilityRefreshResult> Refresh(CancellationToken cancellationToken)
     {
         var source = await organisationEligibilitySource.Search(cancellationToken);
-        var utcNow = timeProvider.GetUtcNow().UtcDateTime;
+        var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
         var generation = Guid.NewGuid().ToString("N");
         var sourceRows = Mappers.ToEligibilityRows(source.Organisations, generation, utcNow);
         var activeSnapshot = await dbContext

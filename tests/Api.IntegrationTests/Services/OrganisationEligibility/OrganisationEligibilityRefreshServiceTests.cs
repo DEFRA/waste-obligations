@@ -74,6 +74,32 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Refresh_WhenTimeHasSubMillisecondPrecision_ShouldPersistMillisecondPrecision()
+    {
+        var utcNow = new DateTimeOffset(2026, 8, 26, 12, 0, 0, TimeSpan.Zero).AddTicks(1_234);
+        _timeProvider.SetUtcNow(utcNow);
+        var organisationId = Guid.NewGuid();
+        ArrangeSource(organisationId);
+        ArrangeDirectProducerReference(organisationId, "051829");
+        var subject = CreateSubject();
+
+        var result = await subject.Refresh(TestContext.Current.CancellationToken);
+
+        var snapshot = await OrganisationEligibilitySnapshots
+            .Find(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        var row = await OrganisationComplianceDeclarationEligibilities
+            .Find(x => x.Generation == result.ActiveGeneration)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        var expectedUtcNow = utcNow.AddTicks(-utcNow.Ticks % TimeSpan.TicksPerMillisecond).UtcDateTime;
+
+        snapshot.ActiveGenerationPromotedAt.Should().Be(expectedUtcNow);
+        snapshot.LastVerifiedAt.Should().Be(expectedUtcNow);
+        row.DeclarationStateUpdatedAt.Should().Be(expectedUtcNow);
+        row.RefreshedAt.Should().Be(expectedUtcNow);
+    }
+
+    [Fact]
     public async Task Refresh_WhenInitialReferenceLookupFails_ShouldNotPromoteGeneration()
     {
         var organisationId = Guid.NewGuid();
