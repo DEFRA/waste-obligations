@@ -74,7 +74,7 @@ public class AccountBackendServiceTests : WireMockTestBase
         );
 
         organisationWithPersons.Should().NotBeNull();
-        organisationWithPersons!
+        organisationWithPersons
             .Persons.Should()
             .BeEquivalentTo(OrganisationWithPersonsFixture.CancellationRecipients().Persons);
     }

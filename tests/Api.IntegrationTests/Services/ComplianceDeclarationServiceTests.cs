@@ -88,7 +88,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         auditEvent.TraceId.Should().Be(TraceId);
         auditEvent.Before.Should().BeNull();
         auditEvent.After.Should().NotBeNull();
-        auditEvent.After!["_id"].Should().Be(initial.Id);
+        auditEvent.After["_id"].Should().Be(initial.Id);
         auditEvent.After["version"].Should().Be(1);
         ComplianceDeclarationMetrics.Received(1).Created();
     }
