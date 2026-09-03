@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
@@ -12,7 +13,8 @@ public class OrganisationEligibilityRefreshService(
     OrganisationReferenceResolver organisationReferenceResolver,
     IUnsubmittedEligibilityVisibilityService unsubmittedEligibilityVisibilityService,
     IOptions<OrganisationEligibilityOptions> options,
-    TimeProvider timeProvider
+    TimeProvider timeProvider,
+    ILogger<OrganisationEligibilityRefreshService> logger
 ) : IOrganisationEligibilityRefreshService
 {
     private const int DuplicateKeyErrorCode = 11000;
@@ -72,21 +74,6 @@ public class OrganisationEligibilityRefreshService(
             };
         }
 
-        await dbContext.OrganisationComplianceDeclarationEligibilities.InsertManyAsync(
-            content.Rows,
-            cancellationToken: cancellationToken
-        );
-        var writtenRowCount = await dbContext.OrganisationComplianceDeclarationEligibilities.CountDocumentsAsync(
-            x => x.Generation == generation,
-            cancellationToken: cancellationToken
-        );
-        if (writtenRowCount != content.Rows.Count)
-        {
-            throw new InvalidOperationException(
-                $"Organisation eligibility generation {generation} wrote {writtenRowCount} rows, expected {content.Rows.Count}"
-            );
-        }
-
         var snapshot = new OrganisationEligibilitySnapshot
         {
             Id = OrganisationEligibilitySnapshot.SnapshotId,
@@ -98,7 +85,47 @@ public class OrganisationEligibilityRefreshService(
             LastVerifiedAt = utcNow,
             RetainedGenerations = RetainedGenerationsAfterPromotion(activeSnapshot, utcNow),
         };
-        await PromoteActiveGeneration(activeSnapshot, snapshot, cancellationToken);
+        var writeStopwatch = Stopwatch.StartNew();
+        var writtenRowCount = await dbContext.ExecuteTransaction(
+            async (transactionSession, transactionCancellationToken) =>
+            {
+                await dbContext.OrganisationComplianceDeclarationEligibilities.InsertManyAsync(
+                    transactionSession,
+                    content.Rows,
+                    cancellationToken: transactionCancellationToken
+                );
+                var writtenRowCount =
+                    await dbContext.OrganisationComplianceDeclarationEligibilities.CountDocumentsAsync(
+                        transactionSession,
+                        x => x.Generation == generation,
+                        cancellationToken: transactionCancellationToken
+                    );
+                if (writtenRowCount != content.Rows.Count)
+                {
+                    throw new InvalidOperationException(
+                        $"Organisation eligibility generation {generation} wrote {writtenRowCount} rows, expected {content.Rows.Count}"
+                    );
+                }
+
+                await PromoteActiveGeneration(
+                    transactionSession,
+                    activeSnapshot,
+                    snapshot,
+                    transactionCancellationToken
+                );
+
+                return writtenRowCount;
+            },
+            $"organisation eligibility generation write {generation}",
+            cancellationToken
+        );
+        writeStopwatch.Stop();
+        logger.LogInformation(
+            "Organisation eligibility generation {OrganisationEligibilityGeneration} wrote {OrganisationEligibilityDocumentCount} documents in {OrganisationEligibilityWriteDurationMilliseconds}ms",
+            generation,
+            writtenRowCount,
+            writeStopwatch.ElapsedMilliseconds
+        );
         await CollectGarbage(snapshot, utcNow, cancellationToken);
 
         return new OrganisationEligibilityRefreshResult
@@ -189,6 +216,7 @@ public class OrganisationEligibilityRefreshService(
     ) => snapshot.RetainedGenerations.Where(x => x.DeleteAfter > utcNow).ToArray();
 
     private async Task PromoteActiveGeneration(
+        IClientSessionHandle transactionSession,
         OrganisationEligibilitySnapshot? activeSnapshot,
         OrganisationEligibilitySnapshot replacement,
         CancellationToken cancellationToken
@@ -199,6 +227,7 @@ public class OrganisationEligibilityRefreshService(
             try
             {
                 await dbContext.OrganisationEligibilitySnapshots.InsertOneAsync(
+                    transactionSession,
                     replacement,
                     cancellationToken: cancellationToken
                 );
@@ -216,6 +245,7 @@ public class OrganisationEligibilityRefreshService(
         }
 
         var result = await dbContext.OrganisationEligibilitySnapshots.ReplaceOneAsync(
+            transactionSession,
             ActiveGenerationAndMaterialisedStateVersionFilter(activeSnapshot),
             replacement,
             cancellationToken: cancellationToken

@@ -6,6 +6,8 @@ using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.AccountBackend;
 using Defra.WasteObligations.Api.Services.OrganisationEligibility;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
+using Defra.WasteObligations.Testing;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using MongoDB.Bson;
@@ -156,6 +158,28 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
             .ToListAsync(TestContext.Current.CancellationToken);
         rows.Should().HaveCount(2);
         rows.Should().OnlyContain(x => x.Id != ObjectId.Empty);
+    }
+
+    [Fact]
+    public async Task Refresh_WhenGenerationIsPromoted_ShouldLogWrittenDocumentCountAndDuration()
+    {
+        var organisationId = Guid.NewGuid();
+        ArrangeSource(organisationId);
+        ArrangeDirectProducerReference(organisationId, "051829");
+        var logger = new RecordingLogger<OrganisationEligibilityRefreshService>();
+        var subject = CreateSubject(
+            GetMongoDatabase(),
+            OrganisationEligibilitySource,
+            OrganisationReferenceSearchService,
+            _timeProvider,
+            logger
+        );
+
+        await subject.Refresh(TestContext.Current.CancellationToken);
+
+        logger
+            .Entries.Should()
+            .ContainSingle(x => x.Level == LogLevel.Information && x.Message.Contains("wrote 1 documents in"));
     }
 
     [Fact]
@@ -415,6 +439,14 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
             .Find(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId)
             .SingleAsync(TestContext.Current.CancellationToken);
         snapshot.ActiveGeneration.Should().Be(competingGeneration);
+        (
+            await OrganisationComplianceDeclarationEligibilities.CountDocumentsAsync(
+                Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Empty,
+                cancellationToken: TestContext.Current.CancellationToken
+            )
+        )
+            .Should()
+            .Be(0);
     }
 
     [Fact]
@@ -567,7 +599,8 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
         IMongoDatabase database,
         IOrganisationEligibilitySource source,
         IOrganisationReferenceSearchService referenceSearchService,
-        TimeProvider timeProvider
+        TimeProvider timeProvider,
+        ILogger<OrganisationEligibilityRefreshService>? logger = null
     )
     {
         var dbContext = new MongoDbContext(
@@ -588,7 +621,9 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
             referenceResolver,
             new UnsubmittedEligibilityVisibilityService(dbContext),
             options,
-            timeProvider
+            timeProvider,
+            logger
+                ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<OrganisationEligibilityRefreshService>.Instance
         );
     }
 

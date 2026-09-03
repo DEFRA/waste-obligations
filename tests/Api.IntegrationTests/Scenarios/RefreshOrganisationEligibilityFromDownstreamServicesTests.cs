@@ -129,7 +129,8 @@ public class RefreshOrganisationEligibilityFromDownstreamServicesTests : Integra
             referenceResolver,
             new UnsubmittedEligibilityVisibilityService(dbContext),
             options,
-            TimeProvider.System
+            TimeProvider.System,
+            NullLogger<OrganisationEligibilityRefreshService>.Instance
         );
     }
 
