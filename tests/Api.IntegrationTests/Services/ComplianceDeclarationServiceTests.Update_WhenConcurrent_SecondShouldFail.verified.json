@@ -11,16 +11,15 @@
     "Actor": "service:waste-obligations",
     "Version": 1,
     "After": {
-      "_id": "{Scrubbed}",
       "audit": [
         {
           "action": "Submitted",
           "timestamp": "DateTime_3",
           "user": {
-            "_id": "{Scrubbed}",
             "email": "submitter@email.com",
             "locale": "en",
-            "name": "Submitter Name"
+            "name": "Submitter Name",
+            "_id": "{Scrubbed}"
           }
         }
       ],
@@ -44,7 +43,6 @@
       "obligationStatus": "NotMet",
       "obligationYear": 2026,
       "organisation": {
-        "_id": "{Scrubbed}",
         "address": {
           "addressLine1": "Test Name Ltd",
           "addressLine2": "123 Street",
@@ -59,13 +57,15 @@
         "registrationType": "DirectProducer",
         "regulator": "Regulator",
         "regulatorEmail": "regulator@email.com",
-        "schemeOperatorName": null
+        "schemeOperatorName": null,
+        "_id": "{Scrubbed}"
       },
       "schemaVersion": "v1.2",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "DateTime_1",
-      "version": 1
+      "version": 1,
+      "_id": "{Scrubbed}"
     },
     "SchemaVersion": "v1.2"
   },
@@ -81,16 +81,15 @@
     "Actor": "service:waste-obligations",
     "Version": 2,
     "Before": {
-      "_id": "{Scrubbed}",
       "audit": [
         {
           "action": "Submitted",
           "timestamp": "DateTime_3",
           "user": {
-            "_id": "{Scrubbed}",
             "email": "submitter@email.com",
             "locale": "en",
-            "name": "Submitter Name"
+            "name": "Submitter Name",
+            "_id": "{Scrubbed}"
           }
         }
       ],
@@ -114,7 +113,6 @@
       "obligationStatus": "NotMet",
       "obligationYear": 2026,
       "organisation": {
-        "_id": "{Scrubbed}",
         "address": {
           "addressLine1": "Test Name Ltd",
           "addressLine2": "123 Street",
@@ -129,25 +127,26 @@
         "registrationType": "DirectProducer",
         "regulator": "Regulator",
         "regulatorEmail": "regulator@email.com",
-        "schemeOperatorName": null
+        "schemeOperatorName": null,
+        "_id": "{Scrubbed}"
       },
       "schemaVersion": "v1.2",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "DateTime_1",
-      "version": 1
+      "version": 1,
+      "_id": "{Scrubbed}"
     },
     "After": {
-      "_id": "{Scrubbed}",
       "audit": [
         {
           "action": "Submitted",
           "timestamp": "DateTime_3",
           "user": {
-            "_id": "{Scrubbed}",
             "email": "submitter@email.com",
             "locale": "en",
-            "name": "Submitter Name"
+            "name": "Submitter Name",
+            "_id": "{Scrubbed}"
           }
         }
       ],
@@ -171,7 +170,6 @@
       "obligationStatus": "NotMet",
       "obligationYear": 2027,
       "organisation": {
-        "_id": "{Scrubbed}",
         "address": {
           "addressLine1": "Test Name Ltd",
           "addressLine2": "123 Street",
@@ -186,13 +184,15 @@
         "registrationType": "DirectProducer",
         "regulator": "Regulator",
         "regulatorEmail": "regulator@email.com",
-        "schemeOperatorName": null
+        "schemeOperatorName": null,
+        "_id": "{Scrubbed}"
       },
       "schemaVersion": "v1.2",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "DateTime_4",
-      "version": 2
+      "version": 2,
+      "_id": "{Scrubbed}"
     },
     "SchemaVersion": "v1.2"
   }
