@@ -31,6 +31,24 @@ public class UnsubmittedEligibilityVisibilityService(IDbContext dbContext) : IUn
         CancellationToken cancellationToken
     )
     {
+        var activeGeneration = await dbContext
+            .OrganisationEligibilitySnapshots.Find(
+                transactionSession,
+                x => x.Id == OrganisationEligibilitySnapshot.SnapshotId
+            )
+            .Project(x => x.ActiveGeneration)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (activeGeneration is null)
+        {
+            await OrganisationEligibilitySnapshotState.IncrementMaterialisedStateVersion(
+                dbContext,
+                transactionSession,
+                cancellationToken
+            );
+
+            return;
+        }
+
         foreach (var key in declarations.Select(UnsubmittedEligibilityKey.From).Distinct())
         {
             var hasExcludingDeclaration = await dbContext
@@ -47,6 +65,7 @@ public class UnsubmittedEligibilityVisibilityService(IDbContext dbContext) : IUn
                 )
                 .AnyAsync(cancellationToken);
             var filter = Builders<OrganisationComplianceDeclarationEligibility>.Filter.And(
+                Builders<OrganisationComplianceDeclarationEligibility>.Filter.Eq(x => x.Generation, activeGeneration),
                 Builders<OrganisationComplianceDeclarationEligibility>.Filter.Eq(
                     x => x.OrganisationId,
                     key.OrganisationId

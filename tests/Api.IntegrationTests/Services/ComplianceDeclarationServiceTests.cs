@@ -95,7 +95,76 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task DeclarationMutation_ShouldUpdateMatchingEligibilityRowVisibility()
+    public async Task DeclarationMutation_ShouldOnlyUpdateActiveEligibilityGenerationVisibility()
+    {
+        const string activeGeneration = "active-generation";
+        const string retainedGeneration = "retained-generation";
+        var declaration = ComplianceDeclarationFixture
+            .DirectProducer()
+            .With(x => x.Status, ComplianceDeclarationStatus.Cancelled)
+            .Create();
+        var activeEligibility = OrganisationComplianceDeclarationEligibilityFixture
+            .Default(declaration.Organisation.Id)
+            .With(x => x.Generation, activeGeneration)
+            .With(x => x.ObligationYear, declaration.ObligationYear)
+            .With(x => x.RegistrationType, declaration.Organisation.RegistrationType)
+            .With(x => x.IsVisibleInUnsubmittedView, false)
+            .Create();
+        var retainedEligibility = OrganisationComplianceDeclarationEligibilityFixture
+            .Default(declaration.Organisation.Id)
+            .With(x => x.Generation, retainedGeneration)
+            .With(x => x.ObligationYear, declaration.ObligationYear)
+            .With(x => x.RegistrationType, declaration.Organisation.RegistrationType)
+            .With(x => x.IsVisibleInUnsubmittedView, false)
+            .Create();
+        await OrganisationEligibilitySnapshots.InsertOneAsync(
+            new OrganisationEligibilitySnapshot
+            {
+                Id = OrganisationEligibilitySnapshot.SnapshotId,
+                ActiveGeneration = activeGeneration,
+            },
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        await OrganisationComplianceDeclarationEligibilities.InsertManyAsync(
+            [activeEligibility, retainedEligibility],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+
+        var created = await Subject.Create(declaration, TestContext.Current.CancellationToken);
+
+        (await FindEligibility(created, activeGeneration)).IsVisibleInUnsubmittedView.Should().BeTrue();
+
+        var submitted = await Subject.Update(
+            created,
+            created with
+            {
+                Status = ComplianceDeclarationStatus.Submitted,
+            },
+            TestContext.Current.CancellationToken
+        );
+
+        (await FindEligibility(submitted, activeGeneration)).IsVisibleInUnsubmittedView.Should().BeFalse();
+
+        var cancelled = await Subject.Update(
+            submitted,
+            submitted with
+            {
+                Status = ComplianceDeclarationStatus.Cancelled,
+            },
+            TestContext.Current.CancellationToken
+        );
+
+        (await FindEligibility(cancelled, activeGeneration)).IsVisibleInUnsubmittedView.Should().BeTrue();
+        (await FindEligibility(cancelled, retainedGeneration)).Should().BeEquivalentTo(retainedEligibility);
+        var snapshot = await OrganisationEligibilitySnapshots
+            .Find(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId)
+            .SingleAsync(TestContext.Current.CancellationToken);
+
+        snapshot.MaterialisedStateVersion.Should().Be(3);
+    }
+
+    [Fact]
+    public async Task DeclarationMutation_WhenNoActiveEligibilityGeneration_ShouldIncrementMaterialisedStateVersion()
     {
         var declaration = ComplianceDeclarationFixture
             .DirectProducer()
@@ -111,36 +180,14 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
             cancellationToken: TestContext.Current.CancellationToken
         );
 
-        var created = await Subject.Create(declaration, TestContext.Current.CancellationToken);
+        await Subject.Create(declaration, TestContext.Current.CancellationToken);
 
-        (await FindEligibility(created)).IsVisibleInUnsubmittedView.Should().BeTrue();
-
-        var submitted = await Subject.Update(
-            created,
-            created with
-            {
-                Status = ComplianceDeclarationStatus.Submitted,
-            },
-            TestContext.Current.CancellationToken
-        );
-
-        (await FindEligibility(submitted)).IsVisibleInUnsubmittedView.Should().BeFalse();
-
-        var cancelled = await Subject.Update(
-            submitted,
-            submitted with
-            {
-                Status = ComplianceDeclarationStatus.Cancelled,
-            },
-            TestContext.Current.CancellationToken
-        );
-
-        (await FindEligibility(cancelled)).IsVisibleInUnsubmittedView.Should().BeTrue();
         var snapshot = await OrganisationEligibilitySnapshots
             .Find(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId)
             .SingleAsync(TestContext.Current.CancellationToken);
 
-        snapshot.MaterialisedStateVersion.Should().Be(3);
+        snapshot.ActiveGeneration.Should().BeNull();
+        snapshot.MaterialisedStateVersion.Should().Be(1);
     }
 
     [Fact]
@@ -1243,11 +1290,13 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         new(database, Options.Create(new MongoDbOptions()), Substitute.For<ILogger<MongoDbContext>>());
 
     private async Task<OrganisationComplianceDeclarationEligibility> FindEligibility(
-        ComplianceDeclaration declaration
+        ComplianceDeclaration declaration,
+        string generation
     ) =>
         await OrganisationComplianceDeclarationEligibilities
             .Find(x =>
-                x.OrganisationId == declaration.Organisation.Id
+                x.Generation == generation
+                && x.OrganisationId == declaration.Organisation.Id
                 && x.ObligationYear == declaration.ObligationYear
                 && x.RegistrationType == declaration.Organisation.RegistrationType
             )
