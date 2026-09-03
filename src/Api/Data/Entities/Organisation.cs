@@ -14,6 +14,7 @@ public record Organisation
     public string? SchemeOperatorName { get; init; }
     public string? ReferenceNumber { get; init; }
     public Address? Address { get; init; }
+    public string? BusinessCountry { get; init; }
     public required string Regulator { get; init; }
     public required string RegulatorEmail { get; init; }
 }

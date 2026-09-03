@@ -149,6 +149,11 @@ public class CreateComplianceDeclarationTests : IntegrationTestBase
         );
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
+        var result = await response.Content.ReadFromJsonAsync<ComplianceDeclaration>(
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        result.Should().NotBeNull();
+        result.Organisation.BusinessCountry.Should().Be(BusinessCountry.Wales);
 
         await AsyncWaiter.WaitForAsync(async () =>
         {

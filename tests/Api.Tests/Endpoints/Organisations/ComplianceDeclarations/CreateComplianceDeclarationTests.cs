@@ -50,9 +50,16 @@ public class CreateComplianceDeclarationTests : EndpointTestBase
         );
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
-        await VerifyJson(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken))
-            .DontScrubGuids()
-            .DontScrubDateTimes();
+        var content = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        using var document = JsonDocument.Parse(content);
+        document
+            .RootElement.GetProperty("organisation")
+            .GetProperty("businessCountry")
+            .GetString()
+            .Should()
+            .Be("GB-ENG");
+
+        await VerifyJson(content).DontScrubGuids().DontScrubDateTimes();
     }
 
     [Fact]

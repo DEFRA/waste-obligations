@@ -2,7 +2,13 @@
 
 This changelog records changes to the versioned JSON schemas embedded in the API. Schema files are immutable; use the entry for the matching version when interpreting a persisted declaration or analytics event.
 
-The current schema is [v1.2](compliance-declaration.v1.2.schema.json).
+The current schema is [v1.3](compliance-declaration.v1.3.schema.json).
+
+## v1.3
+
+- Added the optional `organisation.businessCountry` property. Values are stored verbatim from waste-organisations so newly introduced country codes remain persistable; the search API advertises its currently supported country values separately.
+- This is a backwards-compatible minor version: v1.2 payloads remain valid under v1.3.
+- Mongo migration `008_ComplianceDeclarationBusinessCountry` advances existing v1.2 declaration documents to v1.3 without attempting to infer a historical value. It preserves any country already written by a newer host. Historical audit-event snapshots remain on their recorded schema version.
 
 ## v1.2
 

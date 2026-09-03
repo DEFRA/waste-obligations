@@ -1,5 +1,7 @@
+using System.Text.Json.Nodes;
 using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.Api.Endpoints.Organisations.ComplianceDeclarations;
+using Defra.WasteObligations.Api.Extensions;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
 
@@ -34,6 +36,13 @@ public class SearchComplianceDeclarationsOperationTransformer : IOpenApiOperatio
                 nameof(SearchComplianceDeclarationsRequest.RegistrationType),
                 index: 2,
                 source => CreateEnumArrayParameter(source, nameof(RegistrationType))
+            );
+
+            ReplaceParameter(
+                operation,
+                nameof(SearchComplianceDeclarationsRequest.Country),
+                index: 3,
+                source => CreateEnumParameter<BusinessCountryFilter>(source)
             );
         }
 
@@ -102,6 +111,22 @@ public class SearchComplianceDeclarationsOperationTransformer : IOpenApiOperatio
                 {
                     Reference = new JsonSchemaReference { Type = ReferenceType.Schema, Id = schemaName },
                 },
+            },
+        };
+    }
+
+    private static OpenApiParameter CreateEnumParameter<T>(OpenApiParameter source)
+        where T : struct, Enum
+    {
+        return new OpenApiParameter
+        {
+            Name = source.Name,
+            In = ParameterLocation.Query,
+            Description = source.Description,
+            Schema = new OpenApiSchema
+            {
+                Type = JsonSchemaType.String,
+                Enum = [.. Enum.GetValues<T>().Select(x => (JsonNode)JsonValue.Create(x.ToJsonValue()))],
             },
         };
     }

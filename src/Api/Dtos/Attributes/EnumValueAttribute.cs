@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json;
 using Defra.WasteObligations.Api.Extensions;
 
 namespace Defra.WasteObligations.Api.Dtos.Attributes;
@@ -12,17 +13,28 @@ public class EnumValueAttribute<T> : ValidationAttribute
         if (value is null)
             return ValidationResult.Success;
 
-        if (value is not string stringValue || !IsDefined(stringValue))
+        if (value is not string stringValue)
             return new ValidationResult(ErrorMessage ?? $"Invalid {validationContext.DisplayName}");
+
+        if (!IsDefined(stringValue))
+            return new ValidationResult(
+                $"{ErrorMessage ?? $"Invalid {validationContext.DisplayName}"} - {stringValue}"
+            );
 
         return ValidationResult.Success;
     }
 
     private static bool IsDefined(string value)
     {
-        if (!Enum.TryParse<T>(value, out var parsed) || !Enum.IsDefined(parsed))
-            return false;
+        try
+        {
+            var parsed = value.FromJsonValue<T>();
 
-        return parsed.ToJsonValue() == value;
+            return Enum.IsDefined(parsed) && parsed.ToJsonValue() == value;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 }

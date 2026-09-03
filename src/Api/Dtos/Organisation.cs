@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
@@ -27,6 +28,10 @@ public record Organisation
 
     [JsonPropertyName("address")]
     public Address? Address { get; init; }
+
+    [Description("Business country of the submitting organisation")]
+    [JsonPropertyName("businessCountry")]
+    public string? BusinessCountry { get; init; }
 
     [Required]
     [JsonPropertyName("regulator")]

@@ -6,6 +6,7 @@ public static class Mappers
 {
     public static Data.Entities.ComplianceDeclaration ToEntity(
         this CreateComplianceDeclarationRequest dto,
+        string? businessCountry,
         TimeProvider? timeProvider
     )
     {
@@ -13,7 +14,7 @@ public static class Mappers
 
         var draft = new Data.Entities.ComplianceDeclaration
         {
-            Organisation = dto.Organisation.ToEntity(),
+            Organisation = dto.Organisation.ToEntity(businessCountry),
             ObligationYear = dto.ObligationYear,
             Obligations = [.. dto.Obligations.Select(x => x.ToEntity())],
             ObligationStatus = dto.ObligationStatus,
@@ -52,7 +53,7 @@ public static class Mappers
             Locale = dto.Locale,
         };
 
-    private static Data.Entities.Organisation ToEntity(this Organisation dto) =>
+    private static Data.Entities.Organisation ToEntity(this Organisation dto, string? businessCountry) =>
         new()
         {
             Id = dto.Id,
@@ -62,6 +63,7 @@ public static class Mappers
             SchemeOperatorName = dto.SchemeOperatorName,
             ReferenceNumber = dto.ReferenceNumber,
             Address = dto.Address?.ToEntity(),
+            BusinessCountry = businessCountry,
             Regulator = dto.Regulator,
             RegulatorEmail = dto.RegulatorEmail,
         };

@@ -1,4 +1,4 @@
-{
+﻿{
   "complianceDeclarations": [
     {
       "id": "000000000000000000000000",
@@ -20,6 +20,7 @@
           "postcode": "UK1",
           "country": "UK"
         },
+        "businessCountry": "GB-ENG",
         "regulator": "Regulator",
         "regulatorEmail": "regulator@email.com"
       },

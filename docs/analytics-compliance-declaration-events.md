@@ -4,7 +4,7 @@ The analytics topic receives generic analytics event envelopes. Each envelope id
 
 Compliance declaration create, update, and delete operations are captured internally in the same transaction as the declaration change. The analytics processor reads undispatched changes, serialises them as analytics events, and publishes them to the analytics SNS topic configured by `AnalyticsAuditEventProcessor:TopicArn`.
 
-The nested compliance declaration payload is serialised using the embedded [compliance declaration schema](../src/Api/Schemas/ComplianceDeclaration/compliance-declaration.v1.2.schema.json). Its version history is recorded in the [compliance declaration schema changelog](../src/Api/Schemas/ComplianceDeclaration/CHANGELOG.md). For compliance declarations, the analytics message `schemaVersion` is currently `compliance_declaration.v1.2`.
+The nested compliance declaration payload is serialised using the embedded [compliance declaration schema](../src/Api/Schemas/ComplianceDeclaration/compliance-declaration.v1.3.schema.json). Its version history is recorded in the [compliance declaration schema changelog](../src/Api/Schemas/ComplianceDeclaration/CHANGELOG.md). For compliance declarations, the analytics message `schemaVersion` is currently `compliance_declaration.v1.3`.
 
 ## Message transport
 
@@ -116,6 +116,7 @@ The `before` value is `null`. The `after` value is the created compliance declar
         "postcode": "UK1",
         "country": "UK"
       },
+      "businessCountry": "GB-ENG",
       "regulator": "Regulator",
       "regulatorEmail": "regulator@email.com"
     },
@@ -151,7 +152,7 @@ The `before` value is `null`. The `after` value is the created compliance declar
     "isRegulation43Compliant": true,
     "obligationCoveragePercentage": 40
   },
-  "schemaVersion": "compliance_declaration.v1.2"
+  "schemaVersion": "compliance_declaration.v1.3"
 }
 ```
 
@@ -196,6 +197,7 @@ The `before` value is the declaration state before the update. The `after` value
         "postcode": "UK1",
         "country": "UK"
       },
+      "businessCountry": "GB-ENG",
       "regulator": "Regulator",
       "regulatorEmail": "regulator@email.com"
     },
@@ -252,6 +254,7 @@ The `before` value is the declaration state before the update. The `after` value
         "postcode": "UK1",
         "country": "UK"
       },
+      "businessCountry": "GB-ENG",
       "regulator": "Regulator",
       "regulatorEmail": "regulator@email.com"
     },
@@ -297,6 +300,6 @@ The `before` value is the declaration state before the update. The `after` value
     "isRegulation43Compliant": true,
     "obligationCoveragePercentage": 40
   },
-  "schemaVersion": "compliance_declaration.v1.2"
+  "schemaVersion": "compliance_declaration.v1.3"
 }
 ```

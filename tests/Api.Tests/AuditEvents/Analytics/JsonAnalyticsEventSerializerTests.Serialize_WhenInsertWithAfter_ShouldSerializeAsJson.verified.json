@@ -1,4 +1,4 @@
-{
+﻿{
   "eventId": "01JZ8RXBMTY2K15SJB3PCFN3D5",
   "sequence": 123,
   "entity": "compliance_declaration",
@@ -33,6 +33,7 @@
         "postcode": "UK1",
         "country": "UK"
       },
+      "businessCountry": "GB-ENG",
       "regulator": "Regulator",
       "regulatorEmail": "regulator@email.com"
     },
@@ -68,5 +69,5 @@
     "isRegulation43Compliant": true,
     "obligationCoveragePercentage": 40
   },
-  "schemaVersion": "compliance_declaration.v1.2"
+  "schemaVersion": "compliance_declaration.v1.3"
 }

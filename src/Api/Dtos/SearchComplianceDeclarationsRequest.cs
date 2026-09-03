@@ -24,6 +24,11 @@ public record SearchComplianceDeclarationsRequest
     [EnumCommaSeparatedList<RegistrationType>(ErrorMessage = "Invalid organisation registration type(s)")]
     public string? RegistrationType { get; init; }
 
+    [Description("Business country of the submitting organisation")]
+    [FromQuery(Name = "country")]
+    [EnumValue<BusinessCountryFilter>(ErrorMessage = "Invalid country")]
+    public string? Country { get; init; }
+
     [Description(
         "Case-insensitive partial match on organisation name, compliance scheme name, scheme operator name or reference number"
     )]
@@ -57,6 +62,8 @@ public record SearchComplianceDeclarationsRequest
 
     public RegistrationType[] ParsedRegistrationType() =>
         RegistrationType?.Split(',').NotNull().Select(x => x.FromJsonValue<RegistrationType>()).ToArray() ?? [];
+
+    public BusinessCountryFilter? ParsedCountry() => Country?.FromJsonValue<BusinessCountryFilter>();
 
     public Data.ComplianceDeclarationSort[] ParsedSort() => ComplianceDeclarationSortParser.Parse(Sort);
 }

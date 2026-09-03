@@ -193,6 +193,13 @@ public class ComplianceDeclarationService(
             );
         }
 
+        if (query.BusinessCountry is not null)
+        {
+            filters.Add(
+                Builders<ComplianceDeclaration>.Filter.Eq(x => x.Organisation.BusinessCountry, query.BusinessCountry)
+            );
+        }
+
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
             // Every name field is matched because which one the regulator sees depends on

@@ -21,8 +21,11 @@ public class MongoMigrationServiceTests : IntegrationTestBase
 {
     private const string SchemaVersionV1_1 = "v1.1";
     private const string SchemaVersionV1_2 = "v1.2";
+    private const string SchemaVersionV1_3 = "v1.3";
     private const string OrganisationIdObligationYearIndexName = "OrganisationId_ObligationYear";
     private const string SearchIndexName = "ObligationYear_Status_OrganisationRegistrationType";
+    private const string BusinessCountrySearchIndexName =
+        "BusinessCountry_ObligationYear_Status_OrganisationRegistrationType";
     private const string OrganisationNameIndexName = "OrganisationName";
     private const string SequenceIndexName = "Sequence";
     private const string EntityEntityIdVersionIndexName = "Entity_EntityId_Version";
@@ -71,6 +74,9 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         complianceDeclarationIndexes
             .Should()
             .Contain(x => IsIndex(x, OrganisationIdObligationYearIndexName, OrganisationReadIndexKeys()));
+        complianceDeclarationIndexes
+            .Should()
+            .Contain(x => IsIndex(x, BusinessCountrySearchIndexName, BusinessCountrySearchIndexKeys()));
         auditEventIndexes.Should().Contain(x => IsIndex(x, SequenceIndexName, sequenceKeys, unique: true));
         auditEventIndexes.Should().Contain(x => IsIndex(x, EntityEntityIdVersionIndexName, entityKeys));
         auditEventIndexes.Should().Contain(x => IsIndex(x, DispatchAnalyticsIndexName, dispatchKeys));
@@ -146,6 +152,35 @@ public class MongoMigrationServiceTests : IntegrationTestBase
 
         indexes = await ListComplianceDeclarationIndexes();
         indexes.Should().Contain(x => IsIndex(x, OrganisationIdObligationYearIndexName, OrganisationYearIndexKeys()));
+
+        await subject.UpAsync(context);
+    }
+
+    [Fact]
+    public async Task ComplianceDeclarationBusinessCountrySearchIndex_ShouldCreateReplaceAndDropIndex()
+    {
+        var database = GetMongoDatabase();
+        var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
+        var subject = new ComplianceDeclarationBusinessCountrySearchIndex();
+        await subject.DownAsync(context);
+        await ComplianceDeclarations.Indexes.CreateOneAsync(
+            new CreateIndexModel<ComplianceDeclaration>(
+                Builders<ComplianceDeclaration>.IndexKeys.Ascending(x => x.Created),
+                new CreateIndexOptions { Name = BusinessCountrySearchIndexName }
+            ),
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+
+        await subject.UpAsync(context);
+
+        var indexes = await ListComplianceDeclarationIndexes();
+        indexes.Should().Contain(x => IsIndex(x, BusinessCountrySearchIndexName, BusinessCountrySearchIndexKeys()));
+
+        await subject.DownAsync(context);
+        await subject.DownAsync(context);
+        indexes = await ListComplianceDeclarationIndexes();
+
+        indexes.Should().NotContain(x => x.GetValue("name") == BusinessCountrySearchIndexName);
 
         await subject.UpAsync(context);
     }
@@ -550,7 +585,91 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         zeroObligated[ObligationCoveragePercentageField].ToDecimal().Should().Be(0m);
     }
 
+    [Fact]
+    public async Task ComplianceDeclarationBusinessCountry_ShouldBumpSchemaVersionAndPreserveExistingCountry()
+    {
+        var database = GetMongoDatabase();
+        var collection = database.GetCollection<BsonDocument>(nameof(ComplianceDeclaration));
+        var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
+        var subject = new ComplianceDeclarationBusinessCountry();
+        var legacyId = ObjectId.GenerateNewId();
+        var existingCountryId = ObjectId.GenerateNewId();
+        var alreadyMigratedId = ObjectId.GenerateNewId();
+        var missingSchemaVersionId = ObjectId.GenerateNewId();
+        var timestamp = new DateTime(2026, 4, 26, 14, 0, 0, DateTimeKind.Utc);
+        var existingCountry = CreateLegacyComplianceDeclaration(
+            existingCountryId,
+            timestamp,
+            UserLocale.En,
+            SchemaVersionV1_2
+        );
+        existingCountry["organisation"].AsBsonDocument["businessCountry"] = "GB-WLS";
+        var alreadyMigrated = CreateLegacyComplianceDeclaration(
+            alreadyMigratedId,
+            timestamp,
+            UserLocale.En,
+            SchemaVersionV1_3
+        );
+        alreadyMigrated["organisation"].AsBsonDocument["businessCountry"] = "GB-SCT";
+        var missingSchemaVersion = CreateLegacyComplianceDeclaration(
+            missingSchemaVersionId,
+            timestamp,
+            UserLocale.En,
+            SchemaVersionV1_2
+        );
+        missingSchemaVersion.Remove("schemaVersion");
+
+        await collection.InsertManyAsync(
+            [
+                CreateLegacyComplianceDeclaration(legacyId, timestamp, UserLocale.En, SchemaVersionV1_2),
+                existingCountry,
+                alreadyMigrated,
+                missingSchemaVersion,
+            ],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+
+        await subject.UpAsync(context);
+        await subject.UpAsync(context);
+
+        var legacy = await FindComplianceDeclaration(collection, legacyId);
+        legacy["schemaVersion"].AsString.Should().Be(SchemaVersionV1_3);
+        legacy["organisation"].AsBsonDocument.Contains("businessCountry").Should().BeFalse();
+
+        var existingCountryDocument = await FindComplianceDeclaration(collection, existingCountryId);
+        existingCountryDocument["schemaVersion"].AsString.Should().Be(SchemaVersionV1_3);
+        existingCountryDocument["organisation"].AsBsonDocument["businessCountry"].AsString.Should().Be("GB-WLS");
+
+        var alreadyMigratedDocument = await FindComplianceDeclaration(collection, alreadyMigratedId);
+        alreadyMigratedDocument["schemaVersion"].AsString.Should().Be(SchemaVersionV1_3);
+        alreadyMigratedDocument["organisation"].AsBsonDocument["businessCountry"].AsString.Should().Be("GB-SCT");
+
+        var legacyWithoutSchemaVersion = await FindComplianceDeclaration(collection, missingSchemaVersionId);
+        legacyWithoutSchemaVersion.Contains("schemaVersion").Should().BeFalse();
+
+        await subject.DownAsync(context);
+
+        legacy = await FindComplianceDeclaration(collection, legacyId);
+        legacy["schemaVersion"].AsString.Should().Be(SchemaVersionV1_2);
+
+        existingCountryDocument = await FindComplianceDeclaration(collection, existingCountryId);
+        existingCountryDocument["schemaVersion"].AsString.Should().Be(SchemaVersionV1_2);
+        existingCountryDocument["organisation"].AsBsonDocument.Contains("businessCountry").Should().BeFalse();
+
+        alreadyMigratedDocument = await FindComplianceDeclaration(collection, alreadyMigratedId);
+        alreadyMigratedDocument["schemaVersion"].AsString.Should().Be(SchemaVersionV1_2);
+        alreadyMigratedDocument["organisation"].AsBsonDocument.Contains("businessCountry").Should().BeFalse();
+    }
+
     private const string ObligationCoveragePercentageField = "obligationCoveragePercentage";
+
+    private static async Task<BsonDocument> FindComplianceDeclaration(
+        IMongoCollection<BsonDocument> collection,
+        ObjectId id
+    ) =>
+        await collection
+            .Find(Builders<BsonDocument>.Filter.Eq("_id", id))
+            .SingleAsync(TestContext.Current.CancellationToken);
 
     private static BsonDocument CreateLegacyComplianceDeclaration(
         ObjectId id,
@@ -694,6 +813,15 @@ public class MongoMigrationServiceTests : IntegrationTestBase
     private BsonDocument OrganisationYearIndexKeys() =>
         RenderIndexKeys(
             Builders<ComplianceDeclaration>.IndexKeys.Ascending(x => x.Organisation.Id).Ascending(x => x.ObligationYear)
+        );
+
+    private BsonDocument BusinessCountrySearchIndexKeys() =>
+        RenderIndexKeys(
+            Builders<ComplianceDeclaration>
+                .IndexKeys.Ascending(x => x.Organisation.BusinessCountry)
+                .Ascending(x => x.ObligationYear)
+                .Ascending(x => x.Status)
+                .Ascending(x => x.Organisation.RegistrationType)
         );
 
     private BsonDocument RenderIndexKeys(IndexKeysDefinition<ComplianceDeclaration> keys) =>

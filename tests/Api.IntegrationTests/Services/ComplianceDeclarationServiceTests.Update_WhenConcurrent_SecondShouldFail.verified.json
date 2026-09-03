@@ -51,6 +51,7 @@
           "postcode": "UK1",
           "town": "Town"
         },
+        "businessCountry": "GB-ENG",
         "complianceSchemeName": null,
         "name": "Org Name",
         "referenceNumber": "123456",
@@ -60,14 +61,14 @@
         "schemeOperatorName": null,
         "_id": "{Scrubbed}"
       },
-      "schemaVersion": "v1.2",
+      "schemaVersion": "v1.3",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "DateTime_1",
       "version": 1,
       "_id": "{Scrubbed}"
     },
-    "SchemaVersion": "v1.2"
+    "SchemaVersion": "v1.3"
   },
   {
     "EventId": "01HXYZ00000000000000000002",
@@ -121,6 +122,7 @@
           "postcode": "UK1",
           "town": "Town"
         },
+        "businessCountry": "GB-ENG",
         "complianceSchemeName": null,
         "name": "Org Name",
         "referenceNumber": "123456",
@@ -130,7 +132,7 @@
         "schemeOperatorName": null,
         "_id": "{Scrubbed}"
       },
-      "schemaVersion": "v1.2",
+      "schemaVersion": "v1.3",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "DateTime_1",
@@ -178,6 +180,7 @@
           "postcode": "UK1",
           "town": "Town"
         },
+        "businessCountry": "GB-ENG",
         "complianceSchemeName": null,
         "name": "Org Name",
         "referenceNumber": "123456",
@@ -187,13 +190,13 @@
         "schemeOperatorName": null,
         "_id": "{Scrubbed}"
       },
-      "schemaVersion": "v1.2",
+      "schemaVersion": "v1.3",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "DateTime_4",
       "version": 2,
       "_id": "{Scrubbed}"
     },
-    "SchemaVersion": "v1.2"
+    "SchemaVersion": "v1.3"
   }
 ]
