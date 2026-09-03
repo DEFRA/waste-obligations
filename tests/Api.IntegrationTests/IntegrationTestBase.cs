@@ -153,7 +153,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
                     using var candidate = JsonSerializer.Deserialize<JsonDocument>(message.Body);
                     candidate.Should().NotBeNull();
 
-                    if (match is not null && !match(candidate!.RootElement))
+                    if (match is not null && !match(candidate.RootElement))
                     {
                         await sqsClient.DeleteMessageAsync(
                             AnalyticsEventsQueueUrl,
@@ -183,7 +183,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
 
         deserializedMessage.Should().NotBeNull();
 
-        return deserializedMessage!;
+        return deserializedMessage;
     }
 
     protected static async Task AssertAnalyticsEventQueued(

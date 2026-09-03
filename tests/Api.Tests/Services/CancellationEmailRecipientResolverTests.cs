@@ -154,7 +154,7 @@ public class CancellationEmailRecipientResolverTests
         );
 
         recipient.Should().NotBeNull();
-        recipient!.FirstName.Should().Be("Matched");
+        recipient.FirstName.Should().Be("Matched");
         recipient.LastName.Should().Be("Submitter");
     }
 

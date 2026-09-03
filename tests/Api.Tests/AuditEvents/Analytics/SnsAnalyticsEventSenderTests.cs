@@ -40,7 +40,7 @@ public class SnsAnalyticsEventSenderTests
         await subject.Send(analyticsEvent, TestContext.Current.CancellationToken);
 
         request.Should().NotBeNull();
-        request!.TopicArn.Should().Be(TopicArn);
+        request.TopicArn.Should().Be(TopicArn);
         request.Message.Should().Be("serialized-message");
         request.MessageAttributes.Should().ContainKey(ContentTypeHeader);
         request.MessageAttributes[ContentTypeHeader].StringValue.Should().Be("application/json");
@@ -72,7 +72,7 @@ public class SnsAnalyticsEventSenderTests
         await subject.Send(analyticsEvent, TestContext.Current.CancellationToken);
 
         request.Should().NotBeNull();
-        request!.Message.Should().NotBe(serializedMessage);
+        request.Message.Should().NotBe(serializedMessage);
         request.MessageAttributes.Should().ContainKey(ContentTypeHeader);
         request.MessageAttributes[ContentTypeHeader].StringValue.Should().Be("application/json");
         request.MessageAttributes.Should().ContainKey(ContentEncodingHeader);
