@@ -5,7 +5,6 @@ using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
 using Defra.WasteObligations.AuditEvents.Entities;
-using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Authentication;
 using Defra.WasteObligations.Testing.Extensions.WireMock;
 using Defra.WasteObligations.Testing.Fixtures.Dtos;
