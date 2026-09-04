@@ -76,6 +76,23 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Refresh_WhenSourceIncludesBusinessCountry_ShouldStoreItOnTheEligibilityRow()
+    {
+        var organisationId = Guid.NewGuid();
+        ArrangeSource(organisationId, businessCountry: "GB-WLS");
+        ArrangeDirectProducerReference(organisationId, "051829");
+        var subject = CreateSubject();
+
+        var result = await subject.Refresh(TestContext.Current.CancellationToken);
+
+        var row = await OrganisationComplianceDeclarationEligibilities
+            .Find(x => x.Generation == result.ActiveGeneration)
+            .SingleAsync(TestContext.Current.CancellationToken);
+
+        row.BusinessCountry.Should().Be("GB-WLS");
+    }
+
+    [Fact]
     public async Task Refresh_WhenTimeHasSubMillisecondPrecision_ShouldPersistMillisecondPrecision()
     {
         var utcNow = new DateTimeOffset(2026, 8, 26, 12, 0, 0, TimeSpan.Zero).AddTicks(1_234);
@@ -732,29 +749,49 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
         );
     }
 
-    private void ArrangeSource(Guid organisationId, string name = "Example organisation") =>
+    private void ArrangeSource(
+        Guid organisationId,
+        string name = "Example organisation",
+        string? businessCountry = null
+    ) =>
         OrganisationEligibilitySource
             .Search(Arg.Any<CancellationToken>())
-            .Returns(new OrganisationSearch { Organisations = [CreateSourceOrganisation(organisationId, name)] });
+            .Returns(
+                new OrganisationSearch
+                {
+                    Organisations = [CreateSourceOrganisation(organisationId, name, businessCountry)],
+                }
+            );
 
     private static IOrganisationEligibilitySource CreateSource(
         Guid organisationId,
-        string name = "Example organisation"
+        string name = "Example organisation",
+        string? businessCountry = null
     )
     {
         var source = Substitute.For<IOrganisationEligibilitySource>();
         source
             .Search(Arg.Any<CancellationToken>())
-            .Returns(new OrganisationSearch { Organisations = [CreateSourceOrganisation(organisationId, name)] });
+            .Returns(
+                new OrganisationSearch
+                {
+                    Organisations = [CreateSourceOrganisation(organisationId, name, businessCountry)],
+                }
+            );
 
         return source;
     }
 
-    private static Organisation CreateSourceOrganisation(Guid organisationId, string name) =>
+    private static Organisation CreateSourceOrganisation(
+        Guid organisationId,
+        string name,
+        string? businessCountry = null
+    ) =>
         new()
         {
             Id = organisationId,
             Name = name,
+            BusinessCountry = businessCountry,
             Address = new WasteOrganisationsAddress(),
             Registrations =
             [

@@ -50,7 +50,8 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
         );
         var subject = CreateSubject();
 
-        var descending = await subject.Search(
+        var descending = await Search(
+            subject,
             2026,
             [RegistrationType.DirectProducer],
             null,
@@ -65,7 +66,8 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
             pageSize: 1,
             TestContext.Current.CancellationToken
         );
-        var ascendingSecondPage = await subject.Search(
+        var ascendingSecondPage = await Search(
+            subject,
             2026,
             [RegistrationType.DirectProducer],
             null,
@@ -88,7 +90,8 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
         await SetReadySnapshot("generation");
         var subject = CreateSubject();
 
-        var result = await subject.Search(
+        var result = await Search(
+            subject,
             2026,
             [RegistrationType.DirectProducer],
             null,
@@ -126,7 +129,8 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
         );
         var subject = CreateSubject();
 
-        var allRows = await subject.Search(
+        var allRows = await Search(
+            subject,
             null,
             [],
             null,
@@ -135,7 +139,8 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
             pageSize: 20,
             TestContext.Current.CancellationToken
         );
-        var currentYearRows = await subject.Search(
+        var currentYearRows = await Search(
+            subject,
             2026,
             [],
             null,
@@ -144,7 +149,8 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
             pageSize: 20,
             TestContext.Current.CancellationToken
         );
-        var schemeRows = await subject.Search(
+        var schemeRows = await Search(
+            subject,
             null,
             [RegistrationType.ComplianceScheme],
             null,
@@ -153,7 +159,8 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
             pageSize: 20,
             TestContext.Current.CancellationToken
         );
-        var bothRegistrationTypes = await subject.Search(
+        var bothRegistrationTypes = await Search(
+            subject,
             null,
             [RegistrationType.DirectProducer, RegistrationType.ComplianceScheme],
             null,
@@ -176,6 +183,43 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Search_WhenFilteringByBusinessCountry_ShouldReturnMatchingRows()
+    {
+        const string generation = "generation";
+        var walesOrganisationId = Guid.NewGuid();
+        await SetReadySnapshot(generation);
+        await OrganisationComplianceDeclarationEligibilities.InsertManyAsync(
+            [
+                Eligibility(walesOrganisationId, generation, "Wales Packaging", "100001") with
+                {
+                    BusinessCountry = "GB-WLS",
+                },
+                Eligibility(Guid.NewGuid(), generation, "England Packaging", "100002") with
+                {
+                    BusinessCountry = "GB-ENG",
+                },
+            ],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        var subject = CreateSubject();
+
+        var result = await Search(
+            subject,
+            2026,
+            [RegistrationType.DirectProducer],
+            null,
+            null,
+            businessCountry: "GB-WLS",
+            page: 1,
+            pageSize: 20,
+            TestContext.Current.CancellationToken
+        );
+
+        result.Total.Should().Be(1);
+        result.Rows.Should().ContainSingle().Which.OrganisationId.Should().Be(walesOrganisationId);
+    }
+
+    [Fact]
     public async Task Search_WhenSearchMatchesNameOrReference_ShouldReturnCaseInsensitivePartialMatches()
     {
         const string generation = "generation";
@@ -192,7 +236,8 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
         );
         var subject = CreateSubject();
 
-        var nameResult = await subject.Search(
+        var nameResult = await Search(
+            subject,
             2026,
             [RegistrationType.DirectProducer],
             "PHA PAC",
@@ -201,7 +246,8 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
             pageSize: 20,
             TestContext.Current.CancellationToken
         );
-        var referenceResult = await subject.Search(
+        var referenceResult = await Search(
+            subject,
             2026,
             [RegistrationType.DirectProducer],
             "0003",
@@ -228,7 +274,8 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
         );
         var subject = CreateSubject();
 
-        var result = await subject.Search(
+        var result = await Search(
+            subject,
             2026,
             [RegistrationType.DirectProducer],
             "operator",
@@ -272,7 +319,8 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
         );
         var subject = CreateSubject();
 
-        var result = await subject.Search(
+        var result = await Search(
+            subject,
             2026,
             [RegistrationType.DirectProducer],
             null,
@@ -322,7 +370,8 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
         );
         var subject = CreateSubject();
 
-        var byReference = await subject.Search(
+        var byReference = await Search(
+            subject,
             2026,
             [RegistrationType.DirectProducer],
             null,
@@ -337,7 +386,8 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
             pageSize: 3,
             TestContext.Current.CancellationToken
         );
-        var byRecycling = await subject.Search(
+        var byRecycling = await Search(
+            subject,
             2026,
             [RegistrationType.DirectProducer],
             null,
@@ -352,7 +402,8 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
             pageSize: 3,
             TestContext.Current.CancellationToken
         );
-        var byPercentage = await subject.Search(
+        var byPercentage = await Search(
+            subject,
             2026,
             [RegistrationType.DirectProducer],
             null,
@@ -400,7 +451,8 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
         );
         var subject = CreateSubject();
 
-        var result = await subject.Search(
+        var result = await Search(
+            subject,
             2026,
             [RegistrationType.DirectProducer],
             null,
@@ -505,12 +557,60 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task SearchPlan_WhenFilteringByBusinessCountry_ShouldUseTheBusinessCountryIndex()
+    {
+        const string generation = "generation";
+        const string indexName = "Generation_IsVisibleInUnsubmittedView_BusinessCountry_Name_OrganisationId";
+        await SetReadySnapshot(generation);
+        await OrganisationComplianceDeclarationEligibilities.InsertManyAsync(
+            [
+                .. Enumerable
+                    .Range(0, 100)
+                    .Select(_ =>
+                        Eligibility(Guid.NewGuid(), generation, "England Packaging", "100001") with
+                        {
+                            BusinessCountry = "GB-ENG",
+                        }
+                    ),
+                Eligibility(Guid.NewGuid(), generation, "Wales Packaging", "100002") with
+                {
+                    BusinessCountry = "GB-WLS",
+                },
+            ],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        var command = new BsonDocument
+        {
+            ["explain"] = new BsonDocument
+            {
+                ["find"] = nameof(OrganisationComplianceDeclarationEligibility),
+                ["filter"] = new BsonDocument
+                {
+                    ["generation"] = generation,
+                    ["isVisibleInUnsubmittedView"] = true,
+                    ["businessCountry"] = "GB-WLS",
+                },
+                ["sort"] = new BsonDocument { ["name"] = 1, ["organisationId"] = 1 },
+            },
+            ["verbosity"] = "queryPlanner",
+        };
+
+        var plan = await GetMongoDatabase()
+            .RunCommandAsync<BsonDocument>(command, cancellationToken: TestContext.Current.CancellationToken);
+        var renderedWinningPlan = plan["queryPlanner"]["winningPlan"].ToJson();
+
+        renderedWinningPlan.Should().Contain(indexName);
+        renderedWinningPlan.Should().NotContain("\"stage\" : \"SORT\"");
+    }
+
+    [Fact]
     public async Task Search_WhenNoActiveGeneration_ShouldReturnAnEmptyPageAndLogAnError()
     {
         var logger = new RecordingLogger<UnsubmittedOrganisationsService>();
         var subject = CreateSubject(logger);
 
-        var result = await subject.Search(
+        var result = await Search(
+            subject,
             2026,
             [RegistrationType.DirectProducer],
             null,
@@ -555,7 +655,8 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
         var logger = new RecordingLogger<UnsubmittedOrganisationsService>();
         var subject = CreateSubject(logger);
 
-        var result = await subject.Search(
+        var result = await Search(
+            subject,
             2026,
             [RegistrationType.DirectProducer],
             null,
@@ -605,6 +706,53 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
             cancellationToken: TestContext.Current.CancellationToken
         );
     }
+
+    private static Task<UnsubmittedOrganisationSearchResult> Search(
+        UnsubmittedOrganisationsService subject,
+        int? obligationYear,
+        IReadOnlyCollection<RegistrationType>? registrationTypes,
+        string? search,
+        IReadOnlyCollection<UnsubmittedOrganisationSort>? sort,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken
+    ) =>
+        Search(
+            subject,
+            obligationYear,
+            registrationTypes,
+            search,
+            sort,
+            businessCountry: null,
+            page,
+            pageSize,
+            cancellationToken
+        );
+
+    private static Task<UnsubmittedOrganisationSearchResult> Search(
+        UnsubmittedOrganisationsService subject,
+        int? obligationYear,
+        IReadOnlyCollection<RegistrationType>? registrationTypes,
+        string? search,
+        IReadOnlyCollection<UnsubmittedOrganisationSort>? sort,
+        string? businessCountry,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken
+    ) =>
+        subject.Search(
+            new UnsubmittedOrganisationSearchQuery
+            {
+                ObligationYear = obligationYear,
+                RegistrationTypes = registrationTypes,
+                BusinessCountry = businessCountry,
+                Search = search,
+                Sort = sort,
+            },
+            page,
+            pageSize,
+            cancellationToken
+        );
 
     private static OrganisationComplianceDeclarationEligibilityEntity Eligibility(
         Guid organisationId,

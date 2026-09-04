@@ -1,5 +1,7 @@
 using Defra.WasteObligations.Api.Authentication;
+using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Dtos;
+using Defra.WasteObligations.Api.Extensions;
 using Defra.WasteObligations.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -35,10 +37,14 @@ public static class SearchUnsubmittedComplianceDeclarations
         var page = request.EffectivePage;
         var pageSize = request.EffectivePageSize;
         var result = await service.Search(
-            request.ObligationYear,
-            registrationTypes,
-            request.Search,
-            sort,
+            new UnsubmittedOrganisationSearchQuery
+            {
+                ObligationYear = request.ObligationYear,
+                RegistrationTypes = registrationTypes,
+                BusinessCountry = request.ParsedCountry()?.ToJsonValue(),
+                Search = request.Search,
+                Sort = sort,
+            },
             page,
             pageSize,
             cancellationToken

@@ -22,10 +22,11 @@ An unindexed plan may only be accepted with `AllowUnindexedMongoQuery(new MongoQ
 
 ## Applied index set
 
-The application query review adds exactly two secondary indexes, both on `OrganisationComplianceDeclarationEligibility`:
+The application query review adds exactly three secondary indexes, all on `OrganisationComplianceDeclarationEligibility`:
 
 - `Generation_ObligationYear_RegistrationStatus_ReferenceNumberResolutionState_OrganisationId` serves the hydration work-selection read and covers its projected organisation ID.
 - `RefreshedAt` bounds expired-generation cleanup by its retention cutoff; `generation NOT IN (...)` remains a residual filter.
+- `Generation_IsVisibleInUnsubmittedView_BusinessCountry_Name_OrganisationId` serves the country-filtered unsubmitted default sort.
 
 No status-only declaration index was added. The exclusion read now accepts the source rows it is evaluating and restricts its declaration read to their organisation IDs, years, and registration types, allowing the existing `OrganisationId_ObligationYear` index to be used. No audit-event index was added either: `AuditEvent.EventId` is mapped to MongoDB `_id`, so dispatch marking already uses `_id_`.
 
@@ -43,7 +44,7 @@ This is the source inventory as at the introduction of the profiler. A row marke
 | Eligibility visibility, declaration check | `ComplianceDeclaration` | organisation id, year, registration type, submitted/accepted status | `OrganisationId_ObligationYear` is usable but does not cover the rest |
 | Eligibility snapshot reads and concurrency updates | `OrganisationEligibilitySnapshot` | `_id` plus snapshot values | `_id_` |
 | Eligibility active-generation read / count | `OrganisationComplianceDeclarationEligibility` | `generation` | `Generation_OrganisationId_ObligationYear_RegistrationType` prefix |
-| Unsubmitted search count and page | `OrganisationComplianceDeclarationEligibility` | generation, visible flag, optional year/type, optional regex; dynamic sort | **review** — four sort-oriented indexes exist; profile every supported sort and filter combination |
+| Unsubmitted search count and page | `OrganisationComplianceDeclarationEligibility` | generation, visible flag, optional year/type/country, optional regex; dynamic sort | **review** — five sort-oriented indexes exist; profile every supported sort and filter combination |
 | Eligibility visibility updates | `OrganisationComplianceDeclarationEligibility` | generation, organisation id, year, registration type, visibility inputs | `Generation_OrganisationId_ObligationYear_RegistrationType` prefix |
 | Eligibility garbage collection | `OrganisationComplianceDeclarationEligibility` | generation not in retained set; `refreshedAt` cutoff | `RefreshedAt`; generation is a residual filter |
 | Hydration eligible-organisations read | `OrganisationComplianceDeclarationEligibility` | generation, year, registered, resolved | `Generation_ObligationYear_RegistrationStatus_ReferenceNumberResolutionState_OrganisationId` |

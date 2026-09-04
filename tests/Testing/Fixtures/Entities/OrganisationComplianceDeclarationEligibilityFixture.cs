@@ -25,6 +25,7 @@ public static class OrganisationComplianceDeclarationEligibilityFixture
             .With(x => x.ObligationYear, 2026)
             .With(x => x.RegistrationType, RegistrationType.DirectProducer)
             .With(x => x.RegistrationStatus, OrganisationRegistrationStatus.Registered)
+            .Without(x => x.BusinessCountry)
             .With(x => x.Name, "Example organisation")
             .Without(x => x.TradingName)
             .Without(x => x.CompaniesHouseNumber)
