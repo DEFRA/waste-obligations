@@ -32,7 +32,8 @@ jobs:
             10.0
       - name: Run unit tests
         run: |
-          dotnet test --filter "Category!=IntegrationTests"
+          dotnet build tests/Api.Tests/Api.Tests.csproj
+          dotnet test --test-modules tests/Api.Tests/bin/Debug/net10.0/Api.Tests.dll --no-build
       - name: Run integration tests
         env:
           GOVUKNOTIFY_APIKEY: ${{ secrets.GOVUKNOTIFY_APIKEY }}
@@ -40,12 +41,13 @@ jobs:
           set -o pipefail
 
           docker compose up -d --wait
+          dotnet build tests/Api.IntegrationTests/Api.IntegrationTests.csproj
           test_log="$RUNNER_TEMP/integration-tests.log"
 
           set +e
           dotnet test \
-            --filter "Category=IntegrationTests" \
-            --logger "console;verbosity=normal" 2>&1 | tee "$test_log"
+            --test-modules tests/Api.IntegrationTests/bin/Debug/net10.0/Api.IntegrationTests.dll \
+            --no-build 2>&1 | tee "$test_log"
           test_exit_code=${PIPESTATUS[0]}
           set -e
 

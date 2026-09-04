@@ -68,22 +68,26 @@ docker compose down -v --remove-orphans
 
 Tests with the `IntegrationTests` trait require additional local dependencies - either the API running in Docker or Mongo.
 
-Running tests without dependencies:
+Running unit tests:
 
 ```bash
-dotnet test --filter "Category!=IntegrationTests"
+dotnet build tests/Api.Tests/Api.Tests.csproj
+dotnet test --test-modules tests/Api.Tests/bin/Debug/net10.0/Api.Tests.dll --no-build
 ```
 
-Running tests with dependencies:
+Running integration tests with dependencies:
 
 ```bash
-dotnet test --filter "Category=IntegrationTests"
+dotnet build tests/Api.IntegrationTests/Api.IntegrationTests.csproj
+dotnet test --test-modules tests/Api.IntegrationTests/bin/Debug/net10.0/Api.IntegrationTests.dll --no-build
 ```
 
-Running all:
+Running all tests (with the integration-test dependencies available):
 
 ```bash
-dotnet test
+dotnet build
+dotnet test --test-modules tests/Api.Tests/bin/Debug/net10.0/Api.Tests.dll --no-build
+dotnet test --test-modules tests/Api.IntegrationTests/bin/Debug/net10.0/Api.IntegrationTests.dll --no-build
 ```
 
 ### Govuk Notify
@@ -94,10 +98,11 @@ Set the `GOVUKNOTIFY_APIKEY` env var in a terminal and then run the integration 
 
 ```
 export GOVUKNOTIFY_APIKEY=[replace with key]
-dotnet test --filter "Category=IntegrationTests" --logger "console;verbosity=detailed"
+dotnet build tests/Api.IntegrationTests/Api.IntegrationTests.csproj
+dotnet test --test-modules tests/Api.IntegrationTests/bin/Debug/net10.0/Api.IntegrationTests.dll --no-build
 ```
 
-Note the command above to run the tests allows console output so use of the API Key can be seen.
+The test runner writes console output so use of the API Key can be seen.
 
 
 ## Code quality

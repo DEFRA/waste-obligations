@@ -27,8 +27,10 @@
 ## Change iterations
 - For every implementation cycle, run this portable end-to-end verification before committing. An implementation cycle changes production or test code, runtime or container configuration, dependencies, schemas or migrations, or test fixtures. It rebuilds the Compose image (including CSharpier and container build checks), runs the complete test suite against the local environment, then tears the environment down. Do not substitute individual project build or test commands for this check:
   1. `docker compose up --build -d --wait`
-  2. `dotnet test`
-  3. `docker compose down -v --remove-orphans` (run this even if the test command fails)
+  2. `dotnet build`
+  3. `dotnet test --test-modules tests/Api.Tests/bin/Debug/net10.0/Api.Tests.dll --no-build`
+  4. `dotnet test --test-modules tests/Api.IntegrationTests/bin/Debug/net10.0/Api.IntegrationTests.dll --no-build`
+  5. `docker compose down -v --remove-orphans` (run this even if either test command fails)
 - Documentation-only changes (including `AGENTS.md`), comment-only changes, and other non-functional text edits do not require the full Compose/test cycle. Run a proportionate lightweight check instead, such as `git diff --check`; for changed C# files, also run CSharpier. Do not use this exception for changes that alter code, configuration, schemas, dependencies, test execution, or generated contract artefacts.
 - Integration clients should return their integration response models rather than public API DTOs; map to API DTOs in the consuming endpoint or application service
 - Before adding an endpoint, request DTO, validation rule, serialisation converter, or OpenAPI customisation, compare the nearest existing implementation. If the change needs a one-off pattern or would alter an established request, validation, error-response, or documentation convention, pause and ask the user before introducing it.
@@ -82,13 +84,13 @@ Follow this order for a persisted entity shape change:
 - If a build is unexpectedly slow, stop it, run `dotnet build-server shutdown`, and retry the sandbox build command above
 
 ## Test guidance
-- Run Api.Tests with `DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE=1 dotnet test tests/Api.Tests/Api.Tests.csproj --no-restore -p:OpenApiGenerateDocuments=false -m:1 -nodeReuse:false --disable-build-servers -v:minimal`
-- In the sandbox environment, Api.Tests may need escalation because VSTest binds a local socket for test host communication
+- Run Api.Tests with `DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE=1 dotnet build tests/Api.Tests/Api.Tests.csproj --no-restore -p:OpenApiGenerateDocuments=false -m:1 -nodeReuse:false --disable-build-servers -v:minimal` followed by `DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE=1 dotnet test --test-modules tests/Api.Tests/bin/Debug/net10.0/Api.Tests.dll --no-build -v:minimal`
+- In the sandbox environment, Api.Tests may need escalation because the test application can bind local sockets
 
 ## Integration tests
 - Keep integration tests focused on integration boundaries. Use them to prove real components are wired together and observable side effects happen; put detailed formatting, serialisation, and field-by-field assertions in fast unit tests where possible.
 - Do not change shared infrastructure settings, such as queue attributes or database-level configuration, from integration tests unless the test owns an isolated resource created specifically for that test.
 - Run the local environment with `docker compose up --build -d --wait`
-- Run Api.IntegrationTests with `DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE=1 dotnet test tests/Api.IntegrationTests/Api.IntegrationTests.csproj --no-restore -p:OpenApiGenerateDocuments=false -m:1 -nodeReuse:false --disable-build-servers -v:minimal`
+- Run Api.IntegrationTests with `DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE=1 dotnet build tests/Api.IntegrationTests/Api.IntegrationTests.csproj --no-restore -p:OpenApiGenerateDocuments=false -m:1 -nodeReuse:false --disable-build-servers -v:minimal` followed by `DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE=1 dotnet test --test-modules tests/Api.IntegrationTests/bin/Debug/net10.0/Api.IntegrationTests.dll --no-build -v:minimal`
 - Stop the local environment with `docker compose down -v --remove-orphans`
-- In the sandbox environment, Api.IntegrationTests need escalation because VSTest binds a local socket and the tests access Docker Compose services
+- In the sandbox environment, Api.IntegrationTests need escalation because the test application accesses Docker Compose services
