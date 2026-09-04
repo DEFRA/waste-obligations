@@ -26,7 +26,7 @@ public record UnsubmittedComplianceDeclarationsRequest
 
     [Description(
         "Comma separated sort fields in priority order. Each field must use the format Field[asc] or Field[desc]. "
-            + "Fields: OrganisationName, OrganisationReferenceNumber, RecyclingObligations, PercentageMet"
+            + "Fields: Name, ReferenceNumber, RecyclingObligationsMet, ObligationCoveragePercentage"
     )]
     [FromQuery(Name = "sort")]
     [UnsubmittedOrganisationSortList(ErrorMessage = "Invalid unsubmitted compliance declaration sort")]
