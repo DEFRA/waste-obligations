@@ -1027,7 +1027,7 @@
           {
             "name": "sort",
             "in": "query",
-            "description": "Comma separated sort fields in priority order. Each field must use the format Field[asc] or Field[desc]. Fields: OrganisationName, OrganisationReferenceNumber, RecyclingObligations, PercentageMet",
+            "description": "Comma separated sort fields in priority order. Each field must use the format Field[asc] or Field[desc]. Fields: Name, ReferenceNumber, RecyclingObligationsMet, ObligationCoveragePercentage",
             "schema": {
               "type": "string"
             }
@@ -1889,8 +1889,8 @@
       },
       "UnsubmittedOrganisation": {
         "required": [
-          "organisationName",
-          "organisationReferenceNumber"
+          "name",
+          "referenceNumber"
         ],
         "type": "object",
         "properties": {
@@ -1909,10 +1909,10 @@
           "registrationType": {
             "$ref": "#/components/schemas/RegistrationType"
           },
-          "organisationName": {
+          "name": {
             "type": "string"
           },
-          "organisationReferenceNumber": {
+          "referenceNumber": {
             "type": "string"
           },
           "recyclingObligationsMet": {
