@@ -36,6 +36,26 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task HydrateDue_WhenNoActiveGenerationExists_ShouldLeaveExistingSummariesActive()
+    {
+        var organisationId = Guid.NewGuid();
+        await InsertHydrationSummary(organisationId);
+        var subject = CreateSubject();
+
+        var processedCount = await subject.HydrateDue(ObligationYear, TestContext.Current.CancellationToken);
+
+        processedCount.Should().Be(0);
+        await ObligationSource
+            .DidNotReceive()
+            .ReadObligations(organisationId, ObligationYear, Arg.Any<CancellationToken>());
+        var summary = await OrganisationObligationSummaries
+            .Find(x => x.OrganisationId == organisationId && x.ObligationYear == ObligationYear)
+            .SingleAsync(TestContext.Current.CancellationToken);
+
+        summary.IsHydrationActive.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task EnqueueNewEligible_ShouldDeduplicateActiveRegisteredResolvedRows()
     {
         var organisationId = Guid.NewGuid();
@@ -330,6 +350,35 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task HydrateDue_WhenInitialRetryDelayWouldOverflow_ShouldUseTheMaximumRetryDelay()
+    {
+        var organisationId = Guid.NewGuid();
+        await InsertActiveSnapshot();
+        await InsertEligibility(organisationId, RegistrationType.DirectProducer);
+        await InsertHydrationSummary(organisationId, attemptCount: 20);
+        ObligationSource
+            .ReadObligations(organisationId, ObligationYear, Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<IEnumerable<PrnObligation>>(new HttpRequestException("PRN is unavailable")));
+        var maximumRetryDelay = TimeSpan.FromDays(20);
+        var subject = CreateSubject(
+            new OrganisationObligationHydrationOptions
+            {
+                InitialRetryDelay = TimeSpan.FromDays(11),
+                MaximumRetryDelay = maximumRetryDelay,
+            }
+        );
+
+        await subject.HydrateDue(ObligationYear, TestContext.Current.CancellationToken);
+
+        var summary = await OrganisationObligationSummaries
+            .Find(x => x.OrganisationId == organisationId && x.ObligationYear == ObligationYear)
+            .SingleAsync(TestContext.Current.CancellationToken);
+
+        summary.AttemptCount.Should().Be(21);
+        summary.NextRefreshAt.Should().Be(_timeProvider.GetUtcNow().Add(maximumRetryDelay).UtcDateTime);
+    }
+
+    [Fact]
     public async Task HydrateDue_WhenAnActiveSummaryHasNoSuccessfulReadWithinTheThreshold_ShouldRecordStaleness()
     {
         var organisationId = Guid.NewGuid();
@@ -514,7 +563,8 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
     private Task InsertHydrationSummary(
         Guid organisationId,
         DateTime? nextRefreshAt = null,
-        DateTime? lastSuccessfulReadAt = null
+        DateTime? lastSuccessfulReadAt = null,
+        int attemptCount = 0
     ) =>
         OrganisationObligationSummaries.InsertOneAsync(
             new OrganisationObligationSummary
@@ -527,6 +577,7 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
                 LastSuccessfulReadAt = lastSuccessfulReadAt,
                 RefreshState = OrganisationObligationRefreshState.Pending,
                 IsHydrationActive = true,
+                AttemptCount = attemptCount,
             },
             cancellationToken: TestContext.Current.CancellationToken
         );

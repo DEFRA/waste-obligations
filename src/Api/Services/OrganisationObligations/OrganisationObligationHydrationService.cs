@@ -24,17 +24,23 @@ public class OrganisationObligationHydrationService(
 
     public async Task<int> EnqueueNewEligible(int obligationYear, CancellationToken cancellationToken)
     {
-        var organisationIds = await GetEligibleOrganisationIds(obligationYear, cancellationToken);
-        var result = await EnqueueNewEligible(organisationIds, obligationYear, cancellationToken);
+        var eligibility = await GetEligibleOrganisationIds(obligationYear, cancellationToken);
+        if (!eligibility.HasActiveGeneration)
+            return 0;
+
+        var result = await EnqueueNewEligible(eligibility.OrganisationIds, obligationYear, cancellationToken);
 
         return result;
     }
 
     public async Task<int> HydrateDue(int obligationYear, CancellationToken cancellationToken)
     {
-        var organisationIds = await GetEligibleOrganisationIds(obligationYear, cancellationToken);
-        await RemoveInactiveWork(organisationIds, obligationYear, cancellationToken);
-        await EnqueueNewEligible(organisationIds, obligationYear, cancellationToken);
+        var eligibility = await GetEligibleOrganisationIds(obligationYear, cancellationToken);
+        if (!eligibility.HasActiveGeneration)
+            return 0;
+
+        await RemoveInactiveWork(eligibility.OrganisationIds, obligationYear, cancellationToken);
+        await EnqueueNewEligible(eligibility.OrganisationIds, obligationYear, cancellationToken);
         var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
         var work = await dbContext
             .OrganisationObligationSummaries.Find(x =>
@@ -71,14 +77,14 @@ public class OrganisationObligationHydrationService(
         CancellationToken cancellationToken
     )
     {
-        var organisationIds = await GetEligibleOrganisationIds(obligationYear, cancellationToken);
-        if (organisationIds.Length == 0)
+        var eligibility = await GetEligibleOrganisationIds(obligationYear, cancellationToken);
+        if (!eligibility.HasActiveGeneration || eligibility.OrganisationIds.Length == 0)
             return 0;
 
         var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
         var filter = Builders<OrganisationObligationSummary>.Filter.And(
             Builders<OrganisationObligationSummary>.Filter.Eq(x => x.ObligationYear, obligationYear),
-            Builders<OrganisationObligationSummary>.Filter.In(x => x.OrganisationId, organisationIds),
+            Builders<OrganisationObligationSummary>.Filter.In(x => x.OrganisationId, eligibility.OrganisationIds),
             Builders<OrganisationObligationSummary>.Filter.Eq(x => x.IsHydrationActive, true),
             Builders<OrganisationObligationSummary>.Filter.Eq(
                 x => x.Priority,
@@ -101,13 +107,16 @@ public class OrganisationObligationHydrationService(
         return (int)result.ModifiedCount;
     }
 
-    private async Task<Guid[]> GetEligibleOrganisationIds(int obligationYear, CancellationToken cancellationToken)
+    private async Task<(bool HasActiveGeneration, Guid[] OrganisationIds)> GetEligibleOrganisationIds(
+        int obligationYear,
+        CancellationToken cancellationToken
+    )
     {
         var snapshot = await dbContext
             .OrganisationEligibilitySnapshots.Find(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId)
             .SingleOrDefaultAsync(cancellationToken);
         if (snapshot?.ActiveGeneration is null)
-            return [];
+            return (false, []);
 
         var eligibleOrganisationIds = await dbContext
             .OrganisationComplianceDeclarationEligibilities.Find(x =>
@@ -119,7 +128,7 @@ public class OrganisationObligationHydrationService(
             .Project(x => x.OrganisationId)
             .ToListAsync(cancellationToken);
 
-        return eligibleOrganisationIds.Distinct().ToArray();
+        return (true, eligibleOrganisationIds.Distinct().ToArray());
     }
 
     private async Task<int> EnqueueNewEligible(
@@ -312,10 +321,12 @@ public class OrganisationObligationHydrationService(
     private TimeSpan RetryDelay(int attemptCount)
     {
         var multiplier = 1L << Math.Min(attemptCount - 1, 20);
-        var retryTicks = Math.Min(
-            options.Value.InitialRetryDelay.Ticks * multiplier,
-            options.Value.MaximumRetryDelay.Ticks
-        );
+        var maximumRetryDelay = options.Value.MaximumRetryDelay;
+        var initialRetryDelay = options.Value.InitialRetryDelay;
+        var retryTicks =
+            initialRetryDelay.Ticks > maximumRetryDelay.Ticks / multiplier
+                ? maximumRetryDelay.Ticks
+                : initialRetryDelay.Ticks * multiplier;
 
         return TimeSpan.FromTicks(retryTicks);
     }
