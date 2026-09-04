@@ -141,6 +141,7 @@ public class OrganisationObligationHydrationService(
             return 0;
 
         var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
+        await ReactivateExistingEligible(organisationIds, obligationYear, utcNow, cancellationToken);
         var work = organisationIds
             .Select(organisationId => new UpdateOneModel<OrganisationObligationSummary>(
                 Builders<OrganisationObligationSummary>.Filter.And(
@@ -168,6 +169,36 @@ public class OrganisationObligationHydrationService(
         );
 
         return result.Upserts.Count;
+    }
+
+    private async Task ReactivateExistingEligible(
+        Guid[] organisationIds,
+        int obligationYear,
+        DateTime utcNow,
+        CancellationToken cancellationToken
+    )
+    {
+        var result = await dbContext.OrganisationObligationSummaries.UpdateManyAsync(
+            x =>
+                x.ObligationYear == obligationYear
+                && !x.IsHydrationActive
+                && organisationIds.Contains(x.OrganisationId),
+            Builders<OrganisationObligationSummary>
+                .Update.Set(x => x.NextRefreshAt, utcNow)
+                .Set(x => x.Priority, OrganisationObligationHydrationPriority.NewEligible)
+                .Set(x => x.RequestedAt, utcNow)
+                .Set(x => x.IsHydrationActive, true)
+                .Set(x => x.RefreshState, OrganisationObligationRefreshState.Pending),
+            cancellationToken: cancellationToken
+        );
+        if (result.ModifiedCount > 0)
+        {
+            logger.LogInformation(
+                "Reactivated {ReactivatedSummaryCount} organisation obligation hydration summaries for obligation year {ObligationYear}",
+                result.ModifiedCount,
+                obligationYear
+            );
+        }
     }
 
     private async Task RemoveInactiveWork(

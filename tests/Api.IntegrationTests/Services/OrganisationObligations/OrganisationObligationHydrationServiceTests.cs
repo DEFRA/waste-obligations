@@ -5,7 +5,9 @@ using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.OrganisationObligations;
 using Defra.WasteObligations.Api.Services.PrnCommonBackend;
 using Defra.WasteObligations.Api.Utils.Metrics;
+using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Fixtures.PrnCommonBackend;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using MongoDB.Bson;
@@ -20,6 +22,7 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
 {
     private const int ObligationYear = 2026;
     private const string HydrationDueWorkIndexName = "ObligationYear_IsHydrationActive_Priority_NextRefreshAt";
+    private const string OrganisationYearIndexName = "OrganisationId_ObligationYear";
     private readonly FakeTimeProvider _timeProvider = new(new DateTimeOffset(2026, 8, 26, 12, 0, 0, TimeSpan.Zero));
     private IOrganisationObligationSource ObligationSource { get; } = Substitute.For<IOrganisationObligationSource>();
     private IOrganisationObligationHydrationMetrics HydrationMetrics { get; } =
@@ -90,15 +93,59 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task EnqueueNewEligible_WhenASuccessfulSummaryExists_ShouldActivateItsExistingSummary()
+    public async Task EnqueueNewEligible_WhenAnInactiveSummaryBecomesEligible_ShouldMakeItDueAndLogReactivation()
     {
         var organisationId = Guid.NewGuid();
+        var requestedAt = _timeProvider.GetUtcNow().AddHours(-1).UtcDateTime;
+        var nextRefreshAt = _timeProvider.GetUtcNow().AddMinutes(30).UtcDateTime;
+        await InsertActiveSnapshot();
+        await InsertEligibility(organisationId, RegistrationType.DirectProducer);
+        await InsertSummary(
+            organisationId,
+            OrganisationObligationRefreshState.Failed,
+            null,
+            nextRefreshAt: nextRefreshAt,
+            requestedAt: requestedAt,
+            attemptCount: 3,
+            lastFailure: "PRN is unavailable"
+        );
+        var logger = new RecordingLogger<OrganisationObligationHydrationService>();
+        var subject = CreateSubject(logger: logger);
+
+        var enqueuedCount = await subject.EnqueueNewEligible(ObligationYear, TestContext.Current.CancellationToken);
+
+        enqueuedCount.Should().Be(0);
+        var summary = await OrganisationObligationSummaries
+            .Find(Builders<OrganisationObligationSummary>.Filter.Empty)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        summary.IsHydrationActive.Should().BeTrue();
+        summary.NextRefreshAt.Should().Be(_timeProvider.GetUtcNow().UtcDateTime);
+        summary.RequestedAt.Should().Be(_timeProvider.GetUtcNow().UtcDateTime);
+        summary.Priority.Should().Be(OrganisationObligationHydrationPriority.NewEligible);
+        summary.RefreshState.Should().Be(OrganisationObligationRefreshState.Pending);
+        summary.AttemptCount.Should().Be(3);
+        summary.LastFailure.Should().Be("PRN is unavailable");
+        logger
+            .Entries.Should()
+            .ContainSingle(x =>
+                x.Level == LogLevel.Information
+                && x.Message == "Reactivated 1 organisation obligation hydration summaries for obligation year 2026"
+            );
+    }
+
+    [Fact]
+    public async Task EnqueueNewEligible_WhenAnActiveSummaryExists_ShouldRetainItsExistingSchedule()
+    {
+        var organisationId = Guid.NewGuid();
+        var nextRefreshAt = _timeProvider.GetUtcNow().AddMinutes(30).UtcDateTime;
         await InsertActiveSnapshot();
         await InsertEligibility(organisationId, RegistrationType.DirectProducer);
         await InsertSummary(
             organisationId,
             OrganisationObligationRefreshState.Ready,
-            _timeProvider.GetUtcNow().UtcDateTime
+            _timeProvider.GetUtcNow().UtcDateTime,
+            isHydrationActive: true,
+            nextRefreshAt: nextRefreshAt
         );
         var subject = CreateSubject();
 
@@ -108,7 +155,10 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
         var summary = await OrganisationObligationSummaries
             .Find(Builders<OrganisationObligationSummary>.Filter.Empty)
             .SingleAsync(TestContext.Current.CancellationToken);
-        summary.IsHydrationActive.Should().BeTrue();
+
+        summary.NextRefreshAt.Should().Be(nextRefreshAt);
+        summary.Priority.Should().Be(OrganisationObligationHydrationPriority.ScheduledRefresh);
+        summary.RefreshState.Should().Be(OrganisationObligationRefreshState.Ready);
     }
 
     [Theory]
@@ -292,6 +342,43 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task ReactivateExistingEligiblePlan_ShouldUseTheOrganisationYearIndex()
+    {
+        var organisationId = Guid.NewGuid();
+        var command = new BsonDocument
+        {
+            ["explain"] = new BsonDocument
+            {
+                ["update"] = OrganisationObligationSummaries.CollectionNamespace.CollectionName,
+                ["updates"] = new BsonArray
+                {
+                    new BsonDocument
+                    {
+                        ["q"] = new BsonDocument
+                        {
+                            ["obligationYear"] = ObligationYear,
+                            ["isHydrationActive"] = false,
+                            ["organisationId"] = new BsonDocument(
+                                "$in",
+                                new BsonArray { new BsonBinaryData(organisationId, GuidRepresentation.Standard) }
+                            ),
+                        },
+                        ["u"] = new BsonDocument("$set", new BsonDocument("isHydrationActive", true)),
+                        ["multi"] = true,
+                    },
+                },
+            },
+            ["verbosity"] = "queryPlanner",
+        };
+
+        var plan = await GetMongoDatabase()
+            .RunCommandAsync<BsonDocument>(command, cancellationToken: TestContext.Current.CancellationToken);
+        var renderedWinningPlan = plan["queryPlanner"]["winningPlan"].ToJson();
+
+        renderedWinningPlan.Should().Contain(OrganisationYearIndexName);
+    }
+
+    [Fact]
     public async Task HydrateDue_WhenSourceReturnsNoObligations_ShouldPersistReadyEmptySummary()
     {
         var organisationId = Guid.NewGuid();
@@ -469,7 +556,8 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
     }
 
     private OrganisationObligationHydrationService CreateSubject(
-        OrganisationObligationHydrationOptions? hydrationOptions = null
+        OrganisationObligationHydrationOptions? hydrationOptions = null,
+        ILogger<OrganisationObligationHydrationService>? logger = null
     )
     {
         var database = GetMongoDatabase();
@@ -488,7 +576,8 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
             HydrationMetrics,
             options,
             _timeProvider,
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<OrganisationObligationHydrationService>.Instance
+            logger
+                ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<OrganisationObligationHydrationService>.Instance
         );
     }
 
@@ -536,7 +625,9 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
         DateTime? lastSuccessfulReadAt,
         bool isHydrationActive = false,
         DateTime? nextRefreshAt = null,
-        DateTime? requestedAt = null
+        DateTime? requestedAt = null,
+        int attemptCount = 0,
+        string? lastFailure = null
     ) =>
         OrganisationObligationSummaries.InsertOneAsync(
             new OrganisationObligationSummary
@@ -556,6 +647,8 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
                 RequestedAt = requestedAt ?? _timeProvider.GetUtcNow().UtcDateTime,
                 IsHydrationActive = isHydrationActive,
                 RefreshState = refreshState,
+                AttemptCount = attemptCount,
+                LastFailure = lastFailure,
             },
             cancellationToken: TestContext.Current.CancellationToken
         );
