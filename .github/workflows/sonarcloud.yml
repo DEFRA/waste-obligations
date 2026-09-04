@@ -51,33 +51,19 @@ jobs:
           path: ./.sonar/scanner
           key: ${{ runner.os }}-sonar-scanner
           restore-keys: ${{ runner.os }}-sonar-scanner
-      - name: Cache dotNet code coverage
-        id: cache-sonar-coverage
-        uses: actions/cache@v6
-        with:
-          path: ./.sonar/coverage
-          key: ${{ runner.os }}-sonar-coverage
-          restore-keys: ${{ runner.os }}-sonar-coverage
       - name: Install SonarCloud scanner
         if: steps.cache-sonar-scanner.outputs.cache-hit != 'true'
         run: |
           mkdir -p ./.sonar/scanner
           dotnet tool update dotnet-sonarscanner --tool-path ./.sonar/scanner
-      - name: Install dotNet code coverage
-        if: steps.cache-sonar-coverage.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p ./.sonar/coverage
-          dotnet tool update dotnet-coverage --tool-path ./.sonar/coverage
       - name: Build and analyze
         if: github.actor != 'dependabot[bot]'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Needed to get PR information, if any
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        # Sonar does not like use of filter category so target each test project separately
-        # in order to report code coverage
         run: |
           ./.sonar/scanner/dotnet-sonarscanner begin /k:"DEFRA_waste-obligations" /o:"defra" /d:sonar.token="$SONAR_TOKEN" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.cs.vscoveragexml.reportsPaths=coverage*.xml /d:sonar.coverage.exclusions=compose/journey-tests/**
           dotnet build --no-incremental
-          ./.sonar/coverage/dotnet-coverage collect "dotnet test tests/Api.Tests" -f xml -o "coverage.Api.Tests.xml"
-          ./.sonar/coverage/dotnet-coverage collect "dotnet test tests/Api.IntegrationTests" -f xml -o "coverage.Api.IntegrationTests.xml"
+          dotnet test --test-modules tests/Api.Tests/bin/Debug/net10.0/Api.Tests.dll --no-build --coverage --coverage-output-format xml --coverage-output "coverage.Api.Tests.xml"
+          dotnet test --test-modules tests/Api.IntegrationTests/bin/Debug/net10.0/Api.IntegrationTests.dll --no-build --coverage --coverage-output-format xml --coverage-output "coverage.Api.IntegrationTests.xml"
           ./.sonar/scanner/dotnet-sonarscanner end /d:sonar.token="$SONAR_TOKEN"
