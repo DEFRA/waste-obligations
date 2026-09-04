@@ -23,7 +23,7 @@
     "referenceNumberResolutionState": 1,
     "isVisibleInUnsubmittedView": true,
     "recyclingObligationsMet": null,
-    "obligationCoveragePercentage": 0,
+    "obligationCoveragePercentage": null,
     "declarationStateUpdatedAt": "DateTimeOffset_1",
     "sourceFingerprint": "{Calculated}",
     "refreshedAt": "DateTimeOffset_1"
