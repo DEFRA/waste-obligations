@@ -314,6 +314,11 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
         summary.Priority.Should().Be(OrganisationObligationHydrationPriority.Retry);
         summary.AttemptCount.Should().Be(1);
         summary.NextRefreshAt.Should().Be(_timeProvider.GetUtcNow().AddMinutes(1).UtcDateTime);
+        var snapshot = await OrganisationEligibilitySnapshots
+            .Find(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId)
+            .SingleAsync(TestContext.Current.CancellationToken);
+
+        snapshot.MaterialisedStateVersion.Should().Be(0);
         HydrationMetrics.Received(1).Failed();
     }
 

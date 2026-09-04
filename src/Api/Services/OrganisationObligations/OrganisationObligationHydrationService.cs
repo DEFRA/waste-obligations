@@ -253,7 +253,7 @@ public class OrganisationObligationHydrationService(
                     .SingleOrDefaultAsync(token);
                 if (activeGeneration is not null)
                 {
-                    await dbContext.OrganisationComplianceDeclarationEligibilities.UpdateManyAsync(
+                    var result = await dbContext.OrganisationComplianceDeclarationEligibilities.UpdateManyAsync(
                         session,
                         x =>
                             x.Generation == activeGeneration
@@ -264,8 +264,16 @@ public class OrganisationObligationHydrationService(
                             .Set(x => x.ObligationCoveragePercentage, summary.ObligationCoveragePercentage ?? 0),
                         cancellationToken: token
                     );
+
+                    if (result.ModifiedCount > 0)
+                    {
+                        await OrganisationEligibilitySnapshotState.IncrementMaterialisedStateVersion(
+                            dbContext,
+                            session,
+                            token
+                        );
+                    }
                 }
-                await OrganisationEligibilitySnapshotState.IncrementMaterialisedStateVersion(dbContext, session, token);
 
                 return true;
             },
