@@ -59,7 +59,7 @@ public static class Mappers
                             organisation.CompaniesHouseNumber
                         ),
                         RecyclingObligationsMet = null,
-                        ObligationCoveragePercentage = 0,
+                        ObligationCoveragePercentage = null,
                         SourceFingerprint = CalculateSourceFingerprint(
                             organisation,
                             registration.RegistrationYear,

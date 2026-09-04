@@ -22,7 +22,7 @@ public record OrganisationComplianceDeclarationEligibility
     public OrganisationReferenceNumberResolutionState ReferenceNumberResolutionState { get; init; }
     public bool IsVisibleInUnsubmittedView { get; init; }
     public bool? RecyclingObligationsMet { get; init; }
-    public decimal ObligationCoveragePercentage { get; init; }
+    public decimal? ObligationCoveragePercentage { get; init; }
 
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime DeclarationStateUpdatedAt { get; init; }

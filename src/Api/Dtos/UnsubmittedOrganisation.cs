@@ -23,5 +23,5 @@ public record UnsubmittedOrganisation
     public bool? RecyclingObligationsMet { get; init; }
 
     [JsonPropertyName("obligationCoveragePercentage")]
-    public decimal ObligationCoveragePercentage { get; init; }
+    public decimal? ObligationCoveragePercentage { get; init; }
 }

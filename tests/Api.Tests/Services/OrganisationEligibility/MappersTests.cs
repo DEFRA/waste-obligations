@@ -77,6 +77,7 @@ public class MappersTests
                 && x.CompaniesHouseNumber == "12345678"
                 && x.ReferenceNumber == null
                 && x.ReferenceNumberResolutionState == OrganisationReferenceNumberResolutionState.Pending
+                && x.ObligationCoveragePercentage == null
                 && x.RefreshedAt == s_refreshedAt.UtcDateTime
             );
         rows.Single(x => x.ObligationYear == 2025 && x.RegistrationType == EntityRegistrationType.DirectProducer)
