@@ -50,6 +50,7 @@ public static class Mappers
                         ObligationYear = registration.RegistrationYear,
                         RegistrationType = registrationType.Value,
                         RegistrationStatus = registrationStatus,
+                        BusinessCountry = organisation.BusinessCountry,
                         Name = organisation.CompanyName(registration),
                         TradingName = organisation.TradingName,
                         CompaniesHouseNumber = organisation.CompaniesHouseNumber,
@@ -112,11 +113,12 @@ public static class Mappers
     )
     {
         var source = string.Concat(
-            "organisation-eligibility-source-v1",
+            "organisation-eligibility-source-v2",
             LengthPrefix(organisation.Id.ToString("D")),
             LengthPrefix(obligationYear.ToString(CultureInfo.InvariantCulture)),
             LengthPrefix(registrationType.ToString()),
             LengthPrefix(registrationStatus.ToString()),
+            LengthPrefix(organisation.BusinessCountry),
             LengthPrefix(organisation.Name),
             LengthPrefix(organisation.TradingName),
             LengthPrefix(organisation.CompaniesHouseNumber)

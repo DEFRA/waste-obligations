@@ -45,6 +45,8 @@ public class MongoMigrationServiceTests : IntegrationTestBase
     private const string OrganisationEligibilityHydrationIndexName =
         "Generation_ObligationYear_RegistrationStatus_ReferenceNumberResolutionState_OrganisationId";
     private const string OrganisationEligibilityExpiredGenerationIndexName = "RefreshedAt";
+    private const string OrganisationEligibilityBusinessCountrySearchIndexName =
+        "Generation_IsVisibleInUnsubmittedView_BusinessCountry_Name_OrganisationId";
     private const string OrganisationObligationSummaryOrganisationYearIndexName = "OrganisationId_ObligationYear";
     private const string OrganisationObligationSummaryHydrationDueWorkIndexName =
         "ObligationYear_IsHydrationActive_Priority_NextRefreshAt";
@@ -234,6 +236,46 @@ public class MongoMigrationServiceTests : IntegrationTestBase
 
         indexes.Should().NotContain(x => x.GetValue("name") == OrganisationEligibilityHydrationIndexName);
         indexes.Should().NotContain(x => x.GetValue("name") == OrganisationEligibilityExpiredGenerationIndexName);
+
+        await subject.UpAsync(context);
+    }
+
+    [Fact]
+    public async Task OrganisationEligibilityBusinessCountrySearchIndex_ShouldCreateAndDropIndex()
+    {
+        var database = GetMongoDatabase();
+        var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
+        var subject = new OrganisationEligibilityBusinessCountrySearchIndex();
+        await subject.DownAsync(context);
+
+        await subject.UpAsync(context);
+
+        var indexes = await (
+            await OrganisationComplianceDeclarationEligibilities.Indexes.ListAsync(
+                TestContext.Current.CancellationToken
+            )
+        ).ToListAsync(TestContext.Current.CancellationToken);
+        indexes
+            .Should()
+            .Contain(x =>
+                IsIndex(
+                    x,
+                    OrganisationEligibilityBusinessCountrySearchIndexName,
+                    OrganisationEligibilityBusinessCountrySearchIndexKeys(
+                        OrganisationComplianceDeclarationEligibilities
+                    )
+                )
+            );
+
+        await subject.DownAsync(context);
+        await subject.DownAsync(context);
+        indexes = await (
+            await OrganisationComplianceDeclarationEligibilities.Indexes.ListAsync(
+                TestContext.Current.CancellationToken
+            )
+        ).ToListAsync(TestContext.Current.CancellationToken);
+
+        indexes.Should().NotContain(x => x.GetValue("name") == OrganisationEligibilityBusinessCountrySearchIndexName);
 
         await subject.UpAsync(context);
     }
@@ -1024,6 +1066,19 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             Builders<OrganisationComplianceDeclarationEligibility>
                 .IndexKeys.Ascending(x => x.Generation)
                 .Ascending(x => x.IsVisibleInUnsubmittedView)
+                .Ascending(x => x.Name)
+                .Ascending(x => x.OrganisationId)
+        );
+
+    private static BsonDocument OrganisationEligibilityBusinessCountrySearchIndexKeys(
+        IMongoCollection<OrganisationComplianceDeclarationEligibility> collection
+    ) =>
+        RenderIndexKeys(
+            collection,
+            Builders<OrganisationComplianceDeclarationEligibility>
+                .IndexKeys.Ascending(x => x.Generation)
+                .Ascending(x => x.IsVisibleInUnsubmittedView)
+                .Ascending(x => x.BusinessCountry)
                 .Ascending(x => x.Name)
                 .Ascending(x => x.OrganisationId)
         );

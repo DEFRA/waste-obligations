@@ -1,6 +1,8 @@
 using System.Net;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
+using Defra.WasteObligations.Api.Dtos;
+using Defra.WasteObligations.Api.Extensions;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,18 +30,23 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
         var organisationId = Guid.Parse("c961459a-324c-4400-bb22-afae8c8a9827");
         UnsubmittedOrganisationsService
             .Search(
-                2026,
-                Arg.Is<IReadOnlyCollection<EntityRegistrationType>?>(x =>
-                    x != null && x.Count == 1 && x.Single() == EntityRegistrationType.DirectProducer
-                ),
-                "alpha",
-                Arg.Is<IReadOnlyCollection<UnsubmittedOrganisationSort>?>(x =>
-                    x != null
-                    && x.Count == 2
-                    && x.ElementAt(0).Field == UnsubmittedOrganisationSortField.Name
-                    && x.ElementAt(0).Direction == UnsubmittedOrganisationSortDirection.Descending
-                    && x.ElementAt(1).Field == UnsubmittedOrganisationSortField.ObligationCoveragePercentage
-                    && x.ElementAt(1).Direction == UnsubmittedOrganisationSortDirection.Ascending
+                SearchQuery(
+                    2026,
+                    [EntityRegistrationType.DirectProducer],
+                    "alpha",
+                    [
+                        new UnsubmittedOrganisationSort
+                        {
+                            Field = UnsubmittedOrganisationSortField.Name,
+                            Direction = UnsubmittedOrganisationSortDirection.Descending,
+                        },
+                        new UnsubmittedOrganisationSort
+                        {
+                            Field = UnsubmittedOrganisationSortField.ObligationCoveragePercentage,
+                            Direction = UnsubmittedOrganisationSortDirection.Ascending,
+                        },
+                    ],
+                    BusinessCountryFilter.Wales.ToJsonValue()
                 ),
                 page: 2,
                 pageSize: 5,
@@ -71,6 +78,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
                 EndpointQuery
                     .New.Where(EndpointFilter.ObligationYear(2026))
                     .Where(EndpointFilter.RegistrationType("DirectProducer"))
+                    .Where(EndpointFilter.Country(BusinessCountryFilter.Wales))
                     .Where(EndpointFilter.Search("alpha"))
                     .Where(EndpointFilter.Sort("Name[desc],ObligationCoveragePercentage[asc]"))
                     .Where(EndpointFilter.Page(2))
@@ -89,12 +97,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
         var organisationId = Guid.Parse("b4d5584e-fa55-431f-9fcc-1bf747e001e4");
         UnsubmittedOrganisationsService
             .Search(
-                2026,
-                Arg.Is<IReadOnlyCollection<EntityRegistrationType>?>(x =>
-                    x != null && x.Count == 1 && x.Single() == EntityRegistrationType.ComplianceScheme
-                ),
-                null,
-                Arg.Is<IReadOnlyCollection<UnsubmittedOrganisationSort>?>(x => x != null && x.Count == 0),
+                SearchQuery(2026, [EntityRegistrationType.ComplianceScheme], null, []),
                 page: 1,
                 pageSize: 20,
                 cancellationToken: Arg.Any<CancellationToken>()
@@ -137,10 +140,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
         var organisationId = Guid.Parse("d14ce75d-cd19-4b7b-a572-3df93758e59d");
         UnsubmittedOrganisationsService
             .Search(
-                null,
-                Arg.Is<IReadOnlyCollection<EntityRegistrationType>?>(x => x != null && x.Count == 0),
-                null,
-                Arg.Is<IReadOnlyCollection<UnsubmittedOrganisationSort>?>(x => x != null && x.Count == 0),
+                SearchQuery(null, [], null, []),
                 page: 1,
                 pageSize: 20,
                 cancellationToken: Arg.Any<CancellationToken>()
@@ -178,15 +178,12 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
     {
         UnsubmittedOrganisationsService
             .Search(
-                2026,
-                Arg.Is<IReadOnlyCollection<EntityRegistrationType>?>(x =>
-                    x != null
-                    && x.Count == 2
-                    && x.ElementAt(0) == EntityRegistrationType.DirectProducer
-                    && x.ElementAt(1) == EntityRegistrationType.ComplianceScheme
+                SearchQuery(
+                    2026,
+                    [EntityRegistrationType.DirectProducer, EntityRegistrationType.ComplianceScheme],
+                    null,
+                    []
                 ),
-                null,
-                Arg.Any<IReadOnlyCollection<UnsubmittedOrganisationSort>?>(),
                 page: 1,
                 pageSize: 20,
                 cancellationToken: Arg.Any<CancellationToken>()
@@ -211,16 +208,17 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
     {
         UnsubmittedOrganisationsService
             .Search(
-                2026,
-                Arg.Is<IReadOnlyCollection<EntityRegistrationType>?>(x =>
-                    x != null && x.Count == 1 && x.Single() == EntityRegistrationType.DirectProducer
-                ),
-                null,
-                Arg.Is<IReadOnlyCollection<UnsubmittedOrganisationSort>?>(x =>
-                    x != null
-                    && x.Count == 1
-                    && x.Single().Field == UnsubmittedOrganisationSortField.ObligationCoveragePercentage
-                    && x.Single().Direction == UnsubmittedOrganisationSortDirection.Ascending
+                SearchQuery(
+                    2026,
+                    [EntityRegistrationType.DirectProducer],
+                    null,
+                    [
+                        new UnsubmittedOrganisationSort
+                        {
+                            Field = UnsubmittedOrganisationSortField.ObligationCoveragePercentage,
+                            Direction = UnsubmittedOrganisationSortDirection.Ascending,
+                        },
+                    ]
                 ),
                 page: 1,
                 pageSize: 20,
@@ -282,6 +280,14 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
     }
 
     [Fact]
+    public async Task Validation_WhenCountryUnknown_ShouldBeBadRequest()
+    {
+        var content = await RequestShouldBeBadRequest(EndpointQuery.New.Where(EndpointFilter.Country("GB-XXX")));
+
+        await VerifyJson(content);
+    }
+
+    [Fact]
     public async Task Validation_WhenSearchIsTooLong_ShouldBeBadRequest()
     {
         var content = await RequestShouldBeBadRequest(
@@ -330,16 +336,17 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
     {
         UnsubmittedOrganisationsService
             .Search(
-                2026,
-                Arg.Is<IReadOnlyCollection<EntityRegistrationType>?>(x =>
-                    x != null && x.Count == 1 && x.Single() == EntityRegistrationType.ComplianceScheme
-                ),
-                null,
-                Arg.Is<IReadOnlyCollection<UnsubmittedOrganisationSort>?>(x =>
-                    x != null
-                    && x.Count == 1
-                    && x.Single().Field == UnsubmittedOrganisationSortField.ObligationCoveragePercentage
-                    && x.Single().Direction == UnsubmittedOrganisationSortDirection.Ascending
+                SearchQuery(
+                    2026,
+                    [EntityRegistrationType.ComplianceScheme],
+                    null,
+                    [
+                        new UnsubmittedOrganisationSort
+                        {
+                            Field = UnsubmittedOrganisationSortField.ObligationCoveragePercentage,
+                            Direction = UnsubmittedOrganisationSortDirection.Ascending,
+                        },
+                    ]
                 ),
                 page: 1,
                 pageSize: 20,
@@ -362,16 +369,17 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
         await UnsubmittedOrganisationsService
             .Received(1)
             .Search(
-                2026,
-                Arg.Is<IReadOnlyCollection<EntityRegistrationType>?>(x =>
-                    x != null && x.Count == 1 && x.Single() == EntityRegistrationType.ComplianceScheme
-                ),
-                null,
-                Arg.Is<IReadOnlyCollection<UnsubmittedOrganisationSort>?>(x =>
-                    x != null
-                    && x.Count == 1
-                    && x.Single().Field == UnsubmittedOrganisationSortField.ObligationCoveragePercentage
-                    && x.Single().Direction == UnsubmittedOrganisationSortDirection.Ascending
+                SearchQuery(
+                    2026,
+                    [EntityRegistrationType.ComplianceScheme],
+                    null,
+                    [
+                        new UnsubmittedOrganisationSort
+                        {
+                            Field = UnsubmittedOrganisationSortField.ObligationCoveragePercentage,
+                            Direction = UnsubmittedOrganisationSortDirection.Ascending,
+                        },
+                    ]
                 ),
                 1,
                 20,
@@ -386,12 +394,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
         var organisationId = Guid.Parse("c3321717-35ee-4016-a63d-9a0b7c5b27f9");
         UnsubmittedOrganisationsService
             .Search(
-                obligationYear,
-                Arg.Is<IReadOnlyCollection<EntityRegistrationType>?>(x =>
-                    x != null && x.Count == 1 && x.Single() == EntityRegistrationType.DirectProducer
-                ),
-                null,
-                Arg.Is<IReadOnlyCollection<UnsubmittedOrganisationSort>?>(x => x != null && x.Count == 0),
+                SearchQuery(obligationYear, [EntityRegistrationType.DirectProducer], null, []),
                 page: 1,
                 pageSize: 20,
                 cancellationToken: Arg.Any<CancellationToken>()
@@ -429,14 +432,9 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
         await UnsubmittedOrganisationsService
             .Received(1)
             .Search(
-                obligationYear,
-                Arg.Is<IReadOnlyCollection<EntityRegistrationType>?>(x =>
-                    x != null && x.Count == 1 && x.Single() == EntityRegistrationType.DirectProducer
-                ),
-                null,
-                Arg.Is<IReadOnlyCollection<UnsubmittedOrganisationSort>?>(x => x != null && x.Count == 0),
-                page: 1,
-                pageSize: 20,
+                SearchQuery(obligationYear, [EntityRegistrationType.DirectProducer], null, []),
+                1,
+                20,
                 Arg.Any<CancellationToken>()
             );
     }
@@ -454,4 +452,31 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
 
         return await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
     }
+
+    private static UnsubmittedOrganisationSearchQuery SearchQuery(
+        int? obligationYear,
+        IReadOnlyCollection<EntityRegistrationType> registrationTypes,
+        string? search,
+        IReadOnlyCollection<UnsubmittedOrganisationSort> sort,
+        string? businessCountry = null
+    ) =>
+        Arg.Is<UnsubmittedOrganisationSearchQuery>(x =>
+            MatchesSearchQuery(x, obligationYear, registrationTypes, search, sort, businessCountry)
+        );
+
+    private static bool MatchesSearchQuery(
+        UnsubmittedOrganisationSearchQuery query,
+        int? obligationYear,
+        IReadOnlyCollection<EntityRegistrationType> registrationTypes,
+        string? search,
+        IReadOnlyCollection<UnsubmittedOrganisationSort> sort,
+        string? businessCountry
+    ) =>
+        query.ObligationYear == obligationYear
+        && query.RegistrationTypes is not null
+        && query.RegistrationTypes.SequenceEqual(registrationTypes)
+        && query.BusinessCountry == businessCountry
+        && query.Search == search
+        && query.Sort is not null
+        && query.Sort.SequenceEqual(sort);
 }
