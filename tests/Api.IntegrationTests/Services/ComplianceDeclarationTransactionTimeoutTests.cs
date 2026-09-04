@@ -21,13 +21,6 @@ namespace Defra.WasteObligations.Api.IntegrationTests.Services;
 public class ComplianceDeclarationTransactionTimeoutTests : IAsyncLifetime
 {
     private const string DatabaseName = "waste-obligations-transaction-timeout-tests";
-    private static readonly MongoQueryProfileAllowance UnmigratedDatabaseQueryAllowance = new(
-        "query",
-        $"{DatabaseName}.ComplianceDeclaration",
-        "{$and:[{$or:[{status:?}]},{obligationYear:?},{organisation._id:?},{organisation.registrationType:?}]}",
-        "MO-485",
-        "This transaction-timeout test deliberately uses an unmigrated isolated database."
-    );
 
     private readonly MongoClient _mongoClient;
     private readonly IMongoDatabase _database;
@@ -106,7 +99,7 @@ public class ComplianceDeclarationTransactionTimeoutTests : IAsyncLifetime
         if (_mongoQueryProfiler is not null)
         {
             var profile = await _mongoQueryProfiler.Stop(CancellationToken.None);
-            profile.AssertIndexesUsed([UnmigratedDatabaseQueryAllowance]);
+            profile.AssertIndexesUsed();
         }
 
         await _mongoClient.DropDatabaseAsync(DatabaseName, CancellationToken.None);
