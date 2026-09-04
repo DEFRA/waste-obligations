@@ -8,7 +8,6 @@ using Defra.WasteObligations.Testing.Fixtures.AccountBackend;
 using Microsoft.AspNetCore.HeaderPropagation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Primitives;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
@@ -17,6 +16,9 @@ namespace Defra.WasteObligations.Api.Tests.Services.AccountBackend;
 
 public class AccountBackendServiceTests : WireMockTestBase
 {
+    private const string TraceHeaderName = "x-cdp-request-id";
+    private const string TraceId = "trace-id";
+
     private ServiceCollection Services { get; }
 
     public AccountBackendServiceTests(WireMockContext context)
@@ -34,9 +36,10 @@ public class AccountBackendServiceTests : WireMockTestBase
         };
 
         Services = [];
+        Services.AddSingleton(new HeaderPropagationValues { Headers = new Dictionary<string, StringValues>() });
+        Services.AddHeaderPropagation(options => options.Headers.Add(TraceHeaderName));
         Services.AddAccountBackendService();
         Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(config).Build());
-        Services.TryAddSingleton<HeaderPropagationValues>();
         Services.AddTransient<ProxyHttpMessageHandler>();
     }
 
@@ -56,7 +59,6 @@ public class AccountBackendServiceTests : WireMockTestBase
         await using var sp = Services.BuildServiceProvider();
 
         var service = sp.GetRequiredService<IAccountBackendService>();
-        sp.GetRequiredService<HeaderPropagationValues>().Headers = new Dictionary<string, StringValues>();
 
         var organisationId = Guid.NewGuid();
         const string accessToken = "access_token";
@@ -80,12 +82,132 @@ public class AccountBackendServiceTests : WireMockTestBase
     }
 
     [Fact]
+    public async Task ReadOrganisationWithPersons_ShouldPropagateTraceHeader()
+    {
+        await using var sp = Services.BuildServiceProvider();
+
+        var service = sp.GetRequiredService<IAccountBackendService>();
+        var organisationId = Guid.NewGuid();
+        sp.GetRequiredService<HeaderPropagationValues>().Headers = new Dictionary<string, StringValues>
+        {
+            [TraceHeaderName] = TraceId,
+        };
+
+        WireMock.StubTokenRequest();
+        WireMock.StubAccountBackendOrganisationWithPersonsRequest(organisationId);
+
+        await service.ReadOrganisationWithPersons(organisationId, TestContext.Current.CancellationToken);
+
+        var request = WireMock
+            .LogEntries.Single(x =>
+                x.RequestMessage?.Path == $"/api/organisations/organisation-with-persons/{organisationId:D}"
+            )
+            .RequestMessage;
+        request.Should().NotBeNull();
+        request.Headers.Should().ContainKey(TraceHeaderName).WhoseValue.Should().Contain(TraceId);
+    }
+
+    [Fact]
+    public async Task OrganisationReferenceSearch_ShouldNotPropagateTraceHeader()
+    {
+        await using var sp = Services.BuildServiceProvider();
+
+        var service = sp.GetRequiredService<IOrganisationReferenceSearchService>();
+        var organisationId = Guid.NewGuid();
+        sp.GetRequiredService<HeaderPropagationValues>().Headers = new Dictionary<string, StringValues>
+        {
+            [TraceHeaderName] = TraceId,
+        };
+
+        WireMock.StubTokenRequest();
+        WireMock.StubAccountBackendOrganisationsByExternalIdsRequest();
+
+        await service.SearchOrganisationsByExternalIds([organisationId], TestContext.Current.CancellationToken);
+
+        var request = WireMock
+            .LogEntries.Single(x => x.RequestMessage?.Path == "/api/organisations/organisations-by-externalIds")
+            .RequestMessage;
+        request.Should().NotBeNull();
+        request.Headers.Should().NotContainKey(TraceHeaderName);
+    }
+
+    [Fact]
+    public async Task SearchOrganisationsByExternalIds_ShouldReturnData()
+    {
+        await using var sp = Services.BuildServiceProvider();
+
+        var service = sp.GetRequiredService<IAccountBackendService>();
+
+        var externalIds = new[] { Guid.NewGuid(), Guid.NewGuid() };
+        const string accessToken = "access_token";
+        var response = new OrganisationsByExternalIdsResponse
+        {
+            Organisations =
+            [
+                new AccountOrganisation { ExternalId = externalIds[0].ToString("D"), ReferenceNumber = "518293" },
+            ],
+            NotFoundExternalIds = [externalIds[1].ToString("D")],
+        };
+
+        WireMock.StubTokenRequest();
+        WireMock.StubAccountBackendOrganisationsByExternalIdsRequest(accessToken, response);
+
+        var result = await service.SearchOrganisationsByExternalIds(externalIds, TestContext.Current.CancellationToken);
+
+        result.Should().BeEquivalentTo(response);
+
+        var request = WireMock
+            .LogEntries.Single(x => x.RequestMessage?.Path == "/api/organisations/organisations-by-externalIds")
+            .RequestMessage;
+        request.Should().NotBeNull();
+        request.Body.Should().Be($"{{\"externalIds\":[\"{externalIds[0]:D}\",\"{externalIds[1]:D}\"]}}");
+    }
+
+    [Fact]
+    public async Task SearchOrganisationsByCompaniesHouseNumbers_ShouldReturnData()
+    {
+        await using var sp = Services.BuildServiceProvider();
+
+        var service = sp.GetRequiredService<IAccountBackendService>();
+
+        string[] companiesHouseNumbers = ["12345678", "87654321"];
+        const string accessToken = "access_token";
+        IReadOnlyList<AccountOrganisation> response =
+        [
+            new()
+            {
+                ExternalId = Guid.NewGuid().ToString("D"),
+                ReferenceNumber = "530001",
+                CompaniesHouseNumber = companiesHouseNumbers[0],
+                IsComplianceScheme = true,
+            },
+        ];
+
+        WireMock.StubTokenRequest();
+        WireMock.StubAccountBackendOrganisationsByCompaniesHouseNumbersRequest(accessToken, response);
+
+        var result = await service.SearchOrganisationsByCompaniesHouseNumbers(
+            companiesHouseNumbers,
+            TestContext.Current.CancellationToken
+        );
+
+        result.Should().BeEquivalentTo(response);
+
+        var request = WireMock
+            .LogEntries.Single(x =>
+                x.RequestMessage?.Path == "/api/organisations/organisations-by-companies-house-numbers"
+            )
+            .RequestMessage;
+        request.Should().NotBeNull();
+        request.Body.Should().Be("{\"companiesHouseNumbers\":[\"12345678\",\"87654321\"]}");
+    }
+
+    [Fact]
     public async Task ReadOrganisationWithPersons_WhenNotFound_ShouldReturnNull()
     {
         await using var sp = Services.BuildServiceProvider();
 
         var service = sp.GetRequiredService<IAccountBackendService>();
-        sp.GetRequiredService<HeaderPropagationValues>().Headers = new Dictionary<string, StringValues>();
 
         var organisationId = Guid.NewGuid();
         const string accessToken = "access_token";

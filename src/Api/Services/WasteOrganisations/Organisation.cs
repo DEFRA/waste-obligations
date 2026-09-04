@@ -27,7 +27,11 @@ public record Organisation
 
     public string CompanyName(int? registrationYear = null)
     {
-        var registration = LatestRegistrationOrByYear(registrationYear);
+        return CompanyName(LatestRegistrationOrByYear(registrationYear));
+    }
+
+    public string CompanyName(Registration registration)
+    {
         var result = registration.Type switch
         {
             WasteOrganisations.RegistrationType.LargeProducer => Name,

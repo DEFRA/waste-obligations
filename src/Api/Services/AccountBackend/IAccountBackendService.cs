@@ -1,6 +1,6 @@
 namespace Defra.WasteObligations.Api.Services.AccountBackend;
 
-public interface IAccountBackendService
+public interface IAccountBackendService : IOrganisationReferenceSearchService
 {
     Task<OrganisationWithPersons?> ReadOrganisationWithPersons(
         Guid organisationId,

@@ -42,7 +42,11 @@ public class SearchComplianceDeclarationTests : IntegrationTestBase
             TimeProvider.System,
             auditEventService,
             Substitute.For<IComplianceDeclarationMetrics>(),
-            new TraceIdReader(new HeaderPropagationValues(), Options.Create(new TraceHeader { Name = TraceHeaderName }))
+            new TraceIdReader(
+                new HeaderPropagationValues(),
+                Options.Create(new TraceHeader { Name = TraceHeaderName })
+            ),
+            new UnsubmittedEligibilityVisibilityService(dbContext)
         );
     }
 

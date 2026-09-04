@@ -15,7 +15,8 @@ public class ComplianceDeclarationService(
     TimeProvider timeProvider,
     IAuditEventService auditEventService,
     IComplianceDeclarationMetrics complianceDeclarationMetrics,
-    TraceIdReader traceIdReader
+    TraceIdReader traceIdReader,
+    IUnsubmittedEligibilityVisibilityService unsubmittedEligibilityVisibilityService
 ) : IComplianceDeclarationService
 {
     private const string Actor = "service:waste-obligations";
@@ -36,6 +37,13 @@ public class ComplianceDeclarationService(
                     transactionSession,
                     complianceDeclaration,
                     cancellationToken: transactionCancellationToken
+                );
+
+                await unsubmittedEligibilityVisibilityService.Refresh(
+                    transactionSession,
+                    [complianceDeclaration],
+                    utcNow,
+                    transactionCancellationToken
                 );
 
                 await auditEventService.RecordEvent(
@@ -131,6 +139,13 @@ public class ComplianceDeclarationService(
                     throw new ConcurrencyException(
                         $"Concurrency issue on delete, compliance declaration with id '{current.Id}' was not deleted"
                     );
+
+                await unsubmittedEligibilityVisibilityService.Refresh(
+                    transactionSession,
+                    [current],
+                    timeProvider.GetUtcNowWithoutMicroseconds(),
+                    transactionCancellationToken
+                );
 
                 var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
                 await auditEventService.RecordEvent(
@@ -253,6 +268,13 @@ public class ComplianceDeclarationService(
                     throw new ConcurrencyException(
                         $"Concurrency issue on write, compliance declaration with id '{current.Id}' was not updated"
                     );
+
+                await unsubmittedEligibilityVisibilityService.Refresh(
+                    transactionSession,
+                    [current, updated],
+                    updated.Updated,
+                    transactionCancellationToken
+                );
 
                 await auditEventService.RecordEvent(
                     transactionSession,
