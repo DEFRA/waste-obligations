@@ -196,7 +196,7 @@ public class OrganisationEligibilityRefreshService(
                 return row with
                 {
                     RecyclingObligationsMet = summary.RecyclingObligationsMet,
-                    ObligationCoveragePercentage = summary.ObligationCoveragePercentage ?? 0,
+                    ObligationCoveragePercentage = summary.ObligationCoveragePercentage,
                 };
             })
             .ToArray();

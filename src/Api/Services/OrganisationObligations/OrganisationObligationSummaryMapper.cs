@@ -48,7 +48,7 @@ public static class OrganisationObligationSummaryMapper
 
     private static bool? CalculateRecyclingObligationsMet(PrnObligation[] obligations)
     {
-        if (obligations.Length == 0 || obligations.All(x => x.Status == ObligationStatus.NoDataYet))
+        if (obligations.Length == 0 || obligations.Any(x => x.Status == ObligationStatus.NoDataYet))
             return null;
 
         return !obligations.Any(x => x.Status == ObligationStatus.NotMet);

@@ -209,7 +209,7 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
             )
             .SingleAsync(TestContext.Current.CancellationToken);
         retainedEligibility.RecyclingObligationsMet.Should().BeNull();
-        retainedEligibility.ObligationCoveragePercentage.Should().Be(0);
+        retainedEligibility.ObligationCoveragePercentage.Should().BeNull();
         var snapshot = await OrganisationEligibilitySnapshots
             .Find(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId)
             .SingleAsync(TestContext.Current.CancellationToken);
@@ -314,6 +314,13 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
         summary.Priority.Should().Be(OrganisationObligationHydrationPriority.Retry);
         summary.AttemptCount.Should().Be(1);
         summary.NextRefreshAt.Should().Be(_timeProvider.GetUtcNow().AddMinutes(1).UtcDateTime);
+        var eligibility = await OrganisationComplianceDeclarationEligibilities
+            .Find(x =>
+                x.Generation == "active" && x.OrganisationId == organisationId && x.ObligationYear == ObligationYear
+            )
+            .SingleAsync(TestContext.Current.CancellationToken);
+
+        eligibility.ObligationCoveragePercentage.Should().BeNull();
         var snapshot = await OrganisationEligibilitySnapshots
             .Find(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId)
             .SingleAsync(TestContext.Current.CancellationToken);

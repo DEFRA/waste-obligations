@@ -16,5 +16,5 @@ public record UnsubmittedOrganisationSearchRow
     public required string Name { get; init; }
     public required string ReferenceNumber { get; init; }
     public bool? RecyclingObligationsMet { get; init; }
-    public decimal ObligationCoveragePercentage { get; init; }
+    public decimal? ObligationCoveragePercentage { get; init; }
 }

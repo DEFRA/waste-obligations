@@ -59,7 +59,7 @@ public class OrganisationObligationSummaryMapperTests
     }
 
     [Fact]
-    public void Map_WhenAtLeastOneMaterialIsMetAndNoneAreNotMet_ShouldSetRecyclingObligationsMetToTrue()
+    public void Map_WhenAnyMaterialHasNoDataYet_ShouldSetRecyclingObligationsMetToNull()
     {
         var result = OrganisationObligationSummaryMapper.Map(
             ObligationFixture.OrganisationId,
@@ -70,7 +70,7 @@ public class OrganisationObligationSummaryMapperTests
             ]
         );
 
-        result.RecyclingObligationsMet.Should().BeTrue();
+        result.RecyclingObligationsMet.Should().BeNull();
     }
 
     [Fact]

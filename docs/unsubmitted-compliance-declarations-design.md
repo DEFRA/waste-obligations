@@ -31,7 +31,7 @@ For example, every day from 1 to 31 January 2027 has current obligation year `20
 
 Eligibility data continues to be loaded for all years, because it is the source needed to identify registrations/status transitions. The rolling obligation-hydration worker operates **only** for `currentObligationYear`, except for the explicit January/February handover below; it must not call the downstream organisation-obligation calculation endpoint for arbitrary historic or future years. Summary hydration is non-blocking: it enriches rows already eligible from the snapshot and declaration state.
 
-The endpoint permits historic and future obligation-year queries against the active eligibility and declaration-state projections. Those queries do not start historic/future polling: where a stored summary does not exist, the response returns `recyclingObligationsMet: null` and `obligationCoveragePercentage: 0`; where a retained summary exists, it returns its last calculated values. Any historical-summary retention or export policy remains separate work.
+The endpoint permits historic and future obligation-year queries against the active eligibility and declaration-state projections. Those queries do not start historic/future polling: where a successful stored summary does not exist, the response returns `recyclingObligationsMet: null` and `obligationCoveragePercentage: null`; where a retained successful summary exists, it returns its last calculated values. Any historical-summary retention or export policy remains separate work.
 
 ### January/February year handover
 
@@ -40,7 +40,7 @@ The current-year rule does **not** mean an abrupt stop at midnight. At the UK-ti
 | Period | Outgoing year (`Y - 1`) | Incoming year (`Y`) |
 | --- | --- | --- |
 | Before cutover | Continue normal rolling refreshes. | Best-effort pre-warming is allowed only from spare downstream capacity; it is not an availability requirement. |
-| At cutover | It remains internally refreshed and is available when the caller explicitly selects it (or does not filter by year). | Becomes the normal regulator-view year; rows without a summary are returned with percentage met `0`. |
+| At cutover | It remains internally refreshed and is available when the caller explicitly selects it (or does not filter by year). | Becomes the normal regulator-view year; rows without a successful summary are returned with percentage met `null`. |
 | After cutover grace | Stop scheduled refreshes; retain the final summaries under normal retention. | Continue normal rolling refreshes. |
 
 This protects both sides of the boundary without making obligation hydration an availability dependency. An incoming-year organisation can be returned immediately when the endpoint changes year, with percentage met `0` until its first summary arrives. An outgoing-year PRN state change at, for example, 23:59 on 31 January must still receive a final organisation-obligation read after midnight; otherwise it could never be persisted locally.
@@ -280,7 +280,7 @@ OrganisationComplianceDeclarationEligibility
   refreshedAt                    UTC timestamp    // state applied/observed time; currently the poll time
   isVisibleInUnsubmittedView     bool             // direct membership for the active endpoint query
   recyclingObligationsMet        bool?            // copied from the last successful local obligation summary
-  obligationCoveragePercentage   decimal          // copied from the last successful local obligation summary; defaults to 0
+  obligationCoveragePercentage   decimal?         // copied from the last successful local obligation summary; null until one exists
   declarationStateUpdatedAt      UTC timestamp    // latest declaration-state evaluation
 ```
 
@@ -470,11 +470,11 @@ Do not wait for this work as part of an organisation-generation promotion. The r
 
 Organisation-obligation hydration is not an eligibility or endpoint-availability condition. A candidate belongs in the view solely because it has a registered eligibility row, a resolved reference number, and no Submitted/Accepted declaration. The endpoint must behave as follows:
 
-- no `OrganisationObligationSummary` yet: return `obligationCoveragePercentage: 0` and `recyclingObligationsMet: null`;
+- no successful `OrganisationObligationSummary` yet: return `obligationCoveragePercentage: null` and `recyclingObligationsMet: null`;
 - current `Ready` summary: return its calculated percentage and recycling-obligations result;
-- failed or stale summary: return its most recently calculated percentage and recycling-obligations result when one exists, otherwise the same `0`/`null` default.
+- failed or stale summary: return its most recently calculated percentage and recycling-obligations result when one exists, otherwise the same `null`/`null` default.
 
-The frontend can initially display the percentage as `0%`, as required. Operational freshness/state and the successful-read timestamp are not part of this public contract; a future administration endpoint can expose them for support and alerts. The worker's freshness window produces alerts and retry work, not `503` responses. The endpoint still fails closed for a stale **eligibility** snapshot, because that can make organisations disappear or appear incorrectly; a missing obligation summary cannot.
+`obligationCoveragePercentage: null` means the calculation is not yet known; a numeric `0` is reserved for a successful empty calculation. Operational freshness/state and the successful-read timestamp are not part of this public contract; a future administration endpoint can expose them for support and alerts. The worker's freshness window produces alerts and retry work, not `503` responses. The endpoint still fails closed for a stale **eligibility** snapshot, because that can make organisations disappear or appear incorrectly; a missing obligation summary cannot.
 
 #### Empty-system bootstrap example: approximately 500 organisations
 
@@ -882,7 +882,7 @@ Required endpoint behaviour:
 - page-number pagination follows the existing 1–100 page-size convention;
 - the active eligibility snapshot is selected independently of query scope; if it is older than `MaximumAllowedStaleness`, log the condition and continue to serve the last complete active generation;
 - a candidate is returned only when its materialised `isVisibleInUnsubmittedView` membership field is true (Registered, resolved non-empty reference number, and no Submitted or Accepted declaration for the same organisation/year/type);
-- a missing, pending, or stale organisation-obligation summary never excludes an otherwise eligible candidate and never makes a current-obligation calculation request in the handler; eligibility rows hold the last successful copied values, or the zero/default metric described below;
+- a missing, pending, or stale organisation-obligation summary never excludes an otherwise eligible candidate and never makes a current-obligation calculation request in the handler; eligibility rows hold the last successful copied values, or `null` metrics until a successful calculation exists;
 - return `total`, `page`, and `pageSize`;
 - use a deterministic final tie-breaker of `organisationId`.
 
@@ -898,7 +898,7 @@ The initial response contains the eligibility fields plus the locally hydrated o
       "organisationName": "...",
       "organisationReferenceNumber": "518293",
       "recyclingObligationsMet": null,
-      "obligationCoveragePercentage": 0
+      "obligationCoveragePercentage": null
     }
   ],
   "total": 0,
@@ -907,7 +907,7 @@ The initial response contains the eligibility fields plus the locally hydrated o
 }
 ```
 
-`obligationCoveragePercentage: 0` is the safe initial display value, rather than evidence that the organisation has met zero percent of a known obligation. The public response intentionally does not expose a data-state or successful-read timestamp. `recyclingObligationsMet` remains `null` until an actual summary is available. A future administration endpoint can distinguish Pending, Ready, Stale, and Failed summaries and provide their timestamps/counts.
+`obligationCoveragePercentage: null` means no successful calculation is available; it is not evidence that the organisation has met zero percent of a known obligation. The public response intentionally does not expose a data-state or successful-read timestamp. `recyclingObligationsMet` remains `null` until every returned material has a calculated status. A future administration endpoint can distinguish Pending, Ready, Stale, and Failed summaries and provide their timestamps/counts.
 
 ### Future operational insight endpoint
 
@@ -980,7 +980,7 @@ The job maps and bulk-writes three individual documents under generation `g1`. T
   "sourceFingerprint": "...",
   "isVisibleInUnsubmittedView": true,
   "recyclingObligationsMet": null,
-  "obligationCoveragePercentage": 0,
+  "obligationCoveragePercentage": null,
   "refreshedAt": "2026-08-26T08:15:00Z"
 }
 ```
@@ -1003,7 +1003,7 @@ Promotion enqueues the distinct active organisation/year keys for obligation hyd
 }
 ```
 
-Immediately after `g1` is promoted, Acme can be returned with `obligationCoveragePercentage: 0` and `recyclingObligationsMet: null`; the obligation worker is independent of eligibility and progressively replaces that default with the calculated summary. Thereafter the organisation-obligation summary changes independently: a PRN status change for Acme is observed at its next scheduled organisation-obligation refresh and updates this one document; it does not create `g2`.
+Immediately after `g1` is promoted, Acme can be returned with `obligationCoveragePercentage: null` and `recyclingObligationsMet: null`; the obligation worker is independent of eligibility and progressively replaces those unknowns with the calculated summary. Thereafter the organisation-obligation summary changes independently: a PRN status change for Acme is observed at its next scheduled organisation-obligation refresh and updates this one document; it does not create `g2`.
 
 Suppose Beta already has a submitted declaration. Its eligibility row has `isVisibleInUnsubmittedView: false`; Acme's equivalent row has `isVisibleInUnsubmittedView: true`.
 
