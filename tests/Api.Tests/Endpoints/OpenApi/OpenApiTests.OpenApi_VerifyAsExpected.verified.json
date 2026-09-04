@@ -1015,6 +1015,20 @@
             }
           },
           {
+            "name": "country",
+            "in": "query",
+            "description": "Business country of the eligible organisation",
+            "schema": {
+              "enum": [
+                "GB-ENG",
+                "GB-NIR",
+                "GB-SCT",
+                "GB-WLS"
+              ],
+              "type": "string"
+            }
+          },
+          {
             "name": "search",
             "in": "query",
             "description": "Case-insensitive partial match on organisation name or reference number",

@@ -270,6 +270,7 @@ OrganisationComplianceDeclarationEligibility
   obligationYear                 int
   organisationId                 GUID
   registrationType               DirectProducer | ComplianceScheme
+  businessCountry                string?          // Waste Organisations field; exposed only as the `country` query filter
   name                           string?
   tradingName                    string?          // source provenance; not a public query field
   companiesHouseNumber           string?
@@ -351,10 +352,10 @@ The Account endpoints are already batch interfaces, but the service has no publi
 
 No change is proposed to `GET /compliance-declarations`: its existing generic `search` already includes its persisted `organisation.referenceNumber`. Account resolution is used only while refreshing the new unsubmitted projection.
 
-The unsubmitted query reads only the active generation and needs no Account call, reference join, summary lookup, or downstream call. Reference numbers and the sortable obligation metrics are already on eligible rows. The page and total are separate local Mongo operations so the page query can use the selected sort index. `obligationYear` and `registrationType` are optional, matching declaration search; when supplied, the latter accepts the same comma-separated list. The unsubmitted endpoint uses the same generic `search` parameter and case-insensitive partial-match semantics as the existing declaration endpoint:
+The unsubmitted query reads only the active generation and needs no Account call, reference join, summary lookup, or downstream call. Reference numbers and the sortable obligation metrics are already on eligible rows. The page and total are separate local Mongo operations so the page query can use the selected sort index. `obligationYear`, `registrationType`, and `country` are optional. `country` accepts `GB-ENG`, `GB-NIR`, `GB-SCT`, or `GB-WLS` and filters the Waste Organisations `businessCountry` stored on each eligibility row. Rows from an active generation created before this field was introduced do not match a country filter; the next normal eligibility refresh creates a new generation with the source value. `registrationType` accepts the same comma-separated list as declaration search. The unsubmitted endpoint uses the same generic `search` parameter and case-insensitive partial-match semantics as the existing declaration endpoint:
 
 ```text
-1. Match active generation + isVisibleInUnsubmittedView=true, then optionally obligation year and one or more registration types.
+1. Match active generation + isVisibleInUnsubmittedView=true, then optionally obligation year, one or more registration types, and country.
 2. Match escaped, case-insensitive contains regex over name OR referenceNumber.
 3. For a default or single-field sort, use the selected indexed ordering, then page the matching rows. For multiple sort fields, apply the requested priority order to the matching rows before paging; count the same filter separately.
 ```
@@ -366,6 +367,7 @@ The endpoint has its own `UnsubmittedOrganisationSortField` and `UnsubmittedOrga
 Migration `010_OrganisationEligibilityIndexes` creates the final eligibility indexes directly, rather than retaining transitional scope-first indexes. Migration `011_OrganisationObligationSummaryIndexes` creates the summary indexes. This branch has not been deployed, so no index-replacement or metric-backfill migration is needed:
 
 - eligibility rows: `{ generation, isVisibleInUnsubmittedView, name, organisationId }` for direct membership filtering and deterministic default ordering;
+- eligibility rows: `{ generation, isVisibleInUnsubmittedView, businessCountry, name, organisationId }` for country-filtered default ordering;
 - eligibility rows: `{ generation, isVisibleInUnsubmittedView, referenceNumber, name, organisationId }` for reference-number ordering;
 - eligibility rows: `{ generation, isVisibleInUnsubmittedView, recyclingObligationsMet, name, organisationId }` for recycling-status ordering;
 - eligibility rows: `{ generation, isVisibleInUnsubmittedView, obligationCoveragePercentage, name, organisationId }` for percentage ordering;
@@ -576,7 +578,7 @@ One refresh run should work as follows:
 
 1. Acquire an `eligibility-organisations` lease. If another instance holds it, skip this interval.
 2. Fetch the single combined Waste Organisations search response with a timeout and normal HTTP resilience policy.
-3. Validate the response, then expand every relevant source registration into one `{ organisationId, obligationYear, registrationType }` eligibility row. Retain its current status for `LARGE_PRODUCER` and `COMPLIANCE_SCHEME`, including non-`REGISTERED` statuses; ignore unrelated registration types in the derived projection.
+3. Validate the response, then expand every relevant source registration into one `{ organisationId, obligationYear, registrationType }` eligibility row. Retain its current status and `businessCountry` for `LARGE_PRODUCER` and `COMPLIANCE_SCHEME`, including non-`REGISTERED` statuses; ignore unrelated registration types in the derived projection.
 4. For every derived row, calculate its Waste Organisations-only `sourceFingerprint`. Reuse a known resolved reference from active-generation rows with the same organisation/type; make bounded immediate Account batch calls for every remaining unresolved key.
 5. Materialise the Account outcome on every staged row. A successful reference produces `Resolved` plus its string value; every other outcome produces an excluded unresolved state. Record source/row/duplicate/reference-outcome counts for diagnostics.
 6. Canonically sort the complete materialised set and calculate its semantic `activeContentFingerprint`. The fingerprint includes each row's `sourceFingerprint` and either its resolved reference value or one common `Unresolved` marker; it excludes retry timestamps and distinctions between non-eligible states such as `Pending` and `Failed`.

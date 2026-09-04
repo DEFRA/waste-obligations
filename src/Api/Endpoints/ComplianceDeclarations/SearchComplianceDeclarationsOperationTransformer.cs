@@ -19,6 +19,7 @@ public class SearchComplianceDeclarationsOperationTransformer : IOpenApiOperatio
             operation.OperationId
             is not SearchComplianceDeclarations.OperationId
                 and not ReadComplianceDeclarations.OperationId
+                and not SearchUnsubmittedComplianceDeclarations.OperationId
         )
             return Task.CompletedTask;
 
@@ -45,6 +46,23 @@ public class SearchComplianceDeclarationsOperationTransformer : IOpenApiOperatio
                 source => CreateEnumParameter<BusinessCountryFilter>(source)
             );
         }
+
+        if (operation.OperationId is SearchUnsubmittedComplianceDeclarations.OperationId)
+        {
+            ReplaceParameter(
+                operation,
+                nameof(UnsubmittedComplianceDeclarationsRequest.Country),
+                index: 2,
+                source => CreateEnumParameter<BusinessCountryFilter>(source)
+            );
+        }
+
+        if (
+            operation.OperationId
+            is not SearchComplianceDeclarations.OperationId
+                and not ReadComplianceDeclarations.OperationId
+        )
+            return Task.CompletedTask;
 
         ReplaceParameter(
             operation,

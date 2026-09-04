@@ -15,6 +15,7 @@ public record OrganisationComplianceDeclarationEligibility
     public int ObligationYear { get; init; }
     public RegistrationType RegistrationType { get; init; }
     public OrganisationRegistrationStatus RegistrationStatus { get; init; }
+    public string? BusinessCountry { get; init; }
     public required string Name { get; init; }
     public string? TradingName { get; init; }
     public string? CompaniesHouseNumber { get; init; }

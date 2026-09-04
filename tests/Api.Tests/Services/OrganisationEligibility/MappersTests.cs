@@ -148,6 +148,33 @@ public class MappersTests
     }
 
     [Fact]
+    public void ToEligibilityRows_ShouldStoreBusinessCountryAndIncludeItInTheSourceFingerprint()
+    {
+        var organisation = CreateOrganisation(
+            Guid.NewGuid(),
+            [
+                CreateRegistration(
+                    WasteOrganisationsRegistrationType.LargeProducer,
+                    WasteOrganisationsRegistrationStatus.Registered,
+                    2026
+                ),
+            ]
+        ) with
+        {
+            BusinessCountry = "GB-ENG",
+        };
+
+        var initialRow = Mappers.ToEligibilityRows([organisation], "g1", s_refreshedAt).Single();
+        var changedRow = Mappers
+            .ToEligibilityRows([organisation with { BusinessCountry = "GB-WLS" }], "g2", s_refreshedAt)
+            .Single();
+
+        initialRow.BusinessCountry.Should().Be("GB-ENG");
+        changedRow.BusinessCountry.Should().Be("GB-WLS");
+        changedRow.SourceFingerprint.Should().NotBe(initialRow.SourceFingerprint);
+    }
+
+    [Fact]
     public void ToEligibilityRows_WhenOrganisationChangesTypeWithinAYear_ShouldRetainBothRegistrations()
     {
         var latestUpdated = s_refreshedAt.AddMinutes(1);

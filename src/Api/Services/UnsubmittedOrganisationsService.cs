@@ -18,10 +18,7 @@ public class UnsubmittedOrganisationsService(
 ) : IUnsubmittedOrganisationsService
 {
     public async Task<UnsubmittedOrganisationSearchResult> Search(
-        int? obligationYear,
-        IReadOnlyCollection<RegistrationType>? registrationTypes,
-        string? search,
-        IReadOnlyCollection<UnsubmittedOrganisationSort>? sort,
+        UnsubmittedOrganisationSearchQuery query,
         int page,
         int pageSize,
         CancellationToken cancellationToken
@@ -59,30 +56,40 @@ public class UnsubmittedOrganisationsService(
                 true
             ),
         };
-        if (obligationYear.HasValue)
+        if (query.ObligationYear.HasValue)
         {
             filters.Add(
                 Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Eq(
                     x => x.ObligationYear,
-                    obligationYear.Value
+                    query.ObligationYear.Value
                 )
             );
         }
 
-        if (registrationTypes is { Count: > 0 })
+        if (query.RegistrationTypes is { Count: > 0 })
         {
             filters.Add(
                 Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.In(
                     x => x.RegistrationType,
-                    registrationTypes
+                    query.RegistrationTypes
+                )
+            );
+        }
+
+        if (query.BusinessCountry is not null)
+        {
+            filters.Add(
+                Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Eq(
+                    x => x.BusinessCountry,
+                    query.BusinessCountry
                 )
             );
         }
 
         var eligible = Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.And(filters);
-        if (!string.IsNullOrWhiteSpace(search))
+        if (!string.IsNullOrWhiteSpace(query.Search))
         {
-            var pattern = new BsonRegularExpression(Regex.Escape(search.Trim()), "i");
+            var pattern = new BsonRegularExpression(Regex.Escape(query.Search.Trim()), "i");
             eligible &= Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Or(
                 Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Regex(x => x.Name, pattern),
                 Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Regex(
@@ -94,7 +101,7 @@ public class UnsubmittedOrganisationsService(
 
         var rowsTask = dbContext
             .OrganisationComplianceDeclarationEligibilities.Find(eligible)
-            .Sort(BuildSort(sort))
+            .Sort(BuildSort(query.Sort))
             .Skip((page - 1) * pageSize)
             .Limit(pageSize)
             .Project(x => new UnsubmittedOrganisationSearchRow
