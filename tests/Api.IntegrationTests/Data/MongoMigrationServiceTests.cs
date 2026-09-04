@@ -42,8 +42,6 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         "Generation_IsVisibleInUnsubmittedView_RecyclingObligationsMet_Name_OrganisationId";
     private const string OrganisationEligibilityReferenceNumberIndexName =
         "Generation_IsVisibleInUnsubmittedView_ReferenceNumber_Name_OrganisationId";
-    private const string OrganisationEligibilityOrganisationKeyIndexName =
-        "OrganisationId_ObligationYear_RegistrationType";
     private const string OrganisationEligibilityHydrationIndexName =
         "Generation_ObligationYear_RegistrationStatus_ReferenceNumberResolutionState_OrganisationId";
     private const string OrganisationEligibilityExpiredGenerationIndexName = "RefreshedAt";
@@ -212,15 +210,6 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             .Contain(x =>
                 IsIndex(
                     x,
-                    OrganisationEligibilityOrganisationKeyIndexName,
-                    OrganisationEligibilityOrganisationKeyIndexKeys(OrganisationComplianceDeclarationEligibilities)
-                )
-            );
-        indexes
-            .Should()
-            .Contain(x =>
-                IsIndex(
-                    x,
                     OrganisationEligibilityHydrationIndexName,
                     OrganisationEligibilityHydrationIndexKeys(OrganisationComplianceDeclarationEligibilities)
                 )
@@ -243,7 +232,6 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             )
         ).ToListAsync(TestContext.Current.CancellationToken);
 
-        indexes.Should().NotContain(x => x.GetValue("name") == OrganisationEligibilityOrganisationKeyIndexName);
         indexes.Should().NotContain(x => x.GetValue("name") == OrganisationEligibilityHydrationIndexName);
         indexes.Should().NotContain(x => x.GetValue("name") == OrganisationEligibilityExpiredGenerationIndexName);
 
@@ -1089,17 +1077,6 @@ public class MongoMigrationServiceTests : IntegrationTestBase
                 .Ascending(x => x.ObligationCoveragePercentage)
                 .Ascending(x => x.Name)
                 .Ascending(x => x.OrganisationId)
-        );
-
-    private static BsonDocument OrganisationEligibilityOrganisationKeyIndexKeys(
-        IMongoCollection<OrganisationComplianceDeclarationEligibility> collection
-    ) =>
-        RenderIndexKeys(
-            collection,
-            Builders<OrganisationComplianceDeclarationEligibility>
-                .IndexKeys.Ascending(x => x.OrganisationId)
-                .Ascending(x => x.ObligationYear)
-                .Ascending(x => x.RegistrationType)
         );
 
     private static BsonDocument OrganisationEligibilityHydrationIndexKeys(

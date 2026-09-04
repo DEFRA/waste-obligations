@@ -22,9 +22,8 @@ An unindexed plan may only be accepted with `AllowUnindexedMongoQuery(new MongoQ
 
 ## Applied index set
 
-The application query review adds exactly three secondary indexes, all on `OrganisationComplianceDeclarationEligibility`:
+The application query review adds exactly two secondary indexes, both on `OrganisationComplianceDeclarationEligibility`:
 
-- `OrganisationId_ObligationYear_RegistrationType` serves visibility updates across retained generations and, by prefix, hydration metric propagation by organisation and year.
 - `Generation_ObligationYear_RegistrationStatus_ReferenceNumberResolutionState_OrganisationId` serves the hydration work-selection read and covers its projected organisation ID.
 - `RefreshedAt` bounds expired-generation cleanup by its retention cutoff; `generation NOT IN (...)` remains a residual filter.
 
@@ -45,10 +44,10 @@ This is the source inventory as at the introduction of the profiler. A row marke
 | Eligibility snapshot reads and concurrency updates | `OrganisationEligibilitySnapshot` | `_id` plus snapshot values | `_id_` |
 | Eligibility active-generation read / count | `OrganisationComplianceDeclarationEligibility` | `generation` | `Generation_OrganisationId_ObligationYear_RegistrationType` prefix |
 | Unsubmitted search count and page | `OrganisationComplianceDeclarationEligibility` | generation, visible flag, optional year/type, optional regex; dynamic sort | **review** — four sort-oriented indexes exist; profile every supported sort and filter combination |
-| Eligibility visibility updates | `OrganisationComplianceDeclarationEligibility` | organisation id, year, registration type, visibility inputs | `OrganisationId_ObligationYear_RegistrationType` |
+| Eligibility visibility updates | `OrganisationComplianceDeclarationEligibility` | generation, organisation id, year, registration type, visibility inputs | `Generation_OrganisationId_ObligationYear_RegistrationType` prefix |
 | Eligibility garbage collection | `OrganisationComplianceDeclarationEligibility` | generation not in retained set; `refreshedAt` cutoff | `RefreshedAt`; generation is a residual filter |
 | Hydration eligible-organisations read | `OrganisationComplianceDeclarationEligibility` | generation, year, registered, resolved | `Generation_ObligationYear_RegistrationStatus_ReferenceNumberResolutionState_OrganisationId` |
-| Hydration metric propagation | `OrganisationComplianceDeclarationEligibility` | organisation id and year | `OrganisationId_ObligationYear_RegistrationType` prefix |
+| Hydration metric propagation | `OrganisationComplianceDeclarationEligibility` | generation, organisation id and year | `Generation_OrganisationId_ObligationYear_RegistrationType` prefix |
 | Obligation metric lookup | `OrganisationObligationSummary` | organisation id set and year set | `OrganisationId_ObligationYear` |
 | Hydration enqueue / persist | `OrganisationObligationSummary` | organisation id and year | `OrganisationId_ObligationYear` |
 | Hydration due-work read | `OrganisationObligationSummary` | year, active, due time; sort priority and next refresh | `ObligationYear_IsHydrationActive_Priority_NextRefreshAt` |
