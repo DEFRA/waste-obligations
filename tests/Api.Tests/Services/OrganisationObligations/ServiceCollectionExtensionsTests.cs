@@ -59,4 +59,23 @@ public class ServiceCollectionExtensionsTests
         options.Value.MaxDownstreamRequestsPerMinute.Should().Be(20);
         services.Should().NotContain(descriptor => descriptor.ServiceType == typeof(IHostedService));
     }
+
+    [Fact]
+    public void AddOrganisationObligationHydration_WhenBatchSizeIsBelowHandoverMinimum_ShouldFailValidation()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(
+                new Dictionary<string, string?> { ["OrganisationObligationHydration:BatchSize"] = "1" }
+            )
+            .Build();
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(configuration);
+        services.AddOrganisationObligationHydration(addWorker: false);
+        using var serviceProvider = services.BuildServiceProvider();
+        var options = serviceProvider.GetRequiredService<IOptions<OrganisationObligationHydrationOptions>>();
+
+        var action = () => _ = options.Value;
+
+        action.Should().Throw<OptionsValidationException>();
+    }
 }

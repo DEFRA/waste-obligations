@@ -33,7 +33,7 @@ public class OrganisationObligationHydrationService(
         return result;
     }
 
-    public async Task<int> HydrateDue(int obligationYear, CancellationToken cancellationToken)
+    public async Task<int> HydrateDue(int obligationYear, CancellationToken cancellationToken, int? maximumWork = null)
     {
         var eligibility = await GetEligibleOrganisationIds(obligationYear, cancellationToken);
         if (!eligibility.HasActiveGeneration)
@@ -48,7 +48,7 @@ public class OrganisationObligationHydrationService(
             )
             .SortBy(x => x.Priority)
             .ThenBy(x => x.NextRefreshAt)
-            .Limit(options.Value.BatchSize)
+            .Limit(maximumWork ?? options.Value.BatchSize)
             .ToListAsync(cancellationToken);
         var processedCount = 0;
         var parallelOptions = new ParallelOptions

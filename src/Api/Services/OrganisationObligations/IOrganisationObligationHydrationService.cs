@@ -8,5 +8,5 @@ public interface IOrganisationObligationHydrationService
         DateTime reconciliationSince,
         CancellationToken cancellationToken
     );
-    Task<int> HydrateDue(int obligationYear, CancellationToken cancellationToken);
+    Task<int> HydrateDue(int obligationYear, CancellationToken cancellationToken, int? maximumWork = null);
 }

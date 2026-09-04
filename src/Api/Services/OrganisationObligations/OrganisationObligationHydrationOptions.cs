@@ -17,7 +17,7 @@ public record OrganisationObligationHydrationOptions
     [Range(1, 300)]
     public int LeaseRenewalIntervalSeconds { get; init; } = 60;
 
-    [Range(1, 100)]
+    [Range(2, 100)]
     public int BatchSize { get; init; } = 10;
 
     [Range(1, 20)]
