@@ -6,6 +6,7 @@ using Defra.WasteObligations.Api.Services.AccountBackend;
 using Defra.WasteObligations.Api.Services.OrganisationEligibility;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
 using Defra.WasteObligations.Api.Utils.Http;
+using Defra.WasteObligations.Api.Utils.Metrics;
 using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Authentication;
 using Defra.WasteObligations.Testing.Extensions.WireMock;
@@ -15,6 +16,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Driver;
+using NSubstitute;
 using Organisation = Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation;
 using Registration = Defra.WasteObligations.Api.Services.WasteOrganisations.Registration;
 using WasteOrganisationsAddress = Defra.WasteObligations.Api.Services.WasteOrganisations.Address;
@@ -130,6 +132,7 @@ public class RefreshOrganisationEligibilityFromDownstreamServicesTests : Integra
             new UnsubmittedEligibilityVisibilityService(dbContext),
             options,
             TimeProvider.System,
+            Substitute.For<IOrganisationEligibilityRefreshMetrics>(),
             NullLogger<OrganisationEligibilityRefreshService>.Instance
         );
     }

@@ -9,6 +9,10 @@ namespace Defra.WasteObligations.Api.Utils.Metrics;
 public class OrganisationObligationHydrationMetrics : IOrganisationObligationHydrationMetrics
 {
     private readonly Counter<long> _failures;
+    private readonly Histogram<long> _activeSummaryCount;
+    private readonly Histogram<long> _dueSummaryCount;
+    private readonly Histogram<double> _obligationReadDuration;
+    private readonly Counter<long> _obligationReadFailures;
     private readonly Histogram<double> _staleSummaryAge;
     private readonly Histogram<long> _staleSummaryCount;
     private readonly Counter<long> _successes;
@@ -21,6 +25,26 @@ public class OrganisationObligationHydrationMetrics : IOrganisationObligationHyd
             Metrics.Names.OrganisationObligationHydrationFailure,
             nameof(Unit.COUNT),
             "Count of organisation obligation hydration failures"
+        );
+        _activeSummaryCount = meter.CreateHistogram<long>(
+            Metrics.Names.OrganisationObligationHydrationActiveSummaryCount,
+            nameof(Unit.COUNT),
+            "Count of active organisation obligation hydration summaries"
+        );
+        _dueSummaryCount = meter.CreateHistogram<long>(
+            Metrics.Names.OrganisationObligationHydrationDueSummaryCount,
+            nameof(Unit.COUNT),
+            "Count of organisation obligation hydration summaries due for an obligations read"
+        );
+        _obligationReadDuration = meter.CreateHistogram<double>(
+            Metrics.Names.OrganisationObligationHydrationObligationReadDuration,
+            nameof(Unit.SECONDS),
+            "Duration of organisation obligations reads"
+        );
+        _obligationReadFailures = meter.CreateCounter<long>(
+            Metrics.Names.OrganisationObligationHydrationObligationReadFailure,
+            nameof(Unit.COUNT),
+            "Count of failed organisation obligations reads"
         );
         _staleSummaryAge = meter.CreateHistogram<double>(
             Metrics.Names.OrganisationObligationHydrationStaleSummaryAge,
@@ -35,13 +59,31 @@ public class OrganisationObligationHydrationMetrics : IOrganisationObligationHyd
         _successes = meter.CreateCounter<long>(
             Metrics.Names.OrganisationObligationHydrationSuccess,
             nameof(Unit.COUNT),
-            "Count of organisation obligation hydration successes"
+            "Count of successful organisation obligation summaries saved"
         );
     }
 
     public void Failed()
     {
         _failures.Add(1, BuildTags());
+    }
+
+    public void ObligationReadCompleted(TimeSpan duration)
+    {
+        _obligationReadDuration.Record(duration.TotalSeconds, BuildTags());
+    }
+
+    public void ObligationReadFailed(TimeSpan duration)
+    {
+        _obligationReadFailures.Add(1, BuildTags());
+        _obligationReadDuration.Record(duration.TotalSeconds, BuildTags());
+    }
+
+    public void QueueObserved(int activeSummaryCount, int dueSummaryCount)
+    {
+        var tags = BuildTags();
+        _activeSummaryCount.Record(activeSummaryCount, tags);
+        _dueSummaryCount.Record(dueSummaryCount, tags);
     }
 
     public void Succeeded()

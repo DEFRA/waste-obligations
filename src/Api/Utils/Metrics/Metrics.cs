@@ -33,11 +33,29 @@ public static class Metrics
         public const string AuditEventSnsPublishLatency = nameof(AuditEventSnsPublishLatency);
         public const string OrganisationObligationHydrationFailure = nameof(OrganisationObligationHydrationFailure);
         public const string OrganisationObligationHydrationSuccess = nameof(OrganisationObligationHydrationSuccess);
+        public const string OrganisationObligationHydrationObligationReadDuration = nameof(
+            OrganisationObligationHydrationObligationReadDuration
+        );
+        public const string OrganisationObligationHydrationObligationReadFailure = nameof(
+            OrganisationObligationHydrationObligationReadFailure
+        );
+        public const string OrganisationObligationHydrationActiveSummaryCount = nameof(
+            OrganisationObligationHydrationActiveSummaryCount
+        );
+        public const string OrganisationObligationHydrationDueSummaryCount = nameof(
+            OrganisationObligationHydrationDueSummaryCount
+        );
         public const string OrganisationObligationHydrationStaleSummaryAge = nameof(
             OrganisationObligationHydrationStaleSummaryAge
         );
         public const string OrganisationObligationHydrationStaleSummaryCount = nameof(
             OrganisationObligationHydrationStaleSummaryCount
+        );
+        public const string OrganisationEligibilityRefreshDuration = nameof(OrganisationEligibilityRefreshDuration);
+        public const string OrganisationEligibilityRefreshOutcome = nameof(OrganisationEligibilityRefreshOutcome);
+        public const string OrganisationEligibilityRefreshRowCount = nameof(OrganisationEligibilityRefreshRowCount);
+        public const string OrganisationEligibilityReferenceResolutionCount = nameof(
+            OrganisationEligibilityReferenceResolutionCount
         );
     }
 
@@ -59,5 +77,7 @@ public static class Metrics
         public const string Entity = nameof(Entity);
         public const string Operation = nameof(Operation);
         public const string EventType = nameof(EventType);
+        public const string Outcome = nameof(Outcome);
+        public const string ReferenceResolutionState = nameof(ReferenceResolutionState);
     }
 }

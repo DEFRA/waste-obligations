@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using Defra.WasteObligations.Api.Data;
@@ -7,6 +8,7 @@ using Defra.WasteObligations.Api.Utils.Metrics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
+using PrnObligation = Defra.WasteObligations.Api.Services.PrnCommonBackend.Obligation;
 
 namespace Defra.WasteObligations.Api.Services.OrganisationObligations;
 
@@ -42,6 +44,15 @@ public class OrganisationObligationHydrationService(
         await RemoveInactiveWork(eligibility.OrganisationIds, obligationYear, cancellationToken);
         await EnqueueNewEligible(eligibility.OrganisationIds, obligationYear, cancellationToken);
         var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
+        var activeSummaryCount = await dbContext.OrganisationObligationSummaries.CountDocumentsAsync(
+            x => x.ObligationYear == obligationYear && x.IsHydrationActive,
+            cancellationToken: cancellationToken
+        );
+        var dueSummaryCount = await dbContext.OrganisationObligationSummaries.CountDocumentsAsync(
+            x => x.ObligationYear == obligationYear && x.IsHydrationActive && x.NextRefreshAt <= utcNow,
+            cancellationToken: cancellationToken
+        );
+        metrics.QueueObserved((int)activeSummaryCount, (int)dueSummaryCount);
         var work = await dbContext
             .OrganisationObligationSummaries.Find(x =>
                 x.ObligationYear == obligationYear && x.IsHydrationActive && x.NextRefreshAt <= utcNow
@@ -228,11 +239,7 @@ public class OrganisationObligationHydrationService(
         try
         {
             await requestPacer.Wait(cancellationToken);
-            var obligations = await obligationSource.ReadObligations(
-                work.OrganisationId,
-                work.ObligationYear,
-                cancellationToken
-            );
+            var obligations = await ReadObligations(work, cancellationToken);
             var summaryMetrics = OrganisationObligationSummaryMapper.Map(
                 work.OrganisationId,
                 work.ObligationYear,
@@ -269,6 +276,33 @@ public class OrganisationObligationHydrationService(
         {
             await RecordFailure(work, exception, cancellationToken);
             metrics.Failed();
+        }
+    }
+
+    private async Task<IEnumerable<PrnObligation>> ReadObligations(
+        OrganisationObligationSummary work,
+        CancellationToken cancellationToken
+    )
+    {
+        var readStopwatch = Stopwatch.StartNew();
+
+        try
+        {
+            var obligations = await obligationSource.ReadObligations(
+                work.OrganisationId,
+                work.ObligationYear,
+                cancellationToken
+            );
+            readStopwatch.Stop();
+            metrics.ObligationReadCompleted(readStopwatch.Elapsed);
+
+            return obligations;
+        }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            readStopwatch.Stop();
+            metrics.ObligationReadFailed(readStopwatch.Elapsed);
+            throw;
         }
     }
 

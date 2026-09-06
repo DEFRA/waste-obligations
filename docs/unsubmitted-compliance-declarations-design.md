@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-**Status:** the initial server-side delivery is implemented in this branch: the local eligibility snapshot, Account-reference materialisation, direct unsubmitted-visibility and sortable obligation fields on those rows, unsubmitted query endpoint with generic search and indexed sorting, and organisation-obligation summary hydration/polling. The later event-driven and operational-insight sections remain future design considerations. `Unsubmitted` remains an inferred review state rather than a compliance-declaration status.
+**Status:** the initial server-side delivery is implemented in this branch: the local eligibility snapshot, Account-reference materialisation, direct unsubmitted-visibility and sortable obligation fields on those rows, unsubmitted query endpoint with generic search and indexed sorting, organisation-obligation summary hydration/polling, CloudWatch Embedded Metric Format (EMF) operational metrics, and a private polling-status endpoint. The later event-driven sections remain future design considerations. `Unsubmitted` remains an inferred review state rather than a compliance-declaration status.
 
 The delivery is a local, refreshable copy of the Waste Organisations eligibility data in Waste Obligations, with an unsubmitted-visibility field maintained as declarations change, and a separately refreshed organisation-obligation summary. Together they support a server-side query for the **Not submitted** review tab and CSV download.
 
@@ -287,7 +287,7 @@ OrganisationComplianceDeclarationEligibility
 
 The unique key is `{ generation, obligationYear, organisationId, registrationType }`. `generation` makes the active data set stable during a refresh. `isVisibleInUnsubmittedView` is the endpoint's complete membership decision: it is true only for a Registered row with a resolved non-empty reference number and no Submitted or Accepted declaration for the same organisation/year/type. Other reference states remain stored for retry/diagnostics but are never visible. `name` is the established `CompanyName` value: Waste Organisations `name` for Direct Producers and `tradingName`, falling back to `name`, for Compliance Schemes. It is both the display and searchable organisation name. The separately retained source `tradingName` is not queried by the public endpoint.
 
-An empty result must never silently mean “every organisation has submitted” when source rows are being excluded for missing references. The current snapshot intentionally records only the active generation, fingerprint, row count, materialised-state version, verification/promotion times, and retained generations. It neither persists reference-coverage counts nor blocks bootstrap on a coverage percentage. The public endpoint deliberately returns only usable list data; reference coverage, freshness, and other diagnostic state are future administration/operational-insight work.
+An empty result must never silently mean “every organisation has submitted” when source rows are being excluded for missing references. The current snapshot intentionally records only the active generation, fingerprint, row count, materialised-state version, verification/promotion times, and retained generations. It neither persists reference-coverage counts nor blocks bootstrap on a coverage percentage. The public endpoint deliberately returns only usable list data; reference coverage, freshness, and other diagnostic state are available only through the private polling-status endpoint described below.
 
 The eligibility row is the query aggregate. It contains the two obligation display metrics as a small write-time copy of the separately retained hydration summary, so the regulator query can match, sort, and page one indexed collection. The copy is updated in the same Mongo transaction that persists a successful hydration result, and is copied forward into a newly staged generation from the current summary. This avoids a request-time `$lookup` and avoids a third projection collection. It also means a future event consumer has one established place to apply changed organisation or calculation state; it must not create a competing list projection. Each in-place visibility or metric transaction increments `materialisedStateVersion`. A generation promotion matches the version it observed while staging, so it cannot replace a concurrent local mutation with an older staged value.
 
@@ -299,7 +299,7 @@ For an all-years refresh, `generation` is global to the refresh, rather than one
 
 The declaration create, status-update, and delete paths recalculate the affected organisation/year/type inside the same Mongo transaction as the declaration mutation and audit-event write, and increment `materialisedStateVersion`. This preserves the required immediate change to the list without a request-time `$lookup` or an additional stored projection. A full eligibility refresh also evaluates all Submitted and Accepted declarations before staging a new generation. Its promotion is fenced by the observed materialised-state version: a declaration committed before promotion prevents the stale stage from becoming active, while one committed after the staged rows exist updates those rows transactionally.
 
-The boolean is deliberately an endpoint read-model field, not a declaration status or public diagnostic field. Operational counts, stale visibility diagnostics, and any future reconciliation endpoint belong to the future administration/operational-insight work.
+The boolean is deliberately an endpoint read-model field, not a declaration status or public diagnostic field. Operational counts and stale visibility diagnostics are available only through the private polling-status endpoint; any reconciliation action remains separate work.
 
 ### 3. Account organisation-reference resolution and materialisation
 
@@ -346,7 +346,7 @@ This is safe because the stated business invariant is that a reference number ne
 
 The active eligibility-refresh lease owns the Account calls. For every refresh it deduplicates unresolved Direct Producer organisation IDs and scheme Companies House numbers, calls the two Account batch interfaces in configurable chunks, then materialises the outcome on every affected staged row. A successful non-empty reference is `Resolved`; `notFoundExternalIds`, missing references, an absent scheme lookup key, ambiguous scheme results, and transient HTTP failures remain unresolved and are excluded from the promoted view.
 
-The Account endpoints are already batch interfaces, but the service has no published request-size contract in the code inspected. Use a conservative configurable chunk size and load-test it with the Account team before increasing it. Resolved values are not polled again while present in the active generation. Negative outcomes are retried on the next eligibility refresh rather than retaining a separate retry queue; this deliberately trades a small, bounded batch call every 30 minutes for fewer persisted collections and moving parts. Track unresolved-row count, ambiguous schemes, batch failures, and the number of newly resolved references per generation through future administration/operational insight rather than adding diagnostic fields to the public contract.
+The Account endpoints are already batch interfaces, but the service has no published request-size contract in the code inspected. Use a conservative configurable chunk size and load-test it with the Account team before increasing it. Resolved values are not polled again while present in the active generation. Negative outcomes are retried on the next eligibility refresh rather than retaining a separate retry queue; this deliberately trades a small, bounded batch call every 30 minutes for fewer persisted collections and moving parts. Track unresolved-row count, ambiguous schemes, batch failures, and the number of newly resolved references per generation through private administration/operational insight rather than adding diagnostic fields to the public contract.
 
 #### Serving the materialised unsubmitted view without HTTP fan-out
 
@@ -476,7 +476,7 @@ Organisation-obligation hydration is not an eligibility or endpoint-availability
 - current `Ready` summary: return its calculated percentage and recycling-obligations result;
 - failed or stale summary: return its most recently calculated percentage and recycling-obligations result when one exists, otherwise the same `null`/`null` default.
 
-`obligationCoveragePercentage: null` means the calculation is not yet known; a numeric `0` is reserved for a successful empty calculation. Operational freshness/state and the successful-read timestamp are not part of this public contract; a future administration endpoint can expose them for support and alerts. The worker's freshness window produces alerts and retry work, not `503` responses. The endpoint still fails closed for a stale **eligibility** snapshot, because that can make organisations disappear or appear incorrectly; a missing obligation summary cannot.
+`obligationCoveragePercentage: null` means the calculation is not yet known; a numeric `0` is reserved for a successful empty calculation. Operational freshness/state and the successful-read timestamp are not part of this public contract; the private administration endpoint exposes them for support and alerts. The worker's freshness window produces alerts and retry work, not `503` responses. The endpoint still fails closed for a stale **eligibility** snapshot, because that can make organisations disappear or appear incorrectly; a missing obligation summary cannot.
 
 #### Empty-system bootstrap example: approximately 500 organisations
 
@@ -523,7 +523,7 @@ A new eligible organisation becomes due for one calculation read immediately and
 
 #### Future consideration: weighted refresh frequency
 
-The initial policy intentionally gives every current-year organisation the same 30-minute target. If the active population grows beyond the assumed 500 keys, do not increase the global request cap or silently lengthen every organisation's refresh interval without an explicit capacity and business decision. For example, 1,000 keys require an average 33 requests per minute and 2,000 keys require 67 requests per minute to retain a 30-minute target; at the initial 20-per-minute cap they cannot do so.
+The initial policy intentionally gives every current-year organisation the same 30-minute target. If the active population grows beyond the assumed 500 keys, do not silently lengthen every organisation's refresh interval. Make an explicit capacity and business decision, approve the downstream rate/concurrency, then change the deployment configuration and restart. For example, 1,000 keys require an average 33 requests per minute and 2,000 keys require 67 requests per minute to retain a 30-minute target; with 20% headroom those become 42 and 84 requests per minute. The worker does not currently calculate or apply this rate automatically.
 
 A future policy may assign a longer normal refresh interval to lower-impact organisations while retaining a global cap. It should be based on agreed local inputs, such as the registration type and the annual obligated tonnage from the last successful summary, rather than a guess based on organisation type alone. The business must define the bucket thresholds, maximum staleness per bucket, bootstrap treatment before a first successful read, reclassification rules, fairness/starvation guarantees, and how the policy is exposed in monitoring. Until that work is agreed, every organisation uses the same interval and a state-changing retry continues to use the shared capped quota.
 
@@ -760,7 +760,7 @@ OrganisationObligationHydration
   PollIntervalSeconds             // short interval to acquire the lease and drain newly due/retry work
   RefreshInterval                 // 30 minutes initially recommended; polls each current-year organisation's calculated obligations
   MaximumSummaryStaleness         // refresh interval plus tolerated queue/retry/recovery margin; alert threshold, not endpoint gate
-  MaxDownstreamRequestsPerMinute // 20 initial setting for 500 organisations refreshed every 30 minutes; shared and paced across new, scheduled, and retry work
+  MaxDownstreamRequestsPerMinute // deployment-controlled shared, paced cap across new, scheduled, and retry reads; valid range 1–600
   BatchSize
   MaxConcurrentRequests           // 2 initially; bounds short downstream bursts independently of the rate cap
   InitialRetryDelay
@@ -770,7 +770,22 @@ OrganisationObligationHydration
   OutgoingYearGracePeriod
 ```
 
-The organisation eligibility worker logs its `Unchanged` or `Promoted` outcome and row count. The organisation-obligation worker emits success and failure counters and, after each hydration sweep, records the count and oldest age of active summaries that are older than `MaximumSummaryStaleness`. A summary without a successful read is measured from `requestedAt`; a summary with one is measured from `lastSuccessfulReadAt`. It logs a warning while that count is non-zero. These are operational signals only: the public endpoint continues to return the copied zero/default or last-known metrics and never triggers a calculation read.
+All values above can be supplied as deployment environment variables by replacing `:` with `__`, for example `OrganisationObligationHydration__MaxDownstreamRequestsPerMinute=200`, `OrganisationObligationHydration__BatchSize=20`, and `OrganisationObligationHydration__MaxConcurrentRequests=10`. They are startup options: a deployment/restart is required for a changed environment variable to take effect. The rate cap has a validated range of 1–600 requests/minute. It is intentionally not a claim that any downstream can accept that rate; the downstream owner must approve the selected cap and concurrency, and the resulting rate/queue must be observed after deployment.
+
+There is not yet quantity-led or weighted frequency scheduling: every active organisation/year retains the configured `RefreshInterval`. Size the deployment cap from active materialised summaries, not a static planning assumption. For target interval `T` minutes and safety factor `S` (where `S = 0.8` reserves 20% of capacity), the minimum configured cap is `activeSummaryCount / (T * S)`. At 4,245 active organisation-years, a 30-minute target with 20% headroom requires `4245 / (30 * 0.8) = 176.875`, so configure at least 177 requests/minute before allowing for downstream latency and retry demand. The private polling-status endpoint returns both the active count and calculated `minimumFullRefreshMinutes` at the active cap, allowing this calculation to be checked in the deployed environment.
+
+With EMF enabled (`AWS_EMF_ENABLED=true` and `AWS_EMF_NAMESPACE` configured), CloudWatch receives the following operational metrics. They use `Service` as a common dimension; the eligibility outcome metric adds `Outcome`, and reference coverage adds `ReferenceResolutionState`. No organisation identifier is a metric dimension.
+
+| Metric | Meaning |
+| --- | --- |
+| `OrganisationEligibilityRefreshOutcome`, `OrganisationEligibilityRefreshDuration`, `OrganisationEligibilityRefreshRowCount` | completed (`Promoted` or `Unchanged`), failed, and lease-skipped eligibility refreshes, including the materialised generation row count. A `Promoted` outcome confirms that the generation write committed. |
+| `OrganisationEligibilityReferenceResolutionCount` | staged eligibility rows by Account-reference resolution state after each source refresh. |
+| `OrganisationObligationHydrationObligationReadDuration`, `OrganisationObligationHydrationObligationReadFailure` | latency and failure of the **organisation-obligations** read from the PRN API. These deliberately do not use the ambiguous label “PRN call”. |
+| `OrganisationObligationHydrationSuccess`, `OrganisationObligationHydrationFailure` | successful summary saves after the obligation read, versus hydration processing failures. A success is emitted only after the summary and copied public metrics have been persisted. |
+| `OrganisationObligationHydrationActiveSummaryCount`, `OrganisationObligationHydrationDueSummaryCount` | current active materialised workload and the backlog due at the start of each hydration sweep. |
+| `OrganisationObligationHydrationStaleSummaryCount`, `OrganisationObligationHydrationStaleSummaryAge` | number and oldest age of summaries beyond `MaximumSummaryStaleness`. A summary without a success is measured from `requestedAt`; one with a success is measured from `lastSuccessfulReadAt`. |
+
+These are operational signals only: the public endpoint continues to return the copied `null` or last-known metrics and never triggers a calculation read.
 
 When an active eligibility generation is older than `MaximumAllowedStaleness`, the query endpoint logs an error for platform alerting but continues to return that last known generation. If no active generation exists, it logs an error and returns an empty page because no correct result can be derived.
 
@@ -909,13 +924,15 @@ The initial response contains the eligibility fields plus the locally hydrated o
 }
 ```
 
-`obligationCoveragePercentage: null` means no successful calculation is available; it is not evidence that the organisation has met zero percent of a known obligation. The public response intentionally does not expose a data-state or successful-read timestamp. `recyclingObligationsMet` remains `null` until every returned material has a calculated status. A future administration endpoint can distinguish Pending, Ready, Stale, and Failed summaries and provide their timestamps/counts.
+`obligationCoveragePercentage: null` means no successful calculation is available; it is not evidence that the organisation has met zero percent of a known obligation. The public response intentionally does not expose a data-state or successful-read timestamp. `recyclingObligationsMet` remains `null` until every returned material has a calculated status. The private administration endpoint distinguishes the materialised summary states and provides their timestamps/counts.
 
-### Future operational insight endpoint
+### Private polling-status endpoint
 
 The public unsubmitted endpoint is a client-facing list contract and must contain only data required to render, page, and act on that list. It does not expose eligibility-generation freshness or counts of organisations withheld because their reference is unresolved.
 
-A future administration/operational-insight endpoint should provide the corresponding diagnostic state: active-generation promotion and verification times, source freshness, resolved/unresolved reference counts and ages, Account batch failure/ambiguity counts, organisation-obligation summary state counts, and the oldest pending or stale summary. Its authorisation, retention, response shape, and alerting/metric relationship are deliberately separate design work.
+`GET /admin/unsubmitted-compliance-declarations/polling-status` is the private operational endpoint. It is deliberately excluded from OpenAPI and requires the `admin` scope (the administrative role in the existing scope-based authorisation model); `read` and `write` clients cannot call it. Production identity configuration must grant that scope only to operational support clients.
+
+It returns the current, stateful materialised picture rather than querying either downstream service: active eligibility generation/fingerprint/row count/promotion/verification version, visible and hydration-eligible counts, reference-resolution state counts, worker lease expiry/release information, active/due/pending/ready/failed/never-successfully-read obligation summaries grouped by year, oldest due and success timestamps, and the effective worker settings. Its `minimumFullRefreshMinutes` is the workload divided by `MaxDownstreamRequestsPerMinute`; it excludes request latency, retries, contention and upstream throttling, so it is a best-case capacity signal rather than an SLA.
 
 ### Generic search
 
@@ -1072,7 +1089,7 @@ The organisation-obligation summary is deliberately separate from the query aggr
 2. Delivered the typed Waste Organisations search adapter and contract tests for the combined query.
 3. Delivered the snapshot, materialised reference-resolution fields, indexes, migrations, lease, refresh job, Account batch hydration, observability, and failure/staleness handling.
 4. Delivered the direct eligibility-row visibility evaluation in staging refreshes and transactional recalculation for declaration changes; operational reconciliation remains future administration work.
-5. Delivered the organisation-obligation summary with embedded hydration state, lease worker, non-blocking initial backfill, calculator parity tests, stale-summary count/age and success/failure metrics, and downstream-failure handling.
+5. Delivered the organisation-obligation summary with embedded hydration state, lease worker, non-blocking initial backfill, calculator parity tests, queue/read/save/staleness metrics, downstream-failure handling, and an indexed private polling-status view.
 6. Delivered the direct indexed match/count/page query, including copied zero/default and last-known metrics, generic search, and name/reference/recycling/percentage sorting.
 7. Delivered the public review endpoint. Regulator frontend adoption for the Not submitted list/count/CSV remains a separate frontend change.
 8. A versioned Waste Organisations event contract and a Recycling-data status/calculation-trigger event remain future improvements. Their consumers must evolve the existing aggregates through the documented source-provenance and projection-mode cutover, before they replace periodic polling as the primary writers.
@@ -1086,7 +1103,7 @@ The organisation-obligation summary is deliberately separate from the query aggr
 6. Can Account provide and support an explicit maximum batch size and concurrency expectation for both lookup endpoints?
 7. Is there a guaranteed single active `isComplianceScheme=true` Account organisation for a Companies House number? If not, who owns resolving an ambiguous match?
 8. What reference-coverage policy applies: must initial bootstrap reach 100% before the endpoint is available, and should later unresolved new rows cause `503`, a visible exclusion warning, or both?
-9. Side requirement: a future administration endpoint should expose organisation-obligation state and successful-read timestamps/counts for operational insight. The public list contract exposes only usable obligation metrics.
+9. Resolved: the private hidden `/admin/unsubmitted-compliance-declarations/polling-status` endpoint exposes stateful eligibility, summary, lease, capacity, and effective-configuration information to `admin` clients only. The public list contract exposes only usable obligation metrics.
 10. Can Recycling data provide an at-least-once status/calculation-trigger event (or cursor) with recipient `organisationId`, obligation year, event ID, per-key version, and a replay/bootstrap watermark?
 11. Can Waste Organisations provide organisation/registration events with a durable source version/sequence and a snapshot watermark? If events replace polling, which source/version/offset guarantees are available for the bootstrap watermark, organisation registrations, Account reference assignment, and Recycling changes?
 12. If scheme or scheme-operator name search becomes necessary, can Account provide authoritative values and a durable change event (or an agreed refresh-staleness contract) that keeps the eligibility aggregate current after a rename?

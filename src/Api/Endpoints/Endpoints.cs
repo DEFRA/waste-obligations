@@ -1,3 +1,4 @@
+using Defra.WasteObligations.Api.Endpoints.Admin;
 using Defra.WasteObligations.Api.Endpoints.ComplianceDeclarations;
 using Defra.WasteObligations.Api.Endpoints.Organisations;
 
@@ -7,6 +8,7 @@ public static class Endpoints
 {
     public static void MapApiEndpoints(this IEndpointRouteBuilder app)
     {
+        app.MapAdminEndpoints();
         app.MapOrganisationEndpoints();
         app.MapComplianceDeclarationEndpoints();
     }

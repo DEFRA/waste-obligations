@@ -1,6 +1,7 @@
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.OrganisationEligibility;
+using Defra.WasteObligations.Api.Utils.Metrics;
 using Defra.WasteObligations.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -263,6 +264,7 @@ public class OrganisationEligibilityRefreshWorkerTests
         IOrganisationEligibilityRefreshService refreshService,
         bool refreshPollingEnabled = true,
         int refreshLeaseRenewalIntervalSeconds = 60,
+        IOrganisationEligibilityRefreshMetrics? metrics = null,
         ILogger<OrganisationEligibilityRefreshWorker>? logger = null
     )
     {
@@ -282,6 +284,7 @@ public class OrganisationEligibilityRefreshWorkerTests
                     RefreshLeaseRenewalIntervalSeconds = refreshLeaseRenewalIntervalSeconds,
                 }
             ),
+            metrics ?? Substitute.For<IOrganisationEligibilityRefreshMetrics>(),
             logger ?? Substitute.For<ILogger<OrganisationEligibilityRefreshWorker>>()
         );
     }
@@ -291,6 +294,7 @@ public class OrganisationEligibilityRefreshWorkerTests
         IOrganisationEligibilityRefreshService refreshService,
         bool refreshPollingEnabled = true,
         int refreshLeaseRenewalIntervalSeconds = 60,
+        IOrganisationEligibilityRefreshMetrics? metrics = null,
         ILogger<OrganisationEligibilityRefreshWorker>? logger = null
     )
     {
@@ -310,6 +314,7 @@ public class OrganisationEligibilityRefreshWorkerTests
                     RefreshLeaseRenewalIntervalSeconds = refreshLeaseRenewalIntervalSeconds,
                 }
             ),
+            metrics ?? Substitute.For<IOrganisationEligibilityRefreshMetrics>(),
             logger ?? Substitute.For<ILogger<OrganisationEligibilityRefreshWorker>>()
         );
     }
@@ -317,8 +322,9 @@ public class OrganisationEligibilityRefreshWorkerTests
     private sealed class TestableOrganisationEligibilityRefreshWorker(
         IServiceScopeFactory serviceScopeFactory,
         IOptions<OrganisationEligibilityOptions> options,
+        IOrganisationEligibilityRefreshMetrics metrics,
         ILogger<OrganisationEligibilityRefreshWorker> logger
-    ) : OrganisationEligibilityRefreshWorker(serviceScopeFactory, options, logger)
+    ) : OrganisationEligibilityRefreshWorker(serviceScopeFactory, options, metrics, logger)
     {
         public Task Execute(CancellationToken stoppingToken) => ExecuteAsync(stoppingToken);
     }

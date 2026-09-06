@@ -23,7 +23,7 @@ public record OrganisationObligationHydrationOptions
     [Range(1, 20)]
     public int MaxConcurrentRequests { get; init; } = 2;
 
-    [Range(1, 120)]
+    [Range(1, 600)]
     public int MaxDownstreamRequestsPerMinute { get; init; } = 20;
 
     public TimeSpan RefreshInterval { get; init; } = TimeSpan.FromMinutes(30);

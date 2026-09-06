@@ -57,6 +57,38 @@ public class OrganisationObligationHydrationMetricsTests
         countMeasurements[0].Value.Should().Be(2);
     }
 
+    [Fact]
+    public void ObligationReadAndQueueObserved_ShouldRecordDurationFailureAndQueueCounts()
+    {
+        var meterFactory = CreateMeterFactory();
+        using var durationCollector = new TestMetricCollector<double>(
+            ApiMetrics.MeterName,
+            ApiMetrics.Names.OrganisationObligationHydrationObligationReadDuration
+        );
+        using var failureCollector = new TestMetricCollector<long>(
+            ApiMetrics.MeterName,
+            ApiMetrics.Names.OrganisationObligationHydrationObligationReadFailure
+        );
+        using var activeCollector = new TestMetricCollector<long>(
+            ApiMetrics.MeterName,
+            ApiMetrics.Names.OrganisationObligationHydrationActiveSummaryCount
+        );
+        using var dueCollector = new TestMetricCollector<long>(
+            ApiMetrics.MeterName,
+            ApiMetrics.Names.OrganisationObligationHydrationDueSummaryCount
+        );
+        var subject = new OrganisationObligationHydrationMetrics(meterFactory);
+
+        subject.ObligationReadCompleted(TimeSpan.FromSeconds(0.4));
+        subject.ObligationReadFailed(TimeSpan.FromSeconds(1.2));
+        subject.QueueObserved(4245, 4019);
+
+        durationCollector.GetMeasurementSnapshot().Select(x => x.Value).Should().BeEquivalentTo([0.4d, 1.2d]);
+        failureCollector.GetMeasurementSnapshot().Should().ContainSingle().Which.Value.Should().Be(1);
+        activeCollector.GetMeasurementSnapshot().Should().ContainSingle().Which.Value.Should().Be(4245);
+        dueCollector.GetMeasurementSnapshot().Should().ContainSingle().Which.Value.Should().Be(4019);
+    }
+
     private static IMeterFactory CreateMeterFactory()
     {
         var services = new ServiceCollection();

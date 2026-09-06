@@ -51,6 +51,7 @@ public class EndpointTestBase : IClassFixture<ApiWebApplicationFactory>
                 Convert.ToBase64String(
                     testUser switch
                     {
+                        TestUser.Admin => Encoding.UTF8.GetBytes($"{clientName}:integration-test-admin"),
                         TestUser.ReadOnly => Encoding.UTF8.GetBytes($"{clientName}:integration-test-read"),
                         TestUser.WriteOnly => Encoding.UTF8.GetBytes($"{clientName}:integration-test-write"),
                         _ => Encoding.UTF8.GetBytes($"{clientName}:integration-test-readwrite"),
@@ -73,6 +74,7 @@ public class EndpointTestBase : IClassFixture<ApiWebApplicationFactory>
 
         return testUser switch
         {
+            TestUser.Admin => $"{prefix}-{clientType}-Admin",
             TestUser.ReadOnly => $"{prefix}-{clientType}-Read",
             TestUser.WriteOnly => $"{prefix}-{clientType}-Write",
             _ => $"{prefix}-{clientType}-ReadWrite",
@@ -88,6 +90,7 @@ public class EndpointTestBase : IClassFixture<ApiWebApplicationFactory>
 
     protected enum TestUser
     {
+        Admin,
         ReadWrite,
         ReadOnly,
         WriteOnly,

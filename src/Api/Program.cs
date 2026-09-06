@@ -71,6 +71,7 @@ try
     builder.Services.AddSingleton<ICurrentObligationYearProvider, CurrentObligationYearProvider>();
     builder.Services.AddTransient<IUnsubmittedEligibilityVisibilityService, UnsubmittedEligibilityVisibilityService>();
     builder.Services.AddTransient<IUnsubmittedOrganisationsService, UnsubmittedOrganisationsService>();
+    builder.Services.AddTransient<IUnsubmittedPollingStatusService, UnsubmittedPollingStatusService>();
     builder.Services.AddTransient<ICancellationEmailRecipientResolver, CancellationEmailRecipientResolver>();
     builder.Services.AddTransient<IEmailService, EmailService>();
 

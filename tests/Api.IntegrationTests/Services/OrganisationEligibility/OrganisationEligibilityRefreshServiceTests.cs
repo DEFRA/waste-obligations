@@ -7,6 +7,7 @@ using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.AccountBackend;
 using Defra.WasteObligations.Api.Services.OrganisationEligibility;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
+using Defra.WasteObligations.Api.Utils.Metrics;
 using Defra.WasteObligations.Testing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -744,6 +745,7 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
             unsubmittedEligibilityVisibilityService ?? new UnsubmittedEligibilityVisibilityService(dbContext),
             options,
             timeProvider,
+            Substitute.For<IOrganisationEligibilityRefreshMetrics>(),
             logger
                 ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<OrganisationEligibilityRefreshService>.Instance
         );
