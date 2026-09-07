@@ -10,7 +10,7 @@ public class MongoMigrationService(
     IMongoDatabase database,
     TimeProvider timeProvider,
     ILogger<MongoMigrationService> logger
-) : IHostedService
+) : BackgroundService
 {
     private const int DuplicateKeyErrorCode = 11000;
     private const string LeaseCollectionName = "_migrations_lease";
@@ -20,15 +20,15 @@ public class MongoMigrationService(
 
     private readonly string _instanceId = $"{Environment.MachineName}-{Guid.NewGuid():N}";
 
-    public async Task StartAsync(CancellationToken cancellationToken)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var lease = database.GetCollection<MongoMigrationLease>(LeaseCollectionName);
 
         logger.LogInformation("Starting Mongo migrations.");
 
-        while (!cancellationToken.IsCancellationRequested)
+        while (!stoppingToken.IsCancellationRequested)
         {
-            var acquired = await TryAcquireLease(lease, cancellationToken);
+            var acquired = await TryAcquireLease(lease, stoppingToken);
 
             if (acquired)
             {
@@ -36,11 +36,11 @@ public class MongoMigrationService(
 
                 try
                 {
-                    await RunMigrations(cancellationToken);
+                    await RunMigrations(stoppingToken);
                 }
                 finally
                 {
-                    await ReleaseLease(lease, cancellationToken);
+                    await ReleaseLease(lease, stoppingToken);
                     logger.LogInformation("Mongo migration lease released by {InstanceId}.", _instanceId);
                 }
 
@@ -48,11 +48,9 @@ public class MongoMigrationService(
             }
 
             logger.LogInformation("Mongo migration lease is held by another host. Waiting before retrying.");
-            await Task.Delay(LeaseRetryDelay, cancellationToken);
+            await Task.Delay(LeaseRetryDelay, stoppingToken);
         }
     }
-
-    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     private async Task<bool> TryAcquireLease(
         IMongoCollection<MongoMigrationLease> lease,

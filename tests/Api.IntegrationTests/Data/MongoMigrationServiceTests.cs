@@ -50,7 +50,7 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         "ObligationYear_IsHydrationActive_Priority_NextRefreshAt";
 
     [Fact]
-    public async Task Start_ShouldCreateIndex()
+    public async Task Start_WhenMigrationLeaseIsHeld_ShouldNotBlockAndCreateIndex()
     {
         var database = GetMongoDatabase();
         var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
@@ -64,8 +64,46 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         await new ComplianceDeclarationIndexes().DownAsync(context);
         await new AuditEventIndexesMigration().DownAsync(context);
         await new OrganisationObligationSummaryIndexes().DownAsync(context);
+        var migrationLease = database.GetCollection<MongoMigrationLease>("_migrations_lease");
+        await migrationLease.InsertOneAsync(
+            new MongoMigrationLease
+            {
+                Id = "mongo-migrations",
+                Owner = "another-instance",
+                ExpiresAt = DateTime.UtcNow.AddMinutes(1),
+            },
+            cancellationToken: TestContext.Current.CancellationToken
+        );
 
-        await subject.StartAsync(TestContext.Current.CancellationToken);
+        await subject
+            .StartAsync(TestContext.Current.CancellationToken)
+            .WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
+
+        await migrationLease.DeleteOneAsync(x => x.Id == "mongo-migrations", TestContext.Current.CancellationToken);
+
+        await WaitForAsync(
+            async () =>
+            {
+                var indexes = await (
+                    await ComplianceDeclarations.Indexes.ListAsync(TestContext.Current.CancellationToken)
+                ).ToListAsync(TestContext.Current.CancellationToken);
+                indexes
+                    .Should()
+                    .Contain(x => IsIndex(x, OrganisationIdObligationYearIndexName, OrganisationReadIndexKeys()));
+                indexes
+                    .Should()
+                    .Contain(x => IsIndex(x, BusinessCountrySearchIndexName, BusinessCountrySearchIndexKeys()));
+
+                var auditEventIndexes = await (
+                    await AuditEvents.Indexes.ListAsync(TestContext.Current.CancellationToken)
+                ).ToListAsync(TestContext.Current.CancellationToken);
+                auditEventIndexes
+                    .Should()
+                    .Contain(x => x.GetValue("name") == DispatchAnalyticsStatusNextAttemptAtSequenceIndexName);
+            },
+            timeout: 10,
+            delay: TimeSpan.FromMilliseconds(50)
+        );
 
         var complianceDeclarationIndexes = await (
             await ComplianceDeclarations.Indexes.ListAsync(TestContext.Current.CancellationToken)
@@ -106,6 +144,8 @@ public class MongoMigrationServiceTests : IntegrationTestBase
                     dispatchStatusNextAttemptAtSequenceKeys
                 )
             );
+
+        await subject.StopAsync(TestContext.Current.CancellationToken);
     }
 
     [Fact]
