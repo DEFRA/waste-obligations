@@ -7,6 +7,7 @@ using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.AuditEvents.Data;
 using Defra.WasteObligations.AuditEvents.Entities;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Driver;
 using NSubstitute;
@@ -55,8 +56,9 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         var database = GetMongoDatabase();
         var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
         var subject = new MongoMigrationService(
-            database,
-            TimeProvider.System,
+            new MongoMigrationLeaseService(database, TimeProvider.System),
+            new MongoMigrationRunner(database, Substitute.For<ILogger<MongoMigrationRunner>>()),
+            Options.Create(new MongoMigrationOptions()),
             Substitute.For<ILogger<MongoMigrationService>>()
         );
         await database.DropCollectionAsync("_migrations", TestContext.Current.CancellationToken);
