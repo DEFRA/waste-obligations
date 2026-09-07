@@ -1,4 +1,5 @@
 using AdaskoTheBeAsT.MongoDbMigrations.Abstractions;
+using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
@@ -6,6 +7,8 @@ using Defra.WasteObligations.Api.Data.Migrations;
 using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.AuditEvents.Data;
 using Defra.WasteObligations.AuditEvents.Entities;
+using Defra.WasteObligations.Testing;
+using Defra.WasteObligations.Testing.Fixtures.Entities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
@@ -148,6 +151,43 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             );
 
         await subject.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task Run_WhenMigrationFails_ShouldLogAndThrow()
+    {
+        var database = GetMongoDatabase();
+        var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
+        var logger = new RecordingLogger<MongoMigrationRunner>();
+        var subject = new MongoMigrationRunner(database, logger);
+        await database.DropCollectionAsync("_migrations", TestContext.Current.CancellationToken);
+        await new AuditEventIndexesMigration().DownAsync(context);
+        await AuditEvents.InsertManyAsync(
+            [AuditEventFixture.Default("event-1", 1).Create(), AuditEventFixture.Default("event-2", 1).Create()],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+
+        try
+        {
+            var act = () => subject.Run(TestContext.Current.CancellationToken);
+
+            await act.Should().ThrowAsync<InvalidOperationException>();
+            logger
+                .Entries.Should()
+                .Contain(x =>
+                    x.Level == LogLevel.Error
+                    && x.Message == "Mongo migration 002 - AuditEvent indexes version 1.0.1 failed."
+                );
+        }
+        finally
+        {
+            await AuditEvents.DeleteManyAsync(
+                x => x.EventId == "event-1" || x.EventId == "event-2",
+                TestContext.Current.CancellationToken
+            );
+
+            await subject.Run(TestContext.Current.CancellationToken);
+        }
     }
 
     [Fact]

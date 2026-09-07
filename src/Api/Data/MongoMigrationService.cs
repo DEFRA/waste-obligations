@@ -164,9 +164,9 @@ public class MongoMigrationService(
             if (stoppingToken.IsCancellationRequested || migrationCancellationToken.IsCancellationRequested)
                 return await WaitForMigrationAttempt(
                     migrationTask,
-                    attemptCancellationTokenSource.Token,
                     attempt,
-                    false
+                    false,
+                    attemptCancellationTokenSource.Token
                 );
 
             logger.LogError(
@@ -176,17 +176,17 @@ public class MongoMigrationService(
             );
             await attemptCancellationTokenSource.CancelAsync();
 
-            return await WaitForMigrationAttempt(migrationTask, attemptCancellationTokenSource.Token, attempt, true);
+            return await WaitForMigrationAttempt(migrationTask, attempt, true, attemptCancellationTokenSource.Token);
         }
 
-        return await WaitForMigrationAttempt(migrationTask, attemptCancellationTokenSource.Token, attempt, false);
+        return await WaitForMigrationAttempt(migrationTask, attempt, false, attemptCancellationTokenSource.Token);
     }
 
     private async Task<bool> WaitForMigrationAttempt(
         Task migrationTask,
-        CancellationToken cancellationToken,
         int attempt,
-        bool timeoutLogged
+        bool timeoutLogged,
+        CancellationToken cancellationToken
     )
     {
         try
