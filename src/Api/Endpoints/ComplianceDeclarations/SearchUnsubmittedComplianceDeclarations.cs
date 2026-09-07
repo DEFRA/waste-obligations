@@ -41,7 +41,7 @@ public static class SearchUnsubmittedComplianceDeclarations
             {
                 ObligationYear = request.ObligationYear,
                 RegistrationTypes = registrationTypes,
-                BusinessCountry = request.ParsedCountry()?.ToJsonValue(),
+                BusinessCountry = request.Country,
                 Search = request.Search,
                 Sort = sort,
             },

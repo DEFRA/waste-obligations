@@ -46,7 +46,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
                             Direction = UnsubmittedOrganisationSortDirection.Ascending,
                         },
                     ],
-                    BusinessCountryFilter.Wales.ToJsonValue()
+                    "GB-WLS"
                 ),
                 page: 2,
                 pageSize: 5,

@@ -187,6 +187,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
     {
         const string generation = "generation";
         var walesOrganisationId = Guid.NewGuid();
+        var legacyOrganisationId = Guid.NewGuid();
         await SetReadySnapshot(generation);
         await OrganisationComplianceDeclarationEligibilities.InsertManyAsync(
             [
@@ -198,6 +199,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
                 {
                     BusinessCountry = "GB-ENG",
                 },
+                Eligibility(legacyOrganisationId, generation, "Legacy Packaging", "100003"),
             ],
             cancellationToken: TestContext.Current.CancellationToken
         );
@@ -217,6 +219,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
 
         result.Total.Should().Be(1);
         result.Rows.Should().ContainSingle().Which.OrganisationId.Should().Be(walesOrganisationId);
+        result.Rows.Should().NotContain(x => x.OrganisationId == legacyOrganisationId);
     }
 
     [Fact]

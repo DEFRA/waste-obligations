@@ -54,7 +54,5 @@ public record UnsubmittedComplianceDeclarationsRequest
         RegistrationType?.Split(',').NotNull().Select(x => x.FromJsonValue<RegistrationType>().ToEntity()).ToArray()
         ?? [];
 
-    public BusinessCountryFilter? ParsedCountry() => Country?.FromJsonValue<BusinessCountryFilter>();
-
     public Data.UnsubmittedOrganisationSort[] ParsedSort() => UnsubmittedOrganisationSortParser.Parse(Sort);
 }
