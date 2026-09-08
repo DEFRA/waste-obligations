@@ -94,6 +94,51 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task EnqueueReconciliation_ShouldHydrateAndDeactivateAnOutgoingYearSummary()
+    {
+        const int outgoingObligationYear = 2025;
+        var organisationId = Guid.NewGuid();
+        var cutover = _timeProvider.GetUtcNow().UtcDateTime;
+        await InsertActiveSnapshot();
+        await InsertEligibility(
+            organisationId,
+            RegistrationType.DirectProducer,
+            obligationYear: outgoingObligationYear
+        );
+        await InsertSummary(
+            organisationId,
+            OrganisationObligationRefreshState.Ready,
+            cutover.AddMinutes(-30),
+            isHydrationActive: true,
+            obligationYear: outgoingObligationYear
+        );
+        ObligationSource
+            .ReadObligations(organisationId, outgoingObligationYear, Arg.Any<CancellationToken>())
+            .Returns([CreateObligation("Glass", accepted: 15, obligated: 20, ObligationStatus.Met)]);
+        var subject = CreateSubject();
+
+        var reconciledCount = await subject.EnqueueReconciliation(
+            outgoingObligationYear,
+            cutover,
+            TestContext.Current.CancellationToken
+        );
+        var work = await subject.PrepareDueWork(outgoingObligationYear, TestContext.Current.CancellationToken);
+        await subject.HydratePreparedDueWork(
+            work,
+            TestContext.Current.CancellationToken,
+            deactivateAfterSuccessfulRead: true
+        );
+
+        reconciledCount.Should().Be(1);
+        var summary = await OrganisationObligationSummaries
+            .Find(x => x.OrganisationId == organisationId && x.ObligationYear == outgoingObligationYear)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        summary.LastSuccessfulReadAt.Should().Be(cutover);
+        summary.IsHydrationActive.Should().BeFalse();
+        summary.Priority.Should().Be(OrganisationObligationHydrationPriority.ScheduledRefresh);
+    }
+
+    [Fact]
     public async Task EnqueueNewEligible_ShouldDeduplicateActiveRegisteredResolvedRows()
     {
         var organisationId = Guid.NewGuid();
@@ -658,13 +703,14 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
         DateTime? nextRefreshAt = null,
         DateTime? requestedAt = null,
         int attemptCount = 0,
-        string? lastFailure = null
+        string? lastFailure = null,
+        int obligationYear = ObligationYear
     ) =>
         OrganisationObligationSummaries.InsertOneAsync(
             new OrganisationObligationSummary
             {
                 OrganisationId = organisationId,
-                ObligationYear = ObligationYear,
+                ObligationYear = obligationYear,
                 ObligationCount = 1,
                 TotalAcceptedTonnage = 4,
                 TotalObligatedTonnage = 5,

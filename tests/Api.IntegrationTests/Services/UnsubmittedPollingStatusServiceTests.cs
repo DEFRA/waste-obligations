@@ -187,7 +187,56 @@ public class UnsubmittedPollingStatusServiceTests : IntegrationTestBase
             ]);
     }
 
-    private async Task<UnsubmittedPollingStatusService> CreateSubject()
+    [Fact]
+    public async Task Get_DuringJanuaryHandover_ShouldCalculateCapacityAcrossBothHydrationYears()
+    {
+        _timeProvider.SetUtcNow(new DateTimeOffset(2027, 1, 15, 9, 0, 0, TimeSpan.Zero));
+        var utcNow = _timeProvider.GetUtcNow().UtcDateTime;
+        await OrganisationObligationSummaries.InsertManyAsync(
+            [
+                Summary(
+                    refreshState: OrganisationObligationRefreshState.Ready,
+                    nextRefreshAt: utcNow.AddMinutes(15),
+                    lastSuccessfulReadAt: utcNow.AddMinutes(-5),
+                    obligationYear: 2026
+                ),
+                Summary(
+                    refreshState: OrganisationObligationRefreshState.Ready,
+                    nextRefreshAt: utcNow.AddMinutes(15),
+                    lastSuccessfulReadAt: utcNow.AddMinutes(-5),
+                    obligationYear: 2026
+                ),
+                Summary(
+                    refreshState: OrganisationObligationRefreshState.Pending,
+                    nextRefreshAt: utcNow.AddMinutes(-5),
+                    lastSuccessfulReadAt: null,
+                    obligationYear: 2027
+                ),
+                Summary(
+                    refreshState: OrganisationObligationRefreshState.Pending,
+                    nextRefreshAt: utcNow.AddMinutes(-5),
+                    lastSuccessfulReadAt: null,
+                    obligationYear: 2027
+                ),
+            ],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        var subject = await CreateSubject(activeSummaryCount: 4);
+
+        var result = await subject.Get(TestContext.Current.CancellationToken);
+
+        result.ObligationHydration.TotalMinimumFullRefreshMinutes.Should().Be(0.02);
+        result.ObligationHydration.EstimatedFullRefreshMinutes.Should().Be(4);
+        result.ObligationHydration.EstimatedStalenessGapMinutes.Should().Be(0);
+        result
+            .ObligationHydration.Years.Should()
+            .BeEquivalentTo([
+                new { ObligationYear = 2026, ActiveSummaryCount = 2 },
+                new { ObligationYear = 2027, ActiveSummaryCount = 2 },
+            ]);
+    }
+
+    private async Task<UnsubmittedPollingStatusService> CreateSubject(int activeSummaryCount = 60)
     {
         var dbContext = new MongoDbContext(
             GetMongoApplicationDatabase(),
@@ -203,7 +252,7 @@ public class UnsubmittedPollingStatusServiceTests : IntegrationTestBase
             _timeProvider
         );
         var requestPacer = new OrganisationObligationRequestPacer(pacingStateStore, options, _timeProvider);
-        await requestPacer.ObserveWorkload(60, TestContext.Current.CancellationToken);
+        await requestPacer.ObserveWorkload(activeSummaryCount, TestContext.Current.CancellationToken);
 
         return new UnsubmittedPollingStatusService(
             dbContext,

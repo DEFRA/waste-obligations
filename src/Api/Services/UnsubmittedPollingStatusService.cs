@@ -23,13 +23,25 @@ public class UnsubmittedPollingStatusService(
     public async Task<UnsubmittedPollingStatus> Get(CancellationToken cancellationToken)
     {
         var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
-        var currentObligationYear = currentObligationYearProvider.GetCurrentObligationYear();
+        var handover = currentObligationYearProvider.GetHandover(
+            obligationHydrationOptions.Value.OutgoingYearGracePeriod
+        );
+        var hydrationObligationYears = new int?[]
+        {
+            handover.CurrentObligationYear,
+            handover.IncomingObligationYear,
+            handover.OutgoingObligationYear,
+        }
+            .OfType<int>()
+            .ToArray();
         var snapshot = await dbContext
             .OrganisationEligibilitySnapshots.Find(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId)
             .SingleOrDefaultAsync(cancellationToken);
         var activeRowSummary = await ActiveRowSummary(snapshot?.ActiveGeneration, cancellationToken);
-        var currentObligationYearSummaries = await dbContext
-            .OrganisationObligationSummaries.Find(x => x.IsHydrationActive && x.ObligationYear == currentObligationYear)
+        var hydrationSummaries = await dbContext
+            .OrganisationObligationSummaries.Find(x =>
+                x.IsHydrationActive && hydrationObligationYears.Contains(x.ObligationYear)
+            )
             .ToListAsync(cancellationToken);
         var pacingState = await pacingStateStore.Get(cancellationToken);
         var historicalBackfills = await historicalBackfillStore.GetAll(cancellationToken);
@@ -50,7 +62,7 @@ public class UnsubmittedPollingStatusService(
                 Lease(leases, BackgroundWorkerLease.OrganisationEligibilityRefreshLeaseId, utcNow)
             ),
             ObligationHydration = ObligationHydrationStatus(
-                currentObligationYearSummaries,
+                hydrationSummaries,
                 historicalBackfills,
                 obligationHydrationOptions.Value,
                 pacingState,

@@ -38,9 +38,54 @@ public class OrganisationObligationHydrationService(
 
     public async Task<int> HydrateDue(int obligationYear, CancellationToken cancellationToken, int? maximumWork = null)
     {
+        var work = await PrepareDueWork(obligationYear, cancellationToken);
+        await requestPacer.ObserveWorkload(work.ActiveSummaryCount, cancellationToken);
+
+        return await HydratePreparedDueWork(work, cancellationToken, maximumWork);
+    }
+
+    public async Task<int> EnqueueReconciliation(
+        int obligationYear,
+        DateTime reconciliationSince,
+        CancellationToken cancellationToken
+    )
+    {
         var eligibility = await GetEligibleOrganisationIds(obligationYear, cancellationToken);
         if (!eligibility.HasActiveGeneration)
             return 0;
+
+        var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
+        var result = await dbContext.OrganisationObligationSummaries.UpdateManyAsync(
+            x =>
+                x.ObligationYear == obligationYear
+                && eligibility.OrganisationIds.Contains(x.OrganisationId)
+                && x.IsHydrationActive
+                && x.Priority == OrganisationObligationHydrationPriority.ScheduledRefresh
+                && (x.LastSuccessfulReadAt == null || x.LastSuccessfulReadAt < reconciliationSince),
+            Builders<OrganisationObligationSummary>
+                .Update.Set(x => x.Priority, OrganisationObligationHydrationPriority.Reconciliation)
+                .Set(x => x.NextRefreshAt, utcNow),
+            cancellationToken: cancellationToken
+        );
+
+        return (int)result.ModifiedCount;
+    }
+
+    public async Task<OrganisationObligationHydrationPreparedWork> PrepareDueWork(
+        int obligationYear,
+        CancellationToken cancellationToken
+    )
+    {
+        var eligibility = await GetEligibleOrganisationIds(obligationYear, cancellationToken);
+        if (!eligibility.HasActiveGeneration)
+        {
+            return new OrganisationObligationHydrationPreparedWork
+            {
+                ObligationYear = obligationYear,
+                ActiveSummaryCount = 0,
+                DueSummaryCount = 0,
+            };
+        }
 
         await RemoveInactiveWork(eligibility.OrganisationIds, obligationYear, cancellationToken);
         await EnqueueNewEligible(eligibility.OrganisationIds, obligationYear, cancellationToken);
@@ -54,21 +99,38 @@ public class OrganisationObligationHydrationService(
             cancellationToken: cancellationToken
         );
         await Task.WhenAll(activeSummaryCountTask, dueSummaryCountTask);
-        var activeSummaryCount = await activeSummaryCountTask;
-        var dueSummaryCount = await dueSummaryCountTask;
-        await requestPacer.ObserveWorkload((int)activeSummaryCount, cancellationToken);
+
+        return new OrganisationObligationHydrationPreparedWork
+        {
+            ObligationYear = obligationYear,
+            ActiveSummaryCount = (int)await activeSummaryCountTask,
+            DueSummaryCount = (int)await dueSummaryCountTask,
+        };
+    }
+
+    public async Task<int> HydratePreparedDueWork(
+        OrganisationObligationHydrationPreparedWork work,
+        CancellationToken cancellationToken,
+        int? maximumWork = null,
+        bool deactivateAfterSuccessfulRead = false
+    )
+    {
+        var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
         var pacing = await requestPacer.GetStatus(cancellationToken);
-        metrics.QueueObserved((int)activeSummaryCount, (int)dueSummaryCount);
+        metrics.QueueObserved(work.ActiveSummaryCount, work.DueSummaryCount);
         metrics.CapacityObserved(
-            (int)activeSummaryCount,
+            work.ActiveSummaryCount,
             options.Value.MaxDownstreamRequestsPerMinute,
             pacing.DesiredRequestsPerMinute,
             pacing.EffectiveRequestsPerMinute,
             options.Value.RefreshInterval
         );
-        var work = await dbContext
+        if (work.ActiveSummaryCount == 0)
+            return 0;
+
+        var dueWork = await dbContext
             .OrganisationObligationSummaries.Find(x =>
-                x.ObligationYear == obligationYear && x.IsHydrationActive && x.NextRefreshAt <= utcNow
+                x.ObligationYear == work.ObligationYear && x.IsHydrationActive && x.NextRefreshAt <= utcNow
             )
             .SortBy(x => x.Priority)
             .ThenBy(x => x.NextRefreshAt)
@@ -82,15 +144,15 @@ public class OrganisationObligationHydrationService(
         };
 
         await Parallel.ForEachAsync(
-            work,
+            dueWork,
             parallelOptions,
             async (item, token) =>
             {
-                await Hydrate(item, isHistoricalBackfill: false, token);
+                await Hydrate(item, deactivateAfterSuccessfulRead, token);
                 Interlocked.Increment(ref processedCount);
             }
         );
-        await ObserveStaleness(obligationYear, utcNow, cancellationToken);
+        await ObserveStaleness(work.ObligationYear, utcNow, cancellationToken);
 
         return processedCount;
     }
@@ -137,7 +199,7 @@ public class OrganisationObligationHydrationService(
             parallelOptions,
             async (item, token) =>
             {
-                await Hydrate(item, isHistoricalBackfill: true, token);
+                await Hydrate(item, deactivateAfterSuccessfulRead: true, token);
                 Interlocked.Increment(ref processedCount);
             }
         );
@@ -338,7 +400,7 @@ public class OrganisationObligationHydrationService(
 
     private async Task Hydrate(
         OrganisationObligationSummary work,
-        bool isHistoricalBackfill,
+        bool deactivateAfterSuccessfulRead,
         CancellationToken cancellationToken
     )
     {
@@ -352,7 +414,7 @@ public class OrganisationObligationHydrationService(
                 obligations
             );
             var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
-            var nextRefreshAt = isHistoricalBackfill
+            var nextRefreshAt = deactivateAfterSuccessfulRead
                 ? utcNow
                 : NextRefreshAt(work.OrganisationId, work.ObligationYear, utcNow);
             var summary = work with
@@ -370,7 +432,7 @@ public class OrganisationObligationHydrationService(
                 AttemptCount = 0,
                 LastFailure = null,
                 Priority = OrganisationObligationHydrationPriority.ScheduledRefresh,
-                IsHydrationActive = !isHistoricalBackfill,
+                IsHydrationActive = !deactivateAfterSuccessfulRead,
             };
 
             await Persist(summary, cancellationToken);

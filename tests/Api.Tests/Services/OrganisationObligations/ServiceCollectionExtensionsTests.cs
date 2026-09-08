@@ -81,11 +81,11 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddOrganisationObligationHydration_WhenBatchSizeIsOne_ShouldAllowCurrentYearOnlyScheduling()
+    public void AddOrganisationObligationHydration_WhenBatchSizeCanScheduleBothHandoverYears_ShouldValidateConfiguration()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(
-                new Dictionary<string, string?> { ["OrganisationObligationHydration:BatchSize"] = "1" }
+                new Dictionary<string, string?> { ["OrganisationObligationHydration:BatchSize"] = "2" }
             )
             .Build();
         var services = new ServiceCollection();
@@ -94,6 +94,6 @@ public class ServiceCollectionExtensionsTests
         using var serviceProvider = services.BuildServiceProvider();
         var options = serviceProvider.GetRequiredService<IOptions<OrganisationObligationHydrationOptions>>();
 
-        options.Value.BatchSize.Should().Be(1);
+        options.Value.BatchSize.Should().Be(2);
     }
 }
