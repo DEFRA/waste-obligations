@@ -44,14 +44,17 @@ public class OrganisationObligationHydrationService(
         await RemoveInactiveWork(eligibility.OrganisationIds, obligationYear, cancellationToken);
         await EnqueueNewEligible(eligibility.OrganisationIds, obligationYear, cancellationToken);
         var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
-        var activeSummaryCount = await dbContext.OrganisationObligationSummaries.CountDocumentsAsync(
+        var activeSummaryCountTask = dbContext.OrganisationObligationSummaries.CountDocumentsAsync(
             x => x.ObligationYear == obligationYear && x.IsHydrationActive,
             cancellationToken: cancellationToken
         );
-        var dueSummaryCount = await dbContext.OrganisationObligationSummaries.CountDocumentsAsync(
+        var dueSummaryCountTask = dbContext.OrganisationObligationSummaries.CountDocumentsAsync(
             x => x.ObligationYear == obligationYear && x.IsHydrationActive && x.NextRefreshAt <= utcNow,
             cancellationToken: cancellationToken
         );
+        await Task.WhenAll(activeSummaryCountTask, dueSummaryCountTask);
+        var activeSummaryCount = await activeSummaryCountTask;
+        var dueSummaryCount = await dueSummaryCountTask;
         metrics.QueueObserved((int)activeSummaryCount, (int)dueSummaryCount);
         metrics.CapacityObserved(
             (int)activeSummaryCount,
