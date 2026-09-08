@@ -1,4 +1,5 @@
 using AdaskoTheBeAsT.MongoDbMigrations.Abstractions;
+using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
@@ -6,7 +7,10 @@ using Defra.WasteObligations.Api.Data.Migrations;
 using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.AuditEvents.Data;
 using Defra.WasteObligations.AuditEvents.Entities;
+using Defra.WasteObligations.Testing;
+using Defra.WasteObligations.Testing.Fixtures.Entities;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Driver;
 using NSubstitute;
@@ -52,13 +56,14 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         "ObligationYear_IsHydrationActive_Priority_NextRefreshAt";
 
     [Fact]
-    public async Task Start_ShouldCreateIndex()
+    public async Task Start_WhenMigrationLeaseIsHeld_ShouldNotBlockAndCreateIndex()
     {
         var database = GetMongoDatabase();
         var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
         var subject = new MongoMigrationService(
-            database,
-            TimeProvider.System,
+            new MongoMigrationLeaseService(database, TimeProvider.System),
+            new MongoMigrationRunner(database, Substitute.For<ILogger<MongoMigrationRunner>>()),
+            Options.Create(new MongoMigrationOptions()),
             Substitute.For<ILogger<MongoMigrationService>>()
         );
         await database.DropCollectionAsync("_migrations", TestContext.Current.CancellationToken);
@@ -66,8 +71,46 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         await new ComplianceDeclarationIndexes().DownAsync(context);
         await new AuditEventIndexesMigration().DownAsync(context);
         await new OrganisationObligationSummaryIndexes().DownAsync(context);
+        var migrationLease = database.GetCollection<MongoMigrationLease>("_migrations_lease");
+        await migrationLease.InsertOneAsync(
+            new MongoMigrationLease
+            {
+                Id = "mongo-migrations",
+                Owner = "another-instance",
+                ExpiresAt = DateTime.UtcNow.AddMinutes(1),
+            },
+            cancellationToken: TestContext.Current.CancellationToken
+        );
 
-        await subject.StartAsync(TestContext.Current.CancellationToken);
+        await subject
+            .StartAsync(TestContext.Current.CancellationToken)
+            .WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
+
+        await migrationLease.DeleteOneAsync(x => x.Id == "mongo-migrations", TestContext.Current.CancellationToken);
+
+        await WaitForAsync(
+            async () =>
+            {
+                var indexes = await (
+                    await ComplianceDeclarations.Indexes.ListAsync(TestContext.Current.CancellationToken)
+                ).ToListAsync(TestContext.Current.CancellationToken);
+                indexes
+                    .Should()
+                    .Contain(x => IsIndex(x, OrganisationIdObligationYearIndexName, OrganisationReadIndexKeys()));
+                indexes
+                    .Should()
+                    .Contain(x => IsIndex(x, BusinessCountrySearchIndexName, BusinessCountrySearchIndexKeys()));
+
+                var auditEventIndexes = await (
+                    await AuditEvents.Indexes.ListAsync(TestContext.Current.CancellationToken)
+                ).ToListAsync(TestContext.Current.CancellationToken);
+                auditEventIndexes
+                    .Should()
+                    .Contain(x => x.GetValue("name") == DispatchAnalyticsStatusNextAttemptAtSequenceIndexName);
+            },
+            timeout: 10,
+            delay: TimeSpan.FromMilliseconds(50)
+        );
 
         var complianceDeclarationIndexes = await (
             await ComplianceDeclarations.Indexes.ListAsync(TestContext.Current.CancellationToken)
@@ -108,6 +151,45 @@ public class MongoMigrationServiceTests : IntegrationTestBase
                     dispatchStatusNextAttemptAtSequenceKeys
                 )
             );
+
+        await subject.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task Run_WhenMigrationFails_ShouldLogAndThrow()
+    {
+        var database = GetMongoDatabase();
+        var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
+        var logger = new RecordingLogger<MongoMigrationRunner>();
+        var subject = new MongoMigrationRunner(database, logger);
+        await database.DropCollectionAsync("_migrations", TestContext.Current.CancellationToken);
+        await new AuditEventIndexesMigration().DownAsync(context);
+        await AuditEvents.InsertManyAsync(
+            [AuditEventFixture.Default("event-1", 1).Create(), AuditEventFixture.Default("event-2", 1).Create()],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+
+        try
+        {
+            var act = () => subject.Run(TestContext.Current.CancellationToken);
+
+            await act.Should().ThrowAsync<InvalidOperationException>();
+            logger
+                .Entries.Should()
+                .Contain(x =>
+                    x.Level == LogLevel.Error
+                    && x.Message == "Mongo migration 002 - AuditEvent indexes version 1.0.1 failed."
+                );
+        }
+        finally
+        {
+            await AuditEvents.DeleteManyAsync(
+                x => x.EventId == "event-1" || x.EventId == "event-2",
+                TestContext.Current.CancellationToken
+            );
+
+            await subject.Run(TestContext.Current.CancellationToken);
+        }
     }
 
     [Fact]

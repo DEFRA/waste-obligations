@@ -32,7 +32,8 @@ Log.Logger = new LoggerConfiguration().WriteTo.Console(new EcsTextFormatter()).C
 try
 {
     var builder = WebApplication.CreateBuilder(args);
-    var integrationTest = args.Contains("--integrationTest=true");
+    var integrationTest =
+        builder.Environment.IsEnvironment("IntegrationTests") || args.Contains("--integrationTest=true");
     var openApiBuild = Assembly.GetEntryAssembly().IsProjectBuildGeneratingOpenApi();
 
     builder.Configuration.AddEnvironmentVariables();

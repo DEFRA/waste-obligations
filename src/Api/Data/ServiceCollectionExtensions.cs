@@ -21,10 +21,21 @@ public static class ServiceCollectionExtensions
             .Bind(configuration.GetSection(MongoDbOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
+        services
+            .AddOptions<MongoMigrationOptions>()
+            .BindConfiguration(MongoMigrationOptions.SectionName)
+            .ValidateDataAnnotations()
+            .Validate(
+                options => options.LeaseRenewalIntervalSeconds * 2 <= options.LeaseDurationSeconds,
+                "Mongo migration lease renewal interval must be no more than half the lease duration"
+            )
+            .ValidateOnStart();
 
         if (validateConfigOnly)
             return services;
 
+        services.AddSingleton<IMongoMigrationLeaseService, MongoMigrationLeaseService>();
+        services.AddSingleton<IMongoMigrationRunner, MongoMigrationRunner>();
         services.AddHostedService<MongoMigrationService>();
         services.AddScoped<IDbContext, MongoDbContext>();
         services.AddSingleton(sp =>
