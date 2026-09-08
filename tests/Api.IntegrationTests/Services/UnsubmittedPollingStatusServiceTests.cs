@@ -18,6 +18,7 @@ public class UnsubmittedPollingStatusServiceTests : IntegrationTestBase
     public async Task Get_WhenPollingDataExists_ShouldReturnConfigurationAndCurrentMaterialisedState()
     {
         const string activeGeneration = "active-generation";
+        var eligibleOrganisationId = Guid.NewGuid();
         var utcNow = _timeProvider.GetUtcNow().UtcDateTime;
         await OrganisationEligibilitySnapshots.InsertOneAsync(
             new OrganisationEligibilitySnapshot
@@ -25,7 +26,7 @@ public class UnsubmittedPollingStatusServiceTests : IntegrationTestBase
                 Id = OrganisationEligibilitySnapshot.SnapshotId,
                 ActiveGeneration = activeGeneration,
                 ActiveContentFingerprint = "fingerprint",
-                ActiveRowCount = 2,
+                ActiveRowCount = 3,
                 ActiveGenerationPromotedAt = utcNow.AddMinutes(-30),
                 LastVerifiedAt = utcNow.AddMinutes(-1),
                 MaterialisedStateVersion = 3,
@@ -38,7 +39,16 @@ public class UnsubmittedPollingStatusServiceTests : IntegrationTestBase
                     activeGeneration,
                     OrganisationRegistrationStatus.Registered,
                     OrganisationReferenceNumberResolutionState.Resolved,
-                    isVisible: true
+                    isVisible: true,
+                    organisationId: eligibleOrganisationId
+                ),
+                Eligibility(
+                    activeGeneration,
+                    OrganisationRegistrationStatus.Registered,
+                    OrganisationReferenceNumberResolutionState.Resolved,
+                    isVisible: true,
+                    organisationId: eligibleOrganisationId,
+                    registrationType: RegistrationType.ComplianceScheme
                 ),
                 Eligibility(
                     activeGeneration,
@@ -101,12 +111,12 @@ public class UnsubmittedPollingStatusServiceTests : IntegrationTestBase
         var result = await subject.Get(TestContext.Current.CancellationToken);
 
         result.Eligibility.ActiveGeneration.Should().Be(activeGeneration);
-        result.Eligibility.ActiveRowCount.Should().Be(2);
-        result.Eligibility.VisibleRowCount.Should().Be(1);
+        result.Eligibility.ActiveRowCount.Should().Be(3);
+        result.Eligibility.VisibleRowCount.Should().Be(2);
         result.Eligibility.HydrationEligibleOrganisationCount.Should().Be(1);
         result
             .Eligibility.ReferenceResolutionStates.Should()
-            .Contain(x => x.State == "Resolved" && x.Count == 1)
+            .Contain(x => x.State == "Resolved" && x.Count == 2)
             .And.Contain(x => x.State == "Pending" && x.Count == 1);
         result.Eligibility.Lease.IsHeld.Should().BeTrue();
         result.ObligationHydration.MaxDownstreamRequestsPerMinute.Should().Be(200);
@@ -148,13 +158,16 @@ public class UnsubmittedPollingStatusServiceTests : IntegrationTestBase
         string generation,
         OrganisationRegistrationStatus registrationStatus,
         OrganisationReferenceNumberResolutionState referenceNumberResolutionState,
-        bool isVisible
+        bool isVisible,
+        Guid? organisationId = null,
+        RegistrationType registrationType = RegistrationType.DirectProducer
     ) =>
         new()
         {
             Generation = generation,
-            OrganisationId = Guid.NewGuid(),
+            OrganisationId = organisationId ?? Guid.NewGuid(),
             ObligationYear = 2026,
+            RegistrationType = registrationType,
             RegistrationStatus = registrationStatus,
             ReferenceNumberResolutionState = referenceNumberResolutionState,
             IsVisibleInUnsubmittedView = isVisible,

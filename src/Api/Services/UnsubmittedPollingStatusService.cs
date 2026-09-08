@@ -5,6 +5,7 @@ using Defra.WasteObligations.Api.Services.OrganisationEligibility;
 using Defra.WasteObligations.Api.Services.OrganisationObligations;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
+using MongoDB.Driver.Linq;
 
 namespace Defra.WasteObligations.Api.Services;
 
@@ -22,7 +23,7 @@ public class UnsubmittedPollingStatusService(
         var snapshot = await dbContext
             .OrganisationEligibilitySnapshots.Find(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId)
             .SingleOrDefaultAsync(cancellationToken);
-        var activeRows = await ActiveRows(snapshot?.ActiveGeneration, cancellationToken);
+        var activeRowSummary = await ActiveRowSummary(snapshot?.ActiveGeneration, cancellationToken);
         var activeSummaries = await dbContext
             .OrganisationObligationSummaries.Find(x => x.IsHydrationActive)
             .ToListAsync(cancellationToken);
@@ -38,7 +39,7 @@ public class UnsubmittedPollingStatusService(
         {
             Eligibility = EligibilityStatus(
                 snapshot,
-                activeRows,
+                activeRowSummary,
                 eligibilityOptions.Value,
                 Lease(leases, BackgroundWorkerLease.OrganisationEligibilityRefreshLeaseId, utcNow)
             ),
@@ -51,22 +52,57 @@ public class UnsubmittedPollingStatusService(
         };
     }
 
-    private async Task<IReadOnlyList<OrganisationComplianceDeclarationEligibility>> ActiveRows(
+    private async Task<OrganisationEligibilityPollingSummary> ActiveRowSummary(
         string? activeGeneration,
         CancellationToken cancellationToken
     )
     {
         if (activeGeneration is null)
-            return [];
+        {
+            return new OrganisationEligibilityPollingSummary
+            {
+                VisibleRowCount = 0,
+                HydrationEligibleOrganisationCount = 0,
+                ReferenceResolutionStateCounts = new Dictionary<OrganisationReferenceNumberResolutionState, int>(),
+            };
+        }
 
-        return await dbContext
-            .OrganisationComplianceDeclarationEligibilities.Find(x => x.Generation == activeGeneration)
+        var activeRows = dbContext
+            .OrganisationComplianceDeclarationEligibilities.AsQueryable()
+            .Where(x => x.Generation == activeGeneration);
+        var visibleRowCountTask = activeRows.Where(x => x.IsVisibleInUnsubmittedView).CountAsync(cancellationToken);
+        var hydrationEligibleOrganisationCountTask = activeRows
+            .Where(x =>
+                x.RegistrationStatus == OrganisationRegistrationStatus.Registered
+                && x.ReferenceNumberResolutionState == OrganisationReferenceNumberResolutionState.Resolved
+            )
+            .Select(x => new { x.OrganisationId, x.ObligationYear })
+            .Distinct()
+            .CountAsync(cancellationToken);
+        var referenceResolutionStateCountsTask = activeRows
+            .GroupBy(x => x.ReferenceNumberResolutionState)
+            .Select(x => new { State = x.Key, Count = x.Count() })
             .ToListAsync(cancellationToken);
+        await Task.WhenAll(
+            visibleRowCountTask,
+            hydrationEligibleOrganisationCountTask,
+            referenceResolutionStateCountsTask
+        );
+
+        return new OrganisationEligibilityPollingSummary
+        {
+            VisibleRowCount = await visibleRowCountTask,
+            HydrationEligibleOrganisationCount = await hydrationEligibleOrganisationCountTask,
+            ReferenceResolutionStateCounts = (await referenceResolutionStateCountsTask).ToDictionary(
+                x => x.State,
+                x => x.Count
+            ),
+        };
     }
 
     private static OrganisationEligibilityPollingStatus EligibilityStatus(
         OrganisationEligibilitySnapshot? snapshot,
-        IReadOnlyList<OrganisationComplianceDeclarationEligibility> rows,
+        OrganisationEligibilityPollingSummary activeRowSummary,
         OrganisationEligibilityOptions options,
         PollingWorkerLeaseStatus lease
     ) =>
@@ -80,21 +116,15 @@ public class UnsubmittedPollingStatusService(
             MaterialisedStateVersion = snapshot?.MaterialisedStateVersion ?? 0,
             RefreshPollingEnabled = options.RefreshPollingEnabled,
             RefreshPollIntervalSeconds = options.RefreshPollIntervalSeconds,
-            VisibleRowCount = rows.Count(x => x.IsVisibleInUnsubmittedView),
-            HydrationEligibleOrganisationCount = rows.Where(x =>
-                    x.RegistrationStatus == OrganisationRegistrationStatus.Registered
-                    && x.ReferenceNumberResolutionState == OrganisationReferenceNumberResolutionState.Resolved
-                )
-                .Select(x => (x.OrganisationId, x.ObligationYear))
-                .Distinct()
-                .Count(),
+            VisibleRowCount = activeRowSummary.VisibleRowCount,
+            HydrationEligibleOrganisationCount = activeRowSummary.HydrationEligibleOrganisationCount,
             ReferenceResolutionStates =
             [
                 .. Enum.GetValues<OrganisationReferenceNumberResolutionState>()
                     .Select(state => new OrganisationReferenceResolutionStatus
                     {
                         State = state.ToString(),
-                        Count = rows.Count(x => x.ReferenceNumberResolutionState == state),
+                        Count = activeRowSummary.ReferenceResolutionStateCounts.GetValueOrDefault(state),
                     }),
             ],
             Lease = lease,
