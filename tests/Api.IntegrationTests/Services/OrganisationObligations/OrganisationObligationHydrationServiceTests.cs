@@ -144,6 +144,82 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task HydrateHistoricalBackfill_WhenItHasNoOrganisations_ShouldNotEnqueueWork()
+    {
+        var requestedAt = _timeProvider.GetUtcNow().UtcDateTime;
+        var backfill = new OrganisationObligationHistoricalBackfill
+        {
+            ObligationYear = 2025,
+            OrganisationIds = [],
+            RequestedAt = requestedAt,
+            UpdatedAt = requestedAt,
+        };
+        var subject = CreateSubject();
+
+        var progress = await subject.HydrateHistoricalBackfill(backfill, TestContext.Current.CancellationToken);
+
+        progress
+            .Should()
+            .BeEquivalentTo(
+                new
+                {
+                    ProcessedCount = 0,
+                    RemainingCount = 0,
+                    WasEnqueued = false,
+                }
+            );
+    }
+
+    [Fact]
+    public async Task HydrateHistoricalBackfill_WhenAPreviousSummaryExists_ShouldReuseItForTheBackfill()
+    {
+        const int historicalObligationYear = 2025;
+        var organisationId = Guid.NewGuid();
+        var requestedAt = _timeProvider.GetUtcNow().UtcDateTime;
+        await InsertSummary(
+            organisationId,
+            OrganisationObligationRefreshState.Failed,
+            requestedAt.AddDays(-1),
+            requestedAt: requestedAt.AddDays(-2),
+            attemptCount: 3,
+            lastFailure: "Previous failure",
+            obligationYear: historicalObligationYear
+        );
+        var backfill = new OrganisationObligationHistoricalBackfill
+        {
+            ObligationYear = historicalObligationYear,
+            OrganisationIds = [organisationId],
+            RequestedAt = requestedAt,
+            UpdatedAt = requestedAt,
+        };
+        ObligationSource
+            .ReadObligations(organisationId, historicalObligationYear, Arg.Any<CancellationToken>())
+            .Returns([CreateObligation("Glass", accepted: 15, obligated: 20, ObligationStatus.Met)]);
+        var subject = CreateSubject();
+
+        var progress = await subject.HydrateHistoricalBackfill(backfill, TestContext.Current.CancellationToken);
+
+        progress
+            .Should()
+            .BeEquivalentTo(
+                new
+                {
+                    ProcessedCount = 1,
+                    RemainingCount = 0,
+                    WasEnqueued = true,
+                }
+            );
+        var summary = await OrganisationObligationSummaries
+            .Find(x => x.OrganisationId == organisationId && x.ObligationYear == historicalObligationYear)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        summary.RequestedAt.Should().Be(requestedAt);
+        summary.LastSuccessfulReadAt.Should().Be(requestedAt);
+        summary.AttemptCount.Should().Be(0);
+        summary.LastFailure.Should().BeNull();
+        summary.IsHydrationActive.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task EnqueueReconciliation_ShouldHydrateAndDeactivateAnOutgoingYearSummary()
     {
         const int outgoingObligationYear = 2025;

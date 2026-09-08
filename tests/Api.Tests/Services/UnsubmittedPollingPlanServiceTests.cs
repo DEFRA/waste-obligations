@@ -148,6 +148,21 @@ public class UnsubmittedPollingPlanServiceTests
     }
 
     [Fact]
+    public async Task Get_WhenWasteOrganisationsReadIsCancelled_ShouldPropagateCancellation()
+    {
+        using var cancellationTokenSource = new CancellationTokenSource();
+        await cancellationTokenSource.CancelAsync();
+        PollingVolumeService
+            .Get(Arg.Any<CancellationToken>())
+            .Returns(Task.FromCanceled<UnsubmittedPollingVolume>(cancellationTokenSource.Token));
+        var subject = CreateSubject(new OrganisationObligationHydrationOptions());
+
+        var action = () => subject.Get(cancellationTokenSource.Token);
+
+        await action.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    [Fact]
     public async Task Get_WhenHistoricalBackfillIsComplete_ShouldExcludeItsYearFromAProposedPlan()
     {
         PollingVolumeService
