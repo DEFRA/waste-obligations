@@ -14,6 +14,8 @@ The migration worker is deliberately separate from request readiness. Mongo migr
 | `MongoMigrations:RetryDelaySeconds` | 30 seconds | Delay before rerunning a cancelled or failed engine. |
 | `MongoMigrations:MaximumAttempts` | 3 | Limits retries by one host and therefore limits repeated error logs. |
 
+The lease renewal interval must be no more than half the lease duration. This leaves at least half a lease period for a delayed renewal before another host can acquire the lease.
+
 Only the host that owns `_migrations_lease` runs the migration engine. Its lease is renewed while that engine is running and while it waits between attempts. The lease is not version-preempted: old and new ECS tasks intentionally coexist during a rolling deployment, and forcibly taking a lease based on `SERVICE_VERSION` could allow two migration engines to work concurrently. `SERVICE_VERSION` remains deployment-log metadata, not coordination or fencing state.
 
 Each retry creates a new `AdaskoTheBeAsT.MongoDbMigrations` engine and reruns the complete package. The package skips migrations already recorded in `_migrations`; an incomplete migration is run again. Current migrations are restartable under this exclusive lease, including the shared named-index helper, so this is the intended reconciliation mechanism rather than a migration-specific recovery method.

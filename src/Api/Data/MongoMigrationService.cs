@@ -1,9 +1,7 @@
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Options;
 
 namespace Defra.WasteObligations.Api.Data;
 
-[ExcludeFromCodeCoverage(Justification = "See integration tests")]
 public class MongoMigrationService(
     IMongoMigrationLeaseService leaseService,
     IMongoMigrationRunner migrationRunner,
@@ -104,25 +102,24 @@ public class MongoMigrationService(
                 if (migrationCancellationTokenSource.IsCancellationRequested)
                     return;
 
-                if (attempt == maximumAttempts)
+                if (attempt < maximumAttempts)
                 {
-                    logger.LogError(
-                        "Mongo migrations did not complete after {AttemptCount} attempt(s). No further attempts will be made by this host.",
-                        maximumAttempts
+                    logger.LogWarning(
+                        "Mongo migration attempt {Attempt} did not complete. Retrying in {RetryDelay} while retaining the lease.",
+                        attempt,
+                        TimeSpan.FromSeconds(options.Value.RetryDelaySeconds)
                     );
-                    return;
+                    await Task.Delay(
+                        TimeSpan.FromSeconds(options.Value.RetryDelaySeconds),
+                        migrationCancellationTokenSource.Token
+                    );
                 }
-
-                logger.LogWarning(
-                    "Mongo migration attempt {Attempt} did not complete. Retrying in {RetryDelay} while retaining the lease.",
-                    attempt,
-                    TimeSpan.FromSeconds(options.Value.RetryDelaySeconds)
-                );
-                await Task.Delay(
-                    TimeSpan.FromSeconds(options.Value.RetryDelaySeconds),
-                    migrationCancellationTokenSource.Token
-                );
             }
+
+            logger.LogError(
+                "Mongo migrations did not complete after {AttemptCount} attempt(s). No further attempts will be made by this host.",
+                maximumAttempts
+            );
         }
         catch (OperationCanceledException exception) when (migrationCancellationTokenSource.IsCancellationRequested)
         {
@@ -165,12 +162,7 @@ public class MongoMigrationService(
         if (completedTask != migrationTask)
         {
             if (stoppingToken.IsCancellationRequested || migrationCancellationToken.IsCancellationRequested)
-                return await WaitForMigrationAttempt(
-                    migrationTask,
-                    attempt,
-                    false,
-                    attemptCancellationTokenSource.Token
-                );
+                return (await WaitForMigrationAttempt(migrationTask, attemptCancellationTokenSource.Token)).Completed;
 
             logger.LogError(
                 "Mongo migration attempt {Attempt} exceeded its {AttemptTimeout} limit. Cancellation was requested; the exclusive lease will be retained until the migration engine stops.",
@@ -179,16 +171,19 @@ public class MongoMigrationService(
             );
             await attemptCancellationTokenSource.CancelAsync();
 
-            return await WaitForMigrationAttempt(migrationTask, attempt, true, attemptCancellationTokenSource.Token);
+            return (await WaitForMigrationAttempt(migrationTask, attemptCancellationTokenSource.Token)).Completed;
         }
 
-        return await WaitForMigrationAttempt(migrationTask, attempt, false, attemptCancellationTokenSource.Token);
+        var result = await WaitForMigrationAttempt(migrationTask, attemptCancellationTokenSource.Token);
+
+        if (result.Exception is not null)
+            logger.LogError(result.Exception, "Mongo migration attempt {Attempt} failed.", attempt);
+
+        return result.Completed;
     }
 
-    private async Task<bool> WaitForMigrationAttempt(
+    private static async Task<(bool Completed, Exception? Exception)> WaitForMigrationAttempt(
         Task migrationTask,
-        int attempt,
-        bool timeoutLogged,
         CancellationToken cancellationToken
     )
     {
@@ -196,20 +191,15 @@ public class MongoMigrationService(
         {
             await migrationTask;
 
-            return true;
+            return (true, null);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            return false;
+            return (false, null);
         }
         catch (Exception exception)
         {
-            if (!timeoutLogged)
-            {
-                logger.LogError(exception, "Mongo migration attempt {Attempt} failed.", attempt);
-            }
-
-            return false;
+            return (false, exception);
         }
     }
 

@@ -170,6 +170,90 @@ public class MongoMigrationServiceTests
         await leaseService.Received(1).Release(Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task Execute_WhenLeaseAcquisitionFails_ShouldLogTheFailureAndStopWhenTheHostStops()
+    {
+        using var stopping = new CancellationTokenSource();
+        var leaseService = Substitute.For<IMongoMigrationLeaseService>();
+        leaseService
+            .TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                stopping.Cancel();
+
+                return Task.FromException<bool>(new InvalidOperationException("MongoDB is unavailable."));
+            });
+        var migrationRunner = Substitute.For<IMongoMigrationRunner>();
+        var logger = new RecordingLogger<MongoMigrationService>();
+        var subject = CreateSubject(leaseService, migrationRunner, logger: logger);
+
+        await subject.Execute(stopping.Token);
+
+        logger.Messages.Should().Contain("Mongo migration lease acquisition failed. Retrying.");
+        await migrationRunner.DidNotReceive().Run(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Execute_WhenAnotherHostHoldsTheLease_ShouldWaitUntilTheHostStops()
+    {
+        using var stopping = new CancellationTokenSource();
+        var leaseService = Substitute.For<IMongoMigrationLeaseService>();
+        leaseService
+            .TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                stopping.Cancel();
+
+                return Task.FromResult(false);
+            });
+        var migrationRunner = Substitute.For<IMongoMigrationRunner>();
+        var logger = new RecordingLogger<MongoMigrationService>();
+        var subject = CreateSubject(leaseService, migrationRunner, logger: logger);
+
+        await subject.Execute(stopping.Token);
+
+        logger.Messages.Should().Contain("Mongo migration lease is held by another host. Waiting before retrying.");
+        await migrationRunner.DidNotReceive().Run(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Execute_WhenMigrationFailsAndLeaseReleaseFails_ShouldLogBothFailures()
+    {
+        var leaseService = Substitute.For<IMongoMigrationLeaseService>();
+        leaseService.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
+        leaseService
+            .Release(Arg.Any<CancellationToken>())
+            .Returns(Task.FromException(new InvalidOperationException("MongoDB is unavailable.")));
+        var migrationRunner = Substitute.For<IMongoMigrationRunner>();
+        migrationRunner
+            .Run(Arg.Any<CancellationToken>())
+            .Returns(Task.FromException(new InvalidOperationException("The migration failed.")));
+        var logger = new RecordingLogger<MongoMigrationService>();
+        var subject = CreateSubject(
+            leaseService,
+            migrationRunner,
+            new MongoMigrationOptions
+            {
+                LeaseDurationSeconds = 2,
+                LeaseRenewalIntervalSeconds = 1,
+                AttemptTimeoutSeconds = 1,
+                RetryDelaySeconds = 1,
+                MaximumAttempts = 1,
+            },
+            logger
+        );
+
+        await subject.Execute(TestContext.Current.CancellationToken);
+
+        logger.Messages.Should().Contain("Mongo migration attempt 1 failed.");
+        logger
+            .Messages.Should()
+            .Contain(
+                "Mongo migrations did not complete after 1 attempt(s). No further attempts will be made by this host."
+            );
+        logger.Messages.Should().Contain("Mongo migration lease could not be released. It will expire automatically.");
+    }
+
     private static TestableMongoMigrationService CreateSubject(
         IMongoMigrationLeaseService leaseService,
         IMongoMigrationRunner migrationRunner,
