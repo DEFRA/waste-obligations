@@ -131,7 +131,7 @@ public class UnsubmittedPollingStatusService(
         };
 
     private static OrganisationObligationHydrationPollingStatus ObligationHydrationStatus(
-        IReadOnlyList<OrganisationObligationSummary> summaries,
+        List<OrganisationObligationSummary> summaries,
         OrganisationObligationHydrationOptions options,
         PollingWorkerLeaseStatus lease,
         DateTime utcNow
