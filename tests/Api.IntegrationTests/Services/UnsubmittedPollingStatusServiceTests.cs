@@ -282,13 +282,12 @@ public class UnsubmittedPollingStatusServiceTests : IntegrationTestBase
 
         return new UnsubmittedPollingStatusService(
             dbContext,
-            GetMongoApplicationDatabase(),
             Options.Create(new OrganisationEligibilityOptions()),
             options,
             new OrganisationObligationHistoricalBackfillStore(GetMongoApplicationDatabase(), _timeProvider),
             pacingStateStore,
             new CurrentObligationYearProvider(_timeProvider),
-            _timeProvider
+            new UnsubmittedPollingLeaseStatusService(GetMongoApplicationDatabase(), _timeProvider)
         );
     }
 

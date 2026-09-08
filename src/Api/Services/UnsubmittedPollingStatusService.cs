@@ -11,18 +11,17 @@ namespace Defra.WasteObligations.Api.Services;
 
 public class UnsubmittedPollingStatusService(
     IDbContext dbContext,
-    IMongoDatabase database,
     IOptions<OrganisationEligibilityOptions> eligibilityOptions,
     IOptions<OrganisationObligationHydrationOptions> obligationHydrationOptions,
     IOrganisationObligationHistoricalBackfillStore historicalBackfillStore,
     IOrganisationObligationRequestPacingStateStore pacingStateStore,
     ICurrentObligationYearProvider currentObligationYearProvider,
-    TimeProvider timeProvider
+    IUnsubmittedPollingLeaseStatusService pollingLeaseStatusService
 ) : IUnsubmittedPollingStatusService
 {
     public async Task<UnsubmittedPollingStatus> Get(CancellationToken cancellationToken)
     {
-        var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
+        var leaseStatusTask = pollingLeaseStatusService.Get(cancellationToken);
         var handover = currentObligationYearProvider.GetHandover(
             obligationHydrationOptions.Value.OutgoingYearGracePeriod
         );
@@ -45,13 +44,7 @@ public class UnsubmittedPollingStatusService(
             .ToListAsync(cancellationToken);
         var pacingState = await pacingStateStore.Get(cancellationToken);
         var historicalBackfills = await historicalBackfillStore.GetAll(cancellationToken);
-        var leases = await database
-            .GetCollection<BackgroundWorkerLease>(BackgroundWorkerLease.CollectionName)
-            .Find(x =>
-                x.Id == BackgroundWorkerLease.OrganisationEligibilityRefreshLeaseId
-                || x.Id == BackgroundWorkerLease.OrganisationObligationHydrationLeaseId
-            )
-            .ToListAsync(cancellationToken);
+        var leaseStatus = await leaseStatusTask;
 
         return new UnsubmittedPollingStatus
         {
@@ -59,15 +52,15 @@ public class UnsubmittedPollingStatusService(
                 snapshot,
                 activeRowSummary,
                 eligibilityOptions.Value,
-                Lease(leases, BackgroundWorkerLease.OrganisationEligibilityRefreshLeaseId, utcNow)
+                leaseStatus.Eligibility
             ),
             ObligationHydration = ObligationHydrationStatus(
                 hydrationSummaries,
                 historicalBackfills,
                 obligationHydrationOptions.Value,
                 pacingState,
-                Lease(leases, BackgroundWorkerLease.OrganisationObligationHydrationLeaseId, utcNow),
-                utcNow
+                leaseStatus.ObligationHydration,
+                leaseStatus.UtcNow
             ),
         };
     }
@@ -263,23 +256,6 @@ public class UnsubmittedPollingStatusService(
             OldestSuccessfulReadAt = successfulReadTimes.Length == 0 ? null : successfulReadTimes.Min(),
             LatestSuccessfulReadAt = successfulReadTimes.Length == 0 ? null : successfulReadTimes.Max(),
             MinimumFullRefreshMinutes = summaries.Length / (double)options.MaxDownstreamRequestsPerMinute,
-        };
-    }
-
-    private static PollingWorkerLeaseStatus Lease(
-        IReadOnlyCollection<BackgroundWorkerLease> leases,
-        string leaseId,
-        DateTime utcNow
-    )
-    {
-        var lease = leases.SingleOrDefault(x => x.Id == leaseId);
-
-        return new PollingWorkerLeaseStatus
-        {
-            IsHeld = lease is not null && lease.ExpiresAt > utcNow,
-            ExpiresAt = lease?.ExpiresAt,
-            UpdatedAt = lease?.UpdatedAt,
-            LastReleasedAt = lease?.LastReleasedAt,
         };
     }
 }

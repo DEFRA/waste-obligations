@@ -70,10 +70,6 @@ public class UnsubmittedPollingPlanServiceTests
                     RecommendedRateHeadroomPercentage = 20,
                     SourceReadSucceeded = true,
                     SourceOrganisationCount = 15,
-                    Warnings = new[]
-                    {
-                        "Potential hydration organisation counts exclude Account reference resolution.",
-                    },
                     Years = new[]
                     {
                         new
@@ -109,6 +105,11 @@ public class UnsubmittedPollingPlanServiceTests
                     },
                 }
             );
+        result
+            .Warnings.Should()
+            .ContainSingle()
+            .Which.Should()
+            .Be("Potential hydration organisation counts exclude Account reference resolution.");
     }
 
     [Fact]
@@ -136,13 +137,14 @@ public class UnsubmittedPollingPlanServiceTests
                     RecommendedRateHeadroomPercentage = 20,
                     SourceReadSucceeded = false,
                     SourceOrganisationCount = (int?)null,
-                    Warnings = new[]
-                    {
-                        "Waste Organisations data could not be read, so no polling plan could be calculated.",
-                    },
                     Years = Array.Empty<UnsubmittedPollingPlanYear>(),
                 }
             );
+        result
+            .Warnings.Should()
+            .ContainSingle()
+            .Which.Should()
+            .Be("Waste Organisations data could not be read, so no polling plan could be calculated.");
     }
 
     [Fact]

@@ -28,7 +28,12 @@ public class OrganisationObligationHistoricalBackfillWorkerTests
             {
                 processed.TrySetResult();
 
-                return new OrganisationObligationHistoricalBackfillProgress { ProcessedCount = 1, RemainingCount = 0 };
+                return new OrganisationObligationHistoricalBackfillProgress
+                {
+                    ProcessedCount = 1,
+                    RemainingCount = 0,
+                    WasEnqueued = true,
+                };
             });
         var subject = CreateSubject(store, leaseService, hydrationService);
 
@@ -37,6 +42,7 @@ public class OrganisationObligationHistoricalBackfillWorkerTests
         await subject.StopAsync(TestContext.Current.CancellationToken);
 
         await store.Received(1).Complete(backfill, Arg.Any<CancellationToken>());
+        await store.Received(1).MarkEnqueued(backfill, Arg.Any<CancellationToken>());
         await leaseService.Received(1).Release(CancellationToken.None);
     }
 

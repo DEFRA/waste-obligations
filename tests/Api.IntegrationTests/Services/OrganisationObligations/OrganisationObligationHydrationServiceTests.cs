@@ -132,6 +132,7 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
 
         progress.ProcessedCount.Should().Be(1);
         progress.RemainingCount.Should().Be(0);
+        progress.WasEnqueued.Should().BeTrue();
         var summary = await OrganisationObligationSummaries
             .Find(x => x.OrganisationId == organisationId && x.ObligationYear == historicalObligationYear)
             .SingleAsync(TestContext.Current.CancellationToken);
@@ -695,7 +696,6 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
 
         return new OrganisationObligationHydrationService(
             dbContext,
-            new OrganisationObligationHistoricalBackfillStore(database, _timeProvider),
             ObligationSource,
             new OrganisationObligationRequestPacer(pacingStateStore, options, _timeProvider),
             HydrationMetrics,

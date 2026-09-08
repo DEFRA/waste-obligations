@@ -95,6 +95,9 @@ public class OrganisationObligationHistoricalBackfillWorker(
                 hydrationCancellationTokenSource.Token,
                 maximumWork: options.Value.BatchSize
             );
+            if (progress.WasEnqueued)
+                await store.MarkEnqueued(backfill, hydrationCancellationTokenSource.Token);
+
             if (progress.RemainingCount == 0)
                 await store.Complete(backfill, hydrationCancellationTokenSource.Token);
 

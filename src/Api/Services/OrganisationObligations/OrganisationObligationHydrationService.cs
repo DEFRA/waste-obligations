@@ -14,7 +14,6 @@ namespace Defra.WasteObligations.Api.Services.OrganisationObligations;
 
 public class OrganisationObligationHydrationService(
     IDbContext dbContext,
-    IOrganisationObligationHistoricalBackfillStore historicalBackfillStore,
     IOrganisationObligationSource obligationSource,
     IOrganisationObligationRequestPacer requestPacer,
     IOrganisationObligationHydrationMetrics metrics,
@@ -179,10 +178,11 @@ public class OrganisationObligationHydrationService(
             return new OrganisationObligationHistoricalBackfillProgress { ProcessedCount = 0, RemainingCount = 0 };
         }
 
+        var wasEnqueued = false;
         if (backfill.EnqueuedAt is null)
         {
             await EnqueueHistoricalBackfillWork(backfill, cancellationToken);
-            await historicalBackfillStore.MarkEnqueued(backfill, cancellationToken);
+            wasEnqueued = true;
         }
 
         var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
@@ -225,6 +225,7 @@ public class OrganisationObligationHydrationService(
         {
             ProcessedCount = processedCount,
             RemainingCount = (int)remainingCount,
+            WasEnqueued = wasEnqueued,
         };
     }
 
