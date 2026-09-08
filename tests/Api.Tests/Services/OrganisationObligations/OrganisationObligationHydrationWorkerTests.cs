@@ -158,6 +158,92 @@ public class OrganisationObligationHydrationWorkerTests
     }
 
     [Fact]
+    public async Task Start_DuringJanuary_WhenTheCurrentYearHasNoActiveWork_ShouldAllocateTheFullBatchToTheIncomingYear()
+    {
+        var leaseService = Substitute.For<IOrganisationObligationHydrationLeaseService>();
+        leaseService.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
+        var hydrationService = Substitute.For<IOrganisationObligationHydrationService>();
+        var currentWork = PreparedWork(2026, activeSummaryCount: 0);
+        var incomingWork = PreparedWork(2027, activeSummaryCount: 10);
+        hydrationService.PrepareDueWork(2026, Arg.Any<CancellationToken>()).Returns(currentWork);
+        hydrationService.PrepareDueWork(2027, Arg.Any<CancellationToken>()).Returns(incomingWork);
+        var incomingYearHydrated = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        hydrationService
+            .HydratePreparedDueWork(incomingWork, Arg.Any<CancellationToken>(), 10, false)
+            .Returns(_ =>
+            {
+                incomingYearHydrated.TrySetResult();
+
+                return Task.FromResult(1);
+            });
+        var currentObligationYearProvider = Substitute.For<ICurrentObligationYearProvider>();
+        currentObligationYearProvider
+            .GetHandover(Arg.Any<TimeSpan>())
+            .Returns(new ObligationYearHandover(2026, IncomingObligationYear: 2027));
+        var requestPacer = Substitute.For<IOrganisationObligationRequestPacer>();
+        var subject = CreateSubject(
+            leaseService,
+            hydrationService,
+            currentObligationYearProvider,
+            requestPacer: requestPacer
+        );
+
+        await subject.StartAsync(TestContext.Current.CancellationToken);
+        await incomingYearHydrated.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await subject.StopAsync(TestContext.Current.CancellationToken);
+
+        await requestPacer.Received(1).ObserveWorkload(10, Arg.Any<CancellationToken>());
+        await hydrationService
+            .DidNotReceive()
+            .HydratePreparedDueWork(currentWork, Arg.Any<CancellationToken>(), Arg.Any<int?>(), Arg.Any<bool>());
+        await hydrationService
+            .Received(1)
+            .HydratePreparedDueWork(incomingWork, Arg.Any<CancellationToken>(), 10, false);
+    }
+
+    [Fact]
+    public async Task Start_DuringJanuary_WhenTheIncomingYearHasNoActiveWork_ShouldUseTheFullBatchForTheCurrentYear()
+    {
+        var leaseService = Substitute.For<IOrganisationObligationHydrationLeaseService>();
+        leaseService.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true, false);
+        var hydrationService = Substitute.For<IOrganisationObligationHydrationService>();
+        var currentWork = PreparedWork(2026, activeSummaryCount: 10);
+        var incomingWork = PreparedWork(2027, activeSummaryCount: 0);
+        hydrationService.PrepareDueWork(2026, Arg.Any<CancellationToken>()).Returns(currentWork);
+        hydrationService.PrepareDueWork(2027, Arg.Any<CancellationToken>()).Returns(incomingWork);
+        var currentYearHydrated = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        hydrationService
+            .HydratePreparedDueWork(currentWork, Arg.Any<CancellationToken>(), 10)
+            .Returns(_ =>
+            {
+                currentYearHydrated.TrySetResult();
+
+                return Task.FromResult(10);
+            });
+        var currentObligationYearProvider = Substitute.For<ICurrentObligationYearProvider>();
+        currentObligationYearProvider
+            .GetHandover(Arg.Any<TimeSpan>())
+            .Returns(new ObligationYearHandover(2026, IncomingObligationYear: 2027));
+        var requestPacer = Substitute.For<IOrganisationObligationRequestPacer>();
+        var subject = CreateSubject(
+            leaseService,
+            hydrationService,
+            currentObligationYearProvider,
+            requestPacer: requestPacer
+        );
+
+        await subject.StartAsync(TestContext.Current.CancellationToken);
+        await currentYearHydrated.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await subject.StopAsync(TestContext.Current.CancellationToken);
+
+        await requestPacer.Received(1).ObserveWorkload(10, Arg.Any<CancellationToken>());
+        await hydrationService.Received(1).HydratePreparedDueWork(currentWork, Arg.Any<CancellationToken>(), 10);
+        await hydrationService
+            .DidNotReceive()
+            .HydratePreparedDueWork(incomingWork, Arg.Any<CancellationToken>(), Arg.Any<int?>(), Arg.Any<bool>());
+    }
+
+    [Fact]
     public async Task Start_DuringOutgoingYearGrace_ShouldReconcileTheOutgoingYearUsingSharedPacing()
     {
         var leaseService = Substitute.For<IOrganisationObligationHydrationLeaseService>();

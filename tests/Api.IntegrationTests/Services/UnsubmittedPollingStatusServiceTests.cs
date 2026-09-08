@@ -111,6 +111,16 @@ public class UnsubmittedPollingStatusServiceTests : IntegrationTestBase
             [
                 new OrganisationObligationHistoricalBackfill
                 {
+                    ObligationYear = 2023,
+                    OrganisationIds = [Guid.NewGuid()],
+                    RequestedAt = utcNow.AddMinutes(-30),
+                    UpdatedAt = utcNow.AddMinutes(-1),
+                    CompletedAt = utcNow.AddMinutes(-1),
+                    DeferralReason = OrganisationObligationHistoricalBackfillDeferralReason.LeaseHeld,
+                    DeferredAt = utcNow.AddMinutes(-2),
+                },
+                new OrganisationObligationHistoricalBackfill
+                {
                     ObligationYear = 2024,
                     OrganisationIds = [Guid.NewGuid(), Guid.NewGuid()],
                     RequestedAt = utcNow.AddMinutes(-10),
@@ -170,6 +180,16 @@ public class UnsubmittedPollingStatusServiceTests : IntegrationTestBase
         result
             .ObligationHydration.HistoricalBackfills.Should()
             .BeEquivalentTo([
+                new
+                {
+                    ObligationYear = 2023,
+                    PotentialHydrationOrganisationCount = 1,
+                    Status = "Completed",
+                    RequestedAt = utcNow.AddMinutes(-30),
+                    CompletedAt = (DateTime?)utcNow.AddMinutes(-1),
+                    DeferralReason = (string?)"LeaseHeld",
+                    DeferredAt = (DateTime?)utcNow.AddMinutes(-2),
+                },
                 new
                 {
                     ObligationYear = 2024,

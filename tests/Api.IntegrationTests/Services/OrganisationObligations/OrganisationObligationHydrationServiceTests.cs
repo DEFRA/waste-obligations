@@ -62,6 +62,31 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task EnqueueReconciliation_WhenNoActiveGenerationExists_ShouldNotChangeExistingSummaries()
+    {
+        var organisationId = Guid.NewGuid();
+        await InsertSummary(
+            organisationId,
+            OrganisationObligationRefreshState.Ready,
+            _timeProvider.GetUtcNow().UtcDateTime
+        );
+        var subject = CreateSubject();
+
+        var reconciledCount = await subject.EnqueueReconciliation(
+            ObligationYear,
+            _timeProvider.GetUtcNow().UtcDateTime,
+            TestContext.Current.CancellationToken
+        );
+
+        reconciledCount.Should().Be(0);
+        var summary = await OrganisationObligationSummaries
+            .Find(x => x.OrganisationId == organisationId && x.ObligationYear == ObligationYear)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        summary.Priority.Should().Be(OrganisationObligationHydrationPriority.ScheduledRefresh);
+        summary.NextRefreshAt.Should().Be(_timeProvider.GetUtcNow().UtcDateTime);
+    }
+
+    [Fact]
     public async Task HydrateHistoricalBackfill_ShouldReadEachOrganisationOnceAndDeactivateCompletedSummary()
     {
         const int historicalObligationYear = 2025;

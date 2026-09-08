@@ -53,7 +53,17 @@
     "estimatedStalenessGapMinutes": 0,
     "refreshIntervalSeconds": 1800,
     "maximumSummaryStalenessSeconds": 7200,
-    "historicalBackfills": [],
+    "historicalBackfills": [
+      {
+        "obligationYear": 2025,
+        "potentialHydrationOrganisationCount": 300,
+        "status": "Deferred",
+        "requestedAt": "DateTimeOffset_5",
+        "completedAt": null,
+        "deferralReason": "CurrentYearWorkDue",
+        "deferredAt": "DateTimeOffset_6"
+      }
+    ],
     "years": [
       {
         "obligationYear": 2026,
@@ -63,8 +73,8 @@
         "readySummaryCount": 4234,
         "failedSummaryCount": 1,
         "neverSuccessfullyReadSummaryCount": 10,
-        "oldestDueAt": "DateTimeOffset_5",
-        "oldestSuccessfulReadAt": "DateTimeOffset_5",
+        "oldestDueAt": "DateTimeOffset_7",
+        "oldestSuccessfulReadAt": "DateTimeOffset_7",
         "latestSuccessfulReadAt": "DateTimeOffset_1",
         "minimumFullRefreshMinutes": 21.225
       }

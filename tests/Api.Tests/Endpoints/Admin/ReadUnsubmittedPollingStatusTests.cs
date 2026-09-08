@@ -112,7 +112,18 @@ public class ReadUnsubmittedPollingStatusTests(ApiWebApplicationFactory factory,
                 EstimatedStalenessGapMinutes = 0,
                 RefreshIntervalSeconds = 1800,
                 MaximumSummaryStalenessSeconds = 7200,
-                HistoricalBackfills = [],
+                HistoricalBackfills =
+                [
+                    new OrganisationObligationHistoricalBackfillPollingStatus
+                    {
+                        ObligationYear = 2025,
+                        PotentialHydrationOrganisationCount = 300,
+                        Status = "Deferred",
+                        RequestedAt = new DateTime(2026, 9, 6, 8, 0, 0, DateTimeKind.Utc),
+                        DeferralReason = "CurrentYearWorkDue",
+                        DeferredAt = new DateTime(2026, 9, 6, 8, 59, 0, DateTimeKind.Utc),
+                    },
+                ],
                 Years =
                 [
                     new OrganisationObligationHydrationYearStatus
