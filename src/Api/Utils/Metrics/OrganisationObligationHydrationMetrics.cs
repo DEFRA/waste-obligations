@@ -8,7 +8,10 @@ namespace Defra.WasteObligations.Api.Utils.Metrics;
 [ExcludeFromCodeCoverage]
 public class OrganisationObligationHydrationMetrics : IOrganisationObligationHydrationMetrics
 {
+    private static readonly string ServiceName = Process.GetCurrentProcess().ProcessName;
+
     private readonly Counter<long> _failures;
+    private readonly Counter<long> _leaseNotAcquired;
     private readonly Histogram<long> _activeSummaryCount;
     private readonly Histogram<long> _maxDownstreamRequestsPerMinute;
     private readonly Histogram<double> _minimumFullRefreshDuration;
@@ -28,6 +31,11 @@ public class OrganisationObligationHydrationMetrics : IOrganisationObligationHyd
             Metrics.Names.OrganisationObligationHydrationFailure,
             nameof(Unit.COUNT),
             "Count of organisation obligation hydration failures"
+        );
+        _leaseNotAcquired = meter.CreateCounter<long>(
+            Metrics.Names.OrganisationObligationHydrationLeaseNotAcquired,
+            nameof(Unit.COUNT),
+            "Count of organisation obligation hydration attempts skipped because another instance holds the lease"
         );
         _activeSummaryCount = meter.CreateHistogram<long>(
             Metrics.Names.OrganisationObligationHydrationActiveSummaryCount,
@@ -86,6 +94,11 @@ public class OrganisationObligationHydrationMetrics : IOrganisationObligationHyd
         _failures.Add(1, BuildTags());
     }
 
+    public void LeaseNotAcquired()
+    {
+        _leaseNotAcquired.Add(1, BuildTags());
+    }
+
     public void ObligationReadCompleted(TimeSpan duration)
     {
         _obligationReadDuration.Record(duration.TotalSeconds, BuildTags());
@@ -93,8 +106,9 @@ public class OrganisationObligationHydrationMetrics : IOrganisationObligationHyd
 
     public void ObligationReadFailed(TimeSpan duration)
     {
-        _obligationReadFailures.Add(1, BuildTags());
-        _obligationReadDuration.Record(duration.TotalSeconds, BuildTags());
+        var tags = BuildTags();
+        _obligationReadFailures.Add(1, tags);
+        _obligationReadDuration.Record(duration.TotalSeconds, tags);
     }
 
     public void QueueObserved(int activeSummaryCount, int dueSummaryCount)
@@ -131,5 +145,5 @@ public class OrganisationObligationHydrationMetrics : IOrganisationObligationHyd
         }
     }
 
-    private static TagList BuildTags() => new() { { Metrics.Tags.Service, Process.GetCurrentProcess().ProcessName } };
+    private static TagList BuildTags() => new() { { Metrics.Tags.Service, ServiceName } };
 }

@@ -1,4 +1,5 @@
 using Defra.WasteObligations.Api.Services;
+using Defra.WasteObligations.Api.Utils.Metrics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -9,6 +10,7 @@ namespace Defra.WasteObligations.Api.Services.OrganisationObligations;
 public class OrganisationObligationHydrationWorker(
     IServiceScopeFactory serviceScopeFactory,
     IOptions<OrganisationObligationHydrationOptions> options,
+    IOrganisationObligationHydrationMetrics metrics,
     ILogger<OrganisationObligationHydrationWorker> logger
 ) : BackgroundService
 {
@@ -55,6 +57,7 @@ public class OrganisationObligationHydrationWorker(
 
         if (!await leaseService.TryAcquire(leaseDuration, stoppingToken))
         {
+            metrics.LeaseNotAcquired();
             return 0;
         }
 

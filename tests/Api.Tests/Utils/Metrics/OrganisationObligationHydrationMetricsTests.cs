@@ -58,6 +58,21 @@ public class OrganisationObligationHydrationMetricsTests
     }
 
     [Fact]
+    public void LeaseNotAcquired_ShouldRecordSkippedHydration()
+    {
+        var meterFactory = CreateMeterFactory();
+        using var collector = new TestMetricCollector<long>(
+            ApiMetrics.MeterName,
+            ApiMetrics.Names.OrganisationObligationHydrationLeaseNotAcquired
+        );
+        var subject = new OrganisationObligationHydrationMetrics(meterFactory);
+
+        subject.LeaseNotAcquired();
+
+        collector.GetMeasurementSnapshot().Should().ContainSingle().Which.Value.Should().Be(1);
+    }
+
+    [Fact]
     public void ObligationReadAndQueueObserved_ShouldRecordDurationFailureAndQueueCounts()
     {
         var meterFactory = CreateMeterFactory();

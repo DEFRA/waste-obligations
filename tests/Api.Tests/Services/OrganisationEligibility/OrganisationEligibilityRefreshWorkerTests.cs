@@ -51,7 +51,8 @@ public class OrganisationEligibilityRefreshWorkerTests
         var leaseService = Substitute.For<IOrganisationEligibilityRefreshLeaseService>();
         leaseService.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(false);
         var refreshService = Substitute.For<IOrganisationEligibilityRefreshService>();
-        var subject = CreateSubject(leaseService, refreshService);
+        var metrics = Substitute.For<IOrganisationEligibilityRefreshMetrics>();
+        var subject = CreateSubject(leaseService, refreshService, metrics: metrics);
 
         await subject.StartAsync(TestContext.Current.CancellationToken);
         await Task.Delay(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
@@ -59,6 +60,7 @@ public class OrganisationEligibilityRefreshWorkerTests
 
         await refreshService.DidNotReceive().Refresh(Arg.Any<CancellationToken>());
         await leaseService.DidNotReceive().Release(Arg.Any<CancellationToken>());
+        metrics.Received(1).LeaseNotAcquired();
     }
 
     [Fact]

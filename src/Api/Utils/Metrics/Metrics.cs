@@ -32,6 +32,9 @@ public static class Metrics
         public const string AuditEventSnsPublishDuration = nameof(AuditEventSnsPublishDuration);
         public const string AuditEventSnsPublishLatency = nameof(AuditEventSnsPublishLatency);
         public const string OrganisationObligationHydrationFailure = nameof(OrganisationObligationHydrationFailure);
+        public const string OrganisationObligationHydrationLeaseNotAcquired = nameof(
+            OrganisationObligationHydrationLeaseNotAcquired
+        );
         public const string OrganisationObligationHydrationSuccess = nameof(OrganisationObligationHydrationSuccess);
         public const string OrganisationObligationHydrationObligationReadDuration = nameof(
             OrganisationObligationHydrationObligationReadDuration
@@ -52,6 +55,9 @@ public static class Metrics
             OrganisationObligationHydrationStaleSummaryCount
         );
         public const string OrganisationEligibilityRefreshDuration = nameof(OrganisationEligibilityRefreshDuration);
+        public const string OrganisationEligibilityRefreshLeaseNotAcquired = nameof(
+            OrganisationEligibilityRefreshLeaseNotAcquired
+        );
         public const string OrganisationEligibilityRefreshOutcome = nameof(OrganisationEligibilityRefreshOutcome);
         public const string OrganisationEligibilityRefreshRowCount = nameof(OrganisationEligibilityRefreshRowCount);
         public const string OrganisationEligibilityReferenceResolutionCount = nameof(

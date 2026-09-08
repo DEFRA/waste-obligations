@@ -10,11 +10,14 @@ namespace Defra.WasteObligations.Api.Utils.Metrics;
 [ExcludeFromCodeCoverage]
 public class OrganisationEligibilityRefreshMetrics : IOrganisationEligibilityRefreshMetrics
 {
+    private static readonly string ServiceName = Process.GetCurrentProcess().ProcessName;
+
     private readonly Histogram<double> _duration;
     private readonly Histogram<double> _accountReferenceLookupDuration;
     private readonly Counter<long> _accountReferenceLookupFailure;
     private readonly Histogram<long> _accountReferenceLookupBatchSize;
     private readonly Counter<long> _outcome;
+    private readonly Counter<long> _leaseNotAcquired;
     private readonly Histogram<long> _referenceResolutionCount;
     private readonly Histogram<long> _rowCount;
     private readonly Histogram<double> _wasteOrganisationsReadDuration;
@@ -49,6 +52,11 @@ public class OrganisationEligibilityRefreshMetrics : IOrganisationEligibilityRef
             Metrics.Names.OrganisationEligibilityRefreshOutcome,
             nameof(Unit.COUNT),
             "Count of organisation eligibility refresh outcomes"
+        );
+        _leaseNotAcquired = meter.CreateCounter<long>(
+            Metrics.Names.OrganisationEligibilityRefreshLeaseNotAcquired,
+            nameof(Unit.COUNT),
+            "Count of organisation eligibility refresh attempts skipped because another instance holds the lease"
         );
         _referenceResolutionCount = meter.CreateHistogram<long>(
             Metrics.Names.OrganisationEligibilityReferenceResolutionCount,
@@ -90,6 +98,11 @@ public class OrganisationEligibilityRefreshMetrics : IOrganisationEligibilityRef
         var tags = BuildTags("Failed");
         _outcome.Add(1, tags);
         _duration.Record(duration.TotalSeconds, tags);
+    }
+
+    public void LeaseNotAcquired()
+    {
+        _leaseNotAcquired.Add(1, BuildTags());
     }
 
     public void ReferenceResolutionObserved(IReadOnlyCollection<OrganisationComplianceDeclarationEligibility> rows)
@@ -138,7 +151,7 @@ public class OrganisationEligibilityRefreshMetrics : IOrganisationEligibilityRef
 
     private static TagList BuildTags(string? outcome = null)
     {
-        var tags = new TagList { { Metrics.Tags.Service, Process.GetCurrentProcess().ProcessName } };
+        var tags = new TagList { { Metrics.Tags.Service, ServiceName } };
         if (!string.IsNullOrWhiteSpace(outcome))
             tags.Add(Metrics.Tags.Outcome, outcome);
 

@@ -4,6 +4,8 @@ public interface IOrganisationObligationHydrationMetrics
 {
     void Failed();
 
+    void LeaseNotAcquired();
+
     void ObligationReadCompleted(TimeSpan duration);
 
     void ObligationReadFailed(TimeSpan duration);

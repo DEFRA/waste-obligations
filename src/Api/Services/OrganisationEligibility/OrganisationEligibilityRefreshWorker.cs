@@ -52,6 +52,7 @@ public class OrganisationEligibilityRefreshWorker(
 
         if (!await leaseService.TryAcquire(leaseDuration, stoppingToken))
         {
+            metrics.LeaseNotAcquired();
             return;
         }
 

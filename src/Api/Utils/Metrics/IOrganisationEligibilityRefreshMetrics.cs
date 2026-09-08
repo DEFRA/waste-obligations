@@ -9,6 +9,8 @@ public interface IOrganisationEligibilityRefreshMetrics
 
     void Failed(TimeSpan duration);
 
+    void LeaseNotAcquired();
+
     void ReferenceResolutionObserved(IReadOnlyCollection<OrganisationComplianceDeclarationEligibility> rows);
 
     void WasteOrganisationsReadCompleted(int organisationCount, TimeSpan duration);

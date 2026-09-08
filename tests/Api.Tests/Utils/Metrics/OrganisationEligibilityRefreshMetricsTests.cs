@@ -78,6 +78,21 @@ public class OrganisationEligibilityRefreshMetricsTests
     }
 
     [Fact]
+    public void LeaseNotAcquired_ShouldRecordSkippedRefresh()
+    {
+        var meterFactory = CreateMeterFactory();
+        using var collector = new TestMetricCollector<long>(
+            ApiMetrics.MeterName,
+            ApiMetrics.Names.OrganisationEligibilityRefreshLeaseNotAcquired
+        );
+        var subject = new OrganisationEligibilityRefreshMetrics(meterFactory);
+
+        subject.LeaseNotAcquired();
+
+        collector.GetMeasurementSnapshot().Should().ContainSingle().Which.Value.Should().Be(1);
+    }
+
+    [Fact]
     public void DownstreamCalls_ShouldRecordWasteOrganisationsAndAccountLookupMetrics()
     {
         var meterFactory = CreateMeterFactory();
