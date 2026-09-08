@@ -120,9 +120,21 @@ public class OrganisationObligationHydrationMetricsTests
             ApiMetrics.MeterName,
             ApiMetrics.Names.OrganisationObligationHydrationMaxDownstreamRequestsPerMinute
         );
+        using var desiredRequestsCollector = new TestMetricCollector<long>(
+            ApiMetrics.MeterName,
+            ApiMetrics.Names.OrganisationObligationHydrationDesiredRequestsPerMinute
+        );
+        using var effectiveRequestsCollector = new TestMetricCollector<long>(
+            ApiMetrics.MeterName,
+            ApiMetrics.Names.OrganisationObligationHydrationEffectiveRequestsPerMinute
+        );
+        using var estimatedFullRefreshDurationCollector = new TestMetricCollector<double>(
+            ApiMetrics.MeterName,
+            ApiMetrics.Names.OrganisationObligationHydrationEstimatedFullRefreshDuration
+        );
         var subject = new OrganisationObligationHydrationMetrics(meterFactory);
 
-        subject.CapacityObserved(4245, 200, TimeSpan.FromMinutes(30));
+        subject.CapacityObserved(4245, 200, 142, 160, TimeSpan.FromMinutes(30));
 
         minimumFullRefreshDurationCollector
             .GetMeasurementSnapshot()
@@ -137,6 +149,14 @@ public class OrganisationObligationHydrationMetricsTests
             .Which.Value.Should()
             .Be(TimeSpan.FromMinutes(30).TotalSeconds);
         maximumRequestsCollector.GetMeasurementSnapshot().Should().ContainSingle().Which.Value.Should().Be(200);
+        desiredRequestsCollector.GetMeasurementSnapshot().Should().ContainSingle().Which.Value.Should().Be(142);
+        effectiveRequestsCollector.GetMeasurementSnapshot().Should().ContainSingle().Which.Value.Should().Be(160);
+        estimatedFullRefreshDurationCollector
+            .GetMeasurementSnapshot()
+            .Should()
+            .ContainSingle()
+            .Which.Value.Should()
+            .Be(TimeSpan.FromMinutes(26.53125).TotalSeconds);
     }
 
     private static IMeterFactory CreateMeterFactory()

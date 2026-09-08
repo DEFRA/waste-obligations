@@ -12,6 +12,7 @@ public record OrganisationEligibilityPollingStatus
     public required int RefreshPollIntervalSeconds { get; init; }
     public required int VisibleRowCount { get; init; }
     public required int HydrationEligibleOrganisationCount { get; init; }
+    public required OrganisationEligibilityMaterialisedObligationYear[] MaterialisedObligationYears { get; init; }
     public required OrganisationReferenceResolutionStatus[] ReferenceResolutionStates { get; init; }
     public required PollingWorkerLeaseStatus Lease { get; init; }
 }

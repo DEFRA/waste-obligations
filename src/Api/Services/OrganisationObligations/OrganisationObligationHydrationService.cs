@@ -14,6 +14,7 @@ namespace Defra.WasteObligations.Api.Services.OrganisationObligations;
 
 public class OrganisationObligationHydrationService(
     IDbContext dbContext,
+    IOrganisationObligationHistoricalBackfillStore historicalBackfillStore,
     IOrganisationObligationSource obligationSource,
     IOrganisationObligationRequestPacer requestPacer,
     IOrganisationObligationHydrationMetrics metrics,
@@ -55,10 +56,14 @@ public class OrganisationObligationHydrationService(
         await Task.WhenAll(activeSummaryCountTask, dueSummaryCountTask);
         var activeSummaryCount = await activeSummaryCountTask;
         var dueSummaryCount = await dueSummaryCountTask;
+        await requestPacer.ObserveWorkload((int)activeSummaryCount, cancellationToken);
+        var pacing = await requestPacer.GetStatus(cancellationToken);
         metrics.QueueObserved((int)activeSummaryCount, (int)dueSummaryCount);
         metrics.CapacityObserved(
             (int)activeSummaryCount,
             options.Value.MaxDownstreamRequestsPerMinute,
+            pacing.DesiredRequestsPerMinute,
+            pacing.EffectiveRequestsPerMinute,
             options.Value.RefreshInterval
         );
         var work = await dbContext
@@ -81,7 +86,7 @@ public class OrganisationObligationHydrationService(
             parallelOptions,
             async (item, token) =>
             {
-                await Hydrate(item, token);
+                await Hydrate(item, isHistoricalBackfill: false, token);
                 Interlocked.Increment(ref processedCount);
             }
         );
@@ -90,40 +95,70 @@ public class OrganisationObligationHydrationService(
         return processedCount;
     }
 
-    public async Task<int> EnqueueReconciliation(
-        int obligationYear,
-        DateTime reconciliationSince,
-        CancellationToken cancellationToken
+    public async Task<OrganisationObligationHistoricalBackfillProgress> HydrateHistoricalBackfill(
+        OrganisationObligationHistoricalBackfill backfill,
+        CancellationToken cancellationToken,
+        int? maximumWork = null,
+        bool preserveCurrentYearPacing = false
     )
     {
-        var eligibility = await GetEligibleOrganisationIds(obligationYear, cancellationToken);
-        if (!eligibility.HasActiveGeneration || eligibility.OrganisationIds.Length == 0)
-            return 0;
+        if (!preserveCurrentYearPacing)
+        {
+            await requestPacer.ObserveWorkload(backfill.OrganisationIds.Length, cancellationToken);
+        }
+
+        if (backfill.OrganisationIds.Length == 0)
+        {
+            return new OrganisationObligationHistoricalBackfillProgress { ProcessedCount = 0, RemainingCount = 0 };
+        }
+
+        if (backfill.EnqueuedAt is null)
+        {
+            await EnqueueHistoricalBackfillWork(backfill, cancellationToken);
+            await historicalBackfillStore.MarkEnqueued(backfill, cancellationToken);
+        }
 
         var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
-        var filter = Builders<OrganisationObligationSummary>.Filter.And(
-            Builders<OrganisationObligationSummary>.Filter.Eq(x => x.ObligationYear, obligationYear),
-            Builders<OrganisationObligationSummary>.Filter.In(x => x.OrganisationId, eligibility.OrganisationIds),
-            Builders<OrganisationObligationSummary>.Filter.Eq(x => x.IsHydrationActive, true),
-            Builders<OrganisationObligationSummary>.Filter.Eq(
-                x => x.Priority,
-                OrganisationObligationHydrationPriority.ScheduledRefresh
-            ),
-            Builders<OrganisationObligationSummary>.Filter.Or(
-                Builders<OrganisationObligationSummary>.Filter.Eq(x => x.LastSuccessfulReadAt, null),
-                Builders<OrganisationObligationSummary>.Filter.Lt(x => x.LastSuccessfulReadAt, reconciliationSince)
-            )
+        var work = await dbContext
+            .OrganisationObligationSummaries.Find(HistoricalBackfillWorkFilter(backfill, utcNow))
+            .SortBy(x => x.Priority)
+            .ThenBy(x => x.NextRefreshAt)
+            .Limit(maximumWork ?? options.Value.BatchSize)
+            .ToListAsync(cancellationToken);
+        var processedCount = 0;
+        var parallelOptions = new ParallelOptions
+        {
+            CancellationToken = cancellationToken,
+            MaxDegreeOfParallelism = options.Value.MaxConcurrentRequests,
+        };
+
+        await Parallel.ForEachAsync(
+            work,
+            parallelOptions,
+            async (item, token) =>
+            {
+                await Hydrate(item, isHistoricalBackfill: true, token);
+                Interlocked.Increment(ref processedCount);
+            }
         );
-        var update = Builders<OrganisationObligationSummary>
-            .Update.Set(x => x.Priority, OrganisationObligationHydrationPriority.Reconciliation)
-            .Set(x => x.NextRefreshAt, utcNow);
-        var result = await dbContext.OrganisationObligationSummaries.UpdateManyAsync(
-            filter,
-            update,
+        var remainingCount = await dbContext.OrganisationObligationSummaries.CountDocumentsAsync(
+            HistoricalBackfillOutstandingWorkFilter(backfill),
             cancellationToken: cancellationToken
         );
+        if (remainingCount == 0)
+        {
+            await dbContext.OrganisationObligationSummaries.UpdateManyAsync(
+                HistoricalBackfillFilter(backfill),
+                Builders<OrganisationObligationSummary>.Update.Set(x => x.IsHydrationActive, false),
+                cancellationToken: cancellationToken
+            );
+        }
 
-        return (int)result.ModifiedCount;
+        return new OrganisationObligationHistoricalBackfillProgress
+        {
+            ProcessedCount = processedCount,
+            RemainingCount = (int)remainingCount,
+        };
     }
 
     private async Task<(bool HasActiveGeneration, Guid[] OrganisationIds)> GetEligibleOrganisationIds(
@@ -190,6 +225,65 @@ public class OrganisationObligationHydrationService(
         return result.Upserts.Count;
     }
 
+    private async Task EnqueueHistoricalBackfillWork(
+        OrganisationObligationHistoricalBackfill backfill,
+        CancellationToken cancellationToken
+    )
+    {
+        var existingSummaries = await dbContext
+            .OrganisationObligationSummaries.Find(x =>
+                x.ObligationYear == backfill.ObligationYear && backfill.OrganisationIds.Contains(x.OrganisationId)
+            )
+            .ToListAsync(cancellationToken);
+        var existingOrganisationIds = existingSummaries.Select(x => x.OrganisationId).ToHashSet();
+        var existingWork = existingSummaries
+            .Where(x => x.RequestedAt != backfill.RequestedAt)
+            .Select(summary => new UpdateOneModel<OrganisationObligationSummary>(
+                Builders<OrganisationObligationSummary>.Filter.And(
+                    Builders<OrganisationObligationSummary>.Filter.Eq(x => x.OrganisationId, summary.OrganisationId),
+                    Builders<OrganisationObligationSummary>.Filter.Eq(x => x.ObligationYear, backfill.ObligationYear)
+                ),
+                HistoricalBackfillUpdate(backfill)
+            ))
+            .ToArray();
+        var newWork = backfill
+            .OrganisationIds.Where(x => !existingOrganisationIds.Contains(x))
+            .Select(organisationId => new UpdateOneModel<OrganisationObligationSummary>(
+                Builders<OrganisationObligationSummary>.Filter.And(
+                    Builders<OrganisationObligationSummary>.Filter.Eq(x => x.OrganisationId, organisationId),
+                    Builders<OrganisationObligationSummary>.Filter.Eq(x => x.ObligationYear, backfill.ObligationYear)
+                ),
+                Builders<OrganisationObligationSummary>.Update.Combine(
+                    HistoricalBackfillUpdate(backfill),
+                    Builders<OrganisationObligationSummary>.Update.SetOnInsert(x => x.OrganisationId, organisationId),
+                    Builders<OrganisationObligationSummary>.Update.SetOnInsert(
+                        x => x.ObligationYear,
+                        backfill.ObligationYear
+                    )
+                )
+            )
+            {
+                IsUpsert = true,
+            })
+            .ToArray();
+
+        if (existingWork.Length > 0)
+        {
+            await dbContext.OrganisationObligationSummaries.BulkWriteAsync(
+                existingWork,
+                cancellationToken: cancellationToken
+            );
+        }
+
+        if (newWork.Length > 0)
+        {
+            await dbContext.OrganisationObligationSummaries.BulkWriteAsync(
+                newWork,
+                cancellationToken: cancellationToken
+            );
+        }
+    }
+
     private async Task ReactivateExistingEligible(
         Guid[] organisationIds,
         int obligationYear,
@@ -242,7 +336,11 @@ public class OrganisationObligationHydrationService(
         );
     }
 
-    private async Task Hydrate(OrganisationObligationSummary work, CancellationToken cancellationToken)
+    private async Task Hydrate(
+        OrganisationObligationSummary work,
+        bool isHistoricalBackfill,
+        CancellationToken cancellationToken
+    )
     {
         try
         {
@@ -254,7 +352,9 @@ public class OrganisationObligationHydrationService(
                 obligations
             );
             var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
-            var nextRefreshAt = NextRefreshAt(work.OrganisationId, work.ObligationYear, utcNow);
+            var nextRefreshAt = isHistoricalBackfill
+                ? utcNow
+                : NextRefreshAt(work.OrganisationId, work.ObligationYear, utcNow);
             var summary = work with
             {
                 ObligationCount = summaryMetrics.ObligationCount,
@@ -270,7 +370,7 @@ public class OrganisationObligationHydrationService(
                 AttemptCount = 0,
                 LastFailure = null,
                 Priority = OrganisationObligationHydrationPriority.ScheduledRefresh,
-                IsHydrationActive = true,
+                IsHydrationActive = !isHistoricalBackfill,
             };
 
             await Persist(summary, cancellationToken);
@@ -302,6 +402,7 @@ public class OrganisationObligationHydrationService(
                 cancellationToken
             );
             readStopwatch.Stop();
+            await ObserveRead(readStopwatch.Elapsed, succeeded: true, cancellationToken);
             metrics.ObligationReadCompleted(readStopwatch.Elapsed);
 
             return obligations;
@@ -309,8 +410,25 @@ public class OrganisationObligationHydrationService(
         catch (Exception) when (!cancellationToken.IsCancellationRequested)
         {
             readStopwatch.Stop();
+            await ObserveRead(readStopwatch.Elapsed, succeeded: false, cancellationToken);
             metrics.ObligationReadFailed(readStopwatch.Elapsed);
             throw;
+        }
+    }
+
+    private async Task ObserveRead(TimeSpan duration, bool succeeded, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await requestPacer.ObserveRead(duration, succeeded, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "Unable to persist organisation obligation hydration pacing state");
         }
     }
 
@@ -444,4 +562,46 @@ public class OrganisationObligationHydrationService(
 
         return nextRefreshAt <= utcNow ? nextRefreshAt.AddTicks(intervalTicks) : nextRefreshAt;
     }
+
+    private static UpdateDefinition<OrganisationObligationSummary> HistoricalBackfillUpdate(
+        OrganisationObligationHistoricalBackfill backfill
+    ) =>
+        Builders<OrganisationObligationSummary>
+            .Update.Set(x => x.Priority, OrganisationObligationHydrationPriority.NewEligible)
+            .Set(x => x.NextRefreshAt, backfill.RequestedAt)
+            .Set(x => x.AttemptCount, 0)
+            .Set(x => x.RequestedAt, backfill.RequestedAt)
+            .Set(x => x.RefreshState, OrganisationObligationRefreshState.Pending)
+            .Set(x => x.LastFailure, null)
+            .Set(x => x.IsHydrationActive, true);
+
+    private static FilterDefinition<OrganisationObligationSummary> HistoricalBackfillFilter(
+        OrganisationObligationHistoricalBackfill backfill
+    ) =>
+        Builders<OrganisationObligationSummary>.Filter.And(
+            Builders<OrganisationObligationSummary>.Filter.Eq(x => x.ObligationYear, backfill.ObligationYear),
+            Builders<OrganisationObligationSummary>.Filter.In(x => x.OrganisationId, backfill.OrganisationIds),
+            Builders<OrganisationObligationSummary>.Filter.Eq(x => x.RequestedAt, backfill.RequestedAt)
+        );
+
+    private static FilterDefinition<OrganisationObligationSummary> HistoricalBackfillWorkFilter(
+        OrganisationObligationHistoricalBackfill backfill,
+        DateTime utcNow
+    ) =>
+        Builders<OrganisationObligationSummary>.Filter.And(
+            HistoricalBackfillOutstandingWorkFilter(backfill),
+            Builders<OrganisationObligationSummary>.Filter.Eq(x => x.IsHydrationActive, true),
+            Builders<OrganisationObligationSummary>.Filter.Lte(x => x.NextRefreshAt, utcNow)
+        );
+
+    private static FilterDefinition<OrganisationObligationSummary> HistoricalBackfillOutstandingWorkFilter(
+        OrganisationObligationHistoricalBackfill backfill
+    ) =>
+        Builders<OrganisationObligationSummary>.Filter.And(
+            HistoricalBackfillFilter(backfill),
+            Builders<OrganisationObligationSummary>.Filter.Or(
+                Builders<OrganisationObligationSummary>.Filter.Eq(x => x.LastSuccessfulReadAt, null),
+                Builders<OrganisationObligationSummary>.Filter.Lt(x => x.LastSuccessfulReadAt, backfill.RequestedAt)
+            )
+        );
 }

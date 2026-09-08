@@ -12,7 +12,13 @@ public interface IOrganisationObligationHydrationMetrics
 
     void QueueObserved(int activeSummaryCount, int dueSummaryCount);
 
-    void CapacityObserved(int activeSummaryCount, int maxDownstreamRequestsPerMinute, TimeSpan refreshInterval);
+    void CapacityObserved(
+        int activeSummaryCount,
+        int maxDownstreamRequestsPerMinute,
+        int desiredRequestsPerMinute,
+        int effectiveRequestsPerMinute,
+        TimeSpan refreshInterval
+    );
 
     void Succeeded();
 

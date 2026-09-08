@@ -54,7 +54,8 @@ public class UnsubmittedPollingStatusServiceTests : IntegrationTestBase
                     activeGeneration,
                     OrganisationRegistrationStatus.Cancelled,
                     OrganisationReferenceNumberResolutionState.Pending,
-                    isVisible: false
+                    isVisible: false,
+                    obligationYear: 2025
                 ),
             ],
             cancellationToken: TestContext.Current.CancellationToken
@@ -81,7 +82,7 @@ public class UnsubmittedPollingStatusServiceTests : IntegrationTestBase
                     refreshState: OrganisationObligationRefreshState.Ready,
                     nextRefreshAt: utcNow.AddMinutes(15),
                     lastSuccessfulReadAt: utcNow.AddMinutes(-5),
-                    obligationYear: 2027
+                    obligationYear: 2025
                 ),
             ],
             cancellationToken: TestContext.Current.CancellationToken
@@ -106,7 +107,26 @@ public class UnsubmittedPollingStatusServiceTests : IntegrationTestBase
             ],
             cancellationToken: TestContext.Current.CancellationToken
         );
-        var subject = CreateSubject();
+        await OrganisationObligationHistoricalBackfills.InsertManyAsync(
+            [
+                new OrganisationObligationHistoricalBackfill
+                {
+                    ObligationYear = 2024,
+                    OrganisationIds = [Guid.NewGuid(), Guid.NewGuid()],
+                    RequestedAt = utcNow.AddMinutes(-10),
+                    UpdatedAt = utcNow.AddMinutes(-5),
+                },
+                new OrganisationObligationHistoricalBackfill
+                {
+                    ObligationYear = 2025,
+                    OrganisationIds = [Guid.NewGuid()],
+                    RequestedAt = utcNow.AddMinutes(-20),
+                    UpdatedAt = utcNow.AddMinutes(-1),
+                },
+            ],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        var subject = await CreateSubject();
 
         var result = await subject.Get(TestContext.Current.CancellationToken);
 
@@ -115,13 +135,23 @@ public class UnsubmittedPollingStatusServiceTests : IntegrationTestBase
         result.Eligibility.VisibleRowCount.Should().Be(2);
         result.Eligibility.HydrationEligibleOrganisationCount.Should().Be(1);
         result
+            .Eligibility.MaterialisedObligationYears.Should()
+            .BeEquivalentTo([new { ObligationYear = 2025, RowCount = 1 }, new { ObligationYear = 2026, RowCount = 2 }]);
+        result
             .Eligibility.ReferenceResolutionStates.Should()
             .Contain(x => x.State == "Resolved" && x.Count == 2)
             .And.Contain(x => x.State == "Pending" && x.Count == 1);
         result.Eligibility.Lease.IsHeld.Should().BeTrue();
         result.ObligationHydration.MaxDownstreamRequestsPerMinute.Should().Be(200);
-        result.ObligationHydration.TotalMinimumFullRefreshMinutes.Should().Be(0.015);
-        result.ObligationHydration.Years.Should().HaveCount(2);
+        result.ObligationHydration.TotalMinimumFullRefreshMinutes.Should().Be(0.01);
+        result.ObligationHydration.DesiredRequestsPerMinute.Should().Be(2);
+        result.ObligationHydration.EffectiveRequestsPerMinute.Should().Be(2);
+        result.ObligationHydration.RateBackoffReason.Should().BeNull();
+        result.ObligationHydration.RecentDownstreamReadLatencyMilliseconds.Should().BeNull();
+        result.ObligationHydration.RecentDownstreamReadFailurePercentage.Should().Be(0);
+        result.ObligationHydration.EstimatedFullRefreshMinutes.Should().Be(1);
+        result.ObligationHydration.EstimatedStalenessGapMinutes.Should().Be(0);
+        result.ObligationHydration.Years.Should().ContainSingle();
         var year = result.ObligationHydration.Years.Single(x => x.ObligationYear == 2026);
         year.ObligationYear.Should().Be(2026);
         year.ActiveSummaryCount.Should().Be(2);
@@ -135,9 +165,29 @@ public class UnsubmittedPollingStatusServiceTests : IntegrationTestBase
         year.MinimumFullRefreshMinutes.Should().Be(0.01);
         result.ObligationHydration.Lease.IsHeld.Should().BeFalse();
         result.ObligationHydration.Lease.LastReleasedAt.Should().Be(utcNow.AddMinutes(-2));
+        result
+            .ObligationHydration.HistoricalBackfills.Should()
+            .BeEquivalentTo([
+                new
+                {
+                    ObligationYear = 2024,
+                    PotentialHydrationOrganisationCount = 2,
+                    Status = "Running",
+                    RequestedAt = utcNow.AddMinutes(-10),
+                    CompletedAt = (DateTime?)null,
+                },
+                new
+                {
+                    ObligationYear = 2025,
+                    PotentialHydrationOrganisationCount = 1,
+                    Status = "Running",
+                    RequestedAt = utcNow.AddMinutes(-20),
+                    CompletedAt = (DateTime?)null,
+                },
+            ]);
     }
 
-    private UnsubmittedPollingStatusService CreateSubject()
+    private async Task<UnsubmittedPollingStatusService> CreateSubject()
     {
         var dbContext = new MongoDbContext(
             GetMongoApplicationDatabase(),
@@ -145,11 +195,24 @@ public class UnsubmittedPollingStatusServiceTests : IntegrationTestBase
             NullLogger<MongoDbContext>.Instance
         );
 
+        var options = Options.Create(
+            new OrganisationObligationHydrationOptions { MaxDownstreamRequestsPerMinute = 200 }
+        );
+        var pacingStateStore = new OrganisationObligationRequestPacingStateStore(
+            GetMongoApplicationDatabase(),
+            _timeProvider
+        );
+        var requestPacer = new OrganisationObligationRequestPacer(pacingStateStore, options, _timeProvider);
+        await requestPacer.ObserveWorkload(60, TestContext.Current.CancellationToken);
+
         return new UnsubmittedPollingStatusService(
             dbContext,
             GetMongoApplicationDatabase(),
             Options.Create(new OrganisationEligibilityOptions()),
-            Options.Create(new OrganisationObligationHydrationOptions { MaxDownstreamRequestsPerMinute = 200 }),
+            options,
+            new OrganisationObligationHistoricalBackfillStore(GetMongoApplicationDatabase(), _timeProvider),
+            pacingStateStore,
+            new CurrentObligationYearProvider(_timeProvider),
             _timeProvider
         );
     }
@@ -160,13 +223,14 @@ public class UnsubmittedPollingStatusServiceTests : IntegrationTestBase
         OrganisationReferenceNumberResolutionState referenceNumberResolutionState,
         bool isVisible,
         Guid? organisationId = null,
-        RegistrationType registrationType = RegistrationType.DirectProducer
+        RegistrationType registrationType = RegistrationType.DirectProducer,
+        int obligationYear = 2026
     ) =>
         new()
         {
             Generation = generation,
             OrganisationId = organisationId ?? Guid.NewGuid(),
-            ObligationYear = 2026,
+            ObligationYear = obligationYear,
             RegistrationType = registrationType,
             RegistrationStatus = registrationStatus,
             ReferenceNumberResolutionState = referenceNumberResolutionState,

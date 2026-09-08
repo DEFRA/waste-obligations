@@ -62,6 +62,38 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task HydrateHistoricalBackfill_ShouldReadEachOrganisationOnceAndDeactivateCompletedSummary()
+    {
+        const int historicalObligationYear = 2025;
+        var organisationId = Guid.NewGuid();
+        var requestedAt = _timeProvider.GetUtcNow().UtcDateTime;
+        var backfill = new OrganisationObligationHistoricalBackfill
+        {
+            ObligationYear = historicalObligationYear,
+            OrganisationIds = [organisationId],
+            RequestedAt = requestedAt,
+            UpdatedAt = requestedAt,
+        };
+        ObligationSource
+            .ReadObligations(organisationId, historicalObligationYear, Arg.Any<CancellationToken>())
+            .Returns([CreateObligation("Glass", accepted: 15, obligated: 20, ObligationStatus.Met)]);
+        var subject = CreateSubject();
+
+        var progress = await subject.HydrateHistoricalBackfill(backfill, TestContext.Current.CancellationToken);
+
+        progress.ProcessedCount.Should().Be(1);
+        progress.RemainingCount.Should().Be(0);
+        var summary = await OrganisationObligationSummaries
+            .Find(x => x.OrganisationId == organisationId && x.ObligationYear == historicalObligationYear)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        summary.RequestedAt.Should().Be(requestedAt);
+        summary.LastSuccessfulReadAt.Should().Be(requestedAt);
+        summary.IsHydrationActive.Should().BeFalse();
+        summary.RecyclingObligationsMet.Should().BeTrue();
+        summary.ObligationCoveragePercentage.Should().Be(75);
+    }
+
+    [Fact]
     public async Task EnqueueNewEligible_ShouldDeduplicateActiveRegisteredResolvedRows()
     {
         var organisationId = Guid.NewGuid();
@@ -229,47 +261,6 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
             .Find(x => x.OrganisationId == organisationId && x.ObligationYear == ObligationYear)
             .SingleAsync(TestContext.Current.CancellationToken);
         summary.IsHydrationActive.Should().BeFalse();
-    }
-
-    [Fact]
-    public async Task EnqueueReconciliation_ShouldMakePreCutoverScheduledWorkDue()
-    {
-        var organisationId = Guid.NewGuid();
-        var readBeforeCutover = _timeProvider.GetUtcNow().AddMinutes(-2).UtcDateTime;
-        var cutover = _timeProvider.GetUtcNow().AddMinutes(-1).UtcDateTime;
-        var readAfterCutoverOrganisationId = Guid.NewGuid();
-        await InsertActiveSnapshot();
-        await InsertEligibility(organisationId, RegistrationType.DirectProducer);
-        await InsertEligibility(readAfterCutoverOrganisationId, RegistrationType.DirectProducer);
-        await InsertHydrationSummary(
-            organisationId,
-            nextRefreshAt: _timeProvider.GetUtcNow().AddHours(1).UtcDateTime,
-            lastSuccessfulReadAt: readBeforeCutover
-        );
-        await InsertHydrationSummary(
-            readAfterCutoverOrganisationId,
-            nextRefreshAt: _timeProvider.GetUtcNow().AddHours(1).UtcDateTime,
-            lastSuccessfulReadAt: _timeProvider.GetUtcNow().UtcDateTime
-        );
-        var subject = CreateSubject();
-
-        var enqueuedCount = await subject.EnqueueReconciliation(
-            ObligationYear,
-            cutover,
-            TestContext.Current.CancellationToken
-        );
-
-        enqueuedCount.Should().Be(1);
-        var reconciledSummary = await OrganisationObligationSummaries
-            .Find(x => x.OrganisationId == organisationId)
-            .SingleAsync(TestContext.Current.CancellationToken);
-        reconciledSummary.Priority.Should().Be(OrganisationObligationHydrationPriority.Reconciliation);
-        reconciledSummary.NextRefreshAt.Should().Be(_timeProvider.GetUtcNow().UtcDateTime);
-        var recentSummary = await OrganisationObligationSummaries
-            .Find(x => x.OrganisationId == readAfterCutoverOrganisationId)
-            .SingleAsync(TestContext.Current.CancellationToken);
-        recentSummary.Priority.Should().Be(OrganisationObligationHydrationPriority.ScheduledRefresh);
-        recentSummary.NextRefreshAt.Should().Be(_timeProvider.GetUtcNow().AddHours(1).UtcDateTime);
     }
 
     [Fact]
@@ -606,10 +597,13 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
 
         var options = Options.Create(hydrationOptions ?? new OrganisationObligationHydrationOptions());
 
+        var pacingStateStore = new OrganisationObligationRequestPacingStateStore(database, _timeProvider);
+
         return new OrganisationObligationHydrationService(
             dbContext,
+            new OrganisationObligationHistoricalBackfillStore(database, _timeProvider),
             ObligationSource,
-            new OrganisationObligationRequestPacer(options, _timeProvider),
+            new OrganisationObligationRequestPacer(pacingStateStore, options, _timeProvider),
             HydrationMetrics,
             options,
             _timeProvider,

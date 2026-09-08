@@ -1,5 +1,4 @@
 using Defra.WasteObligations.Api.Services;
-using Defra.WasteObligations.Api.Utils.Metrics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -7,29 +6,21 @@ using Microsoft.Extensions.Options;
 
 namespace Defra.WasteObligations.Api.Services.OrganisationObligations;
 
-public class OrganisationObligationHydrationWorker(
+public class OrganisationObligationHistoricalBackfillWorker(
     IServiceScopeFactory serviceScopeFactory,
     IOptions<OrganisationObligationHydrationOptions> options,
-    IOrganisationObligationHydrationMetrics metrics,
-    ILogger<OrganisationObligationHydrationWorker> logger
+    ILogger<OrganisationObligationHistoricalBackfillWorker> logger
 ) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!options.Value.PollingEnabled)
-        {
-            logger.LogInformation("Organisation obligation hydration polling is off");
-            await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken);
-            return;
-        }
-
         while (!stoppingToken.IsCancellationRequested)
         {
-            var hydratedCount = 0;
+            var processedCount = 0;
 
             try
             {
-                hydratedCount = await Hydrate(stoppingToken);
+                processedCount = await Process(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -37,29 +28,31 @@ public class OrganisationObligationHydrationWorker(
             }
             catch (Exception exception)
             {
-                logger.LogError(exception, "Organisation obligation hydration failed");
+                logger.LogError(exception, "Organisation obligation historical backfill failed");
             }
 
-            if (hydratedCount >= options.Value.BatchSize)
+            if (processedCount >= options.Value.BatchSize)
                 continue;
 
             await Task.Delay(TimeSpan.FromSeconds(options.Value.PollIntervalSeconds), stoppingToken);
         }
     }
 
-    private async Task<int> Hydrate(CancellationToken stoppingToken)
+    private async Task<int> Process(CancellationToken stoppingToken)
     {
         using var scope = serviceScopeFactory.CreateScope();
-        var leaseService = scope.ServiceProvider.GetRequiredService<IOrganisationObligationHydrationLeaseService>();
+        var store = scope.ServiceProvider.GetRequiredService<IOrganisationObligationHistoricalBackfillStore>();
+        var backfill = await store.GetNextIncomplete(stoppingToken);
+        if (backfill is null)
+            return 0;
+
+        var leaseService =
+            scope.ServiceProvider.GetRequiredService<IOrganisationObligationHistoricalBackfillLeaseService>();
         var hydrationService = scope.ServiceProvider.GetRequiredService<IOrganisationObligationHydrationService>();
         var currentObligationYearProvider = scope.ServiceProvider.GetRequiredService<ICurrentObligationYearProvider>();
         var leaseDuration = TimeSpan.FromSeconds(options.Value.LeaseDurationSeconds);
-
         if (!await leaseService.TryAcquire(leaseDuration, stoppingToken))
-        {
-            metrics.LeaseNotAcquired();
             return 0;
-        }
 
         using var hydrationCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
         using var renewalCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
@@ -70,26 +63,50 @@ public class OrganisationObligationHydrationWorker(
             renewalCancellationTokenSource.Token
         );
 
-        var hydratedCount = 0;
-
         try
         {
-            var currentObligationYear = currentObligationYearProvider.GetCurrentObligationYear();
-            hydratedCount = await hydrationService.HydrateDue(
-                currentObligationYear,
+            var currentHydratedCount = 0;
+            if (options.Value.PollingEnabled)
+            {
+                var currentObligationYear = currentObligationYearProvider.GetCurrentObligationYear();
+                currentHydratedCount = await hydrationService.HydrateDue(
+                    currentObligationYear,
+                    hydrationCancellationTokenSource.Token,
+                    maximumWork: options.Value.BatchSize
+                );
+                if (currentHydratedCount > 0)
+                {
+                    return currentHydratedCount;
+                }
+            }
+
+            var progress = await hydrationService.HydrateHistoricalBackfill(
+                backfill,
                 hydrationCancellationTokenSource.Token,
-                maximumWork: options.Value.BatchSize
+                maximumWork: options.Value.PollingEnabled ? 1 : options.Value.BatchSize,
+                preserveCurrentYearPacing: options.Value.PollingEnabled
             );
+            if (progress.RemainingCount == 0)
+                await store.Complete(backfill, hydrationCancellationTokenSource.Token);
+
             logger.LogInformation(
-                "Organisation obligation hydration processed {HydratedCount} work items for obligation year {ObligationYear}",
-                hydratedCount,
-                currentObligationYear
+                "Organisation obligation historical backfill processed {ProcessedCount} work items with {RemainingCount} remaining for obligation year {ObligationYear}",
+                progress.ProcessedCount,
+                progress.RemainingCount,
+                backfill.ObligationYear
             );
+
+            return currentHydratedCount + progress.ProcessedCount;
         }
         catch (OperationCanceledException exception)
             when (hydrationCancellationTokenSource.IsCancellationRequested && !stoppingToken.IsCancellationRequested)
         {
-            logger.LogWarning(exception, "Organisation obligation hydration stopped because its lease was not renewed");
+            logger.LogWarning(
+                exception,
+                "Organisation obligation historical backfill stopped because its lease was not renewed"
+            );
+
+            return 0;
         }
         finally
         {
@@ -102,17 +119,15 @@ public class OrganisationObligationHydrationWorker(
             }
             catch (OperationCanceledException exception) when (renewalCancellationTokenSource.IsCancellationRequested)
             {
-                logger.LogDebug(exception, "Organisation obligation hydration lease renewal stopped");
+                logger.LogDebug(exception, "Organisation obligation historical backfill lease renewal stopped");
             }
 
             await leaseService.Release(CancellationToken.None);
         }
-
-        return hydratedCount;
     }
 
     private async Task RenewLease(
-        IOrganisationObligationHydrationLeaseService leaseService,
+        IOrganisationObligationHistoricalBackfillLeaseService leaseService,
         TimeSpan leaseDuration,
         CancellationTokenSource hydrationCancellationTokenSource,
         CancellationToken renewalCancellationToken
@@ -127,11 +142,13 @@ public class OrganisationObligationHydrationWorker(
                 if (await leaseService.TryRenew(leaseDuration, renewalCancellationToken))
                     continue;
 
-                logger.LogError("Organisation obligation hydration stopped because its lease was not renewed");
+                logger.LogError(
+                    "Organisation obligation historical backfill stopped because its lease was not renewed"
+                );
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
-                logger.LogError(exception, "Organisation obligation hydration lease renewal failed");
+                logger.LogError(exception, "Organisation obligation historical backfill lease renewal failed");
             }
 
             await hydrationCancellationTokenSource.CancelAsync();

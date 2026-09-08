@@ -19,8 +19,7 @@ public static class ServiceCollectionExtensions
                     && options.RefreshInterval > TimeSpan.Zero
                     && options.InitialRetryDelay > TimeSpan.Zero
                     && options.MaximumRetryDelay >= options.InitialRetryDelay
-                    && options.MaximumSummaryStaleness > TimeSpan.Zero
-                    && options.OutgoingYearGracePeriod > TimeSpan.Zero,
+                    && options.MaximumSummaryStaleness > TimeSpan.Zero,
                 "Organisation obligation hydration interval configuration is invalid"
             )
             .ValidateOnStart();
@@ -28,12 +27,25 @@ public static class ServiceCollectionExtensions
             IOrganisationObligationHydrationLeaseService,
             OrganisationObligationHydrationLeaseService
         >();
+        services.AddTransient<
+            IOrganisationObligationHistoricalBackfillLeaseService,
+            OrganisationObligationHistoricalBackfillLeaseService
+        >();
+        services.AddTransient<
+            IOrganisationObligationHistoricalBackfillStore,
+            OrganisationObligationHistoricalBackfillStore
+        >();
         services.AddSingleton<IOrganisationObligationRequestPacer, OrganisationObligationRequestPacer>();
+        services.AddSingleton<
+            IOrganisationObligationRequestPacingStateStore,
+            OrganisationObligationRequestPacingStateStore
+        >();
         services.AddTransient<IOrganisationObligationHydrationService, OrganisationObligationHydrationService>();
 
         if (addWorker)
         {
             services.AddHostedService<OrganisationObligationHydrationWorker>();
+            services.AddHostedService<OrganisationObligationHistoricalBackfillWorker>();
         }
 
         return services;

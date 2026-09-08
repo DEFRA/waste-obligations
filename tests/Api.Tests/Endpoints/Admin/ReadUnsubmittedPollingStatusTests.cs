@@ -77,6 +77,11 @@ public class ReadUnsubmittedPollingStatusTests(ApiWebApplicationFactory factory,
                 RefreshPollIntervalSeconds = 1800,
                 VisibleRowCount = 4000,
                 HydrationEligibleOrganisationCount = 4245,
+                MaterialisedObligationYears =
+                [
+                    new OrganisationEligibilityMaterialisedObligationYear { ObligationYear = 2025, RowCount = 4 },
+                    new OrganisationEligibilityMaterialisedObligationYear { ObligationYear = 2026, RowCount = 4245 },
+                ],
                 ReferenceResolutionStates =
                 [
                     new OrganisationReferenceResolutionStatus { State = "Resolved", Count = 4245 },
@@ -98,8 +103,16 @@ public class ReadUnsubmittedPollingStatusTests(ApiWebApplicationFactory factory,
                 MaxConcurrentRequests = 10,
                 MaxDownstreamRequestsPerMinute = 200,
                 TotalMinimumFullRefreshMinutes = 21.225,
+                DesiredRequestsPerMinute = 142,
+                EffectiveRequestsPerMinute = 160,
+                RateBackoffReason = "Downstream latency increased from 100ms to 200ms",
+                RecentDownstreamReadLatencyMilliseconds = 200,
+                RecentDownstreamReadFailurePercentage = 10,
+                EstimatedFullRefreshMinutes = 26.53125,
+                EstimatedStalenessGapMinutes = 0,
                 RefreshIntervalSeconds = 1800,
                 MaximumSummaryStalenessSeconds = 7200,
+                HistoricalBackfills = [],
                 Years =
                 [
                     new OrganisationObligationHydrationYearStatus

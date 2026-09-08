@@ -17,7 +17,7 @@ public record OrganisationObligationHydrationOptions
     [Range(1, 300)]
     public int LeaseRenewalIntervalSeconds { get; init; } = 60;
 
-    [Range(2, 100)]
+    [Range(1, 100)]
     public int BatchSize { get; init; } = 10;
 
     [Range(1, 20)]
@@ -26,6 +26,9 @@ public record OrganisationObligationHydrationOptions
     [Range(1, 600)]
     public int MaxDownstreamRequestsPerMinute { get; init; } = 20;
 
+    [Range(0, 100)]
+    public int RecommendedRateHeadroomPercentage { get; init; } = 20;
+
     public TimeSpan RefreshInterval { get; init; } = TimeSpan.FromMinutes(30);
 
     public TimeSpan InitialRetryDelay { get; init; } = TimeSpan.FromMinutes(1);
@@ -33,6 +36,4 @@ public record OrganisationObligationHydrationOptions
     public TimeSpan MaximumRetryDelay { get; init; } = TimeSpan.FromMinutes(30);
 
     public TimeSpan MaximumSummaryStaleness { get; init; } = TimeSpan.FromHours(2);
-
-    public TimeSpan OutgoingYearGracePeriod { get; init; } = TimeSpan.FromHours(1);
 }
