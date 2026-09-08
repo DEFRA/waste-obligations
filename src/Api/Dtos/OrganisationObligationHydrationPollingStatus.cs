@@ -7,6 +7,7 @@ public record OrganisationObligationHydrationPollingStatus
     public required int BatchSize { get; init; }
     public required int MaxConcurrentRequests { get; init; }
     public required int MaxDownstreamRequestsPerMinute { get; init; }
+    public required double TotalMinimumFullRefreshMinutes { get; init; }
     public required int RefreshIntervalSeconds { get; init; }
     public required int MaximumSummaryStalenessSeconds { get; init; }
     public required OrganisationObligationHydrationYearStatus[] Years { get; init; }

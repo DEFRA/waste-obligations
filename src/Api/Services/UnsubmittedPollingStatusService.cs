@@ -113,6 +113,7 @@ public class UnsubmittedPollingStatusService(
             BatchSize = options.BatchSize,
             MaxConcurrentRequests = options.MaxConcurrentRequests,
             MaxDownstreamRequestsPerMinute = options.MaxDownstreamRequestsPerMinute,
+            TotalMinimumFullRefreshMinutes = summaries.Count / (double)options.MaxDownstreamRequestsPerMinute,
             RefreshIntervalSeconds = (int)options.RefreshInterval.TotalSeconds,
             MaximumSummaryStalenessSeconds = (int)options.MaximumSummaryStaleness.TotalSeconds,
             Years =

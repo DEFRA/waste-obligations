@@ -97,6 +97,7 @@ public class ReadUnsubmittedPollingStatusTests(ApiWebApplicationFactory factory,
                 BatchSize = 20,
                 MaxConcurrentRequests = 10,
                 MaxDownstreamRequestsPerMinute = 200,
+                TotalMinimumFullRefreshMinutes = 21.225,
                 RefreshIntervalSeconds = 1800,
                 MaximumSummaryStalenessSeconds = 7200,
                 Years =

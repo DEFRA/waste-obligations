@@ -67,6 +67,12 @@ public class UnsubmittedPollingStatusServiceTests : IntegrationTestBase
                     lastSuccessfulReadAt: utcNow.AddMinutes(-30),
                     isHydrationActive: false
                 ),
+                Summary(
+                    refreshState: OrganisationObligationRefreshState.Ready,
+                    nextRefreshAt: utcNow.AddMinutes(15),
+                    lastSuccessfulReadAt: utcNow.AddMinutes(-5),
+                    obligationYear: 2027
+                ),
             ],
             cancellationToken: TestContext.Current.CancellationToken
         );
@@ -104,8 +110,9 @@ public class UnsubmittedPollingStatusServiceTests : IntegrationTestBase
             .And.Contain(x => x.State == "Pending" && x.Count == 1);
         result.Eligibility.Lease.IsHeld.Should().BeTrue();
         result.ObligationHydration.MaxDownstreamRequestsPerMinute.Should().Be(200);
-        result.ObligationHydration.Years.Should().ContainSingle();
-        var year = result.ObligationHydration.Years.Single();
+        result.ObligationHydration.TotalMinimumFullRefreshMinutes.Should().Be(0.015);
+        result.ObligationHydration.Years.Should().HaveCount(2);
+        var year = result.ObligationHydration.Years.Single(x => x.ObligationYear == 2026);
         year.ObligationYear.Should().Be(2026);
         year.ActiveSummaryCount.Should().Be(2);
         year.DueSummaryCount.Should().Be(1);
@@ -159,12 +166,13 @@ public class UnsubmittedPollingStatusServiceTests : IntegrationTestBase
         OrganisationObligationRefreshState refreshState,
         DateTime nextRefreshAt,
         DateTime? lastSuccessfulReadAt,
-        bool isHydrationActive = true
+        bool isHydrationActive = true,
+        int obligationYear = 2026
     ) =>
         new()
         {
             OrganisationId = Guid.NewGuid(),
-            ObligationYear = 2026,
+            ObligationYear = obligationYear,
             NextRefreshAt = nextRefreshAt,
             LastSuccessfulReadAt = lastSuccessfulReadAt,
             LastAttemptedAt = nextRefreshAt,
