@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using Defra.WasteObligations.Api.Services;
+using Defra.WasteObligations.Api.Utils.Metrics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -9,6 +11,7 @@ namespace Defra.WasteObligations.Api.Services.OrganisationEligibility;
 public class OrganisationEligibilityRefreshWorker(
     IServiceScopeFactory serviceScopeFactory,
     IOptions<OrganisationEligibilityOptions> options,
+    IOrganisationEligibilityRefreshMetrics metrics,
     ILogger<OrganisationEligibilityRefreshWorker> logger
 ) : BackgroundService
 {
@@ -49,7 +52,7 @@ public class OrganisationEligibilityRefreshWorker(
 
         if (!await leaseService.TryAcquire(leaseDuration, stoppingToken))
         {
-            logger.LogInformation("Organisation eligibility refresh skipped because another instance holds the lease");
+            metrics.LeaseNotAcquired();
             return;
         }
 
@@ -61,15 +64,24 @@ public class OrganisationEligibilityRefreshWorker(
             refreshCancellationTokenSource,
             renewalCancellationTokenSource.Token
         );
+        var refreshStopwatch = Stopwatch.StartNew();
 
         try
         {
             var result = await refreshService.Refresh(refreshCancellationTokenSource.Token);
+            refreshStopwatch.Stop();
+            metrics.Completed(result, refreshStopwatch.Elapsed);
             logger.LogInformation(
                 "Organisation eligibility refresh {Outcome} with {RowCount} rows",
                 result.Outcome,
                 result.RowCount
             );
+        }
+        catch (Exception) when (!refreshCancellationTokenSource.IsCancellationRequested)
+        {
+            refreshStopwatch.Stop();
+            metrics.Failed(refreshStopwatch.Elapsed);
+            throw;
         }
         catch (OperationCanceledException exception)
             when (refreshCancellationTokenSource.IsCancellationRequested && !stoppingToken.IsCancellationRequested)

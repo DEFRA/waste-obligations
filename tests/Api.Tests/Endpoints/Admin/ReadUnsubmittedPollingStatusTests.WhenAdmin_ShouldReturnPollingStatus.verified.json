@@ -1,0 +1,61 @@
+﻿{
+  "eligibility": {
+    "activeGeneration": "generation",
+    "activeContentFingerprint": "fingerprint",
+    "activeRowCount": 4245,
+    "activeGenerationPromotedAt": "DateTimeOffset_1",
+    "lastVerifiedAt": "DateTimeOffset_2",
+    "materialisedStateVersion": 17,
+    "refreshPollingEnabled": true,
+    "refreshPollIntervalSeconds": 1800,
+    "visibleRowCount": 4000,
+    "hydrationEligibleOrganisationCount": 4245,
+    "referenceResolutionStates": [
+      {
+        "state": "Resolved",
+        "count": 4245
+      },
+      {
+        "state": "Pending",
+        "count": 0
+      }
+    ],
+    "lease": {
+      "isHeld": true,
+      "expiresAt": "DateTimeOffset_3",
+      "updatedAt": "DateTimeOffset_1",
+      "lastReleasedAt": "DateTimeOffset_4"
+    }
+  },
+  "obligationHydration": {
+    "pollingEnabled": true,
+    "pollIntervalSeconds": 60,
+    "batchSize": 20,
+    "maxConcurrentRequests": 10,
+    "maxDownstreamRequestsPerMinute": 200,
+    "totalMinimumFullRefreshMinutes": 21.225,
+    "refreshIntervalSeconds": 1800,
+    "maximumSummaryStalenessSeconds": 7200,
+    "years": [
+      {
+        "obligationYear": 2026,
+        "activeSummaryCount": 4245,
+        "dueSummaryCount": 10,
+        "pendingSummaryCount": 10,
+        "readySummaryCount": 4234,
+        "failedSummaryCount": 1,
+        "neverSuccessfullyReadSummaryCount": 10,
+        "oldestDueAt": "DateTimeOffset_5",
+        "oldestSuccessfulReadAt": "DateTimeOffset_5",
+        "latestSuccessfulReadAt": "DateTimeOffset_1",
+        "minimumFullRefreshMinutes": 21.225
+      }
+    ],
+    "lease": {
+      "isHeld": false,
+      "expiresAt": null,
+      "updatedAt": null,
+      "lastReleasedAt": "DateTimeOffset_6"
+    }
+  }
+}

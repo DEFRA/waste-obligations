@@ -32,12 +32,63 @@ public static class Metrics
         public const string AuditEventSnsPublishDuration = nameof(AuditEventSnsPublishDuration);
         public const string AuditEventSnsPublishLatency = nameof(AuditEventSnsPublishLatency);
         public const string OrganisationObligationHydrationFailure = nameof(OrganisationObligationHydrationFailure);
+        public const string OrganisationObligationHydrationLeaseNotAcquired = nameof(
+            OrganisationObligationHydrationLeaseNotAcquired
+        );
         public const string OrganisationObligationHydrationSuccess = nameof(OrganisationObligationHydrationSuccess);
+        public const string OrganisationObligationHydrationObligationReadDuration = nameof(
+            OrganisationObligationHydrationObligationReadDuration
+        );
+        public const string OrganisationObligationHydrationObligationReadFailure = nameof(
+            OrganisationObligationHydrationObligationReadFailure
+        );
+        public const string OrganisationObligationHydrationActiveSummaryCount = nameof(
+            OrganisationObligationHydrationActiveSummaryCount
+        );
+        public const string OrganisationObligationHydrationDueSummaryCount = nameof(
+            OrganisationObligationHydrationDueSummaryCount
+        );
         public const string OrganisationObligationHydrationStaleSummaryAge = nameof(
             OrganisationObligationHydrationStaleSummaryAge
         );
         public const string OrganisationObligationHydrationStaleSummaryCount = nameof(
             OrganisationObligationHydrationStaleSummaryCount
+        );
+        public const string OrganisationEligibilityRefreshDuration = nameof(OrganisationEligibilityRefreshDuration);
+        public const string OrganisationEligibilityRefreshLeaseNotAcquired = nameof(
+            OrganisationEligibilityRefreshLeaseNotAcquired
+        );
+        public const string OrganisationEligibilityRefreshOutcome = nameof(OrganisationEligibilityRefreshOutcome);
+        public const string OrganisationEligibilityRefreshRowCount = nameof(OrganisationEligibilityRefreshRowCount);
+        public const string OrganisationEligibilityReferenceResolutionCount = nameof(
+            OrganisationEligibilityReferenceResolutionCount
+        );
+        public const string OrganisationEligibilityRefreshWasteOrganisationsReadDuration = nameof(
+            OrganisationEligibilityRefreshWasteOrganisationsReadDuration
+        );
+        public const string OrganisationEligibilityRefreshWasteOrganisationsReadFailure = nameof(
+            OrganisationEligibilityRefreshWasteOrganisationsReadFailure
+        );
+        public const string OrganisationEligibilityRefreshWasteOrganisationsRowCount = nameof(
+            OrganisationEligibilityRefreshWasteOrganisationsRowCount
+        );
+        public const string OrganisationEligibilityRefreshAccountReferenceLookupDuration = nameof(
+            OrganisationEligibilityRefreshAccountReferenceLookupDuration
+        );
+        public const string OrganisationEligibilityRefreshAccountReferenceLookupFailure = nameof(
+            OrganisationEligibilityRefreshAccountReferenceLookupFailure
+        );
+        public const string OrganisationEligibilityRefreshAccountReferenceLookupBatchSize = nameof(
+            OrganisationEligibilityRefreshAccountReferenceLookupBatchSize
+        );
+        public const string OrganisationObligationHydrationMinimumFullRefreshDuration = nameof(
+            OrganisationObligationHydrationMinimumFullRefreshDuration
+        );
+        public const string OrganisationObligationHydrationRefreshInterval = nameof(
+            OrganisationObligationHydrationRefreshInterval
+        );
+        public const string OrganisationObligationHydrationMaxDownstreamRequestsPerMinute = nameof(
+            OrganisationObligationHydrationMaxDownstreamRequestsPerMinute
         );
     }
 
@@ -59,5 +110,8 @@ public static class Metrics
         public const string Entity = nameof(Entity);
         public const string Operation = nameof(Operation);
         public const string EventType = nameof(EventType);
+        public const string Outcome = nameof(Outcome);
+        public const string ReferenceResolutionState = nameof(ReferenceResolutionState);
+        public const string AccountReferenceLookupType = nameof(AccountReferenceLookupType);
     }
 }

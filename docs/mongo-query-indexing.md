@@ -22,11 +22,12 @@ An unindexed plan may only be accepted with `AllowUnindexedMongoQuery(new MongoQ
 
 ## Applied index set
 
-The application query review adds exactly three secondary indexes, all on `OrganisationComplianceDeclarationEligibility`:
+The application query review adds exactly four secondary indexes: three on `OrganisationComplianceDeclarationEligibility` and one on `OrganisationObligationSummary`:
 
 - `Generation_ObligationYear_RegistrationStatus_ReferenceNumberResolutionState_OrganisationId` serves the hydration work-selection read and covers its projected organisation ID.
 - `RefreshedAt` bounds expired-generation cleanup by its retention cutoff; `generation NOT IN (...)` remains a residual filter.
 - `Generation_IsVisibleInUnsubmittedView_BusinessCountry_Name_OrganisationId` serves the country-filtered unsubmitted default sort.
+- `IsHydrationActive_ObligationYear_NextRefreshAt` serves the private polling-status view and active/due hydration-summary counts without scanning historical inactive summaries.
 
 No status-only declaration index was added. The exclusion read now accepts the source rows it is evaluating and restricts its declaration read to their organisation IDs, years, and registration types, allowing the existing `OrganisationId_ObligationYear` index to be used. No audit-event index was added either: `AuditEvent.EventId` is mapped to MongoDB `_id`, so dispatch marking already uses `_id_`.
 
@@ -52,6 +53,7 @@ This is the source inventory as at the introduction of the profiler. A row marke
 | Obligation metric lookup | `OrganisationObligationSummary` | organisation id set and year set | `OrganisationId_ObligationYear` |
 | Hydration enqueue / persist | `OrganisationObligationSummary` | organisation id and year | `OrganisationId_ObligationYear` |
 | Hydration due-work read | `OrganisationObligationSummary` | year, active, due time; sort priority and next refresh | `ObligationYear_IsHydrationActive_Priority_NextRefreshAt` |
+| Polling-status / active and due-summary counts | `OrganisationObligationSummary` | active flag, optionally year and due time | `IsHydrationActive_ObligationYear_NextRefreshAt` |
 | Hydration reconciliation / deactivation / staleness | `OrganisationObligationSummary` | year, active, priority or stale-time predicates | **review** — the due-work index has only a useful equality prefix for some variants |
 | Worker, audit-dispatch, and migration leases | `_unsubmitted_organisation_worker_leases`, `_audit_event_dispatch_lease`, `_migrations_lease` | `_id` with owner / expiry condition | `_id_` |
 | Audit event counter | `_audit_event_counter` | `_id` find-and-modify | `_id_` |

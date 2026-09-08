@@ -29,7 +29,7 @@ public static class ServiceCollectionExtensions
             .AddResiliencePipeline(addResiliencePipeline, name);
 
         services
-            .AddHttpClient<IOrganisationEligibilitySource, WasteOrganisationsService>()
+            .AddHttpClient<IOrganisationEligibilitySource, OrganisationEligibilitySource>()
             .ConfigureHttpClient(
                 (sp, httpClient) =>
                 {

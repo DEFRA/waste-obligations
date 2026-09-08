@@ -24,6 +24,11 @@ public static class Endpoints
         public const string V1 = "documentation/openapi/v1.json";
     }
 
+    public static class Admin
+    {
+        public static string UnsubmittedPollingStatus() => "admin/unsubmitted-compliance-declarations/polling-status";
+    }
+
     public static class Organisations
     {
         private static string Root => "organisations";

@@ -25,6 +25,7 @@ public class OrganisationEligibilityRefreshService(
     public async Task<OrganisationEligibilityRefreshResult> Refresh(CancellationToken cancellationToken)
     {
         var source = await organisationEligibilitySource.Search(cancellationToken);
+
         var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
         var generation = Guid.NewGuid().ToString("N");
         var sourceRows = Mappers.ToEligibilityRows(source.Organisations, generation, utcNow);

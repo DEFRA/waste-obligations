@@ -1,6 +1,7 @@
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.OrganisationObligations;
+using Defra.WasteObligations.Api.Utils.Metrics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -44,7 +45,13 @@ public class OrganisationObligationHydrationWorkerTests
         var leaseService = Substitute.For<IOrganisationObligationHydrationLeaseService>();
         leaseService.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(false);
         var hydrationService = Substitute.For<IOrganisationObligationHydrationService>();
-        var subject = CreateSubject(leaseService, hydrationService, Substitute.For<ICurrentObligationYearProvider>());
+        var metrics = Substitute.For<IOrganisationObligationHydrationMetrics>();
+        var subject = CreateSubject(
+            leaseService,
+            hydrationService,
+            Substitute.For<ICurrentObligationYearProvider>(),
+            metrics: metrics
+        );
 
         await subject.StartAsync(TestContext.Current.CancellationToken);
         await Task.Delay(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
@@ -54,6 +61,7 @@ public class OrganisationObligationHydrationWorkerTests
             .DidNotReceive()
             .HydrateDue(Arg.Any<int>(), Arg.Any<CancellationToken>(), Arg.Any<int?>());
         await leaseService.DidNotReceive().Release(Arg.Any<CancellationToken>());
+        metrics.Received(1).LeaseNotAcquired();
     }
 
     [Fact]
@@ -197,7 +205,8 @@ public class OrganisationObligationHydrationWorkerTests
         IOrganisationObligationHydrationLeaseService leaseService,
         IOrganisationObligationHydrationService hydrationService,
         ICurrentObligationYearProvider currentObligationYearProvider,
-        bool pollingEnabled = true
+        bool pollingEnabled = true,
+        IOrganisationObligationHydrationMetrics? metrics = null
     )
     {
         var services = new ServiceCollection();
@@ -217,6 +226,7 @@ public class OrganisationObligationHydrationWorkerTests
                     LeaseRenewalIntervalSeconds = 60,
                 }
             ),
+            metrics ?? Substitute.For<IOrganisationObligationHydrationMetrics>(),
             Substitute.For<ILogger<OrganisationObligationHydrationWorker>>()
         );
     }

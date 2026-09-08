@@ -8,7 +8,17 @@ namespace Defra.WasteObligations.Api.Utils.Metrics;
 [ExcludeFromCodeCoverage]
 public class OrganisationObligationHydrationMetrics : IOrganisationObligationHydrationMetrics
 {
+    private static readonly string ServiceName = Process.GetCurrentProcess().ProcessName;
+
     private readonly Counter<long> _failures;
+    private readonly Counter<long> _leaseNotAcquired;
+    private readonly Histogram<long> _activeSummaryCount;
+    private readonly Histogram<long> _maxDownstreamRequestsPerMinute;
+    private readonly Histogram<double> _minimumFullRefreshDuration;
+    private readonly Histogram<long> _dueSummaryCount;
+    private readonly Histogram<double> _obligationReadDuration;
+    private readonly Counter<long> _obligationReadFailures;
+    private readonly Histogram<double> _refreshInterval;
     private readonly Histogram<double> _staleSummaryAge;
     private readonly Histogram<long> _staleSummaryCount;
     private readonly Counter<long> _successes;
@@ -21,6 +31,46 @@ public class OrganisationObligationHydrationMetrics : IOrganisationObligationHyd
             Metrics.Names.OrganisationObligationHydrationFailure,
             nameof(Unit.COUNT),
             "Count of organisation obligation hydration failures"
+        );
+        _leaseNotAcquired = meter.CreateCounter<long>(
+            Metrics.Names.OrganisationObligationHydrationLeaseNotAcquired,
+            nameof(Unit.COUNT),
+            "Count of organisation obligation hydration attempts skipped because another instance holds the lease"
+        );
+        _activeSummaryCount = meter.CreateHistogram<long>(
+            Metrics.Names.OrganisationObligationHydrationActiveSummaryCount,
+            nameof(Unit.COUNT),
+            "Count of active organisation obligation hydration summaries"
+        );
+        _maxDownstreamRequestsPerMinute = meter.CreateHistogram<long>(
+            Metrics.Names.OrganisationObligationHydrationMaxDownstreamRequestsPerMinute,
+            nameof(Unit.COUNT),
+            "Configured maximum organisation obligations reads per minute"
+        );
+        _minimumFullRefreshDuration = meter.CreateHistogram<double>(
+            Metrics.Names.OrganisationObligationHydrationMinimumFullRefreshDuration,
+            nameof(Unit.SECONDS),
+            "Minimum duration to read every active organisation obligation summary at the configured request rate"
+        );
+        _dueSummaryCount = meter.CreateHistogram<long>(
+            Metrics.Names.OrganisationObligationHydrationDueSummaryCount,
+            nameof(Unit.COUNT),
+            "Count of organisation obligation hydration summaries due for an obligations read"
+        );
+        _obligationReadDuration = meter.CreateHistogram<double>(
+            Metrics.Names.OrganisationObligationHydrationObligationReadDuration,
+            nameof(Unit.SECONDS),
+            "Duration of organisation obligations reads"
+        );
+        _obligationReadFailures = meter.CreateCounter<long>(
+            Metrics.Names.OrganisationObligationHydrationObligationReadFailure,
+            nameof(Unit.COUNT),
+            "Count of failed organisation obligations reads"
+        );
+        _refreshInterval = meter.CreateHistogram<double>(
+            Metrics.Names.OrganisationObligationHydrationRefreshInterval,
+            nameof(Unit.SECONDS),
+            "Configured organisation obligation refresh interval"
         );
         _staleSummaryAge = meter.CreateHistogram<double>(
             Metrics.Names.OrganisationObligationHydrationStaleSummaryAge,
@@ -35,13 +85,48 @@ public class OrganisationObligationHydrationMetrics : IOrganisationObligationHyd
         _successes = meter.CreateCounter<long>(
             Metrics.Names.OrganisationObligationHydrationSuccess,
             nameof(Unit.COUNT),
-            "Count of organisation obligation hydration successes"
+            "Count of successful organisation obligation summaries saved"
         );
     }
 
     public void Failed()
     {
         _failures.Add(1, BuildTags());
+    }
+
+    public void LeaseNotAcquired()
+    {
+        _leaseNotAcquired.Add(1, BuildTags());
+    }
+
+    public void ObligationReadCompleted(TimeSpan duration)
+    {
+        _obligationReadDuration.Record(duration.TotalSeconds, BuildTags());
+    }
+
+    public void ObligationReadFailed(TimeSpan duration)
+    {
+        var tags = BuildTags();
+        _obligationReadFailures.Add(1, tags);
+        _obligationReadDuration.Record(duration.TotalSeconds, tags);
+    }
+
+    public void QueueObserved(int activeSummaryCount, int dueSummaryCount)
+    {
+        var tags = BuildTags();
+        _activeSummaryCount.Record(activeSummaryCount, tags);
+        _dueSummaryCount.Record(dueSummaryCount, tags);
+    }
+
+    public void CapacityObserved(int activeSummaryCount, int maxDownstreamRequestsPerMinute, TimeSpan refreshInterval)
+    {
+        var tags = BuildTags();
+        _maxDownstreamRequestsPerMinute.Record(maxDownstreamRequestsPerMinute, tags);
+        _minimumFullRefreshDuration.Record(
+            TimeSpan.FromMinutes((double)activeSummaryCount / maxDownstreamRequestsPerMinute).TotalSeconds,
+            tags
+        );
+        _refreshInterval.Record(refreshInterval.TotalSeconds, tags);
     }
 
     public void Succeeded()
@@ -60,5 +145,5 @@ public class OrganisationObligationHydrationMetrics : IOrganisationObligationHyd
         }
     }
 
-    private static TagList BuildTags() => new() { { Metrics.Tags.Service, Process.GetCurrentProcess().ProcessName } };
+    private static TagList BuildTags() => new() { { Metrics.Tags.Service, ServiceName } };
 }

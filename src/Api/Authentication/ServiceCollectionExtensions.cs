@@ -34,6 +34,17 @@ public static class ServiceCollectionExtensions
         services
             .AddAuthorizationBuilder()
             .AddPolicy(
+                PolicyNames.Admin,
+                builder =>
+                    builder
+                        .RequireAuthenticatedUser()
+                        .AddAuthenticationSchemes(
+                            BasicAuthenticationHandler.SchemeName,
+                            JwtAuthenticationHandler.SchemeName
+                        )
+                        .RequireClaim(Claims.Scope, Scopes.Admin)
+            )
+            .AddPolicy(
                 PolicyNames.Read,
                 builder =>
                     builder

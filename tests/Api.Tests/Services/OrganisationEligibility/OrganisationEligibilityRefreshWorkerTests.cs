@@ -1,6 +1,7 @@
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.OrganisationEligibility;
+using Defra.WasteObligations.Api.Utils.Metrics;
 using Defra.WasteObligations.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -50,7 +51,8 @@ public class OrganisationEligibilityRefreshWorkerTests
         var leaseService = Substitute.For<IOrganisationEligibilityRefreshLeaseService>();
         leaseService.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(false);
         var refreshService = Substitute.For<IOrganisationEligibilityRefreshService>();
-        var subject = CreateSubject(leaseService, refreshService);
+        var metrics = Substitute.For<IOrganisationEligibilityRefreshMetrics>();
+        var subject = CreateSubject(leaseService, refreshService, metrics: metrics);
 
         await subject.StartAsync(TestContext.Current.CancellationToken);
         await Task.Delay(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
@@ -58,6 +60,7 @@ public class OrganisationEligibilityRefreshWorkerTests
 
         await refreshService.DidNotReceive().Refresh(Arg.Any<CancellationToken>());
         await leaseService.DidNotReceive().Release(Arg.Any<CancellationToken>());
+        metrics.Received(1).LeaseNotAcquired();
     }
 
     [Fact]
@@ -263,6 +266,7 @@ public class OrganisationEligibilityRefreshWorkerTests
         IOrganisationEligibilityRefreshService refreshService,
         bool refreshPollingEnabled = true,
         int refreshLeaseRenewalIntervalSeconds = 60,
+        IOrganisationEligibilityRefreshMetrics? metrics = null,
         ILogger<OrganisationEligibilityRefreshWorker>? logger = null
     )
     {
@@ -282,6 +286,7 @@ public class OrganisationEligibilityRefreshWorkerTests
                     RefreshLeaseRenewalIntervalSeconds = refreshLeaseRenewalIntervalSeconds,
                 }
             ),
+            metrics ?? Substitute.For<IOrganisationEligibilityRefreshMetrics>(),
             logger ?? Substitute.For<ILogger<OrganisationEligibilityRefreshWorker>>()
         );
     }
@@ -291,6 +296,7 @@ public class OrganisationEligibilityRefreshWorkerTests
         IOrganisationEligibilityRefreshService refreshService,
         bool refreshPollingEnabled = true,
         int refreshLeaseRenewalIntervalSeconds = 60,
+        IOrganisationEligibilityRefreshMetrics? metrics = null,
         ILogger<OrganisationEligibilityRefreshWorker>? logger = null
     )
     {
@@ -310,6 +316,7 @@ public class OrganisationEligibilityRefreshWorkerTests
                     RefreshLeaseRenewalIntervalSeconds = refreshLeaseRenewalIntervalSeconds,
                 }
             ),
+            metrics ?? Substitute.For<IOrganisationEligibilityRefreshMetrics>(),
             logger ?? Substitute.For<ILogger<OrganisationEligibilityRefreshWorker>>()
         );
     }
@@ -317,8 +324,9 @@ public class OrganisationEligibilityRefreshWorkerTests
     private sealed class TestableOrganisationEligibilityRefreshWorker(
         IServiceScopeFactory serviceScopeFactory,
         IOptions<OrganisationEligibilityOptions> options,
+        IOrganisationEligibilityRefreshMetrics metrics,
         ILogger<OrganisationEligibilityRefreshWorker> logger
-    ) : OrganisationEligibilityRefreshWorker(serviceScopeFactory, options, logger)
+    ) : OrganisationEligibilityRefreshWorker(serviceScopeFactory, options, metrics, logger)
     {
         public Task Execute(CancellationToken stoppingToken) => ExecuteAsync(stoppingToken);
     }

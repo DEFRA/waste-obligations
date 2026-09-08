@@ -6,6 +6,7 @@ using Defra.WasteObligations.Api.Services.AccountBackend;
 using Defra.WasteObligations.Api.Services.OrganisationEligibility;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
 using Defra.WasteObligations.Api.Utils.Http;
+using Defra.WasteObligations.Api.Utils.Metrics;
 using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Authentication;
 using Defra.WasteObligations.Testing.Extensions.WireMock;
@@ -15,6 +16,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Driver;
+using NSubstitute;
 using Organisation = Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation;
 using Registration = Defra.WasteObligations.Api.Services.WasteOrganisations.Registration;
 using WasteOrganisationsAddress = Defra.WasteObligations.Api.Services.WasteOrganisations.Address;
@@ -103,6 +105,7 @@ public class RefreshOrganisationEligibilityFromDownstreamServicesTests : Integra
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton<IConfiguration>(configuration);
+        services.AddSingleton(Substitute.For<IOrganisationEligibilityRefreshMetrics>());
         services.AddTransient<ProxyHttpMessageHandler>();
         services.AddWasteOrganisationsService(addResiliencePipeline: false);
         services.AddAccountBackendService(addResiliencePipeline: false);
@@ -120,6 +123,7 @@ public class RefreshOrganisationEligibilityFromDownstreamServicesTests : Integra
         var referenceResolver = new OrganisationReferenceResolver(
             serviceProvider.GetRequiredService<IOrganisationReferenceSearchService>(),
             options,
+            Substitute.For<IOrganisationEligibilityRefreshMetrics>(),
             NullLogger<OrganisationReferenceResolver>.Instance
         );
 

@@ -7,6 +7,7 @@ using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.AccountBackend;
 using Defra.WasteObligations.Api.Services.OrganisationEligibility;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
+using Defra.WasteObligations.Api.Utils.Metrics;
 using Defra.WasteObligations.Testing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -73,6 +74,26 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
             JsonSerializerOptions.Web
         );
         await VerifyJson(persistedProjection).ScrubMembers("id");
+    }
+
+    [Fact]
+    public async Task Refresh_ShouldObserveAccountReferenceCalls()
+    {
+        var organisationId = Guid.NewGuid();
+        var metrics = Substitute.For<IOrganisationEligibilityRefreshMetrics>();
+        ArrangeSource(organisationId);
+        ArrangeDirectProducerReference(organisationId, "051829");
+        var subject = CreateSubject(metrics: metrics);
+
+        await subject.Refresh(TestContext.Current.CancellationToken);
+
+        metrics
+            .Received(1)
+            .AccountReferenceLookupCompleted(
+                Defra.WasteObligations.Api.Data.Entities.RegistrationType.DirectProducer,
+                1,
+                Arg.Any<TimeSpan>()
+            );
     }
 
     [Fact]
@@ -708,12 +729,15 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
         snapshot.LastVerifiedAt.Should().Be(competingVerifiedAt);
     }
 
-    private OrganisationEligibilityRefreshService CreateSubject() =>
+    private OrganisationEligibilityRefreshService CreateSubject(
+        IOrganisationEligibilityRefreshMetrics? metrics = null
+    ) =>
         CreateSubject(
             GetMongoApplicationDatabase(),
             OrganisationEligibilitySource,
             OrganisationReferenceSearchService,
-            _timeProvider
+            _timeProvider,
+            metrics: metrics
         );
 
     private static OrganisationEligibilityRefreshService CreateSubject(
@@ -722,7 +746,8 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
         IOrganisationReferenceSearchService referenceSearchService,
         TimeProvider timeProvider,
         ILogger<OrganisationEligibilityRefreshService>? logger = null,
-        IUnsubmittedEligibilityVisibilityService? unsubmittedEligibilityVisibilityService = null
+        IUnsubmittedEligibilityVisibilityService? unsubmittedEligibilityVisibilityService = null,
+        IOrganisationEligibilityRefreshMetrics? metrics = null
     )
     {
         var dbContext = new MongoDbContext(
@@ -731,9 +756,11 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
             Substitute.For<Microsoft.Extensions.Logging.ILogger<MongoDbContext>>()
         );
         var options = Options.Create(new OrganisationEligibilityOptions { AccountReferenceNumberBatchSize = 10 });
+        var refreshMetrics = metrics ?? Substitute.For<IOrganisationEligibilityRefreshMetrics>();
         var referenceResolver = new OrganisationReferenceResolver(
             referenceSearchService,
             options,
+            refreshMetrics,
             Microsoft.Extensions.Logging.Abstractions.NullLogger<OrganisationReferenceResolver>.Instance
         );
 

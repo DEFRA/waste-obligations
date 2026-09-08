@@ -1,5 +1,6 @@
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
+using Defra.WasteObligations.Api.Utils.Metrics;
 using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Authentication;
 using Defra.WasteObligations.Testing.Extensions.WireMock;
@@ -8,6 +9,7 @@ using Microsoft.AspNetCore.HeaderPropagation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Primitives;
+using NSubstitute;
 
 namespace Defra.WasteObligations.Api.Tests.Services.WasteOrganisations;
 
@@ -16,6 +18,8 @@ public class WasteOrganisationsServiceTests : WireMockTestBase
     private const string TraceHeaderName = "x-cdp-request-id";
     private const string TraceId = "trace-id";
 
+    private IOrganisationEligibilityRefreshMetrics Metrics { get; } =
+        Substitute.For<IOrganisationEligibilityRefreshMetrics>();
     private ServiceCollection Services { get; }
 
     public WasteOrganisationsServiceTests(WireMockContext context)
@@ -33,6 +37,7 @@ public class WasteOrganisationsServiceTests : WireMockTestBase
         Services = [];
         Services.AddSingleton(new HeaderPropagationValues { Headers = new Dictionary<string, StringValues>() });
         Services.AddHeaderPropagation(options => options.Headers.Add(TraceHeaderName));
+        Services.AddSingleton(Metrics);
         Services.AddWasteOrganisationsService();
         Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(config).Build());
     }
@@ -110,6 +115,7 @@ public class WasteOrganisationsServiceTests : WireMockTestBase
         var request = WireMock.LogEntries.Single(x => x.RequestMessage?.Path == "/organisations").RequestMessage;
         request.Should().NotBeNull();
         request.Headers.Should().NotContainKey(TraceHeaderName);
+        Metrics.Received(1).WasteOrganisationsReadCompleted(1, Arg.Any<TimeSpan>());
     }
 
     [Fact]

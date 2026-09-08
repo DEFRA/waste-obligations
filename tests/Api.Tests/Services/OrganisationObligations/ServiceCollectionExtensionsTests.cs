@@ -43,7 +43,7 @@ public class ServiceCollectionExtensionsTests
                     ["OrganisationObligationHydration:RefreshInterval"] = "00:30:00",
                     ["OrganisationObligationHydration:InitialRetryDelay"] = "00:01:00",
                     ["OrganisationObligationHydration:MaximumRetryDelay"] = "00:30:00",
-                    ["OrganisationObligationHydration:MaxDownstreamRequestsPerMinute"] = "20",
+                    ["OrganisationObligationHydration:MaxDownstreamRequestsPerMinute"] = "200",
                 }
             )
             .Build();
@@ -56,7 +56,7 @@ public class ServiceCollectionExtensionsTests
 
         options.Value.PollingEnabled.Should().BeFalse();
         options.Value.LeaseRenewalIntervalSeconds.Should().Be(30);
-        options.Value.MaxDownstreamRequestsPerMinute.Should().Be(20);
+        options.Value.MaxDownstreamRequestsPerMinute.Should().Be(200);
         services.Should().NotContain(descriptor => descriptor.ServiceType == typeof(IHostedService));
     }
 
