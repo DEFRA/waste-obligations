@@ -1,5 +1,4 @@
 using Defra.WasteObligations.Api.Data.Entities;
-using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Utils.Metrics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -16,6 +15,16 @@ public class OrganisationObligationHistoricalBackfillWorker(
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (options.Value.PollingEnabled)
+        {
+            logger.LogInformation(
+                "Organisation obligation historical backfill is off while normal obligation hydration polling is on"
+            );
+            await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken);
+
+            return;
+        }
+
         while (!stoppingToken.IsCancellationRequested)
         {
             var processedCount = 0;
@@ -52,7 +61,6 @@ public class OrganisationObligationHistoricalBackfillWorker(
             scope.ServiceProvider.GetRequiredService<IOrganisationObligationHistoricalBackfillLeaseService>();
         var hydrationService = scope.ServiceProvider.GetRequiredService<IOrganisationObligationHydrationService>();
         var metrics = scope.ServiceProvider.GetRequiredService<IOrganisationObligationHydrationMetrics>();
-        var currentObligationYearProvider = scope.ServiceProvider.GetRequiredService<ICurrentObligationYearProvider>();
         var leaseDuration = TimeSpan.FromSeconds(options.Value.LeaseDurationSeconds);
         if (!await leaseService.TryAcquire(leaseDuration, stoppingToken))
         {
@@ -81,38 +89,11 @@ public class OrganisationObligationHistoricalBackfillWorker(
 
         try
         {
-            var currentHydratedCount = 0;
-            if (options.Value.PollingEnabled)
-            {
-                var currentObligationYear = currentObligationYearProvider.GetCurrentObligationYear();
-                currentHydratedCount = await hydrationService.HydrateDue(
-                    currentObligationYear,
-                    hydrationCancellationTokenSource.Token,
-                    maximumWork: options.Value.BatchSize
-                );
-                if (currentHydratedCount > 0)
-                {
-                    await store.MarkDeferred(
-                        backfill,
-                        OrganisationObligationHistoricalBackfillDeferralReason.CurrentYearWorkDue,
-                        hydrationCancellationTokenSource.Token
-                    );
-                    logger.LogInformation(
-                        "Organisation obligation historical backfill for obligation year {ObligationYear} is deferred because {CurrentYearHydratedCount} current-year work items were due",
-                        backfill.ObligationYear,
-                        currentHydratedCount
-                    );
-
-                    return currentHydratedCount;
-                }
-            }
-
             await store.ClearDeferral(backfill, hydrationCancellationTokenSource.Token);
             var progress = await hydrationService.HydrateHistoricalBackfill(
                 backfill,
                 hydrationCancellationTokenSource.Token,
-                maximumWork: options.Value.PollingEnabled ? 1 : options.Value.BatchSize,
-                preserveCurrentYearPacing: options.Value.PollingEnabled
+                maximumWork: options.Value.BatchSize
             );
             if (progress.RemainingCount == 0)
                 await store.Complete(backfill, hydrationCancellationTokenSource.Token);
@@ -124,7 +105,7 @@ public class OrganisationObligationHistoricalBackfillWorker(
                 backfill.ObligationYear
             );
 
-            return currentHydratedCount + progress.ProcessedCount;
+            return progress.ProcessedCount;
         }
         catch (OperationCanceledException exception)
             when (hydrationCancellationTokenSource.IsCancellationRequested && !stoppingToken.IsCancellationRequested)

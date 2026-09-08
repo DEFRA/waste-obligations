@@ -41,7 +41,7 @@ public class OrganisationObligationHistoricalBackfillWorkerTests
     }
 
     [Fact]
-    public async Task Start_WhenCurrentYearWorkIsDue_ShouldNotProcessHistoricalBackfill()
+    public async Task Start_WhenNormalPollingIsEnabled_ShouldNotProcessHistoricalBackfill()
     {
         var backfill = Backfill();
         var store = Substitute.For<IOrganisationObligationHistoricalBackfillStore>();
@@ -49,26 +49,13 @@ public class OrganisationObligationHistoricalBackfillWorkerTests
         var leaseService = Substitute.For<IOrganisationObligationHistoricalBackfillLeaseService>();
         leaseService.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
         var hydrationService = Substitute.For<IOrganisationObligationHydrationService>();
-        var historicalBackfillDeferred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        store
-            .MarkDeferred(
-                backfill,
-                OrganisationObligationHistoricalBackfillDeferralReason.CurrentYearWorkDue,
-                Arg.Any<CancellationToken>()
-            )
-            .Returns(_ =>
-            {
-                historicalBackfillDeferred.TrySetResult();
-
-                return Task.CompletedTask;
-            });
-        hydrationService.HydrateDue(2026, Arg.Any<CancellationToken>(), 10).Returns(1);
         var subject = CreateSubject(store, leaseService, hydrationService, pollingEnabled: true);
 
         await subject.StartAsync(TestContext.Current.CancellationToken);
-        await historicalBackfillDeferred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await Task.Delay(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
         await subject.StopAsync(TestContext.Current.CancellationToken);
 
+        await store.DidNotReceive().GetNextIncomplete(Arg.Any<CancellationToken>());
         await hydrationService
             .DidNotReceive()
             .HydrateHistoricalBackfill(
@@ -77,44 +64,7 @@ public class OrganisationObligationHistoricalBackfillWorkerTests
                 Arg.Any<int?>(),
                 Arg.Any<bool>()
             );
-        await store
-            .Received(1)
-            .MarkDeferred(
-                backfill,
-                OrganisationObligationHistoricalBackfillDeferralReason.CurrentYearWorkDue,
-                Arg.Any<CancellationToken>()
-            );
-    }
-
-    [Fact]
-    public async Task Start_WhenCurrentYearWorkIsNotDue_ShouldProcessOneHistoricalBackfillItem()
-    {
-        var backfill = Backfill();
-        var store = Substitute.For<IOrganisationObligationHistoricalBackfillStore>();
-        store.GetNextIncomplete(Arg.Any<CancellationToken>()).Returns(backfill);
-        var leaseService = Substitute.For<IOrganisationObligationHistoricalBackfillLeaseService>();
-        leaseService.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
-        var hydrationService = Substitute.For<IOrganisationObligationHydrationService>();
-        hydrationService.HydrateDue(2026, Arg.Any<CancellationToken>(), 10).Returns(0);
-        var historicalItemHydrated = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        hydrationService
-            .HydrateHistoricalBackfill(backfill, Arg.Any<CancellationToken>(), 1, preserveCurrentYearPacing: true)
-            .Returns(_ =>
-            {
-                historicalItemHydrated.TrySetResult();
-
-                return new OrganisationObligationHistoricalBackfillProgress { ProcessedCount = 1, RemainingCount = 1 };
-            });
-        var subject = CreateSubject(store, leaseService, hydrationService, pollingEnabled: true);
-
-        await subject.StartAsync(TestContext.Current.CancellationToken);
-        await historicalItemHydrated.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
-        await subject.StopAsync(TestContext.Current.CancellationToken);
-
-        await hydrationService.Received(1).HydrateDue(2026, Arg.Any<CancellationToken>(), 10);
-        await hydrationService
-            .Received(1)
-            .HydrateHistoricalBackfill(backfill, Arg.Any<CancellationToken>(), 1, preserveCurrentYearPacing: true);
+        await leaseService.DidNotReceive().TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

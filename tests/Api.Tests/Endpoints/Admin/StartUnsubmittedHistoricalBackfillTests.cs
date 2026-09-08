@@ -2,8 +2,10 @@ using System.Net;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.Api.Services;
+using Defra.WasteObligations.Api.Services.OrganisationObligations;
 using Defra.WasteObligations.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 
 namespace Defra.WasteObligations.Api.Tests.Endpoints.Admin;
@@ -11,12 +13,17 @@ namespace Defra.WasteObligations.Api.Tests.Endpoints.Admin;
 public class StartUnsubmittedHistoricalBackfillTests(ApiWebApplicationFactory factory, ITestOutputHelper outputHelper)
     : EndpointTestBase(factory, outputHelper)
 {
+    private bool _normalPollingEnabled;
+
     private IUnsubmittedHistoricalBackfillService HistoricalBackfillService { get; } =
         Substitute.For<IUnsubmittedHistoricalBackfillService>();
 
     protected override void ConfigureTestServices(IServiceCollection services)
     {
         services.AddTransient<IUnsubmittedHistoricalBackfillService>(_ => HistoricalBackfillService);
+        services.AddSingleton<IOptions<OrganisationObligationHydrationOptions>>(_ =>
+            Options.Create(new OrganisationObligationHydrationOptions { PollingEnabled = _normalPollingEnabled })
+        );
     }
 
     [Fact]
@@ -33,6 +40,23 @@ public class StartUnsubmittedHistoricalBackfillTests(ApiWebApplicationFactory fa
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         await VerifyJson(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task WhenNormalPollingIsEnabled_ShouldReturnConflictWithoutStartingHistoricalBackfill()
+    {
+        _normalPollingEnabled = true;
+        var client = CreateClient(testUser: TestUser.Admin);
+
+        var response = await client.PostAsync(
+            Testing.Endpoints.Admin.UnsubmittedHistoricalBackfill(),
+            null,
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).Should().BeEmpty();
+        await HistoricalBackfillService.DidNotReceive().Start(Arg.Any<CancellationToken>());
     }
 
     [Fact]

@@ -1,6 +1,8 @@
 using Defra.WasteObligations.Api.Authentication;
 using Defra.WasteObligations.Api.Services;
+using Defra.WasteObligations.Api.Services.OrganisationObligations;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace Defra.WasteObligations.Api.Endpoints.Admin;
 
@@ -18,6 +20,13 @@ public static class StartUnsubmittedHistoricalBackfill
 
     private static async Task<IResult> Handle(
         [FromServices] IUnsubmittedHistoricalBackfillService historicalBackfillService,
+        [FromServices] IOptions<OrganisationObligationHydrationOptions> options,
         CancellationToken cancellationToken
-    ) => Results.Ok(await historicalBackfillService.Start(cancellationToken));
+    )
+    {
+        if (options.Value.PollingEnabled)
+            return Results.Conflict();
+
+        return Results.Ok(await historicalBackfillService.Start(cancellationToken));
+    }
 }
