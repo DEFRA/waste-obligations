@@ -127,7 +127,7 @@ public class UnsubmittedPollingStatusService(
 
     private static OrganisationObligationHydrationYearStatus HydrationYearStatus(
         int obligationYear,
-        IReadOnlyCollection<OrganisationObligationSummary> summaries,
+        OrganisationObligationSummary[] summaries,
         OrganisationObligationHydrationOptions options,
         DateTime utcNow
     )
@@ -141,7 +141,7 @@ public class UnsubmittedPollingStatusService(
         return new OrganisationObligationHydrationYearStatus
         {
             ObligationYear = obligationYear,
-            ActiveSummaryCount = summaries.Count,
+            ActiveSummaryCount = summaries.Length,
             DueSummaryCount = dueSummaries.Length,
             PendingSummaryCount = summaries.Count(x => x.RefreshState == OrganisationObligationRefreshState.Pending),
             ReadySummaryCount = summaries.Count(x => x.RefreshState == OrganisationObligationRefreshState.Ready),
@@ -150,7 +150,7 @@ public class UnsubmittedPollingStatusService(
             OldestDueAt = dueSummaries.Length == 0 ? null : dueSummaries.Min(x => x.NextRefreshAt),
             OldestSuccessfulReadAt = successfulReadTimes.Length == 0 ? null : successfulReadTimes.Min(),
             LatestSuccessfulReadAt = successfulReadTimes.Length == 0 ? null : successfulReadTimes.Max(),
-            MinimumFullRefreshMinutes = summaries.Count / (double)options.MaxDownstreamRequestsPerMinute,
+            MinimumFullRefreshMinutes = summaries.Length / (double)options.MaxDownstreamRequestsPerMinute,
         };
     }
 

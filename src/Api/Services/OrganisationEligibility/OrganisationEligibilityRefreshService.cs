@@ -2,7 +2,6 @@ using System.Diagnostics;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
-using Defra.WasteObligations.Api.Utils.Metrics;
 using Defra.WasteObligations.AuditEvents;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
@@ -16,7 +15,6 @@ public class OrganisationEligibilityRefreshService(
     IUnsubmittedEligibilityVisibilityService unsubmittedEligibilityVisibilityService,
     IOptions<OrganisationEligibilityOptions> options,
     TimeProvider timeProvider,
-    IOrganisationEligibilityRefreshMetrics metrics,
     ILogger<OrganisationEligibilityRefreshService> logger
 ) : IOrganisationEligibilityRefreshService
 {
@@ -26,21 +24,7 @@ public class OrganisationEligibilityRefreshService(
 
     public async Task<OrganisationEligibilityRefreshResult> Refresh(CancellationToken cancellationToken)
     {
-        var sourceStopwatch = Stopwatch.StartNew();
-        OrganisationSearch source;
-
-        try
-        {
-            source = await organisationEligibilitySource.Search(cancellationToken);
-            sourceStopwatch.Stop();
-            metrics.WasteOrganisationsReadCompleted(source.Organisations.Length, sourceStopwatch.Elapsed);
-        }
-        catch (Exception) when (!cancellationToken.IsCancellationRequested)
-        {
-            sourceStopwatch.Stop();
-            metrics.WasteOrganisationsReadFailed(sourceStopwatch.Elapsed);
-            throw;
-        }
+        var source = await organisationEligibilitySource.Search(cancellationToken);
 
         var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
         var generation = Guid.NewGuid().ToString("N");
@@ -50,7 +34,6 @@ public class OrganisationEligibilityRefreshService(
             .SingleOrDefaultAsync(cancellationToken);
         var activeRows = await ActiveRows(activeSnapshot, cancellationToken);
         var resolvedRows = await organisationReferenceResolver.Resolve(sourceRows, activeRows, cancellationToken);
-        metrics.ReferenceResolutionObserved(resolvedRows);
         if (
             activeSnapshot?.ActiveGeneration is null
             && resolvedRows.Any(x =>

@@ -77,7 +77,7 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task Refresh_ShouldObserveWasteOrganisationsAndAccountReferenceCalls()
+    public async Task Refresh_ShouldObserveAccountReferenceCalls()
     {
         var organisationId = Guid.NewGuid();
         var metrics = Substitute.For<IOrganisationEligibilityRefreshMetrics>();
@@ -87,7 +87,6 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
 
         await subject.Refresh(TestContext.Current.CancellationToken);
 
-        metrics.Received(1).WasteOrganisationsReadCompleted(1, Arg.Any<TimeSpan>());
         metrics
             .Received(1)
             .AccountReferenceLookupCompleted(
@@ -772,7 +771,6 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
             unsubmittedEligibilityVisibilityService ?? new UnsubmittedEligibilityVisibilityService(dbContext),
             options,
             timeProvider,
-            refreshMetrics,
             logger
                 ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<OrganisationEligibilityRefreshService>.Instance
         );

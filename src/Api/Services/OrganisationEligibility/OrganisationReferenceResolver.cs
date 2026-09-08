@@ -20,7 +20,11 @@ public class OrganisationReferenceResolver(
     )
     {
         if (sourceRows.Count == 0)
+        {
+            metrics.ReferenceResolutionObserved([]);
+
             return [];
+        }
 
         var sources = CreateSources(sourceRows);
         var activeRowsByKey = activeRows
@@ -60,7 +64,7 @@ public class OrganisationReferenceResolver(
         await ResolveDirectProducers(directProducers, resolutions, cancellationToken);
         await ResolveComplianceSchemes(complianceSchemes, resolutions, cancellationToken);
 
-        return sourceRows
+        var resolvedRows = sourceRows
             .Select(row =>
             {
                 var resolution = resolutions[new ReferenceKey(row.OrganisationId, row.RegistrationType)];
@@ -75,6 +79,10 @@ public class OrganisationReferenceResolver(
             .ThenBy(x => x.ObligationYear)
             .ThenBy(x => x.RegistrationType)
             .ToArray();
+
+        metrics.ReferenceResolutionObserved(resolvedRows);
+
+        return resolvedRows;
     }
 
     private async Task ResolveDirectProducers(

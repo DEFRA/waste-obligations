@@ -105,6 +105,7 @@ public class RefreshOrganisationEligibilityFromDownstreamServicesTests : Integra
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton<IConfiguration>(configuration);
+        services.AddSingleton(Substitute.For<IOrganisationEligibilityRefreshMetrics>());
         services.AddTransient<ProxyHttpMessageHandler>();
         services.AddWasteOrganisationsService(addResiliencePipeline: false);
         services.AddAccountBackendService(addResiliencePipeline: false);
@@ -133,7 +134,6 @@ public class RefreshOrganisationEligibilityFromDownstreamServicesTests : Integra
             new UnsubmittedEligibilityVisibilityService(dbContext),
             options,
             TimeProvider.System,
-            Substitute.For<IOrganisationEligibilityRefreshMetrics>(),
             NullLogger<OrganisationEligibilityRefreshService>.Instance
         );
     }

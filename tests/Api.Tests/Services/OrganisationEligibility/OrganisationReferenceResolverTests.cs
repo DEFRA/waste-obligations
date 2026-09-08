@@ -33,6 +33,7 @@ public class OrganisationReferenceResolverTests
                 Arg.Any<IReadOnlyCollection<string>>(),
                 Arg.Any<CancellationToken>()
             );
+        Metrics.Received(1).ReferenceResolutionObserved([]);
     }
 
     [Fact]
