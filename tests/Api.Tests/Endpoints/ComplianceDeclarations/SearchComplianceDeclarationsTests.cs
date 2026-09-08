@@ -135,7 +135,7 @@ public class SearchComplianceDeclarationsTests(ApiWebApplicationFactory factory,
                             Api.Data.Entities.RegistrationType.ComplianceScheme,
                         }
                     )
-                    && x.BusinessCountry == BusinessCountryFilter.Wales.ToJsonValue()
+                    && x.BusinessCountry == "GB-WLS"
                     && x.Search == "zeina"
                     && x.Sort != null
                     && x.Sort.Length == 0

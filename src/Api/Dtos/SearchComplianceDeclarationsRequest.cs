@@ -63,7 +63,5 @@ public record SearchComplianceDeclarationsRequest
     public RegistrationType[] ParsedRegistrationType() =>
         RegistrationType?.Split(',').NotNull().Select(x => x.FromJsonValue<RegistrationType>()).ToArray() ?? [];
 
-    public BusinessCountryFilter? ParsedCountry() => Country?.FromJsonValue<BusinessCountryFilter>();
-
     public Data.ComplianceDeclarationSort[] ParsedSort() => ComplianceDeclarationSortParser.Parse(Sort);
 }
