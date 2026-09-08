@@ -52,8 +52,6 @@ public class OrganisationEligibilityRefreshWorker(
 
         if (!await leaseService.TryAcquire(leaseDuration, stoppingToken))
         {
-            metrics.LeaseSkipped();
-            logger.LogInformation("Organisation eligibility refresh skipped because another instance holds the lease");
             return;
         }
 

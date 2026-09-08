@@ -55,7 +55,6 @@ public class OrganisationObligationHydrationWorker(
 
         if (!await leaseService.TryAcquire(leaseDuration, stoppingToken))
         {
-            logger.LogInformation("Organisation obligation hydration skipped because another instance holds the lease");
             return 0;
         }
 

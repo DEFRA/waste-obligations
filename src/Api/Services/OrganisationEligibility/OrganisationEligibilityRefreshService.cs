@@ -26,7 +26,22 @@ public class OrganisationEligibilityRefreshService(
 
     public async Task<OrganisationEligibilityRefreshResult> Refresh(CancellationToken cancellationToken)
     {
-        var source = await organisationEligibilitySource.Search(cancellationToken);
+        var sourceStopwatch = Stopwatch.StartNew();
+        OrganisationSearch source;
+
+        try
+        {
+            source = await organisationEligibilitySource.Search(cancellationToken);
+            sourceStopwatch.Stop();
+            metrics.WasteOrganisationsReadCompleted(source.Organisations.Length, sourceStopwatch.Elapsed);
+        }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            sourceStopwatch.Stop();
+            metrics.WasteOrganisationsReadFailed(sourceStopwatch.Elapsed);
+            throw;
+        }
+
         var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
         var generation = Guid.NewGuid().ToString("N");
         var sourceRows = Mappers.ToEligibilityRows(source.Organisations, generation, utcNow);

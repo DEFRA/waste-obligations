@@ -10,9 +10,12 @@ public class OrganisationObligationHydrationMetrics : IOrganisationObligationHyd
 {
     private readonly Counter<long> _failures;
     private readonly Histogram<long> _activeSummaryCount;
+    private readonly Histogram<long> _maxDownstreamRequestsPerMinute;
+    private readonly Histogram<double> _minimumFullRefreshDuration;
     private readonly Histogram<long> _dueSummaryCount;
     private readonly Histogram<double> _obligationReadDuration;
     private readonly Counter<long> _obligationReadFailures;
+    private readonly Histogram<double> _refreshInterval;
     private readonly Histogram<double> _staleSummaryAge;
     private readonly Histogram<long> _staleSummaryCount;
     private readonly Counter<long> _successes;
@@ -31,6 +34,16 @@ public class OrganisationObligationHydrationMetrics : IOrganisationObligationHyd
             nameof(Unit.COUNT),
             "Count of active organisation obligation hydration summaries"
         );
+        _maxDownstreamRequestsPerMinute = meter.CreateHistogram<long>(
+            Metrics.Names.OrganisationObligationHydrationMaxDownstreamRequestsPerMinute,
+            nameof(Unit.COUNT),
+            "Configured maximum organisation obligations reads per minute"
+        );
+        _minimumFullRefreshDuration = meter.CreateHistogram<double>(
+            Metrics.Names.OrganisationObligationHydrationMinimumFullRefreshDuration,
+            nameof(Unit.SECONDS),
+            "Minimum duration to read every active organisation obligation summary at the configured request rate"
+        );
         _dueSummaryCount = meter.CreateHistogram<long>(
             Metrics.Names.OrganisationObligationHydrationDueSummaryCount,
             nameof(Unit.COUNT),
@@ -45,6 +58,11 @@ public class OrganisationObligationHydrationMetrics : IOrganisationObligationHyd
             Metrics.Names.OrganisationObligationHydrationObligationReadFailure,
             nameof(Unit.COUNT),
             "Count of failed organisation obligations reads"
+        );
+        _refreshInterval = meter.CreateHistogram<double>(
+            Metrics.Names.OrganisationObligationHydrationRefreshInterval,
+            nameof(Unit.SECONDS),
+            "Configured organisation obligation refresh interval"
         );
         _staleSummaryAge = meter.CreateHistogram<double>(
             Metrics.Names.OrganisationObligationHydrationStaleSummaryAge,
@@ -84,6 +102,17 @@ public class OrganisationObligationHydrationMetrics : IOrganisationObligationHyd
         var tags = BuildTags();
         _activeSummaryCount.Record(activeSummaryCount, tags);
         _dueSummaryCount.Record(dueSummaryCount, tags);
+    }
+
+    public void CapacityObserved(int activeSummaryCount, int maxDownstreamRequestsPerMinute, TimeSpan refreshInterval)
+    {
+        var tags = BuildTags();
+        _maxDownstreamRequestsPerMinute.Record(maxDownstreamRequestsPerMinute, tags);
+        _minimumFullRefreshDuration.Record(
+            TimeSpan.FromMinutes((double)activeSummaryCount / maxDownstreamRequestsPerMinute).TotalSeconds,
+            tags
+        );
+        _refreshInterval.Record(refreshInterval.TotalSeconds, tags);
     }
 
     public void Succeeded()

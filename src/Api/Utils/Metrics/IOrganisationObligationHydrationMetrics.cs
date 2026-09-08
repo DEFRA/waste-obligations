@@ -10,6 +10,8 @@ public interface IOrganisationObligationHydrationMetrics
 
     void QueueObserved(int activeSummaryCount, int dueSummaryCount);
 
+    void CapacityObserved(int activeSummaryCount, int maxDownstreamRequestsPerMinute, TimeSpan refreshInterval);
+
     void Succeeded();
 
     void StalenessObserved(int staleSummaryCount, double oldestStaleSummaryAgeSeconds);

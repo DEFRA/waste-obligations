@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.AccountBackend;
+using Defra.WasteObligations.Api.Utils.Metrics;
 using Microsoft.Extensions.Options;
 
 namespace Defra.WasteObligations.Api.Services.OrganisationEligibility;
@@ -7,6 +9,7 @@ namespace Defra.WasteObligations.Api.Services.OrganisationEligibility;
 public class OrganisationReferenceResolver(
     IOrganisationReferenceSearchService organisationReferenceSearchService,
     IOptions<OrganisationEligibilityOptions> options,
+    IOrganisationEligibilityRefreshMetrics metrics,
     ILogger<OrganisationReferenceResolver> logger
 )
 {
@@ -82,13 +85,14 @@ public class OrganisationReferenceResolver(
     {
         foreach (var batch in sources.Chunk(options.Value.AccountReferenceNumberBatchSize))
         {
+            var lookupStopwatch = Stopwatch.StartNew();
+
             try
             {
                 var response = await organisationReferenceSearchService.SearchOrganisationsByExternalIds(
                     batch.Select(x => x.Key.OrganisationId).ToArray(),
                     cancellationToken
                 );
-
                 foreach (var key in batch.Select(x => x.Key))
                 {
                     var matches = response
@@ -102,9 +106,18 @@ public class OrganisationReferenceResolver(
                         .ToArray();
                     resolutions[key] = Resolve(matches);
                 }
+
+                lookupStopwatch.Stop();
+                metrics.AccountReferenceLookupCompleted(
+                    RegistrationType.DirectProducer,
+                    batch.Length,
+                    lookupStopwatch.Elapsed
+                );
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
+                lookupStopwatch.Stop();
+                metrics.AccountReferenceLookupFailed(RegistrationType.DirectProducer, lookupStopwatch.Elapsed);
                 logger.LogWarning(
                     exception,
                     "Account reference lookup failed for {OrganisationCount} direct producers",
@@ -127,6 +140,7 @@ public class OrganisationReferenceResolver(
         foreach (var batch in sources.Chunk(options.Value.AccountReferenceNumberBatchSize))
         {
             var companiesHouseNumbers = batch.Select(x => x.CompaniesHouseNumber!).Distinct().ToArray();
+            var lookupStopwatch = Stopwatch.StartNew();
 
             try
             {
@@ -134,7 +148,6 @@ public class OrganisationReferenceResolver(
                     companiesHouseNumbers,
                     cancellationToken
                 );
-
                 foreach (var source in batch)
                 {
                     var matches = response
@@ -150,9 +163,18 @@ public class OrganisationReferenceResolver(
                         .ToArray();
                     resolutions[source.Key] = Resolve(matches);
                 }
+
+                lookupStopwatch.Stop();
+                metrics.AccountReferenceLookupCompleted(
+                    RegistrationType.ComplianceScheme,
+                    companiesHouseNumbers.Length,
+                    lookupStopwatch.Elapsed
+                );
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
+                lookupStopwatch.Stop();
+                metrics.AccountReferenceLookupFailed(RegistrationType.ComplianceScheme, lookupStopwatch.Elapsed);
                 logger.LogWarning(
                     exception,
                     "Account reference lookup failed for {OrganisationCount} compliance schemes",

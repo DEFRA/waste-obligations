@@ -53,6 +53,11 @@ public class OrganisationObligationHydrationService(
             cancellationToken: cancellationToken
         );
         metrics.QueueObserved((int)activeSummaryCount, (int)dueSummaryCount);
+        metrics.CapacityObserved(
+            (int)activeSummaryCount,
+            options.Value.MaxDownstreamRequestsPerMinute,
+            options.Value.RefreshInterval
+        );
         var work = await dbContext
             .OrganisationObligationSummaries.Find(x =>
                 x.ObligationYear == obligationYear && x.IsHydrationActive && x.NextRefreshAt <= utcNow

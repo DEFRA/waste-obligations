@@ -2,6 +2,7 @@ using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.AccountBackend;
 using Defra.WasteObligations.Api.Services.OrganisationEligibility;
+using Defra.WasteObligations.Api.Utils.Metrics;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -12,6 +13,8 @@ public class OrganisationReferenceResolverTests
 {
     private IOrganisationReferenceSearchService OrganisationReferenceSearchService { get; } =
         Substitute.For<IOrganisationReferenceSearchService>();
+    private IOrganisationEligibilityRefreshMetrics Metrics { get; } =
+        Substitute.For<IOrganisationEligibilityRefreshMetrics>();
 
     [Fact]
     public async Task Resolve_WhenNoSourceRows_ShouldReturnEmptyWithoutAccountCalls()
@@ -70,6 +73,7 @@ public class OrganisationReferenceResolverTests
                 x.ReferenceNumber == "051829"
                 && x.ReferenceNumberResolutionState == OrganisationReferenceNumberResolutionState.Resolved
             );
+        Metrics.Received(1).AccountReferenceLookupCompleted(RegistrationType.DirectProducer, 1, Arg.Any<TimeSpan>());
     }
 
     [Fact]
@@ -222,6 +226,7 @@ public class OrganisationReferenceResolverTests
 
         result.Single().ReferenceNumber.Should().BeNull();
         result.Single().ReferenceNumberResolutionState.Should().Be(OrganisationReferenceNumberResolutionState.Failed);
+        Metrics.Received(1).AccountReferenceLookupFailed(RegistrationType.DirectProducer, Arg.Any<TimeSpan>());
     }
 
     [Fact]
@@ -297,6 +302,7 @@ public class OrganisationReferenceResolverTests
         new(
             OrganisationReferenceSearchService,
             Options.Create(new OrganisationEligibilityOptions { AccountReferenceNumberBatchSize = 10 }),
+            Metrics,
             NullLogger<OrganisationReferenceResolver>.Instance
         );
 

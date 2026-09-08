@@ -57,6 +57,33 @@ public static class Metrics
         public const string OrganisationEligibilityReferenceResolutionCount = nameof(
             OrganisationEligibilityReferenceResolutionCount
         );
+        public const string OrganisationEligibilityRefreshWasteOrganisationsReadDuration = nameof(
+            OrganisationEligibilityRefreshWasteOrganisationsReadDuration
+        );
+        public const string OrganisationEligibilityRefreshWasteOrganisationsReadFailure = nameof(
+            OrganisationEligibilityRefreshWasteOrganisationsReadFailure
+        );
+        public const string OrganisationEligibilityRefreshWasteOrganisationsRowCount = nameof(
+            OrganisationEligibilityRefreshWasteOrganisationsRowCount
+        );
+        public const string OrganisationEligibilityRefreshAccountReferenceLookupDuration = nameof(
+            OrganisationEligibilityRefreshAccountReferenceLookupDuration
+        );
+        public const string OrganisationEligibilityRefreshAccountReferenceLookupFailure = nameof(
+            OrganisationEligibilityRefreshAccountReferenceLookupFailure
+        );
+        public const string OrganisationEligibilityRefreshAccountReferenceLookupBatchSize = nameof(
+            OrganisationEligibilityRefreshAccountReferenceLookupBatchSize
+        );
+        public const string OrganisationObligationHydrationMinimumFullRefreshDuration = nameof(
+            OrganisationObligationHydrationMinimumFullRefreshDuration
+        );
+        public const string OrganisationObligationHydrationRefreshInterval = nameof(
+            OrganisationObligationHydrationRefreshInterval
+        );
+        public const string OrganisationObligationHydrationMaxDownstreamRequestsPerMinute = nameof(
+            OrganisationObligationHydrationMaxDownstreamRequestsPerMinute
+        );
     }
 
     public static class Tags
@@ -79,5 +106,6 @@ public static class Metrics
         public const string EventType = nameof(EventType);
         public const string Outcome = nameof(Outcome);
         public const string ReferenceResolutionState = nameof(ReferenceResolutionState);
+        public const string AccountReferenceLookupType = nameof(AccountReferenceLookupType);
     }
 }

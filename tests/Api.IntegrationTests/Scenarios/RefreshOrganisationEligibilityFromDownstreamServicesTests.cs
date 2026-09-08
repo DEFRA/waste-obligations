@@ -122,6 +122,7 @@ public class RefreshOrganisationEligibilityFromDownstreamServicesTests : Integra
         var referenceResolver = new OrganisationReferenceResolver(
             serviceProvider.GetRequiredService<IOrganisationReferenceSearchService>(),
             options,
+            Substitute.For<IOrganisationEligibilityRefreshMetrics>(),
             NullLogger<OrganisationReferenceResolver>.Instance
         );
 

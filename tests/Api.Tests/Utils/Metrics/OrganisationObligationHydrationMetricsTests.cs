@@ -89,6 +89,41 @@ public class OrganisationObligationHydrationMetricsTests
         dueCollector.GetMeasurementSnapshot().Should().ContainSingle().Which.Value.Should().Be(4019);
     }
 
+    [Fact]
+    public void CapacityObserved_ShouldRecordMinimumFullRefreshDurationAndConfiguration()
+    {
+        var meterFactory = CreateMeterFactory();
+        using var minimumFullRefreshDurationCollector = new TestMetricCollector<double>(
+            ApiMetrics.MeterName,
+            ApiMetrics.Names.OrganisationObligationHydrationMinimumFullRefreshDuration
+        );
+        using var refreshIntervalCollector = new TestMetricCollector<double>(
+            ApiMetrics.MeterName,
+            ApiMetrics.Names.OrganisationObligationHydrationRefreshInterval
+        );
+        using var maximumRequestsCollector = new TestMetricCollector<long>(
+            ApiMetrics.MeterName,
+            ApiMetrics.Names.OrganisationObligationHydrationMaxDownstreamRequestsPerMinute
+        );
+        var subject = new OrganisationObligationHydrationMetrics(meterFactory);
+
+        subject.CapacityObserved(4245, 200, TimeSpan.FromMinutes(30));
+
+        minimumFullRefreshDurationCollector
+            .GetMeasurementSnapshot()
+            .Should()
+            .ContainSingle()
+            .Which.Value.Should()
+            .Be(TimeSpan.FromMinutes(21.225).TotalSeconds);
+        refreshIntervalCollector
+            .GetMeasurementSnapshot()
+            .Should()
+            .ContainSingle()
+            .Which.Value.Should()
+            .Be(TimeSpan.FromMinutes(30).TotalSeconds);
+        maximumRequestsCollector.GetMeasurementSnapshot().Should().ContainSingle().Which.Value.Should().Be(200);
+    }
+
     private static IMeterFactory CreateMeterFactory()
     {
         var services = new ServiceCollection();

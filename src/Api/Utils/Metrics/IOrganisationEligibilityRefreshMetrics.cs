@@ -9,7 +9,13 @@ public interface IOrganisationEligibilityRefreshMetrics
 
     void Failed(TimeSpan duration);
 
-    void LeaseSkipped();
-
     void ReferenceResolutionObserved(IReadOnlyCollection<OrganisationComplianceDeclarationEligibility> rows);
+
+    void WasteOrganisationsReadCompleted(int organisationCount, TimeSpan duration);
+
+    void WasteOrganisationsReadFailed(TimeSpan duration);
+
+    void AccountReferenceLookupCompleted(RegistrationType registrationType, int lookupKeyCount, TimeSpan duration);
+
+    void AccountReferenceLookupFailed(RegistrationType registrationType, TimeSpan duration);
 }
