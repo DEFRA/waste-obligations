@@ -133,6 +133,43 @@ public class MongoMigrationServiceTests
         await leaseService.Received(1).Release(Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task Execute_WhenLeaseRenewalThrowsAnUnexpectedCancellation_ShouldCancelMigrationAndNotRetry()
+    {
+        var leaseService = Substitute.For<IMongoMigrationLeaseService>();
+        leaseService.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
+        leaseService
+            .TryRenew(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+                Task.FromException<bool>(new OperationCanceledException("Mongo driver cancelled the operation."))
+            );
+        var migrationRunner = Substitute.For<IMongoMigrationRunner>();
+        var migrationCancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var migrationCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        migrationRunner
+            .Run(Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var cancellationToken = callInfo.Arg<CancellationToken>();
+                cancellationToken.Register(() =>
+                {
+                    migrationCancelled.TrySetResult();
+                    migrationCompletion.TrySetCanceled(cancellationToken);
+                });
+
+                return migrationCompletion.Task;
+            });
+        var logger = new RecordingLogger<MongoMigrationService>();
+        var subject = CreateSubject(leaseService, migrationRunner, logger: logger);
+
+        await subject.Execute(TestContext.Current.CancellationToken);
+        await migrationCancelled.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        logger.Messages.Should().Contain("Mongo migration lease renewal failed. Cancelling the migration engine.");
+        await migrationRunner.Received(1).Run(Arg.Any<CancellationToken>());
+        await leaseService.Received(1).Release(Arg.Any<CancellationToken>());
+    }
+
     private static TestableMongoMigrationService CreateSubject(
         IMongoMigrationLeaseService leaseService,
         IMongoMigrationRunner migrationRunner,

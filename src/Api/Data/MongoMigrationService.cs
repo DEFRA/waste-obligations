@@ -155,9 +155,12 @@ public class MongoMigrationService(
         using var attemptCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(
             migrationCancellationToken
         );
+        using var timeoutCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
         var migrationTask = migrationRunner.Run(attemptCancellationTokenSource.Token);
         var timeout = TimeSpan.FromSeconds(options.Value.AttemptTimeoutSeconds);
-        var completedTask = await Task.WhenAny(migrationTask, Task.Delay(timeout, stoppingToken));
+        var timeoutTask = Task.Delay(timeout, timeoutCancellationTokenSource.Token);
+        var completedTask = await Task.WhenAny(migrationTask, timeoutTask);
+        await timeoutCancellationTokenSource.CancelAsync();
 
         if (completedTask != migrationTask)
         {
@@ -227,7 +230,11 @@ public class MongoMigrationService(
 
                 logger.LogError("Mongo migration lease was not renewed. Cancelling the migration engine.");
             }
-            catch (Exception exception) when (exception is not OperationCanceledException)
+            catch (OperationCanceledException) when (renewalCancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception exception)
             {
                 logger.LogError(exception, "Mongo migration lease renewal failed. Cancelling the migration engine.");
             }

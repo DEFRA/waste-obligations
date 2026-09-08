@@ -26,8 +26,8 @@ public static class ServiceCollectionExtensions
             .BindConfiguration(MongoMigrationOptions.SectionName)
             .ValidateDataAnnotations()
             .Validate(
-                options => options.LeaseRenewalIntervalSeconds < options.LeaseDurationSeconds,
-                "Mongo migration lease renewal interval must be less than the lease duration"
+                options => options.LeaseRenewalIntervalSeconds * 2 <= options.LeaseDurationSeconds,
+                "Mongo migration lease renewal interval must be no more than half the lease duration"
             )
             .ValidateOnStart();
 
