@@ -5,5 +5,9 @@ public static class AdminEndpoints
     public static void MapAdminEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapUnsubmittedPollingStatus();
+        app.MapUnsubmittedPollingVolume();
+        app.MapUnsubmittedPollingPlan();
+        app.MapUnsubmittedHistoricalBackfill();
+        app.MapUnsubmittedReferenceResolutionIssues();
     }
 }

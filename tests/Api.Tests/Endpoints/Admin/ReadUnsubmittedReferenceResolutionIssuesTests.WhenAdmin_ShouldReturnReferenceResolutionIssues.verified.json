@@ -1,0 +1,16 @@
+﻿{
+  "activeGeneration": "generation",
+  "referenceResolutionIssues": [
+    {
+      "organisationId": "Guid_1",
+      "obligationYear": 2026,
+      "registrationType": "ComplianceScheme",
+      "registrationStatus": "Registered",
+      "name": "Example scheme",
+      "tradingName": "Example trading name",
+      "companiesHouseNumber": "01234567",
+      "country": "GB-ENG",
+      "referenceResolutionState": "NotFound"
+    }
+  ]
+}

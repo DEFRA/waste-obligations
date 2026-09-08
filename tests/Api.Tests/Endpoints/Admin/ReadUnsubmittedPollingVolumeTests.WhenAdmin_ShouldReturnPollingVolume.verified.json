@@ -1,0 +1,18 @@
+﻿{
+  "currentObligationYear": 2026,
+  "sourceOrganisationCount": 4245,
+  "years": [
+    {
+      "obligationYear": 2025,
+      "isCurrentObligationYear": false,
+      "registeredOrganisationCount": 3,
+      "registeredRegistrationCount": 4
+    },
+    {
+      "obligationYear": 2026,
+      "isCurrentObligationYear": true,
+      "registeredOrganisationCount": 4245,
+      "registeredRegistrationCount": 4250
+    }
+  ]
+}
