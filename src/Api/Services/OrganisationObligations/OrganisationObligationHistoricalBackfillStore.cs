@@ -7,6 +7,8 @@ namespace Defra.WasteObligations.Api.Services.OrganisationObligations;
 public class OrganisationObligationHistoricalBackfillStore(IMongoDatabase database, TimeProvider timeProvider)
     : IOrganisationObligationHistoricalBackfillStore
 {
+    private const int DuplicateKeyErrorCode = 11000;
+
     private readonly IMongoCollection<OrganisationObligationHistoricalBackfill> _backfills =
         database.GetCollection<OrganisationObligationHistoricalBackfill>(
             OrganisationObligationHistoricalBackfill.CollectionName
@@ -17,26 +19,37 @@ public class OrganisationObligationHistoricalBackfillStore(IMongoDatabase databa
         CancellationToken cancellationToken
     )
     {
-        var existing = await _backfills.FindOneAndUpdateAsync(
-            x => x.ObligationYear == backfill.ObligationYear,
-            Builders<OrganisationObligationHistoricalBackfill>
-                .Update.SetOnInsert(x => x.ObligationYear, backfill.ObligationYear)
-                .SetOnInsert(x => x.Targets, backfill.Targets)
-                .SetOnInsert(x => x.RequestedAt, backfill.RequestedAt)
-                .SetOnInsert(x => x.UpdatedAt, backfill.UpdatedAt),
-            new FindOneAndUpdateOptions<OrganisationObligationHistoricalBackfill>
-            {
-                IsUpsert = true,
-                ReturnDocument = ReturnDocument.Before,
-            },
-            cancellationToken
-        );
-
-        return new OrganisationObligationHistoricalBackfillCreation
+        try
         {
-            Backfill = existing ?? backfill,
-            WasCreated = existing is null,
-        };
+            var existing = await _backfills.FindOneAndUpdateAsync(
+                x => x.ObligationYear == backfill.ObligationYear,
+                Builders<OrganisationObligationHistoricalBackfill>
+                    .Update.SetOnInsert(x => x.ObligationYear, backfill.ObligationYear)
+                    .SetOnInsert(x => x.Targets, backfill.Targets)
+                    .SetOnInsert(x => x.RequestedAt, backfill.RequestedAt)
+                    .SetOnInsert(x => x.UpdatedAt, backfill.UpdatedAt),
+                new FindOneAndUpdateOptions<OrganisationObligationHistoricalBackfill>
+                {
+                    IsUpsert = true,
+                    ReturnDocument = ReturnDocument.Before,
+                },
+                cancellationToken
+            );
+
+            return new OrganisationObligationHistoricalBackfillCreation
+            {
+                Backfill = existing ?? backfill,
+                WasCreated = existing is null,
+            };
+        }
+        catch (MongoCommandException exception) when (exception.Code == DuplicateKeyErrorCode)
+        {
+            return await ExistingBackfill(backfill.ObligationYear, cancellationToken);
+        }
+        catch (MongoWriteException exception) when (exception.WriteError.Code == DuplicateKeyErrorCode)
+        {
+            return await ExistingBackfill(backfill.ObligationYear, cancellationToken);
+        }
     }
 
     public async Task<OrganisationObligationHistoricalBackfill?> GetNextIncomplete(CancellationToken cancellationToken)
@@ -91,5 +104,15 @@ public class OrganisationObligationHistoricalBackfillStore(IMongoDatabase databa
                 .Set(x => x.UpdatedAt, utcNow),
             cancellationToken: cancellationToken
         );
+    }
+
+    private async Task<OrganisationObligationHistoricalBackfillCreation> ExistingBackfill(
+        int obligationYear,
+        CancellationToken cancellationToken
+    )
+    {
+        var existing = await _backfills.Find(x => x.ObligationYear == obligationYear).SingleAsync(cancellationToken);
+
+        return new OrganisationObligationHistoricalBackfillCreation { Backfill = existing, WasCreated = false };
     }
 }

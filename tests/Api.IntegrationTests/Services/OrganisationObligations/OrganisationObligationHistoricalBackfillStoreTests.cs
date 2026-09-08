@@ -71,6 +71,21 @@ public class OrganisationObligationHistoricalBackfillStoreTests : IntegrationTes
             );
     }
 
+    [Fact]
+    public async Task Create_WhenRequestsForTheSameYearRace_ShouldReturnTheSingleCreatedBackfill()
+    {
+        var subject = new OrganisationObligationHistoricalBackfillStore(GetMongoApplicationDatabase(), _timeProvider);
+        var requestedAt = _timeProvider.GetUtcNow().UtcDateTime;
+        var backfills = Enumerable.Range(0, 20).Select(_ => Backfill(2025, requestedAt)).ToArray();
+
+        var creations = await Task.WhenAll(
+            backfills.Select(backfill => subject.Create(backfill, TestContext.Current.CancellationToken))
+        );
+
+        creations.Count(x => x.WasCreated).Should().Be(1);
+        creations.Select(x => x.Backfill).Should().AllBeEquivalentTo(creations.Single(x => x.WasCreated).Backfill);
+    }
+
     private static OrganisationObligationHistoricalBackfill Backfill(int obligationYear, DateTime requestedAt) =>
         new()
         {
