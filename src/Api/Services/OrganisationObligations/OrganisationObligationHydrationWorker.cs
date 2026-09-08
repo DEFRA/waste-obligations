@@ -165,15 +165,27 @@ public class OrganisationObligationHydrationWorker(
         CancellationToken cancellationToken
     )
     {
-        await requestPacer.ObserveWorkload(
-            currentWork.ActiveSummaryCount + secondaryWork.ActiveSummaryCount,
-            cancellationToken
+        var totalActiveSummaryCount = currentWork.ActiveSummaryCount + secondaryWork.ActiveSummaryCount;
+        await requestPacer.ObserveWorkload(totalActiveSummaryCount, cancellationToken);
+        var pacing = await requestPacer.GetStatus(cancellationToken);
+        metrics.QueueObserved(totalActiveSummaryCount, currentWork.DueSummaryCount + secondaryWork.DueSummaryCount);
+        metrics.CapacityObserved(
+            totalActiveSummaryCount,
+            options.Value.MaxDownstreamRequestsPerMinute,
+            pacing.DesiredRequestsPerMinute,
+            pacing.EffectiveRequestsPerMinute,
+            options.Value.RefreshInterval
         );
         var currentMaximumWork = CurrentYearMaximumWork(currentWork, secondaryWork);
         var currentHydratedCount =
             currentMaximumWork == 0
                 ? 0
-                : await hydrationService.HydratePreparedDueWork(currentWork, cancellationToken, currentMaximumWork);
+                : await hydrationService.HydratePreparedDueWork(
+                    currentWork,
+                    cancellationToken,
+                    currentMaximumWork,
+                    recordWorkloadMetrics: false
+                );
         var secondaryMaximumWork = options.Value.BatchSize - currentHydratedCount;
         var secondaryHydratedCount =
             secondaryMaximumWork == 0
@@ -182,7 +194,8 @@ public class OrganisationObligationHydrationWorker(
                     secondaryWork,
                     cancellationToken,
                     secondaryMaximumWork,
-                    deactivateSecondaryAfterSuccessfulRead
+                    deactivateSecondaryAfterSuccessfulRead,
+                    recordWorkloadMetrics: false
                 );
 
         return currentHydratedCount + secondaryHydratedCount;

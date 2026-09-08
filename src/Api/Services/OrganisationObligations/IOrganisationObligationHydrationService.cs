@@ -21,7 +21,8 @@ public interface IOrganisationObligationHydrationService
         OrganisationObligationHydrationPreparedWork work,
         CancellationToken cancellationToken,
         int? maximumWork = null,
-        bool deactivateAfterSuccessfulRead = false
+        bool deactivateAfterSuccessfulRead = false,
+        bool recordWorkloadMetrics = true
     );
 
     Task<OrganisationObligationHistoricalBackfillProgress> HydrateHistoricalBackfill(

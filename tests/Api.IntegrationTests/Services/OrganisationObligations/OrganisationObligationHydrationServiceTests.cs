@@ -62,6 +62,30 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task HydratePreparedDueWork_WhenTheWorkerRecordsCombinedWorkloadMetrics_ShouldNotRecordItsOwnMetrics()
+    {
+        var subject = CreateSubject();
+        var work = new OrganisationObligationHydrationPreparedWork
+        {
+            ObligationYear = ObligationYear,
+            ActiveSummaryCount = 0,
+            DueSummaryCount = 0,
+        };
+
+        var processedCount = await subject.HydratePreparedDueWork(
+            work,
+            TestContext.Current.CancellationToken,
+            recordWorkloadMetrics: false
+        );
+
+        processedCount.Should().Be(0);
+        HydrationMetrics.DidNotReceive().QueueObserved(Arg.Any<int>(), Arg.Any<int>());
+        HydrationMetrics
+            .DidNotReceive()
+            .CapacityObserved(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<TimeSpan>());
+    }
+
+    [Fact]
     public async Task EnqueueReconciliation_WhenNoActiveGenerationExists_ShouldNotChangeExistingSummaries()
     {
         var organisationId = Guid.NewGuid();

@@ -128,23 +128,25 @@ public class OrganisationObligationHydrationWorkerTests
         hydrationService.PrepareDueWork(2027, Arg.Any<CancellationToken>()).Returns(incomingWork);
         var currentYearHydrated = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         hydrationService
-            .HydratePreparedDueWork(currentWork, Arg.Any<CancellationToken>(), 9)
+            .HydratePreparedDueWork(currentWork, Arg.Any<CancellationToken>(), 9, false, false)
             .Returns(_ =>
             {
                 currentYearHydrated.TrySetResult();
 
                 return Task.FromResult(5);
             });
-        hydrationService.HydratePreparedDueWork(incomingWork, Arg.Any<CancellationToken>(), 5, false).Returns(1);
+        hydrationService.HydratePreparedDueWork(incomingWork, Arg.Any<CancellationToken>(), 5, false, false).Returns(1);
         var currentObligationYearProvider = Substitute.For<ICurrentObligationYearProvider>();
         currentObligationYearProvider
             .GetHandover(Arg.Any<TimeSpan>())
             .Returns(new ObligationYearHandover(2026, IncomingObligationYear: 2027));
         var requestPacer = Substitute.For<IOrganisationObligationRequestPacer>();
+        var metrics = Substitute.For<IOrganisationObligationHydrationMetrics>();
         var subject = CreateSubject(
             leaseService,
             hydrationService,
             currentObligationYearProvider,
+            metrics: metrics,
             requestPacer: requestPacer
         );
 
@@ -153,8 +155,15 @@ public class OrganisationObligationHydrationWorkerTests
         await subject.StopAsync(TestContext.Current.CancellationToken);
 
         await requestPacer.Received(1).ObserveWorkload(100, Arg.Any<CancellationToken>());
-        await hydrationService.Received(1).HydratePreparedDueWork(currentWork, Arg.Any<CancellationToken>(), 9);
-        await hydrationService.Received(1).HydratePreparedDueWork(incomingWork, Arg.Any<CancellationToken>(), 5, false);
+        await requestPacer.Received(1).GetStatus(Arg.Any<CancellationToken>());
+        metrics.Received(1).QueueObserved(100, 100);
+        metrics.Received(1).CapacityObserved(100, 20, 20, 20, TimeSpan.FromMinutes(30));
+        await hydrationService
+            .Received(1)
+            .HydratePreparedDueWork(currentWork, Arg.Any<CancellationToken>(), 9, false, false);
+        await hydrationService
+            .Received(1)
+            .HydratePreparedDueWork(incomingWork, Arg.Any<CancellationToken>(), 5, false, false);
     }
 
     [Fact]
@@ -169,7 +178,7 @@ public class OrganisationObligationHydrationWorkerTests
         hydrationService.PrepareDueWork(2027, Arg.Any<CancellationToken>()).Returns(incomingWork);
         var incomingYearHydrated = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         hydrationService
-            .HydratePreparedDueWork(incomingWork, Arg.Any<CancellationToken>(), 10, false)
+            .HydratePreparedDueWork(incomingWork, Arg.Any<CancellationToken>(), 10, false, false)
             .Returns(_ =>
             {
                 incomingYearHydrated.TrySetResult();
@@ -195,10 +204,16 @@ public class OrganisationObligationHydrationWorkerTests
         await requestPacer.Received(1).ObserveWorkload(10, Arg.Any<CancellationToken>());
         await hydrationService
             .DidNotReceive()
-            .HydratePreparedDueWork(currentWork, Arg.Any<CancellationToken>(), Arg.Any<int?>(), Arg.Any<bool>());
+            .HydratePreparedDueWork(
+                currentWork,
+                Arg.Any<CancellationToken>(),
+                Arg.Any<int?>(),
+                Arg.Any<bool>(),
+                Arg.Any<bool>()
+            );
         await hydrationService
             .Received(1)
-            .HydratePreparedDueWork(incomingWork, Arg.Any<CancellationToken>(), 10, false);
+            .HydratePreparedDueWork(incomingWork, Arg.Any<CancellationToken>(), 10, false, false);
     }
 
     [Fact]
@@ -213,7 +228,7 @@ public class OrganisationObligationHydrationWorkerTests
         hydrationService.PrepareDueWork(2027, Arg.Any<CancellationToken>()).Returns(incomingWork);
         var currentYearHydrated = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         hydrationService
-            .HydratePreparedDueWork(currentWork, Arg.Any<CancellationToken>(), 10)
+            .HydratePreparedDueWork(currentWork, Arg.Any<CancellationToken>(), 10, false, false)
             .Returns(_ =>
             {
                 currentYearHydrated.TrySetResult();
@@ -237,10 +252,18 @@ public class OrganisationObligationHydrationWorkerTests
         await subject.StopAsync(TestContext.Current.CancellationToken);
 
         await requestPacer.Received(1).ObserveWorkload(10, Arg.Any<CancellationToken>());
-        await hydrationService.Received(1).HydratePreparedDueWork(currentWork, Arg.Any<CancellationToken>(), 10);
+        await hydrationService
+            .Received(1)
+            .HydratePreparedDueWork(currentWork, Arg.Any<CancellationToken>(), 10, false, false);
         await hydrationService
             .DidNotReceive()
-            .HydratePreparedDueWork(incomingWork, Arg.Any<CancellationToken>(), Arg.Any<int?>(), Arg.Any<bool>());
+            .HydratePreparedDueWork(
+                incomingWork,
+                Arg.Any<CancellationToken>(),
+                Arg.Any<int?>(),
+                Arg.Any<bool>(),
+                Arg.Any<bool>()
+            );
     }
 
     [Fact]
@@ -256,9 +279,9 @@ public class OrganisationObligationHydrationWorkerTests
         hydrationService.PrepareDueWork(2026, Arg.Any<CancellationToken>()).Returns(outgoingWork);
         hydrationService.EnqueueReconciliation(2026, cutover, Arg.Any<CancellationToken>()).Returns(50);
         var outgoingYearHydrated = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        hydrationService.HydratePreparedDueWork(currentWork, Arg.Any<CancellationToken>(), 5).Returns(4);
+        hydrationService.HydratePreparedDueWork(currentWork, Arg.Any<CancellationToken>(), 5, false, false).Returns(4);
         hydrationService
-            .HydratePreparedDueWork(outgoingWork, Arg.Any<CancellationToken>(), 6, true)
+            .HydratePreparedDueWork(outgoingWork, Arg.Any<CancellationToken>(), 6, true, false)
             .Returns(_ =>
             {
                 outgoingYearHydrated.TrySetResult();
@@ -283,7 +306,9 @@ public class OrganisationObligationHydrationWorkerTests
 
         await hydrationService.Received(1).EnqueueReconciliation(2026, cutover, Arg.Any<CancellationToken>());
         await requestPacer.Received(1).ObserveWorkload(100, Arg.Any<CancellationToken>());
-        await hydrationService.Received(1).HydratePreparedDueWork(outgoingWork, Arg.Any<CancellationToken>(), 6, true);
+        await hydrationService
+            .Received(1)
+            .HydratePreparedDueWork(outgoingWork, Arg.Any<CancellationToken>(), 6, true, false);
     }
 
     private static OrganisationObligationHydrationWorker CreateSubject(
@@ -300,6 +325,17 @@ public class OrganisationObligationHydrationWorkerTests
         services.AddScoped(_ => hydrationService);
         services.AddScoped(_ => currentObligationYearProvider);
         var serviceProvider = services.BuildServiceProvider();
+        var pacing = requestPacer ?? Substitute.For<IOrganisationObligationRequestPacer>();
+        pacing
+            .GetStatus(Arg.Any<CancellationToken>())
+            .Returns(
+                new OrganisationObligationRequestPacingStatus
+                {
+                    DesiredRequestsPerMinute = 20,
+                    EffectiveRequestsPerMinute = 20,
+                    RecentDownstreamFailurePercentage = 0,
+                }
+            );
 
         return new OrganisationObligationHydrationWorker(
             serviceProvider.GetRequiredService<IServiceScopeFactory>(),
@@ -312,7 +348,7 @@ public class OrganisationObligationHydrationWorkerTests
                     LeaseRenewalIntervalSeconds = 60,
                 }
             ),
-            requestPacer ?? Substitute.For<IOrganisationObligationRequestPacer>(),
+            pacing,
             metrics ?? Substitute.For<IOrganisationObligationHydrationMetrics>(),
             Substitute.For<ILogger<OrganisationObligationHydrationWorker>>()
         );

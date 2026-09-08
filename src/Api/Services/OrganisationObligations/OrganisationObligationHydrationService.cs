@@ -112,19 +112,24 @@ public class OrganisationObligationHydrationService(
         OrganisationObligationHydrationPreparedWork work,
         CancellationToken cancellationToken,
         int? maximumWork = null,
-        bool deactivateAfterSuccessfulRead = false
+        bool deactivateAfterSuccessfulRead = false,
+        bool recordWorkloadMetrics = true
     )
     {
         var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
-        var pacing = await requestPacer.GetStatus(cancellationToken);
-        metrics.QueueObserved(work.ActiveSummaryCount, work.DueSummaryCount);
-        metrics.CapacityObserved(
-            work.ActiveSummaryCount,
-            options.Value.MaxDownstreamRequestsPerMinute,
-            pacing.DesiredRequestsPerMinute,
-            pacing.EffectiveRequestsPerMinute,
-            options.Value.RefreshInterval
-        );
+        if (recordWorkloadMetrics)
+        {
+            var pacing = await requestPacer.GetStatus(cancellationToken);
+            metrics.QueueObserved(work.ActiveSummaryCount, work.DueSummaryCount);
+            metrics.CapacityObserved(
+                work.ActiveSummaryCount,
+                options.Value.MaxDownstreamRequestsPerMinute,
+                pacing.DesiredRequestsPerMinute,
+                pacing.EffectiveRequestsPerMinute,
+                options.Value.RefreshInterval
+            );
+        }
+
         if (work.ActiveSummaryCount == 0)
             return 0;
 
