@@ -87,6 +87,7 @@ public class StartupTests(ApiWebApplicationFactory factory) : IClassFixture<ApiW
                 TestContext.Current.CancellationToken
             );
             await migrationStarted.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+            application.Services.GetServices<IHostedService>().OfType<MongoMigrationService>().Should().ContainSingle();
 
             var initialHealthResponse = await client.GetAsync("/health", TestContext.Current.CancellationToken);
 
