@@ -91,6 +91,42 @@ public class OrganisationObligationHistoricalBackfillStore(IMongoDatabase databa
         );
     }
 
+    public async Task MarkDeferred(
+        OrganisationObligationHistoricalBackfill backfill,
+        OrganisationObligationHistoricalBackfillDeferralReason reason,
+        CancellationToken cancellationToken
+    )
+    {
+        var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
+        await _backfills.UpdateOneAsync(
+            x => x.ObligationYear == backfill.ObligationYear && x.RequestedAt == backfill.RequestedAt,
+            Builders<OrganisationObligationHistoricalBackfill>
+                .Update.Set(x => x.DeferralReason, reason)
+                .Set(x => x.DeferredAt, utcNow)
+                .Set(x => x.UpdatedAt, utcNow),
+            cancellationToken: cancellationToken
+        );
+    }
+
+    public async Task ClearDeferral(
+        OrganisationObligationHistoricalBackfill backfill,
+        CancellationToken cancellationToken
+    )
+    {
+        var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
+        await _backfills.UpdateOneAsync(
+            x =>
+                x.ObligationYear == backfill.ObligationYear
+                && x.RequestedAt == backfill.RequestedAt
+                && x.DeferralReason != null,
+            Builders<OrganisationObligationHistoricalBackfill>
+                .Update.Unset(x => x.DeferralReason)
+                .Unset(x => x.DeferredAt)
+                .Set(x => x.UpdatedAt, utcNow),
+            cancellationToken: cancellationToken
+        );
+    }
+
     public async Task Complete(OrganisationObligationHistoricalBackfill backfill, CancellationToken cancellationToken)
     {
         var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();

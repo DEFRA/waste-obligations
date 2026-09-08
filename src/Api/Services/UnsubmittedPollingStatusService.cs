@@ -209,9 +209,11 @@ public class UnsubmittedPollingStatusService(
                 {
                     ObligationYear = backfill.ObligationYear,
                     PotentialHydrationOrganisationCount = backfill.OrganisationIds.Length,
-                    Status = backfill.CompletedAt is null ? "Running" : "Completed",
+                    Status = HistoricalBackfillStatus(backfill),
                     RequestedAt = backfill.RequestedAt,
                     CompletedAt = backfill.CompletedAt,
+                    DeferralReason = backfill.DeferralReason?.ToString(),
+                    DeferredAt = backfill.DeferredAt,
                 }),
             ],
             Years =
@@ -223,6 +225,16 @@ public class UnsubmittedPollingStatusService(
             ],
             Lease = lease,
         };
+    }
+
+    private static string HistoricalBackfillStatus(OrganisationObligationHistoricalBackfill backfill)
+    {
+        if (backfill.CompletedAt is not null)
+            return "Completed";
+        if (backfill.DeferralReason is not null)
+            return "Deferred";
+
+        return "Running";
     }
 
     private static OrganisationObligationHydrationYearStatus HydrationYearStatus(

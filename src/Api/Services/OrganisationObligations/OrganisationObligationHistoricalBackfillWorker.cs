@@ -1,4 +1,6 @@
+using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services;
+using Defra.WasteObligations.Api.Utils.Metrics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -49,10 +51,24 @@ public class OrganisationObligationHistoricalBackfillWorker(
         var leaseService =
             scope.ServiceProvider.GetRequiredService<IOrganisationObligationHistoricalBackfillLeaseService>();
         var hydrationService = scope.ServiceProvider.GetRequiredService<IOrganisationObligationHydrationService>();
+        var metrics = scope.ServiceProvider.GetRequiredService<IOrganisationObligationHydrationMetrics>();
         var currentObligationYearProvider = scope.ServiceProvider.GetRequiredService<ICurrentObligationYearProvider>();
         var leaseDuration = TimeSpan.FromSeconds(options.Value.LeaseDurationSeconds);
         if (!await leaseService.TryAcquire(leaseDuration, stoppingToken))
+        {
+            await store.MarkDeferred(
+                backfill,
+                OrganisationObligationHistoricalBackfillDeferralReason.LeaseHeld,
+                stoppingToken
+            );
+            metrics.LeaseNotAcquired();
+            logger.LogInformation(
+                "Organisation obligation historical backfill for obligation year {ObligationYear} is deferred because another instance holds its lease",
+                backfill.ObligationYear
+            );
+
             return 0;
+        }
 
         using var hydrationCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
         using var renewalCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
@@ -76,10 +92,22 @@ public class OrganisationObligationHistoricalBackfillWorker(
                 );
                 if (currentHydratedCount > 0)
                 {
+                    await store.MarkDeferred(
+                        backfill,
+                        OrganisationObligationHistoricalBackfillDeferralReason.CurrentYearWorkDue,
+                        hydrationCancellationTokenSource.Token
+                    );
+                    logger.LogInformation(
+                        "Organisation obligation historical backfill for obligation year {ObligationYear} is deferred because {CurrentYearHydratedCount} current-year work items were due",
+                        backfill.ObligationYear,
+                        currentHydratedCount
+                    );
+
                     return currentHydratedCount;
                 }
             }
 
+            await store.ClearDeferral(backfill, hydrationCancellationTokenSource.Token);
             var progress = await hydrationService.HydrateHistoricalBackfill(
                 backfill,
                 hydrationCancellationTokenSource.Token,

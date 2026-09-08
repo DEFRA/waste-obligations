@@ -115,6 +115,8 @@ public class UnsubmittedPollingStatusServiceTests : IntegrationTestBase
                     OrganisationIds = [Guid.NewGuid(), Guid.NewGuid()],
                     RequestedAt = utcNow.AddMinutes(-10),
                     UpdatedAt = utcNow.AddMinutes(-5),
+                    DeferralReason = OrganisationObligationHistoricalBackfillDeferralReason.CurrentYearWorkDue,
+                    DeferredAt = utcNow.AddMinutes(-1),
                 },
                 new OrganisationObligationHistoricalBackfill
                 {
@@ -172,9 +174,11 @@ public class UnsubmittedPollingStatusServiceTests : IntegrationTestBase
                 {
                     ObligationYear = 2024,
                     PotentialHydrationOrganisationCount = 2,
-                    Status = "Running",
+                    Status = "Deferred",
                     RequestedAt = utcNow.AddMinutes(-10),
                     CompletedAt = (DateTime?)null,
+                    DeferralReason = (string?)"CurrentYearWorkDue",
+                    DeferredAt = (DateTime?)utcNow.AddMinutes(-1),
                 },
                 new
                 {
@@ -183,6 +187,8 @@ public class UnsubmittedPollingStatusServiceTests : IntegrationTestBase
                     Status = "Running",
                     RequestedAt = utcNow.AddMinutes(-20),
                     CompletedAt = (DateTime?)null,
+                    DeferralReason = (string?)null,
+                    DeferredAt = (DateTime?)null,
                 },
             ]);
     }

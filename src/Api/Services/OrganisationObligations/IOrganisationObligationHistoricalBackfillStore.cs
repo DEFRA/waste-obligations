@@ -11,5 +11,11 @@ public interface IOrganisationObligationHistoricalBackfillStore
     Task<OrganisationObligationHistoricalBackfill?> GetNextIncomplete(CancellationToken cancellationToken);
     Task<OrganisationObligationHistoricalBackfill[]> GetAll(CancellationToken cancellationToken);
     Task MarkEnqueued(OrganisationObligationHistoricalBackfill backfill, CancellationToken cancellationToken);
+    Task MarkDeferred(
+        OrganisationObligationHistoricalBackfill backfill,
+        OrganisationObligationHistoricalBackfillDeferralReason reason,
+        CancellationToken cancellationToken
+    );
+    Task ClearDeferral(OrganisationObligationHistoricalBackfill backfill, CancellationToken cancellationToken);
     Task Complete(OrganisationObligationHistoricalBackfill backfill, CancellationToken cancellationToken);
 }

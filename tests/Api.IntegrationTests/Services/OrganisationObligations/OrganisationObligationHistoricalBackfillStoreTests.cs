@@ -72,6 +72,39 @@ public class OrganisationObligationHistoricalBackfillStoreTests : IntegrationTes
     }
 
     [Fact]
+    public async Task MarkDeferredAndClearDeferral_ShouldRecordTheCurrentDeferralState()
+    {
+        var subject = new OrganisationObligationHistoricalBackfillStore(GetMongoApplicationDatabase(), _timeProvider);
+        var backfill = Backfill(2025, _timeProvider.GetUtcNow().UtcDateTime);
+        await subject.Create(backfill, TestContext.Current.CancellationToken);
+        _timeProvider.Advance(TimeSpan.FromMinutes(1));
+
+        await subject.MarkDeferred(
+            backfill,
+            OrganisationObligationHistoricalBackfillDeferralReason.CurrentYearWorkDue,
+            TestContext.Current.CancellationToken
+        );
+
+        (await subject.GetNextIncomplete(TestContext.Current.CancellationToken))
+            .Should()
+            .BeEquivalentTo(
+                backfill with
+                {
+                    DeferralReason = OrganisationObligationHistoricalBackfillDeferralReason.CurrentYearWorkDue,
+                    DeferredAt = _timeProvider.GetUtcNow().UtcDateTime,
+                    UpdatedAt = _timeProvider.GetUtcNow().UtcDateTime,
+                }
+            );
+        _timeProvider.Advance(TimeSpan.FromMinutes(1));
+
+        await subject.ClearDeferral(backfill, TestContext.Current.CancellationToken);
+
+        (await subject.GetNextIncomplete(TestContext.Current.CancellationToken))
+            .Should()
+            .BeEquivalentTo(backfill with { UpdatedAt = _timeProvider.GetUtcNow().UtcDateTime });
+    }
+
+    [Fact]
     public async Task Create_WhenRequestsForTheSameYearRace_ShouldReturnTheSingleCreatedBackfill()
     {
         var subject = new OrganisationObligationHistoricalBackfillStore(GetMongoApplicationDatabase(), _timeProvider);

@@ -2,6 +2,7 @@ using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.OrganisationObligations;
+using Defra.WasteObligations.Api.Utils.Metrics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -42,24 +43,30 @@ public class OrganisationObligationHistoricalBackfillWorkerTests
     [Fact]
     public async Task Start_WhenCurrentYearWorkIsDue_ShouldNotProcessHistoricalBackfill()
     {
+        var backfill = Backfill();
         var store = Substitute.For<IOrganisationObligationHistoricalBackfillStore>();
-        store.GetNextIncomplete(Arg.Any<CancellationToken>()).Returns(Backfill());
+        store.GetNextIncomplete(Arg.Any<CancellationToken>()).Returns(backfill);
         var leaseService = Substitute.For<IOrganisationObligationHistoricalBackfillLeaseService>();
         leaseService.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
         var hydrationService = Substitute.For<IOrganisationObligationHydrationService>();
-        var currentYearHydrated = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        hydrationService
-            .HydrateDue(2026, Arg.Any<CancellationToken>(), 10)
+        var historicalBackfillDeferred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        store
+            .MarkDeferred(
+                backfill,
+                OrganisationObligationHistoricalBackfillDeferralReason.CurrentYearWorkDue,
+                Arg.Any<CancellationToken>()
+            )
             .Returns(_ =>
             {
-                currentYearHydrated.TrySetResult();
+                historicalBackfillDeferred.TrySetResult();
 
-                return Task.FromResult(1);
+                return Task.CompletedTask;
             });
+        hydrationService.HydrateDue(2026, Arg.Any<CancellationToken>(), 10).Returns(1);
         var subject = CreateSubject(store, leaseService, hydrationService, pollingEnabled: true);
 
         await subject.StartAsync(TestContext.Current.CancellationToken);
-        await currentYearHydrated.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await historicalBackfillDeferred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         await subject.StopAsync(TestContext.Current.CancellationToken);
 
         await hydrationService
@@ -69,6 +76,13 @@ public class OrganisationObligationHistoricalBackfillWorkerTests
                 Arg.Any<CancellationToken>(),
                 Arg.Any<int?>(),
                 Arg.Any<bool>()
+            );
+        await store
+            .Received(1)
+            .MarkDeferred(
+                backfill,
+                OrganisationObligationHistoricalBackfillDeferralReason.CurrentYearWorkDue,
+                Arg.Any<CancellationToken>()
             );
     }
 
@@ -106,15 +120,30 @@ public class OrganisationObligationHistoricalBackfillWorkerTests
     [Fact]
     public async Task Start_WhenAnotherInstanceHoldsLease_ShouldNotHydrateOrComplete()
     {
+        var backfill = Backfill();
         var store = Substitute.For<IOrganisationObligationHistoricalBackfillStore>();
-        store.GetNextIncomplete(Arg.Any<CancellationToken>()).Returns(Backfill());
+        store.GetNextIncomplete(Arg.Any<CancellationToken>()).Returns(backfill);
         var leaseService = Substitute.For<IOrganisationObligationHistoricalBackfillLeaseService>();
         leaseService.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(false);
         var hydrationService = Substitute.For<IOrganisationObligationHydrationService>();
-        var subject = CreateSubject(store, leaseService, hydrationService);
+        var metrics = Substitute.For<IOrganisationObligationHydrationMetrics>();
+        var historicalBackfillDeferred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        store
+            .MarkDeferred(
+                backfill,
+                OrganisationObligationHistoricalBackfillDeferralReason.LeaseHeld,
+                Arg.Any<CancellationToken>()
+            )
+            .Returns(_ =>
+            {
+                historicalBackfillDeferred.TrySetResult();
+
+                return Task.CompletedTask;
+            });
+        var subject = CreateSubject(store, leaseService, hydrationService, metrics: metrics);
 
         await subject.StartAsync(TestContext.Current.CancellationToken);
-        await Task.Delay(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
+        await historicalBackfillDeferred.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         await subject.StopAsync(TestContext.Current.CancellationToken);
 
         await hydrationService
@@ -128,6 +157,14 @@ public class OrganisationObligationHistoricalBackfillWorkerTests
         await store
             .DidNotReceive()
             .Complete(Arg.Any<OrganisationObligationHistoricalBackfill>(), Arg.Any<CancellationToken>());
+        await store
+            .Received(1)
+            .MarkDeferred(
+                backfill,
+                OrganisationObligationHistoricalBackfillDeferralReason.LeaseHeld,
+                Arg.Any<CancellationToken>()
+            );
+        metrics.Received(1).LeaseNotAcquired();
         await leaseService.DidNotReceive().Release(Arg.Any<CancellationToken>());
     }
 
@@ -150,13 +187,15 @@ public class OrganisationObligationHistoricalBackfillWorkerTests
         IOrganisationObligationHistoricalBackfillStore store,
         IOrganisationObligationHistoricalBackfillLeaseService leaseService,
         IOrganisationObligationHydrationService hydrationService,
-        bool pollingEnabled = false
+        bool pollingEnabled = false,
+        IOrganisationObligationHydrationMetrics? metrics = null
     )
     {
         var services = new ServiceCollection();
         services.AddScoped(_ => store);
         services.AddScoped(_ => leaseService);
         services.AddScoped(_ => hydrationService);
+        services.AddScoped(_ => metrics ?? Substitute.For<IOrganisationObligationHydrationMetrics>());
         var currentObligationYearProvider = Substitute.For<ICurrentObligationYearProvider>();
         currentObligationYearProvider.GetCurrentObligationYear().Returns(2026);
         services.AddScoped(_ => currentObligationYearProvider);

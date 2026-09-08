@@ -1,3 +1,4 @@
+using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
 namespace Defra.WasteObligations.Api.Data.Entities;
@@ -36,4 +37,10 @@ public record OrganisationObligationHistoricalBackfill
 
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime? CompletedAt { get; init; }
+
+    [BsonRepresentation(BsonType.String)]
+    public OrganisationObligationHistoricalBackfillDeferralReason? DeferralReason { get; init; }
+
+    [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
+    public DateTime? DeferredAt { get; init; }
 }

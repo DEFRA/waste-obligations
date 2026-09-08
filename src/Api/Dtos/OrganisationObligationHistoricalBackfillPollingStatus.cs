@@ -7,4 +7,6 @@ public record OrganisationObligationHistoricalBackfillPollingStatus
     public required string Status { get; init; }
     public required DateTime RequestedAt { get; init; }
     public DateTime? CompletedAt { get; init; }
+    public string? DeferralReason { get; init; }
+    public DateTime? DeferredAt { get; init; }
 }
