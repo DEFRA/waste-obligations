@@ -34,6 +34,8 @@ public class ComplianceDeclarationCancellationNotificationParametersTests
 
         result["certOrStatement"].Should().Be("certificate");
         result["certOrStatement_cy"].Should().Be("tystysgrif");
+        result["certOrStatementBullet"].Should().Be(callerParameters["certOrStatementBullet"]);
+        result["certOrStatementBullet2"].Should().Be(callerParameters["certOrStatementBullet2"]);
         result["regulator_cy"].Should().Be("Regulator");
         result["year"].Should().Be(complianceDeclaration.ObligationYear + 1);
         result["regulator"].Should().Be(complianceDeclaration.Organisation.Regulator);
