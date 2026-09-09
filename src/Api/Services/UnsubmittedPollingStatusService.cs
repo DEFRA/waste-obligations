@@ -165,7 +165,7 @@ public class UnsubmittedPollingStatusService(
 
     private static OrganisationObligationHydrationPollingStatus ObligationHydrationStatus(
         List<OrganisationObligationSummary> summaries,
-        OrganisationObligationHistoricalBackfill[] historicalBackfills,
+        IReadOnlyList<OrganisationObligationHistoricalBackfill> historicalBackfills,
         OrganisationObligationHydrationOptions options,
         OrganisationObligationRequestPacingState? pacingState,
         PollingWorkerLeaseStatus lease,

@@ -42,11 +42,7 @@ public class OrganisationObligationHistoricalBackfillStore(IMongoDatabase databa
                 WasCreated = existing is null,
             };
         }
-        catch (MongoCommandException exception) when (exception.Code == DuplicateKeyErrorCode)
-        {
-            return await ExistingBackfill(backfill.ObligationYear, cancellationToken);
-        }
-        catch (MongoWriteException exception) when (exception.WriteError.Code == DuplicateKeyErrorCode)
+        catch (Exception exception) when (IsDuplicateKey(exception))
         {
             return await ExistingBackfill(backfill.ObligationYear, cancellationToken);
         }
@@ -54,23 +50,20 @@ public class OrganisationObligationHistoricalBackfillStore(IMongoDatabase databa
 
     public async Task<OrganisationObligationHistoricalBackfill?> GetNextIncomplete(CancellationToken cancellationToken)
     {
-        var backfills = await _backfills
+        return await _backfills
             .Find(x => x.CompletedAt == null)
             .SortBy(x => x.RequestedAt)
-            .Limit(1)
-            .ToListAsync(cancellationToken);
-
-        return backfills.SingleOrDefault();
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
-    public async Task<OrganisationObligationHistoricalBackfill[]> GetAll(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<OrganisationObligationHistoricalBackfill>> GetAll(
+        CancellationToken cancellationToken
+    )
     {
-        var backfills = await _backfills
+        return await _backfills
             .Find(FilterDefinition<OrganisationObligationHistoricalBackfill>.Empty)
             .SortBy(x => x.ObligationYear)
             .ToListAsync(cancellationToken);
-
-        return backfills.ToArray();
     }
 
     public async Task MarkEnqueued(
@@ -151,4 +144,8 @@ public class OrganisationObligationHistoricalBackfillStore(IMongoDatabase databa
 
         return new OrganisationObligationHistoricalBackfillCreation { Backfill = existing, WasCreated = false };
     }
+
+    private static bool IsDuplicateKey(Exception exception) =>
+        exception is MongoCommandException { Code: DuplicateKeyErrorCode }
+        || exception is MongoWriteException { WriteError: { Code: DuplicateKeyErrorCode } };
 }

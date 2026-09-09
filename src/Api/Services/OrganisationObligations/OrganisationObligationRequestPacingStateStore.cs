@@ -47,7 +47,7 @@ public class OrganisationObligationRequestPacingStateStore(IMongoDatabase databa
                     return state;
                 }
                 catch (MongoWriteException exception)
-                    when (exception.WriteError.Category == ServerErrorCategory.DuplicateKey)
+                    when (exception.WriteError is { Category: ServerErrorCategory.DuplicateKey })
                 {
                     continue;
                 }

@@ -9,7 +9,7 @@ public interface IOrganisationObligationHistoricalBackfillStore
         CancellationToken cancellationToken
     );
     Task<OrganisationObligationHistoricalBackfill?> GetNextIncomplete(CancellationToken cancellationToken);
-    Task<OrganisationObligationHistoricalBackfill[]> GetAll(CancellationToken cancellationToken);
+    Task<IReadOnlyList<OrganisationObligationHistoricalBackfill>> GetAll(CancellationToken cancellationToken);
     Task MarkEnqueued(OrganisationObligationHistoricalBackfill backfill, CancellationToken cancellationToken);
     Task MarkDeferred(
         OrganisationObligationHistoricalBackfill backfill,

@@ -56,7 +56,7 @@ public class UnsubmittedPollingPlanService(
     private static UnsubmittedPollingPlan Plan(
         UnsubmittedPollingVolume volume,
         OrganisationObligationHydrationOptions options,
-        OrganisationObligationHistoricalBackfill[] historicalBackfills
+        IReadOnlyList<OrganisationObligationHistoricalBackfill> historicalBackfills
     )
     {
         var volumesByYear = volume.Years.ToDictionary(x => x.ObligationYear);
