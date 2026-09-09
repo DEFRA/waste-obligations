@@ -2,7 +2,6 @@ using System.Net;
 using System.Text.Json;
 using AutoFixture;
 using AwesomeAssertions;
-using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Endpoints.Admin;
 using Defra.WasteObligations.Api.Services.Admin;
@@ -250,29 +249,6 @@ public class ReadAdminDataTests(ApiWebApplicationFactory factory, ITestOutputHel
     }
 
     [Fact]
-    public async Task WhenAdminReadsWorkerLeases_ShouldStreamStoredEntities()
-    {
-        var workerLease = new BackgroundWorkerLease
-        {
-            Id = BackgroundWorkerLease.OrganisationEligibilityRefreshLeaseId,
-            Owner = "owner",
-            CreatedAt = new DateTime(2026, 9, 6, 8, 0, 0, DateTimeKind.Utc),
-            UpdatedAt = new DateTime(2026, 9, 6, 8, 1, 0, DateTimeKind.Utc),
-            ExpiresAt = new DateTime(2026, 9, 6, 8, 2, 0, DateTimeKind.Utc),
-        };
-        AdminDataService.ReadWorkerLeases(Arg.Any<CancellationToken>()).Returns(Stream(workerLease));
-        var client = CreateClient(testUser: TestUser.Admin);
-
-        var response = await client.GetAsync(
-            Testing.Endpoints.Admin.UnsubmittedOrganisationWorkerLeases(),
-            TestContext.Current.CancellationToken
-        );
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        await VerifyStream(response);
-    }
-
-    [Fact]
     public async Task WhenAdminReadsAuditEventCounter_ShouldReturnStoredEntity()
     {
         AdminDataService
@@ -282,56 +258,6 @@ public class ReadAdminDataTests(ApiWebApplicationFactory factory, ITestOutputHel
 
         var response = await client.GetAsync(
             Testing.Endpoints.Admin.AuditEventCounter(),
-            TestContext.Current.CancellationToken
-        );
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        await VerifyJson(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-    }
-
-    [Fact]
-    public async Task WhenAdminReadsAuditEventDispatchLease_ShouldReturnStoredEntity()
-    {
-        AdminDataService
-            .ReadAuditEventDispatchLease("analytics", Arg.Any<CancellationToken>())
-            .Returns(
-                new AuditEventDispatchLease
-                {
-                    Id = "analytics",
-                    Owner = "owner",
-                    CreatedAt = new DateTime(2026, 9, 6, 8, 0, 0, DateTimeKind.Utc),
-                    UpdatedAt = new DateTime(2026, 9, 6, 8, 1, 0, DateTimeKind.Utc),
-                    ExpiresAt = new DateTime(2026, 9, 6, 8, 2, 0, DateTimeKind.Utc),
-                }
-            );
-        var client = CreateClient(testUser: TestUser.Admin);
-
-        var response = await client.GetAsync(
-            Testing.Endpoints.Admin.AuditEventDispatchLease("analytics"),
-            TestContext.Current.CancellationToken
-        );
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        await VerifyJson(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-    }
-
-    [Fact]
-    public async Task WhenAdminReadsMongoMigrationLease_ShouldReturnStoredEntity()
-    {
-        AdminDataService
-            .ReadMongoMigrationLease(Arg.Any<CancellationToken>())
-            .Returns(
-                new MongoMigrationLease
-                {
-                    Id = "mongo-migrations",
-                    Owner = "owner",
-                    ExpiresAt = new DateTime(2026, 9, 6, 8, 2, 0, DateTimeKind.Utc),
-                }
-            );
-        var client = CreateClient(testUser: TestUser.Admin);
-
-        var response = await client.GetAsync(
-            Testing.Endpoints.Admin.MongoMigrationLease(),
             TestContext.Current.CancellationToken
         );
 

@@ -1,5 +1,4 @@
 using System.Runtime.CompilerServices;
-using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.AuditEvents.Data;
 using Defra.WasteObligations.AuditEvents.Entities;
@@ -10,14 +9,8 @@ namespace Defra.WasteObligations.Api.Services.Admin;
 public class AdminDataService(IMongoDatabase database) : IAdminDataService
 {
     private const string AuditEventCounterId = "audit_event";
-    private const string MongoMigrationLeaseCollectionName = "_migrations_lease";
-    private const string MongoMigrationLeaseId = "mongo-migrations";
-
     private readonly IMongoCollection<AuditEventCounter> _auditEventCounters =
         database.GetCollection<AuditEventCounter>(AuditEventDbContext.AuditEventCounterCollectionName);
-
-    private readonly IMongoCollection<AuditEventDispatchLease> _auditEventDispatchLeases =
-        database.GetCollection<AuditEventDispatchLease>(AuditEventDbContext.AuditEventDispatchLeaseCollectionName);
 
     private readonly IMongoCollection<AuditEvent> _auditEvents = database.GetCollection<AuditEvent>(nameof(AuditEvent));
 
@@ -37,9 +30,6 @@ public class AdminDataService(IMongoDatabase database) : IAdminDataService
             OrganisationObligationHistoricalBackfill.CollectionName
         );
 
-    private readonly IMongoCollection<MongoMigrationLease> _mongoMigrationLeases =
-        database.GetCollection<MongoMigrationLease>(MongoMigrationLeaseCollectionName);
-
     private readonly IMongoCollection<OrganisationObligationRequestPacingState> _requestPacingStates =
         database.GetCollection<OrganisationObligationRequestPacingState>(
             OrganisationObligationRequestPacingState.CollectionName
@@ -47,9 +37,6 @@ public class AdminDataService(IMongoDatabase database) : IAdminDataService
 
     private readonly IMongoCollection<OrganisationObligationSummary> _obligationSummaries =
         database.GetCollection<OrganisationObligationSummary>(nameof(OrganisationObligationSummary));
-
-    private readonly IMongoCollection<BackgroundWorkerLease> _workerLeases =
-        database.GetCollection<BackgroundWorkerLease>(BackgroundWorkerLease.CollectionName);
 
     public IAsyncEnumerable<ComplianceDeclaration> ReadComplianceDeclarations(
         Guid organisationId,
@@ -219,30 +206,8 @@ public class AdminDataService(IMongoDatabase database) : IAdminDataService
             .Find(x => x.Id == OrganisationObligationRequestPacingState.StateId)
             .SingleOrDefaultAsync(cancellationToken);
 
-    public IAsyncEnumerable<BackgroundWorkerLease> ReadWorkerLeases(CancellationToken cancellationToken)
-    {
-        var filter = Builders<BackgroundWorkerLease>.Filter.In(
-            x => x.Id,
-            [
-                BackgroundWorkerLease.OrganisationEligibilityRefreshLeaseId,
-                BackgroundWorkerLease.OrganisationObligationHydrationLeaseId,
-            ]
-        );
-        var query = _workerLeases.Find(filter).SortBy(x => x.Id);
-
-        return Stream(query, cancellationToken);
-    }
-
     public async Task<AuditEventCounter?> ReadAuditEventCounter(CancellationToken cancellationToken) =>
         await _auditEventCounters.Find(x => x.Id == AuditEventCounterId).SingleOrDefaultAsync(cancellationToken);
-
-    public async Task<AuditEventDispatchLease?> ReadAuditEventDispatchLease(
-        string processName,
-        CancellationToken cancellationToken
-    ) => await _auditEventDispatchLeases.Find(x => x.Id == processName).SingleOrDefaultAsync(cancellationToken);
-
-    public async Task<MongoMigrationLease?> ReadMongoMigrationLease(CancellationToken cancellationToken) =>
-        await _mongoMigrationLeases.Find(x => x.Id == MongoMigrationLeaseId).SingleOrDefaultAsync(cancellationToken);
 
     private static async IAsyncEnumerable<T> Stream<T>(
         IFindFluent<T, T> query,

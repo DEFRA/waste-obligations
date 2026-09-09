@@ -1,5 +1,4 @@
 using System.Reflection;
-using System.Text.Json.Serialization;
 using Defra.WasteObligations.Api.Authentication;
 using Defra.WasteObligations.Api.Consumers;
 using Defra.WasteObligations.Api.Data;
@@ -9,7 +8,6 @@ using Defra.WasteObligations.Api.Endpoints.OpenApi;
 using Defra.WasteObligations.Api.Endpoints.Organisations.Prns;
 using Defra.WasteObligations.Api.Extensions;
 using Defra.WasteObligations.Api.Schemas;
-using Defra.WasteObligations.Api.Serialization;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.AccountBackend;
 using Defra.WasteObligations.Api.Services.Admin;
@@ -46,12 +44,6 @@ try
     {
         // Without this, bad request detail will only be thrown in DEVELOPMENT mode
         o.ThrowOnBadRequest = true;
-    });
-    builder.Services.ConfigureHttpJsonOptions(options =>
-    {
-        options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
-        options.SerializerOptions.Converters.Add(new ObjectIdJsonConverter());
-        options.SerializerOptions.Converters.Add(new BsonDocumentJsonConverter());
     });
     builder.Services.AddProblemDetails();
     builder.Services.AddHealth();

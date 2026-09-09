@@ -33,11 +33,6 @@ public static class Endpoints
 
         public static string AuditEventCounter() => "admin/audit-events/counter";
 
-        public static string AuditEventDispatchLease(string processName) =>
-            $"admin/audit-events/dispatch-leases/{processName}";
-
-        public static string MongoMigrationLease() => "admin/mongo-migrations/lease";
-
         public static string UnsubmittedPollingStatus() => "admin/unsubmitted-compliance-declarations/polling-status";
 
         public static string UnsubmittedPollingVolume() => "admin/unsubmitted-compliance-declarations/polling-volume";
@@ -67,9 +62,6 @@ public static class Endpoints
 
         public static string OrganisationObligationRequestPacingState() =>
             "admin/unsubmitted-compliance-declarations/request-pacing";
-
-        public static string UnsubmittedOrganisationWorkerLeases() =>
-            "admin/unsubmitted-compliance-declarations/worker-leases";
 
         public static string UnsubmittedOrganisationDetails(Guid organisationId, bool includeLiveData = false) =>
             $"admin/unsubmitted-compliance-declarations/organisations/{organisationId}"

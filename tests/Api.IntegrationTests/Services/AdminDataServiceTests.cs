@@ -1,7 +1,6 @@
 using System.Runtime.CompilerServices;
 using AutoFixture;
 using AwesomeAssertions;
-using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.Admin;
 using Defra.WasteObligations.AuditEvents.Entities;
@@ -108,41 +107,9 @@ public class AdminDataServiceTests : IntegrationTestBase
             requestPacingState,
             cancellationToken: TestContext.Current.CancellationToken
         );
-        var workerLease = new BackgroundWorkerLease
-        {
-            Id = BackgroundWorkerLease.OrganisationEligibilityRefreshLeaseId,
-            CreatedAt = earliest,
-            UpdatedAt = later,
-            ExpiresAt = later.AddMinutes(1),
-        };
-        await OrganisationWorkerLeases.InsertOneAsync(
-            workerLease,
-            cancellationToken: TestContext.Current.CancellationToken
-        );
         var auditEventCounter = new AuditEventCounter { Id = "audit_event", Sequence = 3 };
         await AuditEventCounters.InsertOneAsync(
             auditEventCounter,
-            cancellationToken: TestContext.Current.CancellationToken
-        );
-        var auditEventDispatchLease = new AuditEventDispatchLease
-        {
-            Id = "analytics",
-            CreatedAt = earliest,
-            UpdatedAt = later,
-            ExpiresAt = later.AddMinutes(1),
-        };
-        await AuditEventDispatchLeases.InsertOneAsync(
-            auditEventDispatchLease,
-            cancellationToken: TestContext.Current.CancellationToken
-        );
-        var migrationLease = new MongoMigrationLease
-        {
-            Id = "mongo-migrations",
-            Owner = "owner",
-            ExpiresAt = later.AddMinutes(1),
-        };
-        await MongoMigrationLeases.InsertOneAsync(
-            migrationLease,
             cancellationToken: TestContext.Current.CancellationToken
         );
         var subject = new AdminDataService(GetMongoApplicationDatabase());
@@ -178,13 +145,7 @@ public class AdminDataServiceTests : IntegrationTestBase
         );
         var historicalBackfills = await ReadAll(subject.ReadHistoricalBackfills(TestContext.Current.CancellationToken));
         var storedRequestPacingState = await subject.ReadRequestPacingState(TestContext.Current.CancellationToken);
-        var workerLeases = await ReadAll(subject.ReadWorkerLeases(TestContext.Current.CancellationToken));
         var storedAuditEventCounter = await subject.ReadAuditEventCounter(TestContext.Current.CancellationToken);
-        var storedAuditEventDispatchLease = await subject.ReadAuditEventDispatchLease(
-            "analytics",
-            TestContext.Current.CancellationToken
-        );
-        var storedMigrationLease = await subject.ReadMongoMigrationLease(TestContext.Current.CancellationToken);
 
         complianceDeclarations.Should().BeEquivalentTo([olderComplianceDeclaration, newerComplianceDeclaration]);
         auditEvents.Select(x => x.Sequence).Should().BeEquivalentTo([2L, 3L], options => options.WithStrictOrdering());
@@ -199,10 +160,7 @@ public class AdminDataServiceTests : IntegrationTestBase
         failedSummaries.Should().BeEquivalentTo([failedSummary]);
         historicalBackfills.Should().BeEquivalentTo([historicalBackfill]);
         storedRequestPacingState.Should().BeEquivalentTo(requestPacingState);
-        workerLeases.Should().BeEquivalentTo([workerLease]);
         storedAuditEventCounter.Should().BeEquivalentTo(auditEventCounter);
-        storedAuditEventDispatchLease.Should().BeEquivalentTo(auditEventDispatchLease);
-        storedMigrationLease.Should().BeEquivalentTo(migrationLease);
     }
 
     private static AuditEvent AuditEvent(long sequence, string entity, string entityId) =>

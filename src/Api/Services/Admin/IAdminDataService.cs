@@ -48,11 +48,5 @@ public interface IAdminDataService
 
     Task<OrganisationObligationRequestPacingState?> ReadRequestPacingState(CancellationToken cancellationToken);
 
-    IAsyncEnumerable<BackgroundWorkerLease> ReadWorkerLeases(CancellationToken cancellationToken);
-
     Task<AuditEventCounter?> ReadAuditEventCounter(CancellationToken cancellationToken);
-
-    Task<AuditEventDispatchLease?> ReadAuditEventDispatchLease(string processName, CancellationToken cancellationToken);
-
-    Task<MongoMigrationLease?> ReadMongoMigrationLease(CancellationToken cancellationToken);
 }

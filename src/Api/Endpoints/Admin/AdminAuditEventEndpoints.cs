@@ -5,19 +5,19 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Defra.WasteObligations.Api.Endpoints.Admin;
 
-public static class ReadAuditEvents
+public static class AdminAuditEventEndpoints
 {
-    public const string OperationId = "ReadAdminAuditEvents";
-
-    public static void MapAuditEventsRead(this IEndpointRouteBuilder app)
+    public static void MapAdminAuditEventEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/admin/audit-events", Handle)
-            .WithName(OperationId)
+        app.MapGet("/admin/audit-events", HandleAuditEvents)
+            .ExcludeFromDescription()
+            .RequireAuthorization(PolicyNames.Admin);
+        app.MapGet("/admin/audit-events/counter", HandleAuditEventCounter)
             .ExcludeFromDescription()
             .RequireAuthorization(PolicyNames.Admin);
     }
 
-    private static IResult Handle(
+    private static IResult HandleAuditEvents(
         [AsParameters] ReadAuditEventsRequest request,
         [FromServices] IAdminDataService adminDataService,
         CancellationToken cancellationToken
@@ -31,4 +31,14 @@ public static class ReadAuditEvents
                 cancellationToken
             )
         );
+
+    private static async Task<IResult> HandleAuditEventCounter(
+        [FromServices] IAdminDataService adminDataService,
+        CancellationToken cancellationToken
+    )
+    {
+        var counter = await adminDataService.ReadAuditEventCounter(cancellationToken);
+
+        return counter is null ? Results.NotFound() : new EntityResult<AuditEventCounter>(counter);
+    }
 }

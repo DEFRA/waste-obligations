@@ -1,8 +1,0 @@
-﻿{
-  "id": "analytics",
-  "owner": "owner",
-  "expiresAt": "DateTimeOffset_1",
-  "createdAt": "DateTimeOffset_2",
-  "updatedAt": "DateTimeOffset_3",
-  "lastSentAt": null
-}
