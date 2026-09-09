@@ -59,7 +59,8 @@ public class UnsubmittedOrganisationDetailsServiceTests : IntegrationTestBase
 
         result.Should().NotBeNull();
         result.OrganisationId.Should().Be(organisationId);
-        result.ActiveEligibilityGeneration.Should().Be(activeGeneration);
+        result.EligibilitySnapshot.Should().NotBeNull();
+        result.EligibilitySnapshot.ActiveGeneration.Should().Be(activeGeneration);
         result
             .Eligibility.Should()
             .BeEquivalentTo(
@@ -68,14 +69,14 @@ public class UnsubmittedOrganisationDetailsServiceTests : IntegrationTestBase
                     {
                         Generation = activeGeneration,
                         ObligationYear = 2026,
-                        RegistrationType = Defra.WasteObligations.Api.Dtos.RegistrationType.ComplianceScheme,
-                        RegistrationStatus = "Registered",
-                        Country = "GB-ENG",
+                        RegistrationType = RegistrationType.ComplianceScheme,
+                        RegistrationStatus = OrganisationRegistrationStatus.Registered,
+                        BusinessCountry = "GB-ENG",
                         Name = "Example organisation",
                         TradingName = "Example trading name",
                         CompaniesHouseNumber = "01234567",
                         ReferenceNumber = "100001",
-                        ReferenceResolutionState = "Resolved",
+                        ReferenceNumberResolutionState = OrganisationReferenceNumberResolutionState.Resolved,
                         IsVisibleInUnsubmittedView = true,
                         RecyclingObligationsMet = (bool?)false,
                         ObligationCoveragePercentage = (decimal?)34.5m,
@@ -87,14 +88,14 @@ public class UnsubmittedOrganisationDetailsServiceTests : IntegrationTestBase
                     {
                         Generation = activeGeneration,
                         ObligationYear = 2026,
-                        RegistrationType = Defra.WasteObligations.Api.Dtos.RegistrationType.DirectProducer,
-                        RegistrationStatus = "Registered",
-                        Country = "GB-ENG",
+                        RegistrationType = RegistrationType.DirectProducer,
+                        RegistrationStatus = OrganisationRegistrationStatus.Registered,
+                        BusinessCountry = "GB-ENG",
                         Name = "Example organisation",
                         TradingName = "Example trading name",
                         CompaniesHouseNumber = "01234567",
                         ReferenceNumber = "100001",
-                        ReferenceResolutionState = "Resolved",
+                        ReferenceNumberResolutionState = OrganisationReferenceNumberResolutionState.Resolved,
                         IsVisibleInUnsubmittedView = true,
                         RecyclingObligationsMet = (bool?)false,
                         ObligationCoveragePercentage = (decimal?)34.5m,
@@ -106,14 +107,14 @@ public class UnsubmittedOrganisationDetailsServiceTests : IntegrationTestBase
                     {
                         Generation = "retained",
                         ObligationYear = 2025,
-                        RegistrationType = Defra.WasteObligations.Api.Dtos.RegistrationType.DirectProducer,
-                        RegistrationStatus = "Registered",
-                        Country = "GB-ENG",
+                        RegistrationType = RegistrationType.DirectProducer,
+                        RegistrationStatus = OrganisationRegistrationStatus.Registered,
+                        BusinessCountry = "GB-ENG",
                         Name = "Example organisation",
                         TradingName = "Example trading name",
                         CompaniesHouseNumber = "01234567",
                         ReferenceNumber = "100001",
-                        ReferenceResolutionState = "Resolved",
+                        ReferenceNumberResolutionState = OrganisationReferenceNumberResolutionState.Resolved,
                         IsVisibleInUnsubmittedView = true,
                         RecyclingObligationsMet = (bool?)false,
                         ObligationCoveragePercentage = (decimal?)34.5m,
@@ -141,10 +142,10 @@ public class UnsubmittedOrganisationDetailsServiceTests : IntegrationTestBase
                         DailyCalculationRunId = "run-id",
                         LastAttemptedAt = utcNow,
                         NextRefreshAt = utcNow.AddMinutes(30),
-                        Priority = "ScheduledRefresh",
+                        Priority = OrganisationObligationHydrationPriority.ScheduledRefresh,
                         RequestedAt = utcNow.AddHours(-1),
                         IsHydrationActive = true,
-                        RefreshState = "Ready",
+                        RefreshState = OrganisationObligationRefreshState.Ready,
                         AttemptCount = 3,
                         LastFailure = (string?)null,
                     },
@@ -161,10 +162,10 @@ public class UnsubmittedOrganisationDetailsServiceTests : IntegrationTestBase
                         DailyCalculationRunId = "run-id",
                         LastAttemptedAt = utcNow.AddDays(-1),
                         NextRefreshAt = utcNow.AddDays(-1).AddMinutes(30),
-                        Priority = "ScheduledRefresh",
+                        Priority = OrganisationObligationHydrationPriority.ScheduledRefresh,
                         RequestedAt = utcNow.AddDays(-1).AddHours(-1),
                         IsHydrationActive = true,
-                        RefreshState = "Ready",
+                        RefreshState = OrganisationObligationRefreshState.Ready,
                         AttemptCount = 3,
                         LastFailure = (string?)null,
                     },

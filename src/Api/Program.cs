@@ -10,6 +10,7 @@ using Defra.WasteObligations.Api.Extensions;
 using Defra.WasteObligations.Api.Schemas;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.AccountBackend;
+using Defra.WasteObligations.Api.Services.Admin;
 using Defra.WasteObligations.Api.Services.GovukNotify;
 using Defra.WasteObligations.Api.Services.OrganisationEligibility;
 using Defra.WasteObligations.Api.Services.OrganisationObligations;
@@ -68,6 +69,7 @@ try
     builder.Services.AddConsumers(builder.Configuration, !integrationTest && !openApiBuild);
     builder.Services.AddSingleton<IEntityJsonSchemaProvider, EmbeddedEntityJsonSchemaProvider>();
     builder.Services.AddTransient<IComplianceDeclarationService, ComplianceDeclarationService>();
+    builder.Services.AddScoped<IAdminDataService, AdminDataService>();
     builder.Services.AddSingleton<ICurrentObligationYearProvider, CurrentObligationYearProvider>();
     builder.Services.AddTransient<IUnsubmittedEligibilityVisibilityService, UnsubmittedEligibilityVisibilityService>();
     builder.Services.AddTransient<IUnsubmittedOrganisationsService, UnsubmittedOrganisationsService>();
@@ -76,10 +78,6 @@ try
     builder.Services.AddTransient<IUnsubmittedPollingVolumeService, UnsubmittedPollingVolumeService>();
     builder.Services.AddTransient<IUnsubmittedPollingPlanService, UnsubmittedPollingPlanService>();
     builder.Services.AddTransient<IUnsubmittedHistoricalBackfillService, UnsubmittedHistoricalBackfillService>();
-    builder.Services.AddTransient<
-        IUnsubmittedReferenceResolutionIssuesService,
-        UnsubmittedReferenceResolutionIssuesService
-    >();
     builder.Services.AddTransient<IUnsubmittedOrganisationDetailsService, UnsubmittedOrganisationDetailsService>();
     builder.Services.AddTransient<ICancellationEmailRecipientResolver, CancellationEmailRecipientResolver>();
     builder.Services.AddTransient<IEmailService, EmailService>();

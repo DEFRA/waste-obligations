@@ -1,0 +1,22 @@
+﻿[
+  {
+    "id": "68bc00000000000000000006",
+    "generation": "retained",
+    "organisationId": "Guid_1",
+    "obligationYear": 2026,
+    "registrationType": "DirectProducer",
+    "registrationStatus": "Registered",
+    "businessCountry": null,
+    "name": "Example organisation",
+    "tradingName": null,
+    "companiesHouseNumber": null,
+    "referenceNumber": "100001",
+    "referenceNumberResolutionState": "Failed",
+    "isVisibleInUnsubmittedView": true,
+    "recyclingObligationsMet": null,
+    "obligationCoveragePercentage": null,
+    "declarationStateUpdatedAt": "DateTimeOffset_1",
+    "sourceFingerprint": "source-fingerprint",
+    "refreshedAt": "DateTimeOffset_1"
+  }
+]

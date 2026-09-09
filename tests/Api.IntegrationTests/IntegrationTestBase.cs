@@ -7,6 +7,7 @@ using Amazon.SQS;
 using Amazon.SQS.Model;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Authentication;
+using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.IntegrationTests.Infrastructure;
 using Defra.WasteObligations.AuditEvents.Data;

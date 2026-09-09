@@ -1,0 +1,24 @@
+﻿[
+  {
+    "eventId": "event-1",
+    "sequence": 7,
+    "entity": "compliance_declaration",
+    "entityId": "entity-7",
+    "operation": "insert",
+    "eventType": "submission.created",
+    "deletedReason": null,
+    "occurredAt": "DateTimeOffset_1",
+    "recordedAt": "DateTimeOffset_2",
+    "actor": "user@example.com",
+    "version": 1,
+    "before": null,
+    "after": {
+      "id": {
+        "$oid": "68bc00000000000000000005"
+      }
+    },
+    "schemaVersion": "v1.3",
+    "traceId": "{Scrubbed}",
+    "dispatches": {}
+  }
+]

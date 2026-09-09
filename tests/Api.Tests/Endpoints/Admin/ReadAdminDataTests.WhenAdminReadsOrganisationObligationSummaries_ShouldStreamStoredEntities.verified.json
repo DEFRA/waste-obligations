@@ -1,0 +1,23 @@
+﻿[
+  {
+    "id": "68bc00000000000000000007",
+    "organisationId": "Guid_1",
+    "obligationYear": 2026,
+    "obligationCount": 1,
+    "totalAcceptedTonnage": 10,
+    "totalObligatedTonnage": 20,
+    "recyclingObligationsMet": null,
+    "obligationCoveragePercentage": null,
+    "sourceFingerprint": null,
+    "lastSuccessfulReadAt": null,
+    "dailyCalculationRunId": null,
+    "lastAttemptedAt": "DateTimeOffset_1",
+    "nextRefreshAt": "DateTimeOffset_2",
+    "priority": "ScheduledRefresh",
+    "requestedAt": "DateTimeOffset_3",
+    "isHydrationActive": false,
+    "refreshState": "Ready",
+    "attemptCount": 0,
+    "lastFailure": null
+  }
+]

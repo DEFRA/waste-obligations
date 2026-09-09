@@ -18,6 +18,8 @@ public class EndpointTestBase : IClassFixture<ApiWebApplicationFactory>
         _factory.OutputHelper = outputHelper;
     }
 
+    protected ApiWebApplicationFactory Factory => _factory;
+
     /// <summary>
     /// Use this to override DI services.
     /// </summary>

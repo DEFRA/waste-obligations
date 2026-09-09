@@ -1,14 +1,15 @@
+using Defra.WasteObligations.Api.Authentication;
+
 namespace Defra.WasteObligations.Api.Endpoints.Admin;
 
 public static class AdminEndpoints
 {
     public static void MapAdminEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapUnsubmittedPollingStatus();
-        app.MapUnsubmittedPollingVolume();
-        app.MapUnsubmittedPollingPlan();
-        app.MapUnsubmittedHistoricalBackfill();
-        app.MapUnsubmittedReferenceResolutionIssues();
-        app.MapUnsubmittedOrganisationDetails();
+        var adminApp = app.MapGroup("/admin").RequireAuthorization(PolicyNames.Admin);
+
+        adminApp.MapAdminAuditEventEndpoints();
+        adminApp.MapAdminOrganisationEndpoints();
+        adminApp.MapAdminUnsubmittedComplianceDeclarationEndpoints();
     }
 }

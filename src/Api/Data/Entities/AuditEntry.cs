@@ -1,9 +1,11 @@
+using System.Text.Json.Serialization;
 using MongoDB.Bson.Serialization.Attributes;
 
 namespace Defra.WasteObligations.Api.Data.Entities;
 
 [BsonKnownTypes(typeof(ReasonAuditEntry))]
 [BsonIgnoreExtraElements]
+[JsonDerivedType(typeof(ReasonAuditEntry))]
 public record AuditEntry(string Action)
 {
     public required User User { get; init; }

@@ -33,4 +33,6 @@ public class EndpointFilter
     public static EndpointFilter Page(int page) => new($"page={page}");
 
     public static EndpointFilter PageSize(int pageSize) => new($"pageSize={pageSize}");
+
+    public static EndpointFilter Query(string name, string value) => new($"{name}={Uri.EscapeDataString(value)}");
 }

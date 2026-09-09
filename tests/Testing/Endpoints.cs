@@ -26,6 +26,13 @@ public static class Endpoints
 
     public static class Admin
     {
+        public static string OrganisationComplianceDeclarations(Guid organisationId, EndpointQuery? query = null) =>
+            $"admin/organisations/{organisationId}/compliance-declarations{query}";
+
+        public static string AuditEvents(EndpointQuery? query = null) => $"admin/audit-events{query}";
+
+        public static string AuditEventCounter() => "admin/audit-events/counter";
+
         public static string UnsubmittedPollingStatus() => "admin/unsubmitted-compliance-declarations/polling-status";
 
         public static string UnsubmittedPollingVolume() => "admin/unsubmitted-compliance-declarations/polling-volume";
@@ -37,6 +44,24 @@ public static class Endpoints
 
         public static string UnsubmittedReferenceResolutionIssues() =>
             "admin/unsubmitted-compliance-declarations/reference-resolution-issues";
+
+        public static string OrganisationEligibilitySnapshot() =>
+            "admin/unsubmitted-compliance-declarations/eligibility-snapshot";
+
+        public static string OrganisationEligibility(EndpointQuery? query = null) =>
+            $"admin/unsubmitted-compliance-declarations/eligibility{query}";
+
+        public static string OrganisationObligationSummaries(Guid organisationId) =>
+            $"admin/organisations/{organisationId}/obligation-summaries";
+
+        public static string FailedOrganisationObligationSummaries(int obligationYear) =>
+            $"admin/unsubmitted-compliance-declarations/failed-obligation-summaries?obligationYear={obligationYear}";
+
+        public static string OrganisationObligationHistoricalBackfills() =>
+            "admin/unsubmitted-compliance-declarations/historical-backfills";
+
+        public static string OrganisationObligationRequestPacingState() =>
+            "admin/unsubmitted-compliance-declarations/request-pacing";
 
         public static string UnsubmittedOrganisationDetails(Guid organisationId, bool includeLiveData = false) =>
             $"admin/unsubmitted-compliance-declarations/organisations/{organisationId}"

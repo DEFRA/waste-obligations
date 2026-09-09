@@ -1,28 +1,41 @@
 ﻿{
   "organisationId": "Guid_1",
-  "activeEligibilityGeneration": "active-generation",
+  "eligibilitySnapshot": {
+    "id": "unsubmitted-compliance-declarations",
+    "activeGeneration": "active-generation",
+    "activeContentFingerprint": "active-fingerprint",
+    "activeRowCount": 1,
+    "materialisedStateVersion": 2,
+    "activeGenerationPromotedAt": "DateTimeOffset_1",
+    "lastVerifiedAt": "DateTimeOffset_2",
+    "retainedGenerations": []
+  },
   "eligibility": [
     {
+      "id": "68bc00000000000000000001",
       "generation": "active-generation",
+      "organisationId": "Guid_Empty",
       "obligationYear": 2026,
       "registrationType": "DirectProducer",
       "registrationStatus": "Registered",
-      "country": "GB-ENG",
+      "businessCountry": "GB-ENG",
       "name": "Example organisation",
       "tradingName": "Example trading name",
       "companiesHouseNumber": "01234567",
       "referenceNumber": "100001",
-      "referenceResolutionState": "Resolved",
+      "referenceNumberResolutionState": "Resolved",
       "isVisibleInUnsubmittedView": true,
       "recyclingObligationsMet": false,
       "obligationCoveragePercentage": 34.5,
-      "declarationStateUpdatedAt": "DateTimeOffset_1",
+      "declarationStateUpdatedAt": "DateTimeOffset_3",
       "sourceFingerprint": "eligibility-fingerprint",
-      "refreshedAt": "DateTimeOffset_2"
+      "refreshedAt": "DateTimeOffset_4"
     }
   ],
   "obligationSummaries": [
     {
+      "id": "68bc00000000000000000002",
+      "organisationId": "Guid_1",
       "obligationYear": 2026,
       "obligationCount": 7,
       "totalAcceptedTonnage": 123,
@@ -30,12 +43,12 @@
       "recyclingObligationsMet": false,
       "obligationCoveragePercentage": 34.5,
       "sourceFingerprint": "summary-fingerprint",
-      "lastSuccessfulReadAt": "DateTimeOffset_3",
+      "lastSuccessfulReadAt": "DateTimeOffset_5",
       "dailyCalculationRunId": "run-id",
-      "lastAttemptedAt": "DateTimeOffset_4",
-      "nextRefreshAt": "DateTimeOffset_5",
+      "lastAttemptedAt": "DateTimeOffset_6",
+      "nextRefreshAt": "DateTimeOffset_7",
       "priority": "ScheduledRefresh",
-      "requestedAt": "DateTimeOffset_3",
+      "requestedAt": "DateTimeOffset_5",
       "isHydrationActive": true,
       "refreshState": "Ready",
       "attemptCount": 3,
@@ -62,8 +75,8 @@
           "status": "Registered",
           "type": "LargeProducer",
           "registrationYear": 2026,
-          "created": "DateTimeOffset_6",
-          "updated": "DateTimeOffset_1"
+          "created": "DateTimeOffset_8",
+          "updated": "DateTimeOffset_3"
         }
       ]
     },
