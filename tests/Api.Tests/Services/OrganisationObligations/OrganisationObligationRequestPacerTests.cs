@@ -161,6 +161,62 @@ public class OrganisationObligationRequestPacerTests
         (await subject.GetStatus(TestContext.Current.CancellationToken)).EffectiveRequestsPerMinute.Should().Be(16);
     }
 
+    [Fact]
+    public async Task ObserveRead_WhenDownstreamFailuresContinue_ShouldCompoundTheBackoff()
+    {
+        var subject = CreateSubject(new PacingStateStore());
+        await subject.ObserveWorkload(600, TestContext.Current.CancellationToken);
+
+        await subject.ObserveRead(
+            TimeSpan.FromMilliseconds(100),
+            succeeded: false,
+            TestContext.Current.CancellationToken
+        );
+        await subject.ObserveRead(
+            TimeSpan.FromMilliseconds(100),
+            succeeded: false,
+            TestContext.Current.CancellationToken
+        );
+        await subject.ObserveRead(
+            TimeSpan.FromMilliseconds(100),
+            succeeded: false,
+            TestContext.Current.CancellationToken
+        );
+
+        (await subject.GetStatus(TestContext.Current.CancellationToken)).EffectiveRequestsPerMinute.Should().Be(11);
+    }
+
+    [Fact]
+    public async Task ObserveRead_WhenColdStartLatencyImproves_ShouldRecalibrateTheBaseline()
+    {
+        var subject = CreateSubject(new PacingStateStore());
+        await subject.ObserveWorkload(600, TestContext.Current.CancellationToken);
+        for (var index = 0; index < 5; index++)
+            await subject.ObserveRead(
+                TimeSpan.FromMilliseconds(300),
+                succeeded: true,
+                TestContext.Current.CancellationToken
+            );
+
+        for (var index = 0; index < 10; index++)
+            await subject.ObserveRead(
+                TimeSpan.FromMilliseconds(100),
+                succeeded: true,
+                TestContext.Current.CancellationToken
+            );
+
+        for (var index = 0; index < 5; index++)
+            await subject.ObserveRead(
+                TimeSpan.FromMilliseconds(300),
+                succeeded: true,
+                TestContext.Current.CancellationToken
+            );
+
+        var status = await subject.GetStatus(TestContext.Current.CancellationToken);
+        status.EffectiveRequestsPerMinute.Should().Be(16);
+        status.BackoffReason.Should().Be("Downstream latency increased from 100ms to 200ms");
+    }
+
     private static OrganisationObligationRequestPacer CreateSubject(
         IOrganisationObligationRequestPacingStateStore pacingStateStore,
         TimeProvider? timeProvider = null,

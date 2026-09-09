@@ -42,14 +42,7 @@ public static class OrganisationObligationRequestPacingController
             .TakeLast(SampleCount)
             .ToArray();
         var averageLatencyMilliseconds = AverageSuccessfulLatencyMilliseconds(recentReads);
-        var baselineLatencyMilliseconds = state.BaselineDownstreamLatencyMilliseconds;
-        if (
-            baselineLatencyMilliseconds is null
-            && SuccessfulReadCount(recentReads) >= MinimumSuccessfulReadSamplesForLatencyBackoff
-        )
-        {
-            baselineLatencyMilliseconds = averageLatencyMilliseconds;
-        }
+        var baselineLatencyMilliseconds = BaselineLatencyMilliseconds(state, recentReads, averageLatencyMilliseconds);
 
         state = state with
         {
@@ -64,6 +57,7 @@ public static class OrganisationObligationRequestPacingController
             return BackOffIfNeeded(
                 state,
                 $"Downstream read failure rate is {state.RecentDownstreamFailurePercentage:0.#}%",
+                !succeeded,
                 options
             );
         }
@@ -78,6 +72,7 @@ public static class OrganisationObligationRequestPacingController
             return BackOffIfNeeded(
                 state,
                 $"Downstream latency increased from {state.BaselineDownstreamLatencyMilliseconds:0.#}ms to {state.RecentDownstreamLatencyMilliseconds:0.#}ms",
+                shouldCompoundBackoff: false,
                 options
             );
         }
@@ -134,17 +129,40 @@ public static class OrganisationObligationRequestPacingController
     private static OrganisationObligationRequestPacingState BackOffIfNeeded(
         OrganisationObligationRequestPacingState state,
         string reason,
+        bool shouldCompoundBackoff,
         OrganisationObligationHydrationOptions options
     )
     {
         state = state with
         {
             IsUnderPressure = true,
-            RateAdjustment = state.IsUnderPressure ? state.RateAdjustment : state.RateAdjustment * BackoffFactor,
+            RateAdjustment =
+                !state.IsUnderPressure || shouldCompoundBackoff
+                    ? state.RateAdjustment * BackoffFactor
+                    : state.RateAdjustment,
             BackoffReason = reason,
         };
 
         return UpdateEffectiveRate(state, options);
+    }
+
+    private static double? BaselineLatencyMilliseconds(
+        OrganisationObligationRequestPacingState state,
+        IEnumerable<OrganisationObligationRequestPacingRead> recentReads,
+        double? averageLatencyMilliseconds
+    )
+    {
+        if (
+            averageLatencyMilliseconds is null
+            || SuccessfulReadCount(recentReads) < MinimumSuccessfulReadSamplesForLatencyBackoff
+        )
+        {
+            return state.BaselineDownstreamLatencyMilliseconds;
+        }
+
+        return state.BaselineDownstreamLatencyMilliseconds is { } baselineLatencyMilliseconds
+            ? Math.Min(baselineLatencyMilliseconds, averageLatencyMilliseconds.Value)
+            : averageLatencyMilliseconds;
     }
 
     private static double? AverageSuccessfulLatencyMilliseconds(
