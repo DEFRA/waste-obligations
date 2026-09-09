@@ -80,6 +80,31 @@ public class OrganisationObligationRequestPacerTests
     }
 
     [Fact]
+    public async Task ObserveWorkload_WhenThereIsNoPacingStateAndNoActiveWork_ShouldNotPersistState()
+    {
+        var pacingStateStore = new PacingStateStore();
+        var subject = CreateSubject(pacingStateStore);
+
+        await subject.ObserveWorkload(0, TestContext.Current.CancellationToken);
+
+        pacingStateStore.GetCount.Should().Be(1);
+        pacingStateStore.UpdateCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task ObserveWorkload_WhenActiveWorkBecomesIdle_ShouldResetTheExistingPacingState()
+    {
+        var pacingStateStore = new PacingStateStore();
+        var subject = CreateSubject(pacingStateStore);
+        await subject.ObserveWorkload(600, TestContext.Current.CancellationToken);
+
+        await subject.ObserveWorkload(0, TestContext.Current.CancellationToken);
+
+        pacingStateStore.UpdateCount.Should().Be(2);
+        (await subject.GetStatus(TestContext.Current.CancellationToken)).EffectiveRequestsPerMinute.Should().Be(0);
+    }
+
+    [Fact]
     public async Task ObserveRead_WhenDownstreamLatencyIncreases_ShouldBackOffTheControllerRate()
     {
         var subject = CreateSubject(new PacingStateStore());
@@ -234,14 +259,23 @@ public class OrganisationObligationRequestPacerTests
     {
         private OrganisationObligationRequestPacingState? _state;
 
-        public Task<OrganisationObligationRequestPacingState?> Get(CancellationToken cancellationToken) =>
-            Task.FromResult(_state);
+        public int GetCount { get; private set; }
+
+        public int UpdateCount { get; private set; }
+
+        public Task<OrganisationObligationRequestPacingState?> Get(CancellationToken cancellationToken)
+        {
+            GetCount++;
+
+            return Task.FromResult(_state);
+        }
 
         public Task<OrganisationObligationRequestPacingState> Update(
             Func<OrganisationObligationRequestPacingState, OrganisationObligationRequestPacingState> update,
             CancellationToken cancellationToken
         )
         {
+            UpdateCount++;
             _state = update(
                 _state
                     ?? new OrganisationObligationRequestPacingState

@@ -11,6 +11,15 @@ public class OrganisationObligationRequestPacer(
 {
     public async Task ObserveWorkload(int activeSummaryCount, CancellationToken cancellationToken)
     {
+        if (activeSummaryCount == 0)
+        {
+            var state = await pacingStateStore.Get(cancellationToken);
+            if (state is null || (state.DesiredRequestsPerMinute == 0 && state.EffectiveRequestsPerMinute == 0))
+            {
+                return;
+            }
+        }
+
         await pacingStateStore.Update(
             state =>
                 OrganisationObligationRequestPacingController.ObserveWorkload(state, activeSummaryCount, options.Value),
