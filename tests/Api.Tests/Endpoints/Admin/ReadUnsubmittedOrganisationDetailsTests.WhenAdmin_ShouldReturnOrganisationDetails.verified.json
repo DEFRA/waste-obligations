@@ -1,0 +1,46 @@
+﻿{
+  "organisationId": "Guid_1",
+  "activeEligibilityGeneration": "active-generation",
+  "eligibility": [
+    {
+      "generation": "active-generation",
+      "obligationYear": 2026,
+      "registrationType": "DirectProducer",
+      "registrationStatus": "Registered",
+      "country": "GB-ENG",
+      "name": "Example organisation",
+      "tradingName": "Example trading name",
+      "companiesHouseNumber": "01234567",
+      "referenceNumber": "100001",
+      "referenceResolutionState": "Resolved",
+      "isVisibleInUnsubmittedView": true,
+      "recyclingObligationsMet": false,
+      "obligationCoveragePercentage": 34.5,
+      "declarationStateUpdatedAt": "DateTimeOffset_1",
+      "sourceFingerprint": "eligibility-fingerprint",
+      "refreshedAt": "DateTimeOffset_2"
+    }
+  ],
+  "obligationSummaries": [
+    {
+      "obligationYear": 2026,
+      "obligationCount": 7,
+      "totalAcceptedTonnage": 123,
+      "totalObligatedTonnage": 456,
+      "recyclingObligationsMet": false,
+      "obligationCoveragePercentage": 34.5,
+      "sourceFingerprint": "summary-fingerprint",
+      "lastSuccessfulReadAt": "DateTimeOffset_3",
+      "dailyCalculationRunId": "run-id",
+      "lastAttemptedAt": "DateTimeOffset_4",
+      "nextRefreshAt": "DateTimeOffset_5",
+      "priority": "ScheduledRefresh",
+      "requestedAt": "DateTimeOffset_3",
+      "isHydrationActive": true,
+      "refreshState": "Ready",
+      "attemptCount": 3,
+      "lastFailure": "Temporary downstream error"
+    }
+  ],
+  "liveData": null
+}

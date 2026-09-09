@@ -9,5 +9,6 @@ public static class AdminEndpoints
         app.MapUnsubmittedPollingPlan();
         app.MapUnsubmittedHistoricalBackfill();
         app.MapUnsubmittedReferenceResolutionIssues();
+        app.MapUnsubmittedOrganisationDetails();
     }
 }

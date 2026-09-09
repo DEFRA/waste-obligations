@@ -80,6 +80,7 @@ try
         IUnsubmittedReferenceResolutionIssuesService,
         UnsubmittedReferenceResolutionIssuesService
     >();
+    builder.Services.AddTransient<IUnsubmittedOrganisationDetailsService, UnsubmittedOrganisationDetailsService>();
     builder.Services.AddTransient<ICancellationEmailRecipientResolver, CancellationEmailRecipientResolver>();
     builder.Services.AddTransient<IEmailService, EmailService>();
 

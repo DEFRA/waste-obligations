@@ -53,6 +53,8 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         "Generation_IsVisibleInUnsubmittedView_BusinessCountry_Name_OrganisationId";
     private const string OrganisationEligibilityReferenceResolutionIssuesIndexName =
         "Generation_ReferenceNumberResolutionState_OrganisationId_ObligationYear_RegistrationType";
+    private const string OrganisationEligibilityOrganisationDetailsIndexName =
+        "OrganisationId_RefreshedAt_ObligationYear_RegistrationType_Generation";
     private const string OrganisationObligationSummaryOrganisationYearIndexName = "OrganisationId_ObligationYear";
     private const string OrganisationObligationSummaryHydrationDueWorkIndexName =
         "ObligationYear_IsHydrationActive_Priority_NextRefreshAt";
@@ -79,6 +81,7 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         await new OrganisationObligationSummaryPollingStatusIndex().DownAsync(context);
         await new OrganisationObligationHistoricalBackfillIndexes().DownAsync(context);
         await new OrganisationEligibilityReferenceResolutionIssuesIndex().DownAsync(context);
+        await new OrganisationEligibilityOrganisationDetailsIndex().DownAsync(context);
         var migrationLease = database.GetCollection<MongoMigrationLease>("_migrations_lease");
         await migrationLease.InsertOneAsync(
             new MongoMigrationLease
@@ -141,6 +144,22 @@ public class MongoMigrationServiceTests : IntegrationTestBase
                             OrganisationObligationHistoricalBackfillIncompleteWorkIndexName,
                             OrganisationObligationHistoricalBackfillIncompleteWorkIndexKeys(
                                 OrganisationObligationHistoricalBackfills
+                            )
+                        )
+                    );
+                var organisationEligibilityIndexes = await (
+                    await OrganisationComplianceDeclarationEligibilities.Indexes.ListAsync(
+                        TestContext.Current.CancellationToken
+                    )
+                ).ToListAsync(TestContext.Current.CancellationToken);
+                organisationEligibilityIndexes
+                    .Should()
+                    .Contain(x =>
+                        IsIndex(
+                            x,
+                            OrganisationEligibilityOrganisationDetailsIndexName,
+                            OrganisationEligibilityOrganisationDetailsIndexKeys(
+                                OrganisationComplianceDeclarationEligibilities
                             )
                         )
                     );
@@ -564,6 +583,43 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         indexes
             .Should()
             .NotContain(x => x.GetValue("name") == OrganisationEligibilityReferenceResolutionIssuesIndexName);
+
+        await subject.UpAsync(context);
+    }
+
+    [Fact]
+    public async Task OrganisationEligibilityOrganisationDetailsIndex_ShouldCreateAndDropIndex()
+    {
+        var database = GetMongoDatabase();
+        var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
+        var subject = new OrganisationEligibilityOrganisationDetailsIndex();
+        await subject.DownAsync(context);
+
+        await subject.UpAsync(context);
+
+        var indexes = await (
+            await OrganisationComplianceDeclarationEligibilities.Indexes.ListAsync(
+                TestContext.Current.CancellationToken
+            )
+        ).ToListAsync(TestContext.Current.CancellationToken);
+        indexes
+            .Should()
+            .Contain(x =>
+                IsIndex(
+                    x,
+                    OrganisationEligibilityOrganisationDetailsIndexName,
+                    OrganisationEligibilityOrganisationDetailsIndexKeys(OrganisationComplianceDeclarationEligibilities)
+                )
+            );
+
+        await subject.DownAsync(context);
+        await subject.DownAsync(context);
+        indexes = await (
+            await OrganisationComplianceDeclarationEligibilities.Indexes.ListAsync(
+                TestContext.Current.CancellationToken
+            )
+        ).ToListAsync(TestContext.Current.CancellationToken);
+        indexes.Should().NotContain(x => x.GetValue("name") == OrganisationEligibilityOrganisationDetailsIndexName);
 
         await subject.UpAsync(context);
     }
@@ -1401,6 +1457,19 @@ public class MongoMigrationServiceTests : IntegrationTestBase
                 .Ascending(x => x.OrganisationId)
                 .Ascending(x => x.ObligationYear)
                 .Ascending(x => x.RegistrationType)
+        );
+
+    private static BsonDocument OrganisationEligibilityOrganisationDetailsIndexKeys(
+        IMongoCollection<OrganisationComplianceDeclarationEligibility> collection
+    ) =>
+        RenderIndexKeys(
+            collection,
+            Builders<OrganisationComplianceDeclarationEligibility>
+                .IndexKeys.Ascending(x => x.OrganisationId)
+                .Descending(x => x.RefreshedAt)
+                .Descending(x => x.ObligationYear)
+                .Ascending(x => x.RegistrationType)
+                .Ascending(x => x.Generation)
         );
 
     private static BsonDocument OrganisationEligibilityExpiredGenerationIndexKeys(

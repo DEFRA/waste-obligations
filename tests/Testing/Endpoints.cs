@@ -37,6 +37,10 @@ public static class Endpoints
 
         public static string UnsubmittedReferenceResolutionIssues() =>
             "admin/unsubmitted-compliance-declarations/reference-resolution-issues";
+
+        public static string UnsubmittedOrganisationDetails(Guid organisationId, bool includeLiveData = false) =>
+            $"admin/unsubmitted-compliance-declarations/organisations/{organisationId}"
+            + (includeLiveData ? "?includeLiveData=true" : string.Empty);
     }
 
     public static class Organisations
