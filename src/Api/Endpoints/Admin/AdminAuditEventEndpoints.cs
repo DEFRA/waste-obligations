@@ -17,7 +17,7 @@ public static class AdminAuditEventEndpoints
             .RequireAuthorization(PolicyNames.Admin);
     }
 
-    private static IResult HandleAuditEvents(
+    private static EntityStreamResult<AuditEvent> HandleAuditEvents(
         [AsParameters] ReadAuditEventsRequest request,
         [FromServices] IAdminDataService adminDataService,
         CancellationToken cancellationToken

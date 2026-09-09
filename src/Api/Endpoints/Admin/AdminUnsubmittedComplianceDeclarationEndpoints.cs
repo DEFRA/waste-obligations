@@ -84,7 +84,7 @@ public static class AdminUnsubmittedComplianceDeclarationEndpoints
         return Results.Ok(await historicalBackfillService.Start(cancellationToken));
     }
 
-    private static IResult HandleReferenceResolutionIssues(
+    private static EntityStreamResult<OrganisationComplianceDeclarationEligibility> HandleReferenceResolutionIssues(
         [FromServices] IAdminDataService adminDataService,
         CancellationToken cancellationToken
     ) =>
@@ -120,7 +120,7 @@ public static class AdminUnsubmittedComplianceDeclarationEndpoints
         return snapshot is null ? Results.NotFound() : new EntityResult<OrganisationEligibilitySnapshot>(snapshot);
     }
 
-    private static IResult HandleEligibility(
+    private static EntityStreamResult<OrganisationComplianceDeclarationEligibility> HandleEligibility(
         [AsParameters] ReadOrganisationEligibilityRequest request,
         [FromServices] IAdminDataService adminDataService,
         CancellationToken cancellationToken
@@ -133,7 +133,7 @@ public static class AdminUnsubmittedComplianceDeclarationEndpoints
             )
         );
 
-    private static IResult HandleFailedObligationSummaries(
+    private static EntityStreamResult<OrganisationObligationSummary> HandleFailedObligationSummaries(
         [AsParameters] ReadFailedOrganisationObligationSummariesRequest request,
         [FromServices] IAdminDataService adminDataService,
         CancellationToken cancellationToken
@@ -145,7 +145,7 @@ public static class AdminUnsubmittedComplianceDeclarationEndpoints
             )
         );
 
-    private static IResult HandleHistoricalBackfills(
+    private static EntityStreamResult<OrganisationObligationHistoricalBackfill> HandleHistoricalBackfills(
         [FromServices] IAdminDataService adminDataService,
         CancellationToken cancellationToken
     ) =>

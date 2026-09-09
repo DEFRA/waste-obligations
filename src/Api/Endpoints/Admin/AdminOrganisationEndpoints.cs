@@ -19,7 +19,7 @@ public static class AdminOrganisationEndpoints
             .RequireAuthorization(PolicyNames.Admin);
     }
 
-    private static IResult HandleComplianceDeclarations(
+    private static EntityStreamResult<ComplianceDeclaration> HandleComplianceDeclarations(
         [FromRoute] Guid organisationId,
         [FromQuery] [Range(Dtos.ObligationYear.Minimum, Dtos.ObligationYear.Maximum)] int? obligationYear,
         [FromServices] IAdminDataService adminDataService,
@@ -29,7 +29,7 @@ public static class AdminOrganisationEndpoints
             adminDataService.ReadComplianceDeclarations(organisationId, obligationYear, cancellationToken)
         );
 
-    private static IResult HandleObligationSummaries(
+    private static EntityStreamResult<OrganisationObligationSummary> HandleObligationSummaries(
         [FromRoute] Guid organisationId,
         [FromServices] IAdminDataService adminDataService,
         CancellationToken cancellationToken
