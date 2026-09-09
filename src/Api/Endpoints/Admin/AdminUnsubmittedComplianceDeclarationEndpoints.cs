@@ -1,4 +1,3 @@
-using Defra.WasteObligations.Api.Authentication;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.Admin;
@@ -13,48 +12,24 @@ public static class AdminUnsubmittedComplianceDeclarationEndpoints
 {
     public static void MapAdminUnsubmittedComplianceDeclarationEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/admin/unsubmitted-compliance-declarations/polling-status", HandlePollingStatus)
-            .ExcludeFromDescription()
-            .RequireAuthorization(PolicyNames.Admin);
-        app.MapGet("/admin/unsubmitted-compliance-declarations/polling-volume", HandlePollingVolume)
-            .ExcludeFromDescription()
-            .RequireAuthorization(PolicyNames.Admin);
-        app.MapGet("/admin/unsubmitted-compliance-declarations/polling-plan", HandlePollingPlan)
-            .ExcludeFromDescription()
-            .RequireAuthorization(PolicyNames.Admin);
-        app.MapPost("/admin/unsubmitted-compliance-declarations/historical-backfill", HandleHistoricalBackfillStart)
-            .ExcludeFromDescription()
-            .RequireAuthorization(PolicyNames.Admin);
-        app.MapGet(
-                "/admin/unsubmitted-compliance-declarations/reference-resolution-issues",
-                HandleReferenceResolutionIssues
-            )
-            .ExcludeFromDescription()
-            .RequireAuthorization(PolicyNames.Admin);
-        app.MapGet(
-                "/admin/unsubmitted-compliance-declarations/organisations/{organisationId:guid}",
-                HandleOrganisationDetails
-            )
-            .ExcludeFromDescription()
-            .RequireAuthorization(PolicyNames.Admin);
-        app.MapGet("/admin/unsubmitted-compliance-declarations/eligibility-snapshot", HandleEligibilitySnapshot)
-            .ExcludeFromDescription()
-            .RequireAuthorization(PolicyNames.Admin);
-        app.MapGet("/admin/unsubmitted-compliance-declarations/eligibility", HandleEligibility)
-            .ExcludeFromDescription()
-            .RequireAuthorization(PolicyNames.Admin);
-        app.MapGet(
-                "/admin/unsubmitted-compliance-declarations/failed-obligation-summaries",
-                HandleFailedObligationSummaries
-            )
-            .ExcludeFromDescription()
-            .RequireAuthorization(PolicyNames.Admin);
-        app.MapGet("/admin/unsubmitted-compliance-declarations/historical-backfills", HandleHistoricalBackfills)
-            .ExcludeFromDescription()
-            .RequireAuthorization(PolicyNames.Admin);
-        app.MapGet("/admin/unsubmitted-compliance-declarations/request-pacing", HandleRequestPacingState)
-            .ExcludeFromDescription()
-            .RequireAuthorization(PolicyNames.Admin);
+        app.MapGet("unsubmitted-compliance-declarations/polling-status", HandlePollingStatus).ExcludeFromDescription();
+        app.MapGet("unsubmitted-compliance-declarations/polling-volume", HandlePollingVolume).ExcludeFromDescription();
+        app.MapGet("unsubmitted-compliance-declarations/polling-plan", HandlePollingPlan).ExcludeFromDescription();
+        app.MapPost("unsubmitted-compliance-declarations/historical-backfill", HandleHistoricalBackfillStart)
+            .ExcludeFromDescription();
+        app.MapGet("unsubmitted-compliance-declarations/reference-resolution-issues", HandleReferenceResolutionIssues)
+            .ExcludeFromDescription();
+        app.MapGet("unsubmitted-compliance-declarations/organisations/{organisationId:guid}", HandleOrganisationDetails)
+            .ExcludeFromDescription();
+        app.MapGet("unsubmitted-compliance-declarations/eligibility-snapshot", HandleEligibilitySnapshot)
+            .ExcludeFromDescription();
+        app.MapGet("unsubmitted-compliance-declarations/eligibility", HandleEligibility).ExcludeFromDescription();
+        app.MapGet("unsubmitted-compliance-declarations/failed-obligation-summaries", HandleFailedObligationSummaries)
+            .ExcludeFromDescription();
+        app.MapGet("unsubmitted-compliance-declarations/historical-backfills", HandleHistoricalBackfills)
+            .ExcludeFromDescription();
+        app.MapGet("unsubmitted-compliance-declarations/request-pacing", HandleRequestPacingState)
+            .ExcludeFromDescription();
     }
 
     private static async Task<IResult> HandlePollingStatus(

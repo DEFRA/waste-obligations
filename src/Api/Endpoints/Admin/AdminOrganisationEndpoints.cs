@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using Defra.WasteObligations.Api.Authentication;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.Admin;
 using Microsoft.AspNetCore.Mvc;
@@ -11,12 +10,10 @@ public static class AdminOrganisationEndpoints
 {
     public static void MapAdminOrganisationEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/admin/organisations/{organisationId:guid}/compliance-declarations", HandleComplianceDeclarations)
-            .ExcludeFromDescription()
-            .RequireAuthorization(PolicyNames.Admin);
-        app.MapGet("/admin/organisations/{organisationId:guid}/obligation-summaries", HandleObligationSummaries)
-            .ExcludeFromDescription()
-            .RequireAuthorization(PolicyNames.Admin);
+        app.MapGet("organisations/{organisationId:guid}/compliance-declarations", HandleComplianceDeclarations)
+            .ExcludeFromDescription();
+        app.MapGet("organisations/{organisationId:guid}/obligation-summaries", HandleObligationSummaries)
+            .ExcludeFromDescription();
     }
 
     private static EntityStreamResult<ComplianceDeclaration> HandleComplianceDeclarations(

@@ -1,4 +1,3 @@
-using Defra.WasteObligations.Api.Authentication;
 using Defra.WasteObligations.Api.Services.Admin;
 using Defra.WasteObligations.AuditEvents.Entities;
 using Microsoft.AspNetCore.Mvc;
@@ -9,12 +8,8 @@ public static class AdminAuditEventEndpoints
 {
     public static void MapAdminAuditEventEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/admin/audit-events", HandleAuditEvents)
-            .ExcludeFromDescription()
-            .RequireAuthorization(PolicyNames.Admin);
-        app.MapGet("/admin/audit-events/counter", HandleAuditEventCounter)
-            .ExcludeFromDescription()
-            .RequireAuthorization(PolicyNames.Admin);
+        app.MapGet("audit-events", HandleAuditEvents).ExcludeFromDescription();
+        app.MapGet("audit-events/counter", HandleAuditEventCounter).ExcludeFromDescription();
     }
 
     private static EntityStreamResult<AuditEvent> HandleAuditEvents(
