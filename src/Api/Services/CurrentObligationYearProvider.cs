@@ -19,7 +19,9 @@ public class CurrentObligationYearProvider(TimeProvider timeProvider) : ICurrent
         var currentObligationYear = GetCurrentObligationYear(localNow);
 
         if (localNow.Month is 1)
+        {
             return new ObligationYearHandover(currentObligationYear, IncomingObligationYear: currentObligationYear + 1);
+        }
 
         var cutover = new DateTimeOffset(localNow.Year, 2, 1, 0, 0, 0, localNow.Offset);
         if (localNow >= cutover && localNow < cutover.Add(outgoingYearGracePeriod))

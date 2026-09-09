@@ -27,6 +27,20 @@ public static class Endpoints
     public static class Admin
     {
         public static string UnsubmittedPollingStatus() => "admin/unsubmitted-compliance-declarations/polling-status";
+
+        public static string UnsubmittedPollingVolume() => "admin/unsubmitted-compliance-declarations/polling-volume";
+
+        public static string UnsubmittedPollingPlan() => "admin/unsubmitted-compliance-declarations/polling-plan";
+
+        public static string UnsubmittedHistoricalBackfill() =>
+            "admin/unsubmitted-compliance-declarations/historical-backfill";
+
+        public static string UnsubmittedReferenceResolutionIssues() =>
+            "admin/unsubmitted-compliance-declarations/reference-resolution-issues";
+
+        public static string UnsubmittedOrganisationDetails(Guid organisationId, bool includeLiveData = false) =>
+            $"admin/unsubmitted-compliance-declarations/organisations/{organisationId}"
+            + (includeLiveData ? "?includeLiveData=true" : string.Empty);
     }
 
     public static class Organisations

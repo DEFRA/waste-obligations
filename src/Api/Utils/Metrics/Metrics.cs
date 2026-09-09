@@ -90,6 +90,15 @@ public static class Metrics
         public const string OrganisationObligationHydrationMaxDownstreamRequestsPerMinute = nameof(
             OrganisationObligationHydrationMaxDownstreamRequestsPerMinute
         );
+        public const string OrganisationObligationHydrationDesiredRequestsPerMinute = nameof(
+            OrganisationObligationHydrationDesiredRequestsPerMinute
+        );
+        public const string OrganisationObligationHydrationEffectiveRequestsPerMinute = nameof(
+            OrganisationObligationHydrationEffectiveRequestsPerMinute
+        );
+        public const string OrganisationObligationHydrationEstimatedFullRefreshDuration = nameof(
+            OrganisationObligationHydrationEstimatedFullRefreshDuration
+        );
     }
 
     public static class Tags

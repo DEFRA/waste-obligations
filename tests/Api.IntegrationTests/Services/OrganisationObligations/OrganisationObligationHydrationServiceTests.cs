@@ -22,6 +22,8 @@ namespace Defra.WasteObligations.Api.IntegrationTests.Services.OrganisationOblig
 public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
 {
     private const int ObligationYear = 2026;
+    private const string HistoricalBackfillWorkIndexName =
+        "ObligationYear_RequestedAt_IsHydrationActive_Priority_NextRefreshAt";
     private const string HydrationDueWorkIndexName = "ObligationYear_IsHydrationActive_Priority_NextRefreshAt";
     private const string OrganisationYearIndexName = "OrganisationId_ObligationYear";
     private const string HydrationEligibilityIndexName =
@@ -59,6 +61,209 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
             .SingleAsync(TestContext.Current.CancellationToken);
 
         summary.IsHydrationActive.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task HydratePreparedDueWork_WhenTheWorkerRecordsCombinedWorkloadMetrics_ShouldNotRecordItsOwnMetrics()
+    {
+        var subject = CreateSubject();
+        var work = new OrganisationObligationHydrationPreparedWork
+        {
+            ObligationYear = ObligationYear,
+            ActiveSummaryCount = 0,
+            DueSummaryCount = 0,
+        };
+
+        var processedCount = await subject.HydratePreparedDueWork(
+            work,
+            TestContext.Current.CancellationToken,
+            recordWorkloadMetrics: false
+        );
+
+        processedCount.Should().Be(0);
+        HydrationMetrics.DidNotReceive().QueueObserved(Arg.Any<int>(), Arg.Any<int>());
+        HydrationMetrics
+            .DidNotReceive()
+            .CapacityObserved(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<TimeSpan>());
+    }
+
+    [Fact]
+    public async Task EnqueueReconciliation_WhenNoActiveGenerationExists_ShouldNotChangeExistingSummaries()
+    {
+        var organisationId = Guid.NewGuid();
+        await InsertSummary(
+            organisationId,
+            OrganisationObligationRefreshState.Ready,
+            _timeProvider.GetUtcNow().UtcDateTime
+        );
+        var subject = CreateSubject();
+
+        var reconciledCount = await subject.EnqueueReconciliation(
+            ObligationYear,
+            _timeProvider.GetUtcNow().UtcDateTime,
+            TestContext.Current.CancellationToken
+        );
+
+        reconciledCount.Should().Be(0);
+        var summary = await OrganisationObligationSummaries
+            .Find(x => x.OrganisationId == organisationId && x.ObligationYear == ObligationYear)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        summary.Priority.Should().Be(OrganisationObligationHydrationPriority.ScheduledRefresh);
+        summary.NextRefreshAt.Should().Be(_timeProvider.GetUtcNow().UtcDateTime);
+    }
+
+    [Fact]
+    public async Task HydrateHistoricalBackfill_ShouldReadEachOrganisationOnceAndDeactivateCompletedSummary()
+    {
+        const int historicalObligationYear = 2025;
+        var organisationId = Guid.NewGuid();
+        var requestedAt = _timeProvider.GetUtcNow().UtcDateTime;
+        var backfill = new OrganisationObligationHistoricalBackfill
+        {
+            ObligationYear = historicalObligationYear,
+            OrganisationIds = [organisationId],
+            RequestedAt = requestedAt,
+            UpdatedAt = requestedAt,
+        };
+        ObligationSource
+            .ReadObligations(organisationId, historicalObligationYear, Arg.Any<CancellationToken>())
+            .Returns([CreateObligation("Glass", accepted: 15, obligated: 20, ObligationStatus.Met)]);
+        var subject = CreateSubject();
+
+        var progress = await subject.HydrateHistoricalBackfill(backfill, TestContext.Current.CancellationToken);
+
+        progress.ProcessedCount.Should().Be(1);
+        progress.RemainingCount.Should().Be(0);
+        progress.WasEnqueued.Should().BeTrue();
+        var summary = await OrganisationObligationSummaries
+            .Find(x => x.OrganisationId == organisationId && x.ObligationYear == historicalObligationYear)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        summary.RequestedAt.Should().Be(requestedAt);
+        summary.LastSuccessfulReadAt.Should().Be(requestedAt);
+        summary.IsHydrationActive.Should().BeFalse();
+        summary.RecyclingObligationsMet.Should().BeTrue();
+        summary.ObligationCoveragePercentage.Should().Be(75);
+    }
+
+    [Fact]
+    public async Task HydrateHistoricalBackfill_WhenItHasNoOrganisations_ShouldNotEnqueueWork()
+    {
+        var requestedAt = _timeProvider.GetUtcNow().UtcDateTime;
+        var backfill = new OrganisationObligationHistoricalBackfill
+        {
+            ObligationYear = 2025,
+            OrganisationIds = [],
+            RequestedAt = requestedAt,
+            UpdatedAt = requestedAt,
+        };
+        var subject = CreateSubject();
+
+        var progress = await subject.HydrateHistoricalBackfill(backfill, TestContext.Current.CancellationToken);
+
+        progress
+            .Should()
+            .BeEquivalentTo(
+                new
+                {
+                    ProcessedCount = 0,
+                    RemainingCount = 0,
+                    WasEnqueued = false,
+                }
+            );
+    }
+
+    [Fact]
+    public async Task HydrateHistoricalBackfill_WhenAPreviousSummaryExists_ShouldReuseItForTheBackfill()
+    {
+        const int historicalObligationYear = 2025;
+        var organisationId = Guid.NewGuid();
+        var requestedAt = _timeProvider.GetUtcNow().UtcDateTime;
+        await InsertSummary(
+            organisationId,
+            OrganisationObligationRefreshState.Failed,
+            requestedAt.AddDays(-1),
+            requestedAt: requestedAt.AddDays(-2),
+            attemptCount: 3,
+            lastFailure: "Previous failure",
+            obligationYear: historicalObligationYear
+        );
+        var backfill = new OrganisationObligationHistoricalBackfill
+        {
+            ObligationYear = historicalObligationYear,
+            OrganisationIds = [organisationId],
+            RequestedAt = requestedAt,
+            UpdatedAt = requestedAt,
+        };
+        ObligationSource
+            .ReadObligations(organisationId, historicalObligationYear, Arg.Any<CancellationToken>())
+            .Returns([CreateObligation("Glass", accepted: 15, obligated: 20, ObligationStatus.Met)]);
+        var subject = CreateSubject();
+
+        var progress = await subject.HydrateHistoricalBackfill(backfill, TestContext.Current.CancellationToken);
+
+        progress
+            .Should()
+            .BeEquivalentTo(
+                new
+                {
+                    ProcessedCount = 1,
+                    RemainingCount = 0,
+                    WasEnqueued = true,
+                }
+            );
+        var summary = await OrganisationObligationSummaries
+            .Find(x => x.OrganisationId == organisationId && x.ObligationYear == historicalObligationYear)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        summary.RequestedAt.Should().Be(requestedAt);
+        summary.LastSuccessfulReadAt.Should().Be(requestedAt);
+        summary.AttemptCount.Should().Be(0);
+        summary.LastFailure.Should().BeNull();
+        summary.IsHydrationActive.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task EnqueueReconciliation_ShouldHydrateAndDeactivateAnOutgoingYearSummary()
+    {
+        const int outgoingObligationYear = 2025;
+        var organisationId = Guid.NewGuid();
+        var cutover = _timeProvider.GetUtcNow().UtcDateTime;
+        await InsertActiveSnapshot();
+        await InsertEligibility(
+            organisationId,
+            RegistrationType.DirectProducer,
+            obligationYear: outgoingObligationYear
+        );
+        await InsertSummary(
+            organisationId,
+            OrganisationObligationRefreshState.Ready,
+            cutover.AddMinutes(-30),
+            isHydrationActive: true,
+            obligationYear: outgoingObligationYear
+        );
+        ObligationSource
+            .ReadObligations(organisationId, outgoingObligationYear, Arg.Any<CancellationToken>())
+            .Returns([CreateObligation("Glass", accepted: 15, obligated: 20, ObligationStatus.Met)]);
+        var subject = CreateSubject();
+
+        var reconciledCount = await subject.EnqueueReconciliation(
+            outgoingObligationYear,
+            cutover,
+            TestContext.Current.CancellationToken
+        );
+        var work = await subject.PrepareDueWork(outgoingObligationYear, TestContext.Current.CancellationToken);
+        await subject.HydratePreparedDueWork(
+            work,
+            TestContext.Current.CancellationToken,
+            deactivateAfterSuccessfulRead: true
+        );
+
+        reconciledCount.Should().Be(1);
+        var summary = await OrganisationObligationSummaries
+            .Find(x => x.OrganisationId == organisationId && x.ObligationYear == outgoingObligationYear)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        summary.LastSuccessfulReadAt.Should().Be(cutover);
+        summary.IsHydrationActive.Should().BeFalse();
+        summary.Priority.Should().Be(OrganisationObligationHydrationPriority.ScheduledRefresh);
     }
 
     [Fact]
@@ -232,47 +437,6 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task EnqueueReconciliation_ShouldMakePreCutoverScheduledWorkDue()
-    {
-        var organisationId = Guid.NewGuid();
-        var readBeforeCutover = _timeProvider.GetUtcNow().AddMinutes(-2).UtcDateTime;
-        var cutover = _timeProvider.GetUtcNow().AddMinutes(-1).UtcDateTime;
-        var readAfterCutoverOrganisationId = Guid.NewGuid();
-        await InsertActiveSnapshot();
-        await InsertEligibility(organisationId, RegistrationType.DirectProducer);
-        await InsertEligibility(readAfterCutoverOrganisationId, RegistrationType.DirectProducer);
-        await InsertHydrationSummary(
-            organisationId,
-            nextRefreshAt: _timeProvider.GetUtcNow().AddHours(1).UtcDateTime,
-            lastSuccessfulReadAt: readBeforeCutover
-        );
-        await InsertHydrationSummary(
-            readAfterCutoverOrganisationId,
-            nextRefreshAt: _timeProvider.GetUtcNow().AddHours(1).UtcDateTime,
-            lastSuccessfulReadAt: _timeProvider.GetUtcNow().UtcDateTime
-        );
-        var subject = CreateSubject();
-
-        var enqueuedCount = await subject.EnqueueReconciliation(
-            ObligationYear,
-            cutover,
-            TestContext.Current.CancellationToken
-        );
-
-        enqueuedCount.Should().Be(1);
-        var reconciledSummary = await OrganisationObligationSummaries
-            .Find(x => x.OrganisationId == organisationId)
-            .SingleAsync(TestContext.Current.CancellationToken);
-        reconciledSummary.Priority.Should().Be(OrganisationObligationHydrationPriority.Reconciliation);
-        reconciledSummary.NextRefreshAt.Should().Be(_timeProvider.GetUtcNow().UtcDateTime);
-        var recentSummary = await OrganisationObligationSummaries
-            .Find(x => x.OrganisationId == readAfterCutoverOrganisationId)
-            .SingleAsync(TestContext.Current.CancellationToken);
-        recentSummary.Priority.Should().Be(OrganisationObligationHydrationPriority.ScheduledRefresh);
-        recentSummary.NextRefreshAt.Should().Be(_timeProvider.GetUtcNow().AddHours(1).UtcDateTime);
-    }
-
-    [Fact]
     public async Task HydrateDue_WhenSourceSucceeds_ShouldPersistReadySummaryAndScheduleRefresh()
     {
         var organisationId = Guid.NewGuid();
@@ -375,6 +539,54 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
         var renderedWinningPlan = plan["queryPlanner"]["winningPlan"].ToJson();
 
         renderedWinningPlan.Should().Contain(HydrationDueWorkIndexName);
+        renderedWinningPlan.Should().NotContain("\"stage\" : \"SORT\"");
+    }
+
+    [Fact]
+    public async Task HydrateHistoricalBackfillPlan_ShouldUseTheBackfillWorkIndexWithoutAnInMemorySort()
+    {
+        const int historicalObligationYear = 2025;
+        var requestedAt = _timeProvider.GetUtcNow().UtcDateTime;
+        await OrganisationObligationSummaries.InsertOneAsync(
+            new OrganisationObligationSummary
+            {
+                OrganisationId = Guid.NewGuid(),
+                ObligationYear = historicalObligationYear,
+                RequestedAt = requestedAt,
+                IsHydrationActive = true,
+                Priority = OrganisationObligationHydrationPriority.NewEligible,
+                NextRefreshAt = requestedAt,
+            },
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        var command = new BsonDocument
+        {
+            ["explain"] = new BsonDocument
+            {
+                ["find"] = nameof(OrganisationObligationSummary),
+                ["filter"] = new BsonDocument
+                {
+                    ["obligationYear"] = historicalObligationYear,
+                    ["requestedAt"] = requestedAt,
+                    ["isHydrationActive"] = true,
+                    ["nextRefreshAt"] = new BsonDocument("$lte", requestedAt),
+                    ["$or"] = new BsonArray
+                    {
+                        new BsonDocument("lastSuccessfulReadAt", BsonNull.Value),
+                        new BsonDocument("lastSuccessfulReadAt", new BsonDocument("$lt", requestedAt)),
+                    },
+                },
+                ["sort"] = new BsonDocument { ["priority"] = 1, ["nextRefreshAt"] = 1 },
+                ["limit"] = 10,
+            },
+            ["verbosity"] = "queryPlanner",
+        };
+
+        var plan = await GetMongoDatabase()
+            .RunCommandAsync<BsonDocument>(command, cancellationToken: TestContext.Current.CancellationToken);
+        var renderedWinningPlan = plan["queryPlanner"]["winningPlan"].ToJson();
+
+        renderedWinningPlan.Should().Contain(HistoricalBackfillWorkIndexName);
         renderedWinningPlan.Should().NotContain("\"stage\" : \"SORT\"");
     }
 
@@ -606,10 +818,12 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
 
         var options = Options.Create(hydrationOptions ?? new OrganisationObligationHydrationOptions());
 
+        var pacingStateStore = new OrganisationObligationRequestPacingStateStore(database, _timeProvider);
+
         return new OrganisationObligationHydrationService(
             dbContext,
             ObligationSource,
-            new OrganisationObligationRequestPacer(options, _timeProvider),
+            new OrganisationObligationRequestPacer(pacingStateStore, options, _timeProvider),
             HydrationMetrics,
             options,
             _timeProvider,
@@ -664,13 +878,14 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
         DateTime? nextRefreshAt = null,
         DateTime? requestedAt = null,
         int attemptCount = 0,
-        string? lastFailure = null
+        string? lastFailure = null,
+        int obligationYear = ObligationYear
     ) =>
         OrganisationObligationSummaries.InsertOneAsync(
             new OrganisationObligationSummary
             {
                 OrganisationId = organisationId,
-                ObligationYear = ObligationYear,
+                ObligationYear = obligationYear,
                 ObligationCount = 1,
                 TotalAcceptedTonnage = 4,
                 TotalObligatedTonnage = 5,

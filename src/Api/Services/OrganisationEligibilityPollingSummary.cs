@@ -6,6 +6,7 @@ public record OrganisationEligibilityPollingSummary
 {
     public required int VisibleRowCount { get; init; }
     public required int HydrationEligibleOrganisationCount { get; init; }
+    public required IReadOnlyDictionary<int, int> MaterialisedObligationYearRowCounts { get; init; }
     public required IReadOnlyDictionary<
         OrganisationReferenceNumberResolutionState,
         int

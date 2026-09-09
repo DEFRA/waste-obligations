@@ -10,6 +10,16 @@
     "refreshPollIntervalSeconds": 1800,
     "visibleRowCount": 4000,
     "hydrationEligibleOrganisationCount": 4245,
+    "materialisedObligationYears": [
+      {
+        "obligationYear": 2025,
+        "rowCount": 4
+      },
+      {
+        "obligationYear": 2026,
+        "rowCount": 4245
+      }
+    ],
     "referenceResolutionStates": [
       {
         "state": "Resolved",
@@ -34,8 +44,26 @@
     "maxConcurrentRequests": 10,
     "maxDownstreamRequestsPerMinute": 200,
     "totalMinimumFullRefreshMinutes": 21.225,
+    "desiredRequestsPerMinute": 142,
+    "effectiveRequestsPerMinute": 160,
+    "rateBackoffReason": "Downstream latency increased from 100ms to 200ms",
+    "recentDownstreamReadLatencyMilliseconds": 200,
+    "recentDownstreamReadFailurePercentage": 10,
+    "estimatedFullRefreshMinutes": 26.53125,
+    "estimatedStalenessGapMinutes": 0,
     "refreshIntervalSeconds": 1800,
     "maximumSummaryStalenessSeconds": 7200,
+    "historicalBackfills": [
+      {
+        "obligationYear": 2025,
+        "potentialHydrationOrganisationCount": 300,
+        "status": "Deferred",
+        "requestedAt": "DateTimeOffset_5",
+        "completedAt": null,
+        "deferralReason": "CurrentYearWorkDue",
+        "deferredAt": "DateTimeOffset_6"
+      }
+    ],
     "years": [
       {
         "obligationYear": 2026,
@@ -45,8 +73,8 @@
         "readySummaryCount": 4234,
         "failedSummaryCount": 1,
         "neverSuccessfullyReadSummaryCount": 10,
-        "oldestDueAt": "DateTimeOffset_5",
-        "oldestSuccessfulReadAt": "DateTimeOffset_5",
+        "oldestDueAt": "DateTimeOffset_7",
+        "oldestSuccessfulReadAt": "DateTimeOffset_7",
         "latestSuccessfulReadAt": "DateTimeOffset_1",
         "minimumFullRefreshMinutes": 21.225
       }

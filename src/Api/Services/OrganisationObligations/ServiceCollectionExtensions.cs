@@ -28,12 +28,25 @@ public static class ServiceCollectionExtensions
             IOrganisationObligationHydrationLeaseService,
             OrganisationObligationHydrationLeaseService
         >();
+        services.AddTransient<
+            IOrganisationObligationHistoricalBackfillLeaseService,
+            OrganisationObligationHistoricalBackfillLeaseService
+        >();
+        services.AddTransient<
+            IOrganisationObligationHistoricalBackfillStore,
+            OrganisationObligationHistoricalBackfillStore
+        >();
         services.AddSingleton<IOrganisationObligationRequestPacer, OrganisationObligationRequestPacer>();
+        services.AddSingleton<
+            IOrganisationObligationRequestPacingStateStore,
+            OrganisationObligationRequestPacingStateStore
+        >();
         services.AddTransient<IOrganisationObligationHydrationService, OrganisationObligationHydrationService>();
 
         if (addWorker)
         {
             services.AddHostedService<OrganisationObligationHydrationWorker>();
+            services.AddHostedService<OrganisationObligationHistoricalBackfillWorker>();
         }
 
         return services;

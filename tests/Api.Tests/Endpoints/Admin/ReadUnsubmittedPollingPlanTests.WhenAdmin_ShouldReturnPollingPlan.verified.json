@@ -1,0 +1,31 @@
+﻿{
+  "currentObligationYear": 2026,
+  "targetFullRefreshMinutes": 30,
+  "safetyCeilingRequestsPerMinute": 20,
+  "recommendedRateHeadroomPercentage": 20,
+  "sourceReadSucceeded": true,
+  "sourceOrganisationCount": 4245,
+  "warnings": [
+    "Potential hydration organisation counts exclude Account reference resolution."
+  ],
+  "years": [
+    {
+      "obligationYear": 2025,
+      "classification": "HistoricalBackfill",
+      "potentialHydrationOrganisationCount": 24,
+      "registeredRegistrationCount": 25,
+      "requiredRequestsPerMinute": 1,
+      "recommendedRequestsPerMinute": 2,
+      "estimatedFullRefreshMinutesAtSafetyCeiling": 1.2
+    },
+    {
+      "obligationYear": 2026,
+      "classification": "Current",
+      "potentialHydrationOrganisationCount": 4245,
+      "registeredRegistrationCount": 4250,
+      "requiredRequestsPerMinute": 142,
+      "recommendedRequestsPerMinute": 171,
+      "estimatedFullRefreshMinutesAtSafetyCeiling": 212.25
+    }
+  ]
+}

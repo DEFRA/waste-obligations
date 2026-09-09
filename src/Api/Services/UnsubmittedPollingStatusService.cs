@@ -11,29 +11,40 @@ namespace Defra.WasteObligations.Api.Services;
 
 public class UnsubmittedPollingStatusService(
     IDbContext dbContext,
-    IMongoDatabase database,
     IOptions<OrganisationEligibilityOptions> eligibilityOptions,
     IOptions<OrganisationObligationHydrationOptions> obligationHydrationOptions,
-    TimeProvider timeProvider
+    IOrganisationObligationHistoricalBackfillStore historicalBackfillStore,
+    IOrganisationObligationRequestPacingStateStore pacingStateStore,
+    ICurrentObligationYearProvider currentObligationYearProvider,
+    IUnsubmittedPollingLeaseStatusService pollingLeaseStatusService
 ) : IUnsubmittedPollingStatusService
 {
     public async Task<UnsubmittedPollingStatus> Get(CancellationToken cancellationToken)
     {
-        var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
+        var leaseStatusTask = pollingLeaseStatusService.Get(cancellationToken);
+        var handover = currentObligationYearProvider.GetHandover(
+            obligationHydrationOptions.Value.OutgoingYearGracePeriod
+        );
+        var hydrationObligationYears = new int?[]
+        {
+            handover.CurrentObligationYear,
+            handover.IncomingObligationYear,
+            handover.OutgoingObligationYear,
+        }
+            .OfType<int>()
+            .ToArray();
         var snapshot = await dbContext
             .OrganisationEligibilitySnapshots.Find(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId)
             .SingleOrDefaultAsync(cancellationToken);
         var activeRowSummary = await ActiveRowSummary(snapshot?.ActiveGeneration, cancellationToken);
-        var activeSummaries = await dbContext
-            .OrganisationObligationSummaries.Find(x => x.IsHydrationActive)
-            .ToListAsync(cancellationToken);
-        var leases = await database
-            .GetCollection<BackgroundWorkerLease>(BackgroundWorkerLease.CollectionName)
-            .Find(x =>
-                x.Id == BackgroundWorkerLease.OrganisationEligibilityRefreshLeaseId
-                || x.Id == BackgroundWorkerLease.OrganisationObligationHydrationLeaseId
+        var hydrationSummaries = await dbContext
+            .OrganisationObligationSummaries.Find(x =>
+                x.IsHydrationActive && hydrationObligationYears.Contains(x.ObligationYear)
             )
             .ToListAsync(cancellationToken);
+        var pacingState = await pacingStateStore.Get(cancellationToken);
+        var historicalBackfills = await historicalBackfillStore.GetAll(cancellationToken);
+        var leaseStatus = await leaseStatusTask;
 
         return new UnsubmittedPollingStatus
         {
@@ -41,13 +52,15 @@ public class UnsubmittedPollingStatusService(
                 snapshot,
                 activeRowSummary,
                 eligibilityOptions.Value,
-                Lease(leases, BackgroundWorkerLease.OrganisationEligibilityRefreshLeaseId, utcNow)
+                leaseStatus.Eligibility
             ),
             ObligationHydration = ObligationHydrationStatus(
-                activeSummaries,
+                hydrationSummaries,
+                historicalBackfills,
                 obligationHydrationOptions.Value,
-                Lease(leases, BackgroundWorkerLease.OrganisationObligationHydrationLeaseId, utcNow),
-                utcNow
+                pacingState,
+                leaseStatus.ObligationHydration,
+                leaseStatus.UtcNow
             ),
         };
     }
@@ -63,6 +76,7 @@ public class UnsubmittedPollingStatusService(
             {
                 VisibleRowCount = 0,
                 HydrationEligibleOrganisationCount = 0,
+                MaterialisedObligationYearRowCounts = new Dictionary<int, int>(),
                 ReferenceResolutionStateCounts = new Dictionary<OrganisationReferenceNumberResolutionState, int>(),
             };
         }
@@ -83,16 +97,25 @@ public class UnsubmittedPollingStatusService(
             .GroupBy(x => x.ReferenceNumberResolutionState)
             .Select(x => new { State = x.Key, Count = x.Count() })
             .ToListAsync(cancellationToken);
+        var materialisedObligationYearRowCountsTask = activeRows
+            .GroupBy(x => x.ObligationYear)
+            .Select(x => new { ObligationYear = x.Key, RowCount = x.Count() })
+            .ToListAsync(cancellationToken);
         await Task.WhenAll(
             visibleRowCountTask,
             hydrationEligibleOrganisationCountTask,
-            referenceResolutionStateCountsTask
+            referenceResolutionStateCountsTask,
+            materialisedObligationYearRowCountsTask
         );
 
         return new OrganisationEligibilityPollingSummary
         {
             VisibleRowCount = await visibleRowCountTask,
             HydrationEligibleOrganisationCount = await hydrationEligibleOrganisationCountTask,
+            MaterialisedObligationYearRowCounts = (await materialisedObligationYearRowCountsTask).ToDictionary(
+                x => x.ObligationYear,
+                x => x.RowCount
+            ),
             ReferenceResolutionStateCounts = (await referenceResolutionStateCountsTask).ToDictionary(
                 x => x.State,
                 x => x.Count
@@ -118,6 +141,16 @@ public class UnsubmittedPollingStatusService(
             RefreshPollIntervalSeconds = options.RefreshPollIntervalSeconds,
             VisibleRowCount = activeRowSummary.VisibleRowCount,
             HydrationEligibleOrganisationCount = activeRowSummary.HydrationEligibleOrganisationCount,
+            MaterialisedObligationYears =
+            [
+                .. activeRowSummary
+                    .MaterialisedObligationYearRowCounts.OrderBy(x => x.Key)
+                    .Select(x => new OrganisationEligibilityMaterialisedObligationYear
+                    {
+                        ObligationYear = x.Key,
+                        RowCount = x.Value,
+                    }),
+            ],
             ReferenceResolutionStates =
             [
                 .. Enum.GetValues<OrganisationReferenceNumberResolutionState>()
@@ -132,11 +165,18 @@ public class UnsubmittedPollingStatusService(
 
     private static OrganisationObligationHydrationPollingStatus ObligationHydrationStatus(
         List<OrganisationObligationSummary> summaries,
+        IReadOnlyList<OrganisationObligationHistoricalBackfill> historicalBackfills,
         OrganisationObligationHydrationOptions options,
+        OrganisationObligationRequestPacingState? pacingState,
         PollingWorkerLeaseStatus lease,
         DateTime utcNow
-    ) =>
-        new()
+    )
+    {
+        var pacing = OrganisationObligationRequestPacingController.Status(pacingState);
+        var estimatedFullRefreshMinutes =
+            pacing.EffectiveRequestsPerMinute == 0 ? 0 : summaries.Count / (double)pacing.EffectiveRequestsPerMinute;
+
+        return new OrganisationObligationHydrationPollingStatus
         {
             PollingEnabled = options.PollingEnabled,
             PollIntervalSeconds = options.PollIntervalSeconds,
@@ -144,8 +184,31 @@ public class UnsubmittedPollingStatusService(
             MaxConcurrentRequests = options.MaxConcurrentRequests,
             MaxDownstreamRequestsPerMinute = options.MaxDownstreamRequestsPerMinute,
             TotalMinimumFullRefreshMinutes = summaries.Count / (double)options.MaxDownstreamRequestsPerMinute,
+            DesiredRequestsPerMinute = pacing.DesiredRequestsPerMinute,
+            EffectiveRequestsPerMinute = pacing.EffectiveRequestsPerMinute,
+            RateBackoffReason = pacing.BackoffReason,
+            RecentDownstreamReadLatencyMilliseconds = pacing.RecentDownstreamLatencyMilliseconds,
+            RecentDownstreamReadFailurePercentage = pacing.RecentDownstreamFailurePercentage,
+            EstimatedFullRefreshMinutes = estimatedFullRefreshMinutes,
+            EstimatedStalenessGapMinutes = Math.Max(
+                0,
+                estimatedFullRefreshMinutes - options.RefreshInterval.TotalMinutes
+            ),
             RefreshIntervalSeconds = (int)options.RefreshInterval.TotalSeconds,
             MaximumSummaryStalenessSeconds = (int)options.MaximumSummaryStaleness.TotalSeconds,
+            HistoricalBackfills =
+            [
+                .. historicalBackfills.Select(backfill => new OrganisationObligationHistoricalBackfillPollingStatus
+                {
+                    ObligationYear = backfill.ObligationYear,
+                    PotentialHydrationOrganisationCount = backfill.OrganisationIds.Length,
+                    Status = HistoricalBackfillStatus(backfill),
+                    RequestedAt = backfill.RequestedAt,
+                    CompletedAt = backfill.CompletedAt,
+                    DeferralReason = backfill.DeferralReason?.ToString(),
+                    DeferredAt = backfill.DeferredAt,
+                }),
+            ],
             Years =
             [
                 .. summaries
@@ -155,6 +218,17 @@ public class UnsubmittedPollingStatusService(
             ],
             Lease = lease,
         };
+    }
+
+    private static string HistoricalBackfillStatus(OrganisationObligationHistoricalBackfill backfill)
+    {
+        if (backfill.CompletedAt is not null)
+            return "Completed";
+        if (backfill.DeferralReason is not null)
+            return "Deferred";
+
+        return "Running";
+    }
 
     private static OrganisationObligationHydrationYearStatus HydrationYearStatus(
         int obligationYear,
@@ -182,23 +256,6 @@ public class UnsubmittedPollingStatusService(
             OldestSuccessfulReadAt = successfulReadTimes.Length == 0 ? null : successfulReadTimes.Min(),
             LatestSuccessfulReadAt = successfulReadTimes.Length == 0 ? null : successfulReadTimes.Max(),
             MinimumFullRefreshMinutes = summaries.Length / (double)options.MaxDownstreamRequestsPerMinute,
-        };
-    }
-
-    private static PollingWorkerLeaseStatus Lease(
-        IReadOnlyCollection<BackgroundWorkerLease> leases,
-        string leaseId,
-        DateTime utcNow
-    )
-    {
-        var lease = leases.SingleOrDefault(x => x.Id == leaseId);
-
-        return new PollingWorkerLeaseStatus
-        {
-            IsHeld = lease is not null && lease.ExpiresAt > utcNow,
-            ExpiresAt = lease?.ExpiresAt,
-            UpdatedAt = lease?.UpdatedAt,
-            LastReleasedAt = lease?.LastReleasedAt,
         };
     }
 }

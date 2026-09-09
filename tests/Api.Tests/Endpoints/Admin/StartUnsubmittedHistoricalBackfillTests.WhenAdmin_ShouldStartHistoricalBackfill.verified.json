@@ -1,0 +1,15 @@
+﻿{
+  "currentObligationYear": 2026,
+  "years": [
+    {
+      "obligationYear": 2024,
+      "potentialHydrationOrganisationCount": 3,
+      "status": "Started"
+    },
+    {
+      "obligationYear": 2025,
+      "potentialHydrationOrganisationCount": 42,
+      "status": "AlreadyCompleted"
+    }
+  ]
+}

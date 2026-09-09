@@ -20,9 +20,17 @@ public abstract class MongoMigration : IMigration
         string name,
         IndexKeysDefinition<T> keys,
         bool unique = false
+    ) => await CreateIndex(context, typeof(T).Name, name, keys, unique);
+
+    protected static async Task CreateIndex<T>(
+        MigrationContext context,
+        string collectionName,
+        string name,
+        IndexKeysDefinition<T> keys,
+        bool unique = false
     )
     {
-        var collection = context.Database.GetCollection<T>(typeof(T).Name);
+        var collection = context.Database.GetCollection<T>(collectionName);
         var requestedKeys = keys.Render(
             new RenderArgs<T>(collection.DocumentSerializer, collection.Settings.SerializerRegistry)
         );
@@ -67,6 +75,13 @@ public abstract class MongoMigration : IMigration
     protected static async Task DropIndex<T>(MigrationContext context, string name)
     {
         var collection = context.Database.GetCollection<T>(typeof(T).Name);
+
+        await DropIndex(context, name, collection);
+    }
+
+    protected static async Task DropIndex<T>(MigrationContext context, string collectionName, string name)
+    {
+        var collection = context.Database.GetCollection<T>(collectionName);
 
         await DropIndex(context, name, collection);
     }

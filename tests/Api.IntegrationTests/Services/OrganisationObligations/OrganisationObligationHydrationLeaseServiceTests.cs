@@ -40,6 +40,19 @@ public class OrganisationObligationHydrationLeaseServiceTests : IntegrationTestB
     }
 
     [Fact]
+    public async Task TryAcquire_WhenHistoricalBackfillOwnsLease_ShouldReturnFalse()
+    {
+        var timeProvider = CreateTimeProvider();
+        var normalHydration = CreateSubject(timeProvider);
+        var historicalBackfill = CreateHistoricalBackfillSubject(timeProvider);
+        await historicalBackfill.TryAcquire(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
+
+        var result = await normalHydration.TryAcquire(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
+
+        result.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task TryAcquire_WhenLeaseHasExpired_ShouldAllowAnotherInstanceToAcquire()
     {
         var timeProvider = CreateTimeProvider();
@@ -101,5 +114,19 @@ public class OrganisationObligationHydrationLeaseServiceTests : IntegrationTestB
             GetMongoApplicationDatabase(),
             timeProvider,
             Microsoft.Extensions.Logging.Abstractions.NullLogger<OrganisationObligationHydrationLeaseService>.Instance
+        );
+
+    private static OrganisationObligationHistoricalBackfillLeaseService CreateHistoricalBackfillSubject(
+        TimeProvider timeProvider
+    ) =>
+        new(
+            GetMongoApplicationDatabase(),
+            timeProvider,
+            Microsoft
+                .Extensions
+                .Logging
+                .Abstractions
+                .NullLogger<OrganisationObligationHistoricalBackfillLeaseService>
+                .Instance
         );
 }

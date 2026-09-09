@@ -25,9 +25,29 @@ public class ServiceCollectionExtensionsTests
         services
             .Should()
             .Contain(descriptor =>
+                descriptor.ServiceType == typeof(IHostedService)
+                && descriptor.ImplementationType == typeof(OrganisationObligationHistoricalBackfillWorker)
+            );
+        services
+            .Should()
+            .Contain(descriptor =>
                 descriptor.ServiceType == typeof(IOrganisationObligationRequestPacer)
                 && descriptor.ImplementationType == typeof(OrganisationObligationRequestPacer)
                 && descriptor.Lifetime == ServiceLifetime.Singleton
+            );
+        services
+            .Should()
+            .Contain(descriptor =>
+                descriptor.ServiceType == typeof(IOrganisationObligationRequestPacingStateStore)
+                && descriptor.ImplementationType == typeof(OrganisationObligationRequestPacingStateStore)
+                && descriptor.Lifetime == ServiceLifetime.Singleton
+            );
+        services
+            .Should()
+            .Contain(descriptor =>
+                descriptor.ServiceType == typeof(IOrganisationObligationHistoricalBackfillStore)
+                && descriptor.ImplementationType == typeof(OrganisationObligationHistoricalBackfillStore)
+                && descriptor.Lifetime == ServiceLifetime.Transient
             );
     }
 
@@ -61,11 +81,11 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddOrganisationObligationHydration_WhenBatchSizeIsBelowHandoverMinimum_ShouldFailValidation()
+    public void AddOrganisationObligationHydration_WhenBatchSizeCanScheduleBothHandoverYears_ShouldValidateConfiguration()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(
-                new Dictionary<string, string?> { ["OrganisationObligationHydration:BatchSize"] = "1" }
+                new Dictionary<string, string?> { ["OrganisationObligationHydration:BatchSize"] = "2" }
             )
             .Build();
         var services = new ServiceCollection();
@@ -74,8 +94,6 @@ public class ServiceCollectionExtensionsTests
         using var serviceProvider = services.BuildServiceProvider();
         var options = serviceProvider.GetRequiredService<IOptions<OrganisationObligationHydrationOptions>>();
 
-        var action = () => _ = options.Value;
-
-        action.Should().Throw<OptionsValidationException>();
+        options.Value.BatchSize.Should().Be(2);
     }
 }

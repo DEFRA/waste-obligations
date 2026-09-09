@@ -72,6 +72,15 @@ try
     builder.Services.AddTransient<IUnsubmittedEligibilityVisibilityService, UnsubmittedEligibilityVisibilityService>();
     builder.Services.AddTransient<IUnsubmittedOrganisationsService, UnsubmittedOrganisationsService>();
     builder.Services.AddTransient<IUnsubmittedPollingStatusService, UnsubmittedPollingStatusService>();
+    builder.Services.AddTransient<IUnsubmittedPollingLeaseStatusService, UnsubmittedPollingLeaseStatusService>();
+    builder.Services.AddTransient<IUnsubmittedPollingVolumeService, UnsubmittedPollingVolumeService>();
+    builder.Services.AddTransient<IUnsubmittedPollingPlanService, UnsubmittedPollingPlanService>();
+    builder.Services.AddTransient<IUnsubmittedHistoricalBackfillService, UnsubmittedHistoricalBackfillService>();
+    builder.Services.AddTransient<
+        IUnsubmittedReferenceResolutionIssuesService,
+        UnsubmittedReferenceResolutionIssuesService
+    >();
+    builder.Services.AddTransient<IUnsubmittedOrganisationDetailsService, UnsubmittedOrganisationDetailsService>();
     builder.Services.AddTransient<ICancellationEmailRecipientResolver, CancellationEmailRecipientResolver>();
     builder.Services.AddTransient<IEmailService, EmailService>();
 

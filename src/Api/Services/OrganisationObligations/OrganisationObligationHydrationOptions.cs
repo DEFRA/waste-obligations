@@ -26,6 +26,9 @@ public record OrganisationObligationHydrationOptions
     [Range(1, 600)]
     public int MaxDownstreamRequestsPerMinute { get; init; } = 20;
 
+    [Range(0, 100)]
+    public int RecommendedRateHeadroomPercentage { get; init; } = 20;
+
     public TimeSpan RefreshInterval { get; init; } = TimeSpan.FromMinutes(30);
 
     public TimeSpan InitialRetryDelay { get; init; } = TimeSpan.FromMinutes(1);

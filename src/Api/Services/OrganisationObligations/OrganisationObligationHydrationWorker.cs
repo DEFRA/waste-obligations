@@ -10,6 +10,7 @@ namespace Defra.WasteObligations.Api.Services.OrganisationObligations;
 public class OrganisationObligationHydrationWorker(
     IServiceScopeFactory serviceScopeFactory,
     IOptions<OrganisationObligationHydrationOptions> options,
+    IOrganisationObligationRequestPacer requestPacer,
     IOrganisationObligationHydrationMetrics metrics,
     ILogger<OrganisationObligationHydrationWorker> logger
 ) : BackgroundService
@@ -123,41 +124,99 @@ public class OrganisationObligationHydrationWorker(
                 outgoingYearCutoverAt,
                 cancellationToken
             );
-            var currentYearHydratedCount = await hydrationService.HydrateDue(
-                handover.CurrentObligationYear,
-                cancellationToken,
-                maximumWork: options.Value.BatchSize - 1
-            );
-            var outgoingHydratedCount = await hydrationService.HydrateDue(
-                outgoingObligationYear,
-                cancellationToken,
-                maximumWork: options.Value.BatchSize - currentYearHydratedCount
-            );
+            var currentWork = await hydrationService.PrepareDueWork(handover.CurrentObligationYear, cancellationToken);
+            var outgoingWork = await hydrationService.PrepareDueWork(outgoingObligationYear, cancellationToken);
 
-            return outgoingHydratedCount + currentYearHydratedCount;
+            return await HydrateOverlappingYears(
+                hydrationService,
+                currentWork,
+                outgoingWork,
+                deactivateSecondaryAfterSuccessfulRead: true,
+                cancellationToken: cancellationToken
+            );
         }
 
-        if (handover.IncomingObligationYear is not { } incomingObligationYear)
+        if (handover.IncomingObligationYear is { } incomingObligationYear)
         {
-            return await hydrationService.HydrateDue(
-                handover.CurrentObligationYear,
-                cancellationToken,
-                maximumWork: options.Value.BatchSize
+            var currentWork = await hydrationService.PrepareDueWork(handover.CurrentObligationYear, cancellationToken);
+            var incomingWork = await hydrationService.PrepareDueWork(incomingObligationYear, cancellationToken);
+
+            return await HydrateOverlappingYears(
+                hydrationService,
+                currentWork,
+                incomingWork,
+                deactivateSecondaryAfterSuccessfulRead: false,
+                cancellationToken: cancellationToken
             );
         }
 
-        var incomingHydratedCount = await hydrationService.HydrateDue(
-            incomingObligationYear,
-            cancellationToken,
-            maximumWork: 1
-        );
-        var currentHydratedCount = await hydrationService.HydrateDue(
+        return await hydrationService.HydrateDue(
             handover.CurrentObligationYear,
             cancellationToken,
-            maximumWork: options.Value.BatchSize - incomingHydratedCount
+            maximumWork: options.Value.BatchSize
         );
+    }
 
-        return currentHydratedCount + incomingHydratedCount;
+    private async Task<int> HydrateOverlappingYears(
+        IOrganisationObligationHydrationService hydrationService,
+        OrganisationObligationHydrationPreparedWork currentWork,
+        OrganisationObligationHydrationPreparedWork secondaryWork,
+        bool deactivateSecondaryAfterSuccessfulRead,
+        CancellationToken cancellationToken
+    )
+    {
+        var totalActiveSummaryCount = currentWork.ActiveSummaryCount + secondaryWork.ActiveSummaryCount;
+        await requestPacer.ObserveWorkload(totalActiveSummaryCount, cancellationToken);
+        var pacing = await requestPacer.GetStatus(cancellationToken);
+        metrics.QueueObserved(totalActiveSummaryCount, currentWork.DueSummaryCount + secondaryWork.DueSummaryCount);
+        metrics.CapacityObserved(
+            totalActiveSummaryCount,
+            options.Value.MaxDownstreamRequestsPerMinute,
+            pacing.DesiredRequestsPerMinute,
+            pacing.EffectiveRequestsPerMinute,
+            options.Value.RefreshInterval
+        );
+        var currentMaximumWork = CurrentYearMaximumWork(currentWork, secondaryWork);
+        var currentHydratedCount =
+            currentMaximumWork == 0
+                ? 0
+                : await hydrationService.HydratePreparedDueWork(
+                    currentWork,
+                    cancellationToken,
+                    currentMaximumWork,
+                    recordWorkloadMetrics: false
+                );
+        var secondaryMaximumWork = options.Value.BatchSize - currentHydratedCount;
+        var secondaryHydratedCount =
+            secondaryMaximumWork == 0
+                ? 0
+                : await hydrationService.HydratePreparedDueWork(
+                    secondaryWork,
+                    cancellationToken,
+                    secondaryMaximumWork,
+                    deactivateSecondaryAfterSuccessfulRead,
+                    recordWorkloadMetrics: false
+                );
+
+        return currentHydratedCount + secondaryHydratedCount;
+    }
+
+    private int CurrentYearMaximumWork(
+        OrganisationObligationHydrationPreparedWork currentWork,
+        OrganisationObligationHydrationPreparedWork secondaryWork
+    )
+    {
+        if (currentWork.ActiveSummaryCount == 0)
+            return 0;
+
+        if (secondaryWork.ActiveSummaryCount == 0)
+            return options.Value.BatchSize;
+
+        var totalActiveSummaryCount = currentWork.ActiveSummaryCount + secondaryWork.ActiveSummaryCount;
+        var proportionalCurrentWork = (int)
+            Math.Floor(options.Value.BatchSize * currentWork.ActiveSummaryCount / (double)totalActiveSummaryCount);
+
+        return Math.Clamp(proportionalCurrentWork, 1, options.Value.BatchSize - 1);
     }
 
     private async Task RenewLease(
