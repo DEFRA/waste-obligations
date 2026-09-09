@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
@@ -14,6 +15,7 @@ public record OrganisationObligationHistoricalBackfill
     public OrganisationObligationHistoricalBackfillTarget[] Targets { get; init; } = [];
 
     [BsonIgnore]
+    [JsonIgnore]
     public Guid[] OrganisationIds
     {
         get => [.. Targets.Select(x => x.OrganisationId)];

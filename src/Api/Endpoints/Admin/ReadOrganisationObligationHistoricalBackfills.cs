@@ -5,13 +5,13 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Defra.WasteObligations.Api.Endpoints.Admin;
 
-public static class ReadUnsubmittedReferenceResolutionIssues
+public static class ReadOrganisationObligationHistoricalBackfills
 {
-    public const string OperationId = "ReadUnsubmittedReferenceResolutionIssues";
+    public const string OperationId = "ReadAdminOrganisationObligationHistoricalBackfills";
 
-    public static void MapUnsubmittedReferenceResolutionIssues(this IEndpointRouteBuilder app)
+    public static void MapOrganisationObligationHistoricalBackfillsRead(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/admin/unsubmitted-compliance-declarations/reference-resolution-issues", Handle)
+        app.MapGet("/admin/unsubmitted-compliance-declarations/historical-backfills", Handle)
             .WithName(OperationId)
             .ExcludeFromDescription()
             .RequireAuthorization(PolicyNames.Admin);
@@ -21,7 +21,7 @@ public static class ReadUnsubmittedReferenceResolutionIssues
         [FromServices] IAdminDataService adminDataService,
         CancellationToken cancellationToken
     ) =>
-        new EntityStreamResult<OrganisationComplianceDeclarationEligibility>(
-            adminDataService.ReadReferenceResolutionIssues(cancellationToken)
+        new EntityStreamResult<OrganisationObligationHistoricalBackfill>(
+            adminDataService.ReadHistoricalBackfills(cancellationToken)
         );
 }

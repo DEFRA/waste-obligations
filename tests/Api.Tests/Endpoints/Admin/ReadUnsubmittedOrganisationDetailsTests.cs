@@ -1,9 +1,11 @@
 using System.Net;
 using AwesomeAssertions;
+using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using MongoDB.Bson;
 using NSubstitute;
 
 namespace Defra.WasteObligations.Api.Tests.Endpoints.Admin;
@@ -102,21 +104,31 @@ public class ReadUnsubmittedOrganisationDetailsTests(ApiWebApplicationFactory fa
         new()
         {
             OrganisationId = organisationId,
-            ActiveEligibilityGeneration = "active-generation",
+            EligibilitySnapshot = new OrganisationEligibilitySnapshot
+            {
+                Id = OrganisationEligibilitySnapshot.SnapshotId,
+                ActiveGeneration = "active-generation",
+                ActiveContentFingerprint = "active-fingerprint",
+                ActiveRowCount = 1,
+                MaterialisedStateVersion = 2,
+                ActiveGenerationPromotedAt = new DateTime(2026, 9, 6, 8, 0, 0, DateTimeKind.Utc),
+                LastVerifiedAt = new DateTime(2026, 9, 6, 8, 1, 0, DateTimeKind.Utc),
+            },
             Eligibility =
             [
-                new UnsubmittedOrganisationEligibility
+                new OrganisationComplianceDeclarationEligibility
                 {
+                    Id = ObjectId.Parse("68bc00000000000000000001"),
                     Generation = "active-generation",
                     ObligationYear = 2026,
-                    RegistrationType = RegistrationType.DirectProducer,
-                    RegistrationStatus = "Registered",
-                    Country = "GB-ENG",
+                    RegistrationType = Defra.WasteObligations.Api.Data.Entities.RegistrationType.DirectProducer,
+                    RegistrationStatus = OrganisationRegistrationStatus.Registered,
+                    BusinessCountry = "GB-ENG",
                     Name = "Example organisation",
                     TradingName = "Example trading name",
                     CompaniesHouseNumber = "01234567",
                     ReferenceNumber = "100001",
-                    ReferenceResolutionState = "Resolved",
+                    ReferenceNumberResolutionState = OrganisationReferenceNumberResolutionState.Resolved,
                     IsVisibleInUnsubmittedView = true,
                     RecyclingObligationsMet = false,
                     ObligationCoveragePercentage = 34.5m,
@@ -127,8 +139,10 @@ public class ReadUnsubmittedOrganisationDetailsTests(ApiWebApplicationFactory fa
             ],
             ObligationSummaries =
             [
-                new UnsubmittedOrganisationObligationSummary
+                new OrganisationObligationSummary
                 {
+                    Id = ObjectId.Parse("68bc00000000000000000002"),
+                    OrganisationId = organisationId,
                     ObligationYear = 2026,
                     ObligationCount = 7,
                     TotalAcceptedTonnage = 123,
@@ -140,10 +154,10 @@ public class ReadUnsubmittedOrganisationDetailsTests(ApiWebApplicationFactory fa
                     DailyCalculationRunId = "run-id",
                     LastAttemptedAt = new DateTime(2026, 9, 6, 9, 2, 0, DateTimeKind.Utc),
                     NextRefreshAt = new DateTime(2026, 9, 6, 9, 32, 0, DateTimeKind.Utc),
-                    Priority = "ScheduledRefresh",
+                    Priority = OrganisationObligationHydrationPriority.ScheduledRefresh,
                     RequestedAt = new DateTime(2026, 9, 6, 8, 30, 0, DateTimeKind.Utc),
                     IsHydrationActive = true,
-                    RefreshState = "Ready",
+                    RefreshState = OrganisationObligationRefreshState.Ready,
                     AttemptCount = 3,
                     LastFailure = "Temporary downstream error",
                 },
@@ -160,7 +174,7 @@ public class ReadUnsubmittedOrganisationDetailsTests(ApiWebApplicationFactory fa
                 TradingName = "Live trading name",
                 Country = "GB-ENG",
                 CompaniesHouseNumber = "01234567",
-                Address = new Address
+                Address = new Defra.WasteObligations.Api.Dtos.Address
                 {
                     AddressLine1 = "1 Test Street",
                     Town = "Test Town",

@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.Json.Serialization;
 using Defra.WasteObligations.Api.Authentication;
 using Defra.WasteObligations.Api.Consumers;
 using Defra.WasteObligations.Api.Data;
@@ -8,8 +9,10 @@ using Defra.WasteObligations.Api.Endpoints.OpenApi;
 using Defra.WasteObligations.Api.Endpoints.Organisations.Prns;
 using Defra.WasteObligations.Api.Extensions;
 using Defra.WasteObligations.Api.Schemas;
+using Defra.WasteObligations.Api.Serialization;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.AccountBackend;
+using Defra.WasteObligations.Api.Services.Admin;
 using Defra.WasteObligations.Api.Services.GovukNotify;
 using Defra.WasteObligations.Api.Services.OrganisationEligibility;
 using Defra.WasteObligations.Api.Services.OrganisationObligations;
@@ -44,6 +47,12 @@ try
         // Without this, bad request detail will only be thrown in DEVELOPMENT mode
         o.ThrowOnBadRequest = true;
     });
+    builder.Services.ConfigureHttpJsonOptions(options =>
+    {
+        options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        options.SerializerOptions.Converters.Add(new ObjectIdJsonConverter());
+        options.SerializerOptions.Converters.Add(new BsonDocumentJsonConverter());
+    });
     builder.Services.AddProblemDetails();
     builder.Services.AddHealth();
     builder.Services.AddOpenApi(options =>
@@ -68,6 +77,7 @@ try
     builder.Services.AddConsumers(builder.Configuration, !integrationTest && !openApiBuild);
     builder.Services.AddSingleton<IEntityJsonSchemaProvider, EmbeddedEntityJsonSchemaProvider>();
     builder.Services.AddTransient<IComplianceDeclarationService, ComplianceDeclarationService>();
+    builder.Services.AddScoped<IAdminDataService, AdminDataService>();
     builder.Services.AddSingleton<ICurrentObligationYearProvider, CurrentObligationYearProvider>();
     builder.Services.AddTransient<IUnsubmittedEligibilityVisibilityService, UnsubmittedEligibilityVisibilityService>();
     builder.Services.AddTransient<IUnsubmittedOrganisationsService, UnsubmittedOrganisationsService>();
@@ -76,10 +86,6 @@ try
     builder.Services.AddTransient<IUnsubmittedPollingVolumeService, UnsubmittedPollingVolumeService>();
     builder.Services.AddTransient<IUnsubmittedPollingPlanService, UnsubmittedPollingPlanService>();
     builder.Services.AddTransient<IUnsubmittedHistoricalBackfillService, UnsubmittedHistoricalBackfillService>();
-    builder.Services.AddTransient<
-        IUnsubmittedReferenceResolutionIssuesService,
-        UnsubmittedReferenceResolutionIssuesService
-    >();
     builder.Services.AddTransient<IUnsubmittedOrganisationDetailsService, UnsubmittedOrganisationDetailsService>();
     builder.Services.AddTransient<ICancellationEmailRecipientResolver, CancellationEmailRecipientResolver>();
     builder.Services.AddTransient<IEmailService, EmailService>();

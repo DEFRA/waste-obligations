@@ -7,6 +7,7 @@ using Amazon.SQS;
 using Amazon.SQS.Model;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Authentication;
+using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.IntegrationTests.Infrastructure;
 using Defra.WasteObligations.AuditEvents.Data;
@@ -46,6 +47,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     public required IMongoCollection<OrganisationObligationSummary> OrganisationObligationSummaries { get; set; }
     public required IMongoCollection<OrganisationObligationHistoricalBackfill> OrganisationObligationHistoricalBackfills { get; set; }
     public required IMongoCollection<OrganisationObligationRequestPacingState> OrganisationObligationRequestPacingStates { get; set; }
+    public required IMongoCollection<MongoMigrationLease> MongoMigrationLeases { get; set; }
 
     [ModuleInitializer]
     public static void RegisterMongoConventions() => ServiceCollectionExtensions.RegisterConventions();
@@ -84,6 +86,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         OrganisationObligationRequestPacingStates = GetMongoCollection<OrganisationObligationRequestPacingState>(
             OrganisationObligationRequestPacingState.CollectionName
         );
+        MongoMigrationLeases = GetMongoCollection<MongoMigrationLease>("_migrations_lease");
 
         await DeleteMany(ComplianceDeclarations);
         await DeleteMany(AuditEventCounters);
@@ -95,6 +98,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         await DeleteMany(OrganisationObligationSummaries);
         await DeleteMany(OrganisationObligationHistoricalBackfills);
         await DeleteMany(OrganisationObligationRequestPacingStates);
+        await DeleteMany(MongoMigrationLeases);
 
         using var sqsClient = CreateSqsClient();
         await DrainAnalyticsEventsQueue(sqsClient);

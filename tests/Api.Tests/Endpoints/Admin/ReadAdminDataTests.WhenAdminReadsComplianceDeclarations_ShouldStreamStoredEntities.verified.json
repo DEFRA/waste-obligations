@@ -1,0 +1,61 @@
+﻿[
+  {
+    "id": "68bc00000000000000000004",
+    "schemaVersion": "v1.3",
+    "version": 1,
+    "created": "DateTimeOffset_1",
+    "updated": "DateTimeOffset_2",
+    "status": "Submitted",
+    "organisation": {
+      "id": "Guid_1",
+      "registrationType": "DirectProducer",
+      "name": "Org Name",
+      "complianceSchemeName": null,
+      "schemeOperatorName": null,
+      "referenceNumber": "123456",
+      "address": {
+        "addressLine1": "Test Name Ltd",
+        "addressLine2": "123 Street",
+        "town": "Town",
+        "county": "County",
+        "postcode": "UK1",
+        "country": "UK"
+      },
+      "businessCountry": "GB-ENG",
+      "regulator": "Regulator",
+      "regulatorEmail": "regulator@email.com"
+    },
+    "obligationYear": 2026,
+    "obligations": [
+      {
+        "material": "Plastic",
+        "recyclingTarget": 0.75,
+        "tonnages": {
+          "material": 100,
+          "awaitingAcceptance": 10,
+          "accepted": 2,
+          "outstanding": 20,
+          "obligated": 5
+        },
+        "status": "NoDataYet"
+      }
+    ],
+    "obligationStatus": "NotMet",
+    "submitterName": "Submitter Name",
+    "audit": [
+      {
+        "reason": "Duplicate",
+        "action": "Cancelled",
+        "user": {
+          "id": "user-id",
+          "email": "user@example.com",
+          "name": "User Name",
+          "locale": null
+        },
+        "timestamp": "DateTimeOffset_3"
+      }
+    ],
+    "isRegulation43Compliant": true,
+    "obligationCoveragePercentage": 40
+  }
+]

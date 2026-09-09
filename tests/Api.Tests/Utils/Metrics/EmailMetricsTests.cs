@@ -6,6 +6,7 @@ using ApiMetrics = Defra.WasteObligations.Api.Utils.Metrics.Metrics;
 
 namespace Defra.WasteObligations.Api.Tests.Utils.Metrics;
 
+[Collection(nameof(EmailMetricsTests))]
 public class EmailMetricsTests
 {
     private const string Language = "cy";
@@ -86,3 +87,6 @@ public class EmailMetricsTests
         return services.BuildServiceProvider().GetRequiredService<IMeterFactory>();
     }
 }
+
+[CollectionDefinition(nameof(EmailMetricsTests), DisableParallelization = true)]
+public class EmailMetricsTestsCollection;

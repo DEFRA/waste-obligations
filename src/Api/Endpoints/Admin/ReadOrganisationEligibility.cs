@@ -5,23 +5,28 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Defra.WasteObligations.Api.Endpoints.Admin;
 
-public static class ReadUnsubmittedReferenceResolutionIssues
+public static class ReadOrganisationEligibility
 {
-    public const string OperationId = "ReadUnsubmittedReferenceResolutionIssues";
+    public const string OperationId = "ReadAdminOrganisationEligibility";
 
-    public static void MapUnsubmittedReferenceResolutionIssues(this IEndpointRouteBuilder app)
+    public static void MapOrganisationEligibilityRead(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/admin/unsubmitted-compliance-declarations/reference-resolution-issues", Handle)
+        app.MapGet("/admin/unsubmitted-compliance-declarations/eligibility", Handle)
             .WithName(OperationId)
             .ExcludeFromDescription()
             .RequireAuthorization(PolicyNames.Admin);
     }
 
     private static IResult Handle(
+        [AsParameters] ReadOrganisationEligibilityRequest request,
         [FromServices] IAdminDataService adminDataService,
         CancellationToken cancellationToken
     ) =>
         new EntityStreamResult<OrganisationComplianceDeclarationEligibility>(
-            adminDataService.ReadReferenceResolutionIssues(cancellationToken)
+            adminDataService.ReadEligibility(
+                request.Generation,
+                request.ParsedReferenceResolutionState(),
+                cancellationToken
+            )
         );
 }

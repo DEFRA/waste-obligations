@@ -36,6 +36,7 @@ public class MongoMigrationServiceTests : IntegrationTestBase
     private const string DispatchAnalyticsIndexName = "Dispatch_analytics";
     private const string DispatchAnalyticsStatusNextAttemptAtSequenceIndexName =
         "Dispatch_analytics_Status_NextAttemptAt_Sequence";
+    private const string AuditEventAdminReadIndexName = "Entity_EntityId_Sequence";
     private const string OrganisationEligibilityNameIndexName =
         "Generation_IsVisibleInUnsubmittedView_Name_OrganisationId";
     private const string OrganisationEligibilityGenerationRowIndexName =
@@ -62,6 +63,8 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         "IsHydrationActive_ObligationYear_NextRefreshAt";
     private const string OrganisationObligationSummaryHistoricalBackfillIndexName =
         "ObligationYear_RequestedAt_IsHydrationActive_Priority_NextRefreshAt";
+    private const string OrganisationObligationSummaryFailedAdminReadIndexName =
+        "RefreshState_ObligationYear_NextRefreshAt_OrganisationId";
     private const string OrganisationObligationHistoricalBackfillIncompleteWorkIndexName = "CompletedAt_RequestedAt";
 
     [Fact]
@@ -842,6 +845,65 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         indexes.Should().NotContain(x => x.GetValue("name") == EntityEntityIdVersionIndexName);
         indexes.Should().NotContain(x => x.GetValue("name") == DispatchAnalyticsIndexName);
         indexes.Should().NotContain(x => x.GetValue("name") == DispatchAnalyticsStatusNextAttemptAtSequenceIndexName);
+
+        await subject.UpAsync(context);
+    }
+
+    [Fact]
+    public async Task AuditEventAdminReadIndex_ShouldCreateAndDropIndex()
+    {
+        var database = GetMongoDatabase();
+        var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
+        var subject = new AuditEventAdminReadIndex();
+        await subject.DownAsync(context);
+
+        await subject.UpAsync(context);
+
+        var indexes = await ListAuditEventIndexes();
+        var indexKeys = new BsonDocument
+        {
+            ["entity"] = 1,
+            ["entityId"] = 1,
+            ["sequence"] = 1,
+        };
+        indexes.Should().Contain(x => IsIndex(x, AuditEventAdminReadIndexName, indexKeys));
+
+        await subject.DownAsync(context);
+        await subject.DownAsync(context);
+        indexes = await ListAuditEventIndexes();
+        indexes.Should().NotContain(x => x.GetValue("name") == AuditEventAdminReadIndexName);
+
+        await subject.UpAsync(context);
+    }
+
+    [Fact]
+    public async Task OrganisationObligationSummaryFailedAdminReadIndex_ShouldCreateAndDropIndex()
+    {
+        var database = GetMongoDatabase();
+        var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
+        var subject = new OrganisationObligationSummaryFailedAdminReadIndex();
+        await subject.DownAsync(context);
+
+        await subject.UpAsync(context);
+
+        var indexes = await (
+            await OrganisationObligationSummaries.Indexes.ListAsync(TestContext.Current.CancellationToken)
+        ).ToListAsync(TestContext.Current.CancellationToken);
+        var indexKeys = new BsonDocument
+        {
+            ["refreshState"] = 1,
+            ["obligationYear"] = 1,
+            ["nextRefreshAt"] = 1,
+            ["organisationId"] = 1,
+        };
+        indexes.Should().Contain(x => IsIndex(x, OrganisationObligationSummaryFailedAdminReadIndexName, indexKeys));
+
+        await subject.DownAsync(context);
+        await subject.DownAsync(context);
+        indexes = await (
+            await OrganisationObligationSummaries.Indexes.ListAsync(TestContext.Current.CancellationToken)
+        ).ToListAsync(TestContext.Current.CancellationToken);
+        indexes.Should().NotContain(x => x.GetValue("name") == OrganisationObligationSummaryFailedAdminReadIndexName);
 
         await subject.UpAsync(context);
     }

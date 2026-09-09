@@ -1,10 +1,10 @@
 using Defra.WasteObligations.Api.Data;
+using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.Api.Services.OrganisationObligations;
 using Defra.WasteObligations.Api.Services.PrnCommonBackend;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
 using MongoDB.Driver;
-using Dtos = Defra.WasteObligations.Api.Dtos;
 using PrnObligation = Defra.WasteObligations.Api.Services.PrnCommonBackend.Obligation;
 using WasteOrganisation = Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation;
 
@@ -52,9 +52,9 @@ public class UnsubmittedOrganisationDetailsService(
         return new UnsubmittedOrganisationDetails
         {
             OrganisationId = organisationId,
-            ActiveEligibilityGeneration = snapshot?.ActiveGeneration,
-            Eligibility = [.. eligibility.Select(ToDto)],
-            ObligationSummaries = [.. summaries.Select(ToDto)],
+            EligibilitySnapshot = snapshot,
+            Eligibility = [.. eligibility],
+            ObligationSummaries = [.. summaries],
             LiveData = liveData,
         };
     }
@@ -91,58 +91,6 @@ public class UnsubmittedOrganisationDetailsService(
             ObligationResults = [.. obligationResults],
         };
     }
-
-    private static UnsubmittedOrganisationEligibility ToDto(
-        Data.Entities.OrganisationComplianceDeclarationEligibility eligibility
-    ) =>
-        new()
-        {
-            Generation = eligibility.Generation,
-            ObligationYear = eligibility.ObligationYear,
-            RegistrationType = eligibility.RegistrationType switch
-            {
-                Data.Entities.RegistrationType.DirectProducer => Dtos.RegistrationType.DirectProducer,
-                Data.Entities.RegistrationType.ComplianceScheme => Dtos.RegistrationType.ComplianceScheme,
-                _ => throw new ArgumentOutOfRangeException(nameof(eligibility)),
-            },
-            RegistrationStatus = eligibility.RegistrationStatus.ToString(),
-            Country = eligibility.BusinessCountry,
-            Name = eligibility.Name,
-            TradingName = eligibility.TradingName,
-            CompaniesHouseNumber = eligibility.CompaniesHouseNumber,
-            ReferenceNumber = eligibility.ReferenceNumber,
-            ReferenceResolutionState = eligibility.ReferenceNumberResolutionState.ToString(),
-            IsVisibleInUnsubmittedView = eligibility.IsVisibleInUnsubmittedView,
-            RecyclingObligationsMet = eligibility.RecyclingObligationsMet,
-            ObligationCoveragePercentage = eligibility.ObligationCoveragePercentage,
-            DeclarationStateUpdatedAt = eligibility.DeclarationStateUpdatedAt,
-            SourceFingerprint = eligibility.SourceFingerprint,
-            RefreshedAt = eligibility.RefreshedAt,
-        };
-
-    private static UnsubmittedOrganisationObligationSummary ToDto(
-        Data.Entities.OrganisationObligationSummary summary
-    ) =>
-        new()
-        {
-            ObligationYear = summary.ObligationYear,
-            ObligationCount = summary.ObligationCount,
-            TotalAcceptedTonnage = summary.TotalAcceptedTonnage,
-            TotalObligatedTonnage = summary.TotalObligatedTonnage,
-            RecyclingObligationsMet = summary.RecyclingObligationsMet,
-            ObligationCoveragePercentage = summary.ObligationCoveragePercentage,
-            SourceFingerprint = summary.SourceFingerprint,
-            LastSuccessfulReadAt = summary.LastSuccessfulReadAt,
-            DailyCalculationRunId = summary.DailyCalculationRunId,
-            LastAttemptedAt = summary.LastAttemptedAt,
-            NextRefreshAt = summary.NextRefreshAt,
-            Priority = summary.Priority.ToString(),
-            RequestedAt = summary.RequestedAt,
-            IsHydrationActive = summary.IsHydrationActive,
-            RefreshState = summary.RefreshState.ToString(),
-            AttemptCount = summary.AttemptCount,
-            LastFailure = summary.LastFailure,
-        };
 
     private static UnsubmittedOrganisationLiveOrganisation ToDto(WasteOrganisation organisation) =>
         new()

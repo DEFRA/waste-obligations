@@ -1,0 +1,16 @@
+﻿[
+  {
+    "obligationYear": 2024,
+    "targets": [
+      {
+        "organisationId": "Guid_1"
+      }
+    ],
+    "requestedAt": "DateTimeOffset_1",
+    "updatedAt": "DateTimeOffset_2",
+    "enqueuedAt": null,
+    "completedAt": null,
+    "deferralReason": null,
+    "deferredAt": null
+  }
+]

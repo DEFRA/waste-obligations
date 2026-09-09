@@ -1,0 +1,15 @@
+﻿{
+  "id": "organisation-obligation-hydration",
+  "desiredRequestsPerMinute": 10,
+  "effectiveRequestsPerMinute": 8,
+  "backoffReason": null,
+  "recentDownstreamLatencyMilliseconds": null,
+  "recentDownstreamFailurePercentage": 12.5,
+  "baselineDownstreamLatencyMilliseconds": null,
+  "rateAdjustment": 0.8,
+  "isUnderPressure": true,
+  "recentReads": [],
+  "nextRequestAt": null,
+  "version": 3,
+  "updatedAt": "DateTimeOffset_1"
+}
