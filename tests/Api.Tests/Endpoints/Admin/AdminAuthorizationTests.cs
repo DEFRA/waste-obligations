@@ -11,32 +11,32 @@ namespace Defra.WasteObligations.Api.Tests.Endpoints.Admin;
 public class AdminAuthorizationTests(ApiWebApplicationFactory factory, ITestOutputHelper outputHelper)
     : EndpointTestBase(factory, outputHelper)
 {
-    public static TheoryData<HttpMethod, string> AdminRequests =>
+    public static TheoryData<string, string> AdminRequests =>
         new()
         {
-            { HttpMethod.Get, Testing.Endpoints.Admin.AuditEvents() },
-            { HttpMethod.Get, Testing.Endpoints.Admin.AuditEventCounter() },
-            { HttpMethod.Get, Testing.Endpoints.Admin.OrganisationComplianceDeclarations(OrganisationId) },
-            { HttpMethod.Get, Testing.Endpoints.Admin.OrganisationObligationSummaries(OrganisationId) },
-            { HttpMethod.Get, Testing.Endpoints.Admin.UnsubmittedPollingStatus() },
-            { HttpMethod.Get, Testing.Endpoints.Admin.UnsubmittedPollingVolume() },
-            { HttpMethod.Get, Testing.Endpoints.Admin.UnsubmittedPollingPlan() },
-            { HttpMethod.Post, Testing.Endpoints.Admin.UnsubmittedHistoricalBackfill() },
-            { HttpMethod.Get, Testing.Endpoints.Admin.UnsubmittedReferenceResolutionIssues() },
-            { HttpMethod.Get, Testing.Endpoints.Admin.UnsubmittedOrganisationDetails(OrganisationId) },
-            { HttpMethod.Get, Testing.Endpoints.Admin.OrganisationEligibilitySnapshot() },
-            { HttpMethod.Get, Testing.Endpoints.Admin.OrganisationEligibility() },
-            { HttpMethod.Get, Testing.Endpoints.Admin.FailedOrganisationObligationSummaries(2026) },
-            { HttpMethod.Get, Testing.Endpoints.Admin.OrganisationObligationHistoricalBackfills() },
-            { HttpMethod.Get, Testing.Endpoints.Admin.OrganisationObligationRequestPacingState() },
+            { HttpMethod.Get.Method, Testing.Endpoints.Admin.AuditEvents() },
+            { HttpMethod.Get.Method, Testing.Endpoints.Admin.AuditEventCounter() },
+            { HttpMethod.Get.Method, Testing.Endpoints.Admin.OrganisationComplianceDeclarations(OrganisationId) },
+            { HttpMethod.Get.Method, Testing.Endpoints.Admin.OrganisationObligationSummaries(OrganisationId) },
+            { HttpMethod.Get.Method, Testing.Endpoints.Admin.UnsubmittedPollingStatus() },
+            { HttpMethod.Get.Method, Testing.Endpoints.Admin.UnsubmittedPollingVolume() },
+            { HttpMethod.Get.Method, Testing.Endpoints.Admin.UnsubmittedPollingPlan() },
+            { HttpMethod.Post.Method, Testing.Endpoints.Admin.UnsubmittedHistoricalBackfill() },
+            { HttpMethod.Get.Method, Testing.Endpoints.Admin.UnsubmittedReferenceResolutionIssues() },
+            { HttpMethod.Get.Method, Testing.Endpoints.Admin.UnsubmittedOrganisationDetails(OrganisationId) },
+            { HttpMethod.Get.Method, Testing.Endpoints.Admin.OrganisationEligibilitySnapshot() },
+            { HttpMethod.Get.Method, Testing.Endpoints.Admin.OrganisationEligibility() },
+            { HttpMethod.Get.Method, Testing.Endpoints.Admin.FailedOrganisationObligationSummaries(2026) },
+            { HttpMethod.Get.Method, Testing.Endpoints.Admin.OrganisationObligationHistoricalBackfills() },
+            { HttpMethod.Get.Method, Testing.Endpoints.Admin.OrganisationObligationRequestPacingState() },
         };
 
     [Theory]
     [MemberData(nameof(AdminRequests))]
-    public async Task WhenReadWriteUserRequestsAdminEndpoint_ShouldBeForbidden(HttpMethod method, string path)
+    public async Task WhenReadWriteUserRequestsAdminEndpoint_ShouldBeForbidden(string method, string path)
     {
         var client = CreateClient();
-        using var request = new HttpRequestMessage(method, path);
+        using var request = new HttpRequestMessage(new HttpMethod(method), path);
 
         using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
