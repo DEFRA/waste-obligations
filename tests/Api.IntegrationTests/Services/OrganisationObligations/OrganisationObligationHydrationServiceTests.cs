@@ -22,6 +22,8 @@ namespace Defra.WasteObligations.Api.IntegrationTests.Services.OrganisationOblig
 public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
 {
     private const int ObligationYear = 2026;
+    private const string HistoricalBackfillWorkIndexName =
+        "ObligationYear_RequestedAt_IsHydrationActive_Priority_NextRefreshAt";
     private const string HydrationDueWorkIndexName = "ObligationYear_IsHydrationActive_Priority_NextRefreshAt";
     private const string OrganisationYearIndexName = "OrganisationId_ObligationYear";
     private const string HydrationEligibilityIndexName =
@@ -537,6 +539,54 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
         var renderedWinningPlan = plan["queryPlanner"]["winningPlan"].ToJson();
 
         renderedWinningPlan.Should().Contain(HydrationDueWorkIndexName);
+        renderedWinningPlan.Should().NotContain("\"stage\" : \"SORT\"");
+    }
+
+    [Fact]
+    public async Task HydrateHistoricalBackfillPlan_ShouldUseTheBackfillWorkIndexWithoutAnInMemorySort()
+    {
+        const int historicalObligationYear = 2025;
+        var requestedAt = _timeProvider.GetUtcNow().UtcDateTime;
+        await OrganisationObligationSummaries.InsertOneAsync(
+            new OrganisationObligationSummary
+            {
+                OrganisationId = Guid.NewGuid(),
+                ObligationYear = historicalObligationYear,
+                RequestedAt = requestedAt,
+                IsHydrationActive = true,
+                Priority = OrganisationObligationHydrationPriority.NewEligible,
+                NextRefreshAt = requestedAt,
+            },
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        var command = new BsonDocument
+        {
+            ["explain"] = new BsonDocument
+            {
+                ["find"] = nameof(OrganisationObligationSummary),
+                ["filter"] = new BsonDocument
+                {
+                    ["obligationYear"] = historicalObligationYear,
+                    ["requestedAt"] = requestedAt,
+                    ["isHydrationActive"] = true,
+                    ["nextRefreshAt"] = new BsonDocument("$lte", requestedAt),
+                    ["$or"] = new BsonArray
+                    {
+                        new BsonDocument("lastSuccessfulReadAt", BsonNull.Value),
+                        new BsonDocument("lastSuccessfulReadAt", new BsonDocument("$lt", requestedAt)),
+                    },
+                },
+                ["sort"] = new BsonDocument { ["priority"] = 1, ["nextRefreshAt"] = 1 },
+                ["limit"] = 10,
+            },
+            ["verbosity"] = "queryPlanner",
+        };
+
+        var plan = await GetMongoDatabase()
+            .RunCommandAsync<BsonDocument>(command, cancellationToken: TestContext.Current.CancellationToken);
+        var renderedWinningPlan = plan["queryPlanner"]["winningPlan"].ToJson();
+
+        renderedWinningPlan.Should().Contain(HistoricalBackfillWorkIndexName);
         renderedWinningPlan.Should().NotContain("\"stage\" : \"SORT\"");
     }
 

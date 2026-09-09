@@ -60,6 +60,8 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         "ObligationYear_IsHydrationActive_Priority_NextRefreshAt";
     private const string OrganisationObligationSummaryPollingStatusIndexName =
         "IsHydrationActive_ObligationYear_NextRefreshAt";
+    private const string OrganisationObligationSummaryHistoricalBackfillIndexName =
+        "ObligationYear_RequestedAt_IsHydrationActive_Priority_NextRefreshAt";
     private const string OrganisationObligationHistoricalBackfillIncompleteWorkIndexName = "CompletedAt_RequestedAt";
 
     [Fact]
@@ -79,6 +81,7 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         await new AuditEventIndexesMigration().DownAsync(context);
         await new OrganisationObligationSummaryIndexes().DownAsync(context);
         await new OrganisationObligationSummaryPollingStatusIndex().DownAsync(context);
+        await new OrganisationObligationSummaryHistoricalBackfillIndex().DownAsync(context);
         await new OrganisationObligationHistoricalBackfillIndexes().DownAsync(context);
         await new OrganisationEligibilityReferenceResolutionIssuesIndex().DownAsync(context);
         await new OrganisationEligibilityOrganisationDetailsIndex().DownAsync(context);
@@ -129,6 +132,15 @@ public class MongoMigrationServiceTests : IntegrationTestBase
                             x,
                             OrganisationObligationSummaryPollingStatusIndexName,
                             OrganisationObligationSummaryPollingStatusIndexKeys(OrganisationObligationSummaries)
+                        )
+                    );
+                organisationObligationSummaryIndexes
+                    .Should()
+                    .Contain(x =>
+                        IsIndex(
+                            x,
+                            OrganisationObligationSummaryHistoricalBackfillIndexName,
+                            OrganisationObligationSummaryHistoricalBackfillIndexKeys(OrganisationObligationSummaries)
                         )
                     );
                 var organisationObligationHistoricalBackfillIndexes = await (
@@ -217,6 +229,15 @@ public class MongoMigrationServiceTests : IntegrationTestBase
                     x,
                     OrganisationObligationSummaryPollingStatusIndexName,
                     OrganisationObligationSummaryPollingStatusIndexKeys(OrganisationObligationSummaries)
+                )
+            );
+        organisationObligationSummaryIndexes
+            .Should()
+            .Contain(x =>
+                IsIndex(
+                    x,
+                    OrganisationObligationSummaryHistoricalBackfillIndexName,
+                    OrganisationObligationSummaryHistoricalBackfillIndexKeys(OrganisationObligationSummaries)
                 )
             );
 
@@ -505,6 +526,42 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         ).ToListAsync(TestContext.Current.CancellationToken);
 
         indexes.Should().NotContain(x => x.GetValue("name") == OrganisationObligationSummaryPollingStatusIndexName);
+
+        await subject.UpAsync(context);
+    }
+
+    [Fact]
+    public async Task OrganisationObligationSummaryHistoricalBackfillIndex_ShouldCreateAndDropIndex()
+    {
+        var database = GetMongoDatabase();
+        var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
+        var subject = new OrganisationObligationSummaryHistoricalBackfillIndex();
+        await subject.DownAsync(context);
+
+        await subject.UpAsync(context);
+
+        var indexes = await (
+            await OrganisationObligationSummaries.Indexes.ListAsync(TestContext.Current.CancellationToken)
+        ).ToListAsync(TestContext.Current.CancellationToken);
+        indexes
+            .Should()
+            .Contain(x =>
+                IsIndex(
+                    x,
+                    OrganisationObligationSummaryHistoricalBackfillIndexName,
+                    OrganisationObligationSummaryHistoricalBackfillIndexKeys(OrganisationObligationSummaries)
+                )
+            );
+
+        await subject.DownAsync(context);
+        await subject.DownAsync(context);
+        indexes = await (
+            await OrganisationObligationSummaries.Indexes.ListAsync(TestContext.Current.CancellationToken)
+        ).ToListAsync(TestContext.Current.CancellationToken);
+
+        indexes
+            .Should()
+            .NotContain(x => x.GetValue("name") == OrganisationObligationSummaryHistoricalBackfillIndexName);
 
         await subject.UpAsync(context);
     }
@@ -1510,6 +1567,19 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             Builders<OrganisationObligationSummary>
                 .IndexKeys.Ascending(x => x.IsHydrationActive)
                 .Ascending(x => x.ObligationYear)
+                .Ascending(x => x.NextRefreshAt)
+        );
+
+    private static BsonDocument OrganisationObligationSummaryHistoricalBackfillIndexKeys(
+        IMongoCollection<OrganisationObligationSummary> collection
+    ) =>
+        RenderIndexKeys(
+            collection,
+            Builders<OrganisationObligationSummary>
+                .IndexKeys.Ascending(x => x.ObligationYear)
+                .Ascending(x => x.RequestedAt)
+                .Ascending(x => x.IsHydrationActive)
+                .Ascending(x => x.Priority)
                 .Ascending(x => x.NextRefreshAt)
         );
 

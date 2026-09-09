@@ -298,25 +298,8 @@ public class OrganisationObligationHydrationService(
         CancellationToken cancellationToken
     )
     {
-        var existingSummaries = await dbContext
-            .OrganisationObligationSummaries.Find(x =>
-                x.ObligationYear == backfill.ObligationYear && backfill.OrganisationIds.Contains(x.OrganisationId)
-            )
-            .ToListAsync(cancellationToken);
-        var existingOrganisationIds = existingSummaries.Select(x => x.OrganisationId).ToHashSet();
-        var existingWork = existingSummaries
-            .Where(x => x.RequestedAt != backfill.RequestedAt)
-            .Select(summary => new UpdateOneModel<OrganisationObligationSummary>(
-                Builders<OrganisationObligationSummary>.Filter.And(
-                    Builders<OrganisationObligationSummary>.Filter.Eq(x => x.OrganisationId, summary.OrganisationId),
-                    Builders<OrganisationObligationSummary>.Filter.Eq(x => x.ObligationYear, backfill.ObligationYear)
-                ),
-                HistoricalBackfillUpdate(backfill)
-            ))
-            .ToArray();
-        var newWork = backfill
-            .OrganisationIds.Where(x => !existingOrganisationIds.Contains(x))
-            .Select(organisationId => new UpdateOneModel<OrganisationObligationSummary>(
+        var work = backfill
+            .OrganisationIds.Select(organisationId => new UpdateOneModel<OrganisationObligationSummary>(
                 Builders<OrganisationObligationSummary>.Filter.And(
                     Builders<OrganisationObligationSummary>.Filter.Eq(x => x.OrganisationId, organisationId),
                     Builders<OrganisationObligationSummary>.Filter.Eq(x => x.ObligationYear, backfill.ObligationYear)
@@ -335,21 +318,7 @@ public class OrganisationObligationHydrationService(
             })
             .ToArray();
 
-        if (existingWork.Length > 0)
-        {
-            await dbContext.OrganisationObligationSummaries.BulkWriteAsync(
-                existingWork,
-                cancellationToken: cancellationToken
-            );
-        }
-
-        if (newWork.Length > 0)
-        {
-            await dbContext.OrganisationObligationSummaries.BulkWriteAsync(
-                newWork,
-                cancellationToken: cancellationToken
-            );
-        }
+        await dbContext.OrganisationObligationSummaries.BulkWriteAsync(work, cancellationToken: cancellationToken);
     }
 
     private async Task ReactivateExistingEligible(
@@ -648,7 +617,6 @@ public class OrganisationObligationHydrationService(
     ) =>
         Builders<OrganisationObligationSummary>.Filter.And(
             Builders<OrganisationObligationSummary>.Filter.Eq(x => x.ObligationYear, backfill.ObligationYear),
-            Builders<OrganisationObligationSummary>.Filter.In(x => x.OrganisationId, backfill.OrganisationIds),
             Builders<OrganisationObligationSummary>.Filter.Eq(x => x.RequestedAt, backfill.RequestedAt)
         );
 
