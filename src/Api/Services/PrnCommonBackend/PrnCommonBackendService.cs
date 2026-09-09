@@ -6,7 +6,8 @@ using Microsoft.AspNetCore.WebUtilities;
 
 namespace Defra.WasteObligations.Api.Services.PrnCommonBackend;
 
-public class PrnCommonBackendService(HttpClient httpClient) : IPrnCommonBackendService
+public class PrnCommonBackendService(HttpClient httpClient, ILogger<PrnCommonBackendService> logger)
+    : IPrnCommonBackendService
 {
     private const string OrganisationHeaderName = "X-EPR-ORGANISATION";
 
@@ -25,6 +26,21 @@ public class PrnCommonBackendService(HttpClient httpClient) : IPrnCommonBackendS
         var response = await httpClient.SendAsync(request, cancellationToken);
         if (response.StatusCode == HttpStatusCode.NotFound)
             return [];
+
+        if (response.StatusCode == HttpStatusCode.BadRequest)
+        {
+            var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (string.Equals(responseBody, $"Invalid year provided: {year}.", StringComparison.Ordinal))
+            {
+                logger.LogInformation(
+                    "PRN common backend has no obligation data for organisation {OrganisationId} and unsupported obligation year {ObligationYear}",
+                    organisationId,
+                    year
+                );
+
+                return [];
+            }
+        }
 
         response.EnsureSuccessStatusCode();
 
