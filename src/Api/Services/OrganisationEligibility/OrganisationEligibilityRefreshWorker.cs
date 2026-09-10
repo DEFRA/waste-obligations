@@ -20,7 +20,9 @@ public class OrganisationEligibilityRefreshWorker(
         if (!options.Value.RefreshPollingEnabled)
         {
             logger.LogInformation("Organisation eligibility refresh polling is off");
+
             await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken);
+
             return;
         }
 

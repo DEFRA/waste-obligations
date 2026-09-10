@@ -75,12 +75,7 @@ internal sealed class BackgroundWorkerLeaseService(
 
         var result = await _leases.UpdateOneAsync(filter, update, cancellationToken: cancellationToken);
 
-        if (result.MatchedCount != 1)
-            return false;
-
-        logger.LogInformation("Renewed {WorkerName} lease by {InstanceId}", workerName, _instanceId);
-
-        return true;
+        return result.MatchedCount == 1;
     }
 
     public async Task Release(CancellationToken cancellationToken)
@@ -98,11 +93,6 @@ internal sealed class BackgroundWorkerLeaseService(
             .Set(x => x.LastReleasedAt, utcNow)
             .Unset(OwnerField);
 
-        var result = await _leases.UpdateOneAsync(filter, update, cancellationToken: cancellationToken);
-
-        if (result.ModifiedCount == 1)
-        {
-            logger.LogInformation("Released {WorkerName} lease by {InstanceId}", workerName, _instanceId);
-        }
+        await _leases.UpdateOneAsync(filter, update, cancellationToken: cancellationToken);
     }
 }

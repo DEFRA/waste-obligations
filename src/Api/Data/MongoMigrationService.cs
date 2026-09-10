@@ -45,9 +45,6 @@ public class MongoMigrationService(
                 {
                     if (!waitingForLease)
                     {
-                        logger.LogInformation(
-                            "Mongo migration lease is held by another host. Waiting before retrying."
-                        );
                         waitingForLease = true;
                     }
 
@@ -55,15 +52,6 @@ public class MongoMigrationService(
                     continue;
                 }
 
-                if (failedLeaseAcquisitions > 0)
-                {
-                    logger.LogInformation(
-                        "Mongo migration lease acquisition recovered after {FailureCount} failure(s).",
-                        failedLeaseAcquisitions
-                    );
-                }
-
-                logger.LogInformation("Mongo migration lease acquired by {InstanceId}.", leaseService.InstanceId);
                 await RunMigrationsWithLease(leaseDuration, stoppingToken);
 
                 return;
@@ -235,7 +223,6 @@ public class MongoMigrationService(
         try
         {
             await leaseService.Release(releaseCancellationTokenSource.Token);
-            logger.LogInformation("Mongo migration lease released by {InstanceId}.", leaseService.InstanceId);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {

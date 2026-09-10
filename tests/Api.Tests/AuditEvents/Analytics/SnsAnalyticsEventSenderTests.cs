@@ -6,7 +6,6 @@ using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.AuditEvents.Analytics;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 
@@ -32,7 +31,6 @@ public class SnsAnalyticsEventSenderTests
         var subject = new SnsAnalyticsEventSender(
             simpleNotificationService,
             serializer,
-            Substitute.For<ILogger<SnsAnalyticsEventSender>>(),
             Options.Create(new AnalyticsAuditEventProcessorOptions { ProcessName = "analytics", TopicArn = TopicArn })
         );
         var analyticsEvent = AnalyticsEventFixture.ComplianceDeclaration().Create();
@@ -64,7 +62,6 @@ public class SnsAnalyticsEventSenderTests
         var subject = new SnsAnalyticsEventSender(
             simpleNotificationService,
             serializer,
-            Substitute.For<ILogger<SnsAnalyticsEventSender>>(),
             Options.Create(new AnalyticsAuditEventProcessorOptions { ProcessName = "analytics", TopicArn = TopicArn })
         );
         var analyticsEvent = AnalyticsEventFixture.ComplianceDeclaration().Create();
@@ -91,7 +88,6 @@ public class SnsAnalyticsEventSenderTests
         var subject = new SnsAnalyticsEventSender(
             simpleNotificationService,
             serializer,
-            Substitute.For<ILogger<SnsAnalyticsEventSender>>(),
             Options.Create(new AnalyticsAuditEventProcessorOptions { ProcessName = "analytics", TopicArn = TopicArn })
         );
         var analyticsEvent = AnalyticsEventFixture.ComplianceDeclaration().Create();

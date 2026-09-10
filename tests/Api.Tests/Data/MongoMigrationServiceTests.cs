@@ -212,7 +212,6 @@ public class MongoMigrationServiceTests
 
         await subject.Execute(stopping.Token);
 
-        logger.Messages.Should().Contain("Mongo migration lease is held by another host. Waiting before retrying.");
         await migrationRunner.DidNotReceive().Run(Arg.Any<CancellationToken>());
     }
 

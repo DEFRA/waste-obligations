@@ -2,7 +2,6 @@ using System.IO.Compression;
 using System.Text;
 using Amazon.SimpleNotificationService;
 using Amazon.SimpleNotificationService.Model;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Defra.WasteObligations.AuditEvents.Analytics;
@@ -10,7 +9,6 @@ namespace Defra.WasteObligations.AuditEvents.Analytics;
 public class SnsAnalyticsEventSender(
     IAmazonSimpleNotificationService simpleNotificationService,
     IAnalyticsEventSerializer analyticsEventSerializer,
-    ILogger<SnsAnalyticsEventSender> logger,
     IOptions<AnalyticsAuditEventProcessorOptions> options
 ) : IAnalyticsEventSender
 {
@@ -45,7 +43,6 @@ public class SnsAnalyticsEventSender(
         }
 
         await simpleNotificationService.PublishAsync(request, cancellationToken);
-        logger.LogInformation("Published analytics event {EventId}", analyticsEvent.EventId);
     }
 
     private static AnalyticsMessage CreateMessage(string serializedMessage)

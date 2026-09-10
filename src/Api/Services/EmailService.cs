@@ -119,7 +119,7 @@ public class EmailService(
             }
 
             logger.LogInformation(
-                "Sending cancellation email for reason {Reason} to {RecipientCount} recipient email addresses",
+                "Sending cancellation email for reason {Reason} to {RecipientCount} recipient email address(s)",
                 reason,
                 recipients.Count
             );

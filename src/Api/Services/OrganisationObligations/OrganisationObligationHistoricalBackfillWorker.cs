@@ -20,6 +20,7 @@ public class OrganisationObligationHistoricalBackfillWorker(
             logger.LogInformation(
                 "Organisation obligation historical backfill is off while normal obligation hydration polling is on"
             );
+
             await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken);
 
             return;
@@ -70,10 +71,6 @@ public class OrganisationObligationHistoricalBackfillWorker(
                 stoppingToken
             );
             metrics.LeaseNotAcquired();
-            logger.LogInformation(
-                "Organisation obligation historical backfill for obligation year {ObligationYear} is deferred because another instance holds its lease",
-                backfill.ObligationYear
-            );
 
             return 0;
         }

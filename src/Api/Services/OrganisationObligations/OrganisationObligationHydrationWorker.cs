@@ -20,7 +20,9 @@ public class OrganisationObligationHydrationWorker(
         if (!options.Value.PollingEnabled)
         {
             logger.LogInformation("Organisation obligation hydration polling is off");
+
             await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken);
+
             return;
         }
 
