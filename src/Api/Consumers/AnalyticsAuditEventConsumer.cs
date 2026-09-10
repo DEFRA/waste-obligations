@@ -20,7 +20,7 @@ public class AnalyticsAuditEventConsumer(
     {
         if (!options.Value.ProcessingEnabled)
         {
-            logger.LogInformation("Analytics audit event consumption is off");
+            logger.LogWarning("Analytics audit event consumption is off");
 
             await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken);
 

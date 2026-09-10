@@ -17,7 +17,7 @@ public class AnalyticsAuditEventProcessor(
     {
         if (!options.Value.ProcessingEnabled)
         {
-            logger.LogInformation("Analytics audit event processing is off");
+            logger.LogWarning("Analytics audit event processing is off");
 
             await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken);
 

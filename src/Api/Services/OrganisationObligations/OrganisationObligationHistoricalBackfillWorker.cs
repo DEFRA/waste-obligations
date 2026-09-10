@@ -17,7 +17,7 @@ public class OrganisationObligationHistoricalBackfillWorker(
     {
         if (options.Value.PollingEnabled)
         {
-            logger.LogInformation(
+            logger.LogWarning(
                 "Organisation obligation historical backfill is off while normal obligation hydration polling is on"
             );
 
