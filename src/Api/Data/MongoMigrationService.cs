@@ -36,11 +36,6 @@ public class MongoMigrationService(
                     {
                         logger.LogError(exception, "Mongo migration lease acquisition failed. Retrying.");
                     }
-                    else
-                    {
-                        logger.LogDebug(exception, "Mongo migration lease acquisition failed again. Retrying.");
-                    }
-
                     failedLeaseAcquisitions++;
                     await Task.Delay(LeaseRetryDelay, stoppingToken);
                     continue;
@@ -109,10 +104,17 @@ public class MongoMigrationService(
                         attempt,
                         TimeSpan.FromSeconds(options.Value.RetryDelaySeconds)
                     );
-                    await Task.Delay(
-                        TimeSpan.FromSeconds(options.Value.RetryDelaySeconds),
-                        migrationCancellationTokenSource.Token
-                    );
+                    try
+                    {
+                        await Task.Delay(
+                            TimeSpan.FromSeconds(options.Value.RetryDelaySeconds),
+                            migrationCancellationTokenSource.Token
+                        );
+                    }
+                    catch (OperationCanceledException) when (migrationCancellationTokenSource.IsCancellationRequested)
+                    {
+                        return;
+                    }
                 }
             }
 
@@ -121,23 +123,12 @@ public class MongoMigrationService(
                 maximumAttempts
             );
         }
-        catch (OperationCanceledException exception) when (migrationCancellationTokenSource.IsCancellationRequested)
-        {
-            logger.LogDebug(exception, "Mongo migration operation stopped.");
-        }
         finally
         {
             await migrationCancellationTokenSource.CancelAsync();
             await renewalCancellationTokenSource.CancelAsync();
 
-            try
-            {
-                await renewalTask;
-            }
-            catch (OperationCanceledException exception) when (renewalCancellationTokenSource.IsCancellationRequested)
-            {
-                logger.LogDebug(exception, "Mongo migration lease renewal stopped.");
-            }
+            await renewalTask;
 
             await ReleaseLease();
         }
@@ -211,10 +202,13 @@ public class MongoMigrationService(
     {
         using var renewalTimer = new PeriodicTimer(TimeSpan.FromSeconds(options.Value.LeaseRenewalIntervalSeconds));
 
-        while (await renewalTimer.WaitForNextTickAsync(renewalCancellationToken))
+        while (!renewalCancellationToken.IsCancellationRequested)
         {
             try
             {
+                if (!await renewalTimer.WaitForNextTickAsync(renewalCancellationToken))
+                    return;
+
                 if (await leaseService.TryRenew(leaseDuration, renewalCancellationToken))
                     continue;
 
