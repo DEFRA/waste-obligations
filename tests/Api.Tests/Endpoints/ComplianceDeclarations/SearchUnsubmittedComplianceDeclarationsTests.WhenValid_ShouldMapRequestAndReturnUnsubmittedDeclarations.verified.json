@@ -4,6 +4,7 @@
       "organisationId": "Guid_1",
       "obligationYear": 2026,
       "registrationType": "DirectProducer",
+      "businessCountry": "GB-WLS",
       "name": "Alpha Packaging",
       "referenceNumber": "100001",
       "recyclingObligationsMet": true,

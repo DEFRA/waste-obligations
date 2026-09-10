@@ -4,6 +4,7 @@
       "organisationId": "Guid_1",
       "obligationYear": 2025,
       "registrationType": "ComplianceScheme",
+      "businessCountry": null,
       "name": "Historic Scheme",
       "referenceNumber": "200002",
       "recyclingObligationsMet": null,

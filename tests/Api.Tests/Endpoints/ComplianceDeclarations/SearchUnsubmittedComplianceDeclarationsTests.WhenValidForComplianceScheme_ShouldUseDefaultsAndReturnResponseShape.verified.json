@@ -4,6 +4,7 @@
       "organisationId": "Guid_1",
       "obligationYear": 2026,
       "registrationType": "ComplianceScheme",
+      "businessCountry": null,
       "name": "Bravo Scheme",
       "referenceNumber": "200001",
       "recyclingObligationsMet": null,
