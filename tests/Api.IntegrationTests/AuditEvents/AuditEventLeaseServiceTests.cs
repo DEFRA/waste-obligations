@@ -1,10 +1,8 @@
 using AwesomeAssertions;
 using Defra.WasteObligations.AuditEvents;
 using Defra.WasteObligations.AuditEvents.Data;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
 using MongoDB.Driver;
-using NSubstitute;
 
 namespace Defra.WasteObligations.Api.IntegrationTests.AuditEvents;
 
@@ -124,9 +122,5 @@ public class AuditEventLeaseServiceTests : IntegrationTestBase
     }
 
     private static AuditEventLeaseService CreateSubject(TimeProvider timeProvider) =>
-        new(
-            new AuditEventDbContext(GetMongoApplicationDatabase()),
-            timeProvider,
-            Substitute.For<ILogger<AuditEventLeaseService>>()
-        );
+        new(new AuditEventDbContext(GetMongoApplicationDatabase()), timeProvider);
 }

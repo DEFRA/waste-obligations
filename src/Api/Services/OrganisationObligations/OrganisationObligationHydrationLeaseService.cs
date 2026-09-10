@@ -1,23 +1,17 @@
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services;
-using Microsoft.Extensions.Logging;
 using MongoDB.Driver;
 
 namespace Defra.WasteObligations.Api.Services.OrganisationObligations;
 
-public class OrganisationObligationHydrationLeaseService(
-    IMongoDatabase database,
-    TimeProvider timeProvider,
-    ILogger<OrganisationObligationHydrationLeaseService> logger
-) : IOrganisationObligationHydrationLeaseService
+public class OrganisationObligationHydrationLeaseService(IMongoDatabase database, TimeProvider timeProvider)
+    : IOrganisationObligationHydrationLeaseService
 {
     private readonly BackgroundWorkerLeaseService _leaseService = new(
         database,
         timeProvider,
-        logger,
         BackgroundWorkerLease.CollectionName,
-        BackgroundWorkerLease.OrganisationObligationHydrationLeaseId,
-        "organisation obligation hydration"
+        BackgroundWorkerLease.OrganisationObligationHydrationLeaseId
     );
 
     public Task<bool> TryAcquire(TimeSpan leaseDuration, CancellationToken cancellationToken) =>

@@ -1,6 +1,5 @@
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
-using Microsoft.Extensions.Logging;
 using MongoDB.Driver;
 
 namespace Defra.WasteObligations.Api.Services;
@@ -8,10 +7,8 @@ namespace Defra.WasteObligations.Api.Services;
 internal sealed class BackgroundWorkerLeaseService(
     IMongoDatabase database,
     TimeProvider timeProvider,
-    ILogger logger,
     string collectionName,
-    string leaseId,
-    string workerName
+    string leaseId
 )
 {
     private const string OwnerField = "owner";
@@ -54,19 +51,10 @@ internal sealed class BackgroundWorkerLeaseService(
                 cancellationToken
             );
 
-            logger.LogInformation("Acquired {WorkerName} lease by {InstanceId}", workerName, _instanceId);
-
             return true;
         }
         catch (MongoCommandException exception) when (exception.Code == 11000)
         {
-            logger.LogInformation(
-                exception,
-                "{WorkerName} lease is already acquired by another instance. Current instance {InstanceId} did not acquire it",
-                workerName,
-                _instanceId
-            );
-
             return false;
         }
     }

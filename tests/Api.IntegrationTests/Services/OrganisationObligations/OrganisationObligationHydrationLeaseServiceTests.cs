@@ -110,23 +110,9 @@ public class OrganisationObligationHydrationLeaseServiceTests : IntegrationTestB
         new(new DateTimeOffset(2026, 8, 26, 12, 0, 0, TimeSpan.Zero));
 
     private static OrganisationObligationHydrationLeaseService CreateSubject(TimeProvider timeProvider) =>
-        new(
-            GetMongoApplicationDatabase(),
-            timeProvider,
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<OrganisationObligationHydrationLeaseService>.Instance
-        );
+        new(GetMongoApplicationDatabase(), timeProvider);
 
     private static OrganisationObligationHistoricalBackfillLeaseService CreateHistoricalBackfillSubject(
         TimeProvider timeProvider
-    ) =>
-        new(
-            GetMongoApplicationDatabase(),
-            timeProvider,
-            Microsoft
-                .Extensions
-                .Logging
-                .Abstractions
-                .NullLogger<OrganisationObligationHistoricalBackfillLeaseService>
-                .Instance
-        );
+    ) => new(GetMongoApplicationDatabase(), timeProvider);
 }
