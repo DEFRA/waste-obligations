@@ -11,6 +11,8 @@ using Microsoft.AspNetCore.HeaderPropagation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Primitives;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
@@ -142,11 +144,53 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
     [Fact]
     public async Task WhenNotFound_ShouldBeEmpty()
     {
-        var subject = new PrnCommonBackendService(Context.HttpClient);
+        var subject = CreateSubject(Context.HttpClient);
 
         var result = await subject.ReadObligations(Guid.NewGuid(), 2026, TestContext.Current.CancellationToken);
 
         result.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ReadObligations_WhenBadRequestIdentifiesUnsupportedYear_ShouldReturnEmptyAndLogInformation()
+    {
+        const int year = 2023;
+        var organisationId = Guid.NewGuid();
+        var logger = new RecordingLogger<PrnCommonBackendService>();
+        var subject = CreateSubject(Context.HttpClient, logger);
+        WireMock
+            .Given(Request.Create().UsingGet().WithPath($"/api/v1/prn/obligationcalculation/{year}"))
+            .RespondWith(
+                Response.Create().WithStatusCode(HttpStatusCode.BadRequest).WithBody($"Invalid year provided: {year}.")
+            );
+
+        var result = await subject.ReadObligations(organisationId, year, TestContext.Current.CancellationToken);
+
+        result.Should().BeEmpty();
+        logger.Entries.Should().ContainSingle();
+        logger.Entries[0].Level.Should().Be(LogLevel.Information);
+        logger
+            .Entries[0]
+            .Message.Should()
+            .Be(
+                $"PRN common backend has no obligation data for organisation {organisationId} and unsupported obligation year {year}"
+            );
+    }
+
+    [Fact]
+    public async Task ReadObligations_WhenBadRequestDoesNotIdentifyUnsupportedYear_ShouldThrow()
+    {
+        const int year = 2023;
+        var subject = CreateSubject(Context.HttpClient);
+        WireMock
+            .Given(Request.Create().UsingGet().WithPath($"/api/v1/prn/obligationcalculation/{year}"))
+            .RespondWith(
+                Response.Create().WithStatusCode(HttpStatusCode.BadRequest).WithBody("Unexpected request failure")
+            );
+
+        var act = () => subject.ReadObligations(Guid.NewGuid(), year, TestContext.Current.CancellationToken);
+
+        await act.Should().ThrowAsync<HttpRequestException>();
     }
 
     [Fact]
@@ -175,7 +219,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
     [Fact]
     public async Task ReadPrn_WhenNotFound_ShouldReturnNull()
     {
-        var subject = new PrnCommonBackendService(Context.HttpClient);
+        var subject = CreateSubject(Context.HttpClient);
 
         var result = await subject.ReadPrn(
             Guid.NewGuid(),
@@ -189,7 +233,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
     [Fact]
     public async Task ReadPrn_WhenPrnIdNotGuid_ShouldReturnNull()
     {
-        var subject = new PrnCommonBackendService(Context.HttpClient);
+        var subject = CreateSubject(Context.HttpClient);
 
         var result = await subject.ReadPrn(Guid.NewGuid(), "not-a-guid", TestContext.Current.CancellationToken);
 
@@ -230,7 +274,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
     [Fact]
     public async Task UpdatePrnStatus_WhenPrnCommonBackendReturnsNotFound_ShouldReturnNotFound()
     {
-        var subject = new PrnCommonBackendService(Context.HttpClient);
+        var subject = CreateSubject(Context.HttpClient);
         var organisationId = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var statusUpdate = new PrnStatusUpdate { PrnId = Guid.NewGuid(), Status = "REJECTED" };
@@ -256,7 +300,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
     [Fact]
     public async Task UpdatePrnStatus_WhenPrnCommonBackendReturnsConflict_ShouldThrowConcurrencyException()
     {
-        var subject = new PrnCommonBackendService(Context.HttpClient);
+        var subject = CreateSubject(Context.HttpClient);
         var organisationId = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var statusUpdate = new PrnStatusUpdate { PrnId = Guid.NewGuid(), Status = "REJECTED" };
@@ -283,7 +327,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
     [Fact]
     public async Task UpdatePrnStatus_WhenPrnCommonBackendReturnsUnexpectedError_ShouldThrow()
     {
-        var subject = new PrnCommonBackendService(Context.HttpClient);
+        var subject = CreateSubject(Context.HttpClient);
         var organisationId = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var statusUpdate = new PrnStatusUpdate { PrnId = Guid.NewGuid(), Status = "REJECTED" };
@@ -310,7 +354,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
     [Fact]
     public async Task UpdatePrnStatus_WhenPrnCommonBackendReturnsOtherSuccessfulResponse_ShouldReturnUpdated()
     {
-        var subject = new PrnCommonBackendService(Context.HttpClient);
+        var subject = CreateSubject(Context.HttpClient);
         var organisationId = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var statusUpdate = new PrnStatusUpdate { PrnId = Guid.NewGuid(), Status = "REJECTED" };
@@ -336,7 +380,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
     [Fact]
     public async Task UpdatePrnStatus_WhenPrnIdIsNotGuid_ShouldReturnNotFound()
     {
-        var subject = new PrnCommonBackendService(Context.HttpClient);
+        var subject = CreateSubject(Context.HttpClient);
 
         var result = await subject.UpdatePrnStatus(
             Guid.NewGuid(),
@@ -387,7 +431,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
     [Fact]
     public async Task SearchPrns_WhenSortIsNotSpecified_ShouldNotSendSortBy()
     {
-        var subject = new PrnCommonBackendService(Context.HttpClient);
+        var subject = CreateSubject(Context.HttpClient);
         var search = new PrnSearchRequest { Page = 1, PageSize = 20 };
 
         WireMock.StubPrnCommonBackendPrnSearchRequest(search);
@@ -402,7 +446,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
     [Fact]
     public async Task SearchPrns_WhenPrnCommonBackendReturnsNull_ShouldThrow()
     {
-        var subject = new PrnCommonBackendService(Context.HttpClient);
+        var subject = CreateSubject(Context.HttpClient);
         var search = new PrnSearchRequest
         {
             Page = 1,
@@ -420,4 +464,9 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
             .ThrowAsync<InvalidOperationException>()
             .WithMessage("PRN common backend returned an empty search response");
     }
+
+    private static PrnCommonBackendService CreateSubject(
+        HttpClient httpClient,
+        ILogger<PrnCommonBackendService>? logger = null
+    ) => new(httpClient, logger ?? NullLogger<PrnCommonBackendService>.Instance);
 }
