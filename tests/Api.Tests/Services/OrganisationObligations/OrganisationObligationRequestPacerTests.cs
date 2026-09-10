@@ -105,28 +105,31 @@ public class OrganisationObligationRequestPacerTests
     }
 
     [Fact]
-    public async Task ObserveRead_WhenDownstreamLatencyIncreases_ShouldBackOffTheControllerRate()
+    public async Task ObserveRead_WhenDownstreamLatencyIncreasesButCapacitySustainsTarget_ShouldKeepTargetRate()
     {
-        var subject = CreateSubject(new PacingStateStore());
-        await subject.ObserveWorkload(600, TestContext.Current.CancellationToken);
+        var subject = CreateSubject(
+            new PacingStateStore(),
+            hydrationOptions: new OrganisationObligationHydrationOptions { MaxDownstreamRequestsPerMinute = 180 }
+        );
+        await subject.ObserveWorkload(1971, TestContext.Current.CancellationToken);
         for (var index = 0; index < 5; index++)
             await subject.ObserveRead(
-                TimeSpan.FromMilliseconds(100),
+                TimeSpan.FromMilliseconds(10.9),
                 succeeded: true,
                 TestContext.Current.CancellationToken
             );
 
-        for (var index = 0; index < 4; index++)
+        for (var index = 0; index < 5; index++)
             await subject.ObserveRead(
-                TimeSpan.FromMilliseconds(300),
+                TimeSpan.FromMilliseconds(25.5),
                 succeeded: true,
                 TestContext.Current.CancellationToken
             );
 
         var status = await subject.GetStatus(TestContext.Current.CancellationToken);
-        status.EffectiveRequestsPerMinute.Should().Be(16);
-        status.BackoffReason.Should().Be("Downstream latency increased from 100ms to 188.9ms");
-        status.RecentDownstreamLatencyMilliseconds.Should().BeApproximately(188.9, 0.1);
+        status.DesiredRequestsPerMinute.Should().Be(66);
+        status.EffectiveRequestsPerMinute.Should().Be(66);
+        status.BackoffReason.Should().BeNull();
     }
 
     [Fact]
@@ -212,7 +215,7 @@ public class OrganisationObligationRequestPacerTests
     }
 
     [Fact]
-    public async Task ObserveRead_WhenColdStartLatencyImproves_ShouldRecalibrateTheBaseline()
+    public async Task ObserveRead_WhenHistoricalLatencyIsLower_ShouldNotReduceTheTargetRate()
     {
         var subject = CreateSubject(new PacingStateStore());
         await subject.ObserveWorkload(600, TestContext.Current.CancellationToken);
@@ -238,8 +241,31 @@ public class OrganisationObligationRequestPacerTests
             );
 
         var status = await subject.GetStatus(TestContext.Current.CancellationToken);
-        status.EffectiveRequestsPerMinute.Should().Be(16);
-        status.BackoffReason.Should().Be("Downstream latency increased from 100ms to 200ms");
+        status.EffectiveRequestsPerMinute.Should().Be(20);
+        status.BackoffReason.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ObserveRead_WhenFailureRateRecovers_ShouldRestoreTheTargetRate()
+    {
+        var subject = CreateSubject(new PacingStateStore());
+        await subject.ObserveWorkload(600, TestContext.Current.CancellationToken);
+        await subject.ObserveRead(
+            TimeSpan.FromMilliseconds(100),
+            succeeded: false,
+            TestContext.Current.CancellationToken
+        );
+
+        for (var index = 0; index < 10; index++)
+            await subject.ObserveRead(
+                TimeSpan.FromMilliseconds(100),
+                succeeded: true,
+                TestContext.Current.CancellationToken
+            );
+
+        var status = await subject.GetStatus(TestContext.Current.CancellationToken);
+        status.EffectiveRequestsPerMinute.Should().Be(20);
+        status.BackoffReason.Should().BeNull();
     }
 
     private static OrganisationObligationRequestPacer CreateSubject(
