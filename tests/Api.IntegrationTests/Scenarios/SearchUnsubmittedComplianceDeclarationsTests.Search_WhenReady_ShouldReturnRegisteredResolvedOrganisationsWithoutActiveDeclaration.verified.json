@@ -4,6 +4,7 @@
       "organisationId": "Guid_1",
       "obligationYear": 2026,
       "registrationType": "DirectProducer",
+      "businessCountry": "GB-WLS",
       "name": "Zeta Packaging",
       "referenceNumber": "100004",
       "recyclingObligationsMet": true,

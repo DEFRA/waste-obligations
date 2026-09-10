@@ -109,6 +109,7 @@ public class UnsubmittedOrganisationsService(
                 OrganisationId = x.OrganisationId,
                 ObligationYear = x.ObligationYear,
                 RegistrationType = x.RegistrationType,
+                BusinessCountry = x.BusinessCountry,
                 Name = x.Name,
                 ReferenceNumber = x.ReferenceNumber!,
                 RecyclingObligationsMet = x.RecyclingObligationsMet,

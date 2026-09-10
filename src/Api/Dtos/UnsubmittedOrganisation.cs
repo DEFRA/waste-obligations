@@ -13,6 +13,9 @@ public record UnsubmittedOrganisation
     [JsonPropertyName("registrationType")]
     public RegistrationType RegistrationType { get; init; }
 
+    [JsonPropertyName("businessCountry")]
+    public string? BusinessCountry { get; init; }
+
     [JsonPropertyName("name")]
     public required string Name { get; init; }
 

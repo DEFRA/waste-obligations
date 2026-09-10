@@ -13,6 +13,7 @@ public record UnsubmittedOrganisationSearchRow
 
     public int ObligationYear { get; init; }
     public RegistrationType RegistrationType { get; init; }
+    public string? BusinessCountry { get; init; }
     public required string Name { get; init; }
     public required string ReferenceNumber { get; init; }
     public bool? RecyclingObligationsMet { get; init; }

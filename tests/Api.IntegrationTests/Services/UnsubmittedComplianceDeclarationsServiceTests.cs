@@ -218,6 +218,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
         );
 
         result.Total.Should().Be(1);
+        result.Rows.Should().ContainSingle().Which.BusinessCountry.Should().Be("GB-WLS");
         result.Rows.Should().ContainSingle().Which.OrganisationId.Should().Be(walesOrganisationId);
         result.Rows.Should().NotContain(x => x.OrganisationId == legacyOrganisationId);
     }

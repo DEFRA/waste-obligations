@@ -58,6 +58,7 @@ public static class SearchUnsubmittedComplianceDeclarations
                     OrganisationId = x.OrganisationId,
                     ObligationYear = x.ObligationYear,
                     RegistrationType = x.RegistrationType.ToDto(),
+                    BusinessCountry = x.BusinessCountry,
                     Name = x.Name,
                     ReferenceNumber = x.ReferenceNumber,
                     RecyclingObligationsMet = x.RecyclingObligationsMet,

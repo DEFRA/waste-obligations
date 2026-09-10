@@ -1923,6 +1923,12 @@
           "registrationType": {
             "$ref": "#/components/schemas/RegistrationType"
           },
+          "businessCountry": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "name": {
             "type": "string"
           },

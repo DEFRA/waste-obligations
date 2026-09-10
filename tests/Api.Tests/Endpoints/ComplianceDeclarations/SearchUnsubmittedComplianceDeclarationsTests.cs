@@ -62,6 +62,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
                             OrganisationId = organisationId,
                             ObligationYear = 2026,
                             RegistrationType = EntityRegistrationType.DirectProducer,
+                            BusinessCountry = "GB-WLS",
                             Name = "Alpha Packaging",
                             ReferenceNumber = "100001",
                             RecyclingObligationsMet = true,

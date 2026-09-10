@@ -36,6 +36,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests : IntegrationTestBase
                 Eligibility(includedOrganisationId, generation, "Alpha Packaging", "100001"),
                 Eligibility(secondIncludedOrganisationId, generation, "Zeta Packaging", "100004") with
                 {
+                    BusinessCountry = "GB-WLS",
                     RecyclingObligationsMet = true,
                     ObligationCoveragePercentage = 80,
                 },
@@ -77,6 +78,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests : IntegrationTestBase
         result.UnsubmittedOrganisations.Should().ContainSingle();
         var row = result.UnsubmittedOrganisations.Single();
         row.OrganisationId.Should().Be(secondIncludedOrganisationId);
+        row.BusinessCountry.Should().Be("GB-WLS");
         row.ReferenceNumber.Should().Be("100004");
         row.ObligationCoveragePercentage.Should().Be(80);
         row.RecyclingObligationsMet.Should().BeTrue();
