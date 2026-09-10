@@ -167,10 +167,15 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
         var result = await subject.ReadObligations(organisationId, year, TestContext.Current.CancellationToken);
 
         result.Should().BeEmpty();
-        logger.Entries.Should().ContainSingle();
-        logger.Entries[0].Level.Should().Be(LogLevel.Information);
+        logger.Entries.Should().HaveCount(2);
         logger
             .Entries[0]
+            .Message.Should()
+            .Be($"Sending PRN common backend request with X-EPR-ORGANISATION header value {organisationId:D}");
+        logger.Entries[0].Level.Should().Be(LogLevel.Information);
+        logger.Entries[1].Level.Should().Be(LogLevel.Information);
+        logger
+            .Entries[1]
             .Message.Should()
             .Be(
                 $"PRN common backend has no obligation data for organisation {organisationId} and unsupported obligation year {year}"
@@ -269,6 +274,34 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
         );
 
         result.Should().Be(PrnStatusUpdateResult.Updated);
+    }
+
+    [Fact]
+    public async Task UpdatePrnStatus_ShouldLogOrganisationAndUserHeaderValues()
+    {
+        var logger = new RecordingLogger<PrnCommonBackendService>();
+        var subject = CreateSubject(Context.HttpClient, logger);
+        var organisationId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var statusUpdate = new PrnStatusUpdate { PrnId = Guid.NewGuid(), Status = "ACCEPTED" };
+        WireMock.StubPrnCommonBackendPrnStatusUpdateRequest(statusUpdate, organisationId, userId);
+
+        await subject.UpdatePrnStatus(
+            organisationId,
+            userId,
+            statusUpdate.PrnId.ToString("D"),
+            statusUpdate.Status,
+            TestContext.Current.CancellationToken
+        );
+
+        logger.Entries.Should().ContainSingle();
+        logger.Entries[0].Level.Should().Be(LogLevel.Information);
+        logger
+            .Entries[0]
+            .Message.Should()
+            .Be(
+                $"Sending PRN common backend request with X-EPR-ORGANISATION header value {organisationId:D} and X-EPR-USER header value {userId:D}"
+            );
     }
 
     [Fact]

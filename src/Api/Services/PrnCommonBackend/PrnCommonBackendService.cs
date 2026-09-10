@@ -10,6 +10,7 @@ public class PrnCommonBackendService(HttpClient httpClient, ILogger<PrnCommonBac
     : IPrnCommonBackendService
 {
     private const string OrganisationHeaderName = "X-EPR-ORGANISATION";
+    private const string UserHeaderName = "X-EPR-USER";
 
     public async Task<IEnumerable<Obligation>> ReadObligations(
         Guid organisationId,
@@ -23,7 +24,7 @@ public class PrnCommonBackendService(HttpClient httpClient, ILogger<PrnCommonBac
             organisationId
         );
 
-        var response = await httpClient.SendAsync(request, cancellationToken);
+        var response = await Send(request, cancellationToken);
         if (response.StatusCode == HttpStatusCode.NotFound)
             return [];
 
@@ -56,7 +57,7 @@ public class PrnCommonBackendService(HttpClient httpClient, ILogger<PrnCommonBac
 
         var request = CreateOrganisationRequest(HttpMethod.Get, $"api/v1/prn/{commonBackendPrnId:D}", organisationId);
 
-        var response = await httpClient.SendAsync(request, cancellationToken);
+        var response = await Send(request, cancellationToken);
         if (response.StatusCode == HttpStatusCode.NotFound)
             return null;
 
@@ -84,7 +85,7 @@ public class PrnCommonBackendService(HttpClient httpClient, ILogger<PrnCommonBac
         );
         var request = CreateOrganisationRequest(HttpMethod.Get, path, organisationId);
 
-        var response = await httpClient.SendAsync(request, cancellationToken);
+        var response = await Send(request, cancellationToken);
         response.EnsureSuccessStatusCode();
 
         var result = await response.Content.ReadFromJsonAsync<PrnSearchResponse>(cancellationToken);
@@ -100,6 +101,30 @@ public class PrnCommonBackendService(HttpClient httpClient, ILogger<PrnCommonBac
         return request;
     }
 
+    private async Task<HttpResponseMessage> Send(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        var organisationId = request.Headers.GetValues(OrganisationHeaderName).Single();
+
+        if (request.Headers.TryGetValues(UserHeaderName, out var userHeaderValues))
+        {
+            var userId = userHeaderValues.Single();
+            logger.LogInformation(
+                "Sending PRN common backend request with X-EPR-ORGANISATION header value {OrganisationId} and X-EPR-USER header value {UserId}",
+                organisationId,
+                userId
+            );
+        }
+        else
+        {
+            logger.LogInformation(
+                "Sending PRN common backend request with X-EPR-ORGANISATION header value {OrganisationId}",
+                organisationId
+            );
+        }
+
+        return await httpClient.SendAsync(request, cancellationToken);
+    }
+
     public async Task<PrnStatusUpdateResult> UpdatePrnStatus(
         Guid organisationId,
         Guid userId,
@@ -112,7 +137,7 @@ public class PrnCommonBackendService(HttpClient httpClient, ILogger<PrnCommonBac
             return PrnStatusUpdateResult.NotFound;
 
         var request = CreateOrganisationRequest(HttpMethod.Post, "api/v1/prn/status", organisationId);
-        request.Headers.Add("X-EPR-USER", userId.ToString("D"));
+        request.Headers.Add(UserHeaderName, userId.ToString("D"));
         request.Content = JsonContent.Create(
             new[]
             {
@@ -120,7 +145,7 @@ public class PrnCommonBackendService(HttpClient httpClient, ILogger<PrnCommonBac
             }
         );
 
-        var response = await httpClient.SendAsync(request, cancellationToken);
+        var response = await Send(request, cancellationToken);
 
         return response.StatusCode switch
         {
