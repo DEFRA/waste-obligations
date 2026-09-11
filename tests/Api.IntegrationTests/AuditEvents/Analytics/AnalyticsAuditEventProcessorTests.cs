@@ -361,7 +361,7 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
         var services = new ServiceCollection();
         services.AddSingleton(database);
         services.AddSingleton(timeProvider);
-        services.AddSingleton(sender);
+        services.AddSingleton<IAnalyticsEventSender>(sender);
         services.AddSingleton(auditEventMetrics);
         services.AddLogging();
         services.AddScoped<IAuditEventDbContext, AuditEventDbContext>();

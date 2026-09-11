@@ -80,6 +80,51 @@ public class OrganisationObligationRequestPacerTests
     }
 
     [Fact]
+    public async Task ObserveWorkload_WhenSummariesAreDue_ShouldIncreaseTheTargetRateToCatchUp()
+    {
+        var subject = CreateSubject(
+            new PacingStateStore(),
+            hydrationOptions: new OrganisationObligationHydrationOptions { MaxDownstreamRequestsPerMinute = 180 }
+        );
+
+        await subject.ObserveWorkload(1971, 646, TestContext.Current.CancellationToken);
+
+        (await subject.GetStatus(TestContext.Current.CancellationToken))
+            .Should()
+            .BeEquivalentTo(
+                new
+                {
+                    DesiredRequestsPerMinute = 88,
+                    EffectiveRequestsPerMinute = 88,
+                    BackoffReason = (string?)null,
+                    RecentDownstreamLatencyMilliseconds = (double?)null,
+                    RecentDownstreamFailurePercentage = 0d,
+                }
+            );
+    }
+
+    [Fact]
+    public async Task ObserveWorkload_WhenTheCatchUpTargetExceedsTheSafetyCeiling_ShouldApplyTheSafetyCeiling()
+    {
+        var subject = CreateSubject(new PacingStateStore());
+
+        await subject.ObserveWorkload(600, 600, TestContext.Current.CancellationToken);
+
+        (await subject.GetStatus(TestContext.Current.CancellationToken))
+            .Should()
+            .BeEquivalentTo(
+                new
+                {
+                    DesiredRequestsPerMinute = 40,
+                    EffectiveRequestsPerMinute = 20,
+                    BackoffReason = (string?)null,
+                    RecentDownstreamLatencyMilliseconds = (double?)null,
+                    RecentDownstreamFailurePercentage = 0d,
+                }
+            );
+    }
+
+    [Fact]
     public async Task ObserveWorkload_WhenThereIsNoPacingStateAndNoActiveWork_ShouldNotPersistState()
     {
         var pacingStateStore = new PacingStateStore();

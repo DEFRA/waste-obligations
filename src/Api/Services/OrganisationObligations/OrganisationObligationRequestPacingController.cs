@@ -13,11 +13,15 @@ public static class OrganisationObligationRequestPacingController
     public static OrganisationObligationRequestPacingState ObserveWorkload(
         OrganisationObligationRequestPacingState state,
         int activeSummaryCount,
+        int dueSummaryCount,
         OrganisationObligationHydrationOptions options
     )
     {
         state = Normalise(state);
-        state = state with { DesiredRequestsPerMinute = RequiredRequestsPerMinute(activeSummaryCount, options) };
+        state = state with
+        {
+            DesiredRequestsPerMinute = RequiredRequestsPerMinute(activeSummaryCount + dueSummaryCount, options),
+        };
 
         return UpdateEffectiveRate(state, options);
     }

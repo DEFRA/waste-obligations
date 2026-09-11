@@ -122,8 +122,8 @@ public class OrganisationObligationHydrationWorkerTests
         var leaseService = Substitute.For<IOrganisationObligationHydrationLeaseService>();
         leaseService.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
         var hydrationService = Substitute.For<IOrganisationObligationHydrationService>();
-        var currentWork = PreparedWork(2026, activeSummaryCount: 90);
-        var incomingWork = PreparedWork(2027, activeSummaryCount: 10);
+        var currentWork = PreparedWork(2026, activeSummaryCount: 90, dueSummaryCount: 20);
+        var incomingWork = PreparedWork(2027, activeSummaryCount: 10, dueSummaryCount: 3);
         hydrationService.PrepareDueWork(2026, Arg.Any<CancellationToken>()).Returns(currentWork);
         hydrationService.PrepareDueWork(2027, Arg.Any<CancellationToken>()).Returns(incomingWork);
         var currentYearHydrated = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -154,9 +154,9 @@ public class OrganisationObligationHydrationWorkerTests
         await currentYearHydrated.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         await subject.StopAsync(TestContext.Current.CancellationToken);
 
-        await requestPacer.Received(1).ObserveWorkload(100, Arg.Any<CancellationToken>());
+        await requestPacer.Received(1).ObserveWorkload(100, 23, Arg.Any<CancellationToken>());
         await requestPacer.Received(1).GetStatus(Arg.Any<CancellationToken>());
-        metrics.Received(1).QueueObserved(100, 100);
+        metrics.Received(1).QueueObserved(100, 23);
         metrics.Received(1).CapacityObserved(100, 20, 20, 20, TimeSpan.FromMinutes(30));
         await hydrationService
             .Received(1)
@@ -201,7 +201,7 @@ public class OrganisationObligationHydrationWorkerTests
         await incomingYearHydrated.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         await subject.StopAsync(TestContext.Current.CancellationToken);
 
-        await requestPacer.Received(1).ObserveWorkload(10, Arg.Any<CancellationToken>());
+        await requestPacer.Received(1).ObserveWorkload(10, 10, Arg.Any<CancellationToken>());
         await hydrationService
             .DidNotReceive()
             .HydratePreparedDueWork(
@@ -251,7 +251,7 @@ public class OrganisationObligationHydrationWorkerTests
         await currentYearHydrated.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         await subject.StopAsync(TestContext.Current.CancellationToken);
 
-        await requestPacer.Received(1).ObserveWorkload(10, Arg.Any<CancellationToken>());
+        await requestPacer.Received(1).ObserveWorkload(10, 10, Arg.Any<CancellationToken>());
         await hydrationService
             .Received(1)
             .HydratePreparedDueWork(currentWork, Arg.Any<CancellationToken>(), 10, false, false);
@@ -305,7 +305,7 @@ public class OrganisationObligationHydrationWorkerTests
         await subject.StopAsync(TestContext.Current.CancellationToken);
 
         await hydrationService.Received(1).EnqueueReconciliation(2026, cutover, Arg.Any<CancellationToken>());
-        await requestPacer.Received(1).ObserveWorkload(100, Arg.Any<CancellationToken>());
+        await requestPacer.Received(1).ObserveWorkload(100, 100, Arg.Any<CancellationToken>());
         await hydrationService
             .Received(1)
             .HydratePreparedDueWork(outgoingWork, Arg.Any<CancellationToken>(), 6, true, false);
@@ -356,12 +356,13 @@ public class OrganisationObligationHydrationWorkerTests
 
     private static OrganisationObligationHydrationPreparedWork PreparedWork(
         int obligationYear,
-        int activeSummaryCount
+        int activeSummaryCount,
+        int? dueSummaryCount = null
     ) =>
         new()
         {
             ObligationYear = obligationYear,
             ActiveSummaryCount = activeSummaryCount,
-            DueSummaryCount = activeSummaryCount,
+            DueSummaryCount = dueSummaryCount ?? activeSummaryCount,
         };
 }
