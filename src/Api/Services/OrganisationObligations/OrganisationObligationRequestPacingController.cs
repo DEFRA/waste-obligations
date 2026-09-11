@@ -5,9 +5,8 @@ namespace Defra.WasteObligations.Api.Services.OrganisationObligations;
 public static class OrganisationObligationRequestPacingController
 {
     private const int SampleCount = 10;
-    private const int MinimumSuccessfulReadSamplesForLatencyBackoff = 5;
+    private const int MinimumSuccessfulReadSamplesForBaseline = 5;
     private const double FailureRateBackoffThresholdPercentage = 10;
-    private const double LatencyIncreaseBackoffFactor = 1.5;
     private const double BackoffFactor = 0.8;
     private const double RecoveryIncrement = 0.1;
 
@@ -58,21 +57,6 @@ public static class OrganisationObligationRequestPacingController
                 state,
                 $"Downstream read failure rate is {state.RecentDownstreamFailurePercentage:0.#}%",
                 !succeeded,
-                options
-            );
-        }
-
-        if (
-            state.BaselineDownstreamLatencyMilliseconds is not null
-            && state.RecentDownstreamLatencyMilliseconds is not null
-            && state.RecentDownstreamLatencyMilliseconds
-                > state.BaselineDownstreamLatencyMilliseconds * LatencyIncreaseBackoffFactor
-        )
-        {
-            return BackOffIfNeeded(
-                state,
-                $"Downstream latency increased from {state.BaselineDownstreamLatencyMilliseconds:0.#}ms to {state.RecentDownstreamLatencyMilliseconds:0.#}ms",
-                shouldCompoundBackoff: false,
                 options
             );
         }
@@ -154,7 +138,7 @@ public static class OrganisationObligationRequestPacingController
     {
         if (
             averageLatencyMilliseconds is null
-            || SuccessfulReadCount(recentReads) < MinimumSuccessfulReadSamplesForLatencyBackoff
+            || SuccessfulReadCount(recentReads) < MinimumSuccessfulReadSamplesForBaseline
         )
         {
             return state.BaselineDownstreamLatencyMilliseconds;
