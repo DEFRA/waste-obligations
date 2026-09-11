@@ -74,6 +74,7 @@ public class StartupTests(ApiWebApplicationFactory factory) : IClassFixture<ApiW
                             MaximumAttempts = 2,
                         }
                     ),
+                    TimeProvider.System,
                     logger
                 ));
             });

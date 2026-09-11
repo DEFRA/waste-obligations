@@ -6,6 +6,7 @@ public class MongoMigrationService(
     IMongoMigrationLeaseService leaseService,
     IMongoMigrationRunner migrationRunner,
     IOptions<MongoMigrationOptions> options,
+    TimeProvider timeProvider,
     ILogger<MongoMigrationService> logger
 ) : BackgroundService
 {
@@ -20,6 +21,8 @@ public class MongoMigrationService(
         {
             var waitingForLease = false;
             var failedLeaseAcquisitions = 0;
+            var leaseAcquisitionStartedAt = timeProvider.GetUtcNow();
+            var leaseAcquisitionAlertLogged = false;
 
             while (!stoppingToken.IsCancellationRequested)
             {
@@ -37,6 +40,10 @@ public class MongoMigrationService(
                         logger.LogError(exception, "Mongo migration lease acquisition failed. Retrying.");
                     }
                     failedLeaseAcquisitions++;
+                    leaseAcquisitionAlertLogged = LogLeaseAcquisitionAlertIfRequired(
+                        leaseAcquisitionStartedAt,
+                        leaseAcquisitionAlertLogged
+                    );
                     await Task.Delay(LeaseRetryDelay, stoppingToken);
                     continue;
                 }
@@ -48,6 +55,10 @@ public class MongoMigrationService(
                         waitingForLease = true;
                     }
 
+                    leaseAcquisitionAlertLogged = LogLeaseAcquisitionAlertIfRequired(
+                        leaseAcquisitionStartedAt,
+                        leaseAcquisitionAlertLogged
+                    );
                     await Task.Delay(LeaseRetryDelay, stoppingToken);
                     continue;
                 }
@@ -61,6 +72,25 @@ public class MongoMigrationService(
         {
             return;
         }
+    }
+
+    private bool LogLeaseAcquisitionAlertIfRequired(DateTimeOffset leaseAcquisitionStartedAt, bool alertLogged)
+    {
+        if (alertLogged)
+            return true;
+
+        var leaseWaitDuration = timeProvider.GetUtcNow() - leaseAcquisitionStartedAt;
+        var alertThreshold = TimeSpan.FromSeconds(options.Value.LeaseAcquisitionAlertThresholdSeconds);
+
+        if (leaseWaitDuration < alertThreshold)
+            return false;
+
+        logger.LogError(
+            "Mongo migration lease has not been acquired after {LeaseWaitDuration}. Retrying while the API remains healthy.",
+            leaseWaitDuration
+        );
+
+        return true;
     }
 
     private async Task RunMigrationsWithLease(TimeSpan leaseDuration, CancellationToken stoppingToken)

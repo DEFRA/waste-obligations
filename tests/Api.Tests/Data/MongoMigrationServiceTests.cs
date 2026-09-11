@@ -3,6 +3,7 @@ using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Testing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 
 namespace Defra.WasteObligations.Api.Tests.Data;
@@ -216,6 +217,51 @@ public class MongoMigrationServiceTests
     }
 
     [Fact]
+    public async Task Execute_WhenMigrationLeaseIsUnavailablePastAlertThreshold_ShouldLogAnError()
+    {
+        using var stopping = new CancellationTokenSource();
+        var timeProvider = new FakeTimeProvider();
+        var leaseService = Substitute.For<IMongoMigrationLeaseService>();
+        leaseService
+            .TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                timeProvider.Advance(TimeSpan.FromSeconds(300));
+                stopping.Cancel();
+
+                return Task.FromResult(false);
+            });
+        var migrationRunner = Substitute.For<IMongoMigrationRunner>();
+        var logger = new RecordingLogger<MongoMigrationService>();
+        var subject = CreateSubject(
+            leaseService,
+            migrationRunner,
+            new MongoMigrationOptions
+            {
+                LeaseDurationSeconds = 2,
+                LeaseRenewalIntervalSeconds = 1,
+                AttemptTimeoutSeconds = 1,
+                RetryDelaySeconds = 1,
+                LeaseAcquisitionAlertThresholdSeconds = 300,
+                MaximumAttempts = 1,
+            },
+            logger,
+            timeProvider
+        );
+
+        var execution = subject.Execute(stopping.Token);
+        await execution;
+
+        logger
+            .Entries.Should()
+            .Contain(x =>
+                x.Level == LogLevel.Error
+                && x.Message.Contains("Mongo migration lease has not been acquired after 00:05:00")
+            );
+        await migrationRunner.DidNotReceive().Run(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Execute_WhenMigrationFailsAndLeaseReleaseFails_ShouldLogBothFailures()
     {
         var leaseService = Substitute.For<IMongoMigrationLeaseService>();
@@ -257,7 +303,8 @@ public class MongoMigrationServiceTests
         IMongoMigrationLeaseService leaseService,
         IMongoMigrationRunner migrationRunner,
         MongoMigrationOptions? options = null,
-        ILogger<MongoMigrationService>? logger = null
+        ILogger<MongoMigrationService>? logger = null,
+        TimeProvider? timeProvider = null
     ) =>
         new(
             leaseService,
@@ -273,6 +320,7 @@ public class MongoMigrationServiceTests
                         MaximumAttempts = 2,
                     }
             ),
+            timeProvider ?? TimeProvider.System,
             logger ?? Substitute.For<ILogger<MongoMigrationService>>()
         );
 
@@ -280,8 +328,9 @@ public class MongoMigrationServiceTests
         IMongoMigrationLeaseService leaseService,
         IMongoMigrationRunner migrationRunner,
         IOptions<MongoMigrationOptions> options,
+        TimeProvider timeProvider,
         ILogger<MongoMigrationService> logger
-    ) : MongoMigrationService(leaseService, migrationRunner, options, logger)
+    ) : MongoMigrationService(leaseService, migrationRunner, options, timeProvider, logger)
     {
         public Task Execute(CancellationToken stoppingToken) => ExecuteAsync(stoppingToken);
     }

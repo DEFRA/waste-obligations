@@ -76,6 +76,7 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             new MongoMigrationLeaseService(database, TimeProvider.System),
             new MongoMigrationRunner(database, Substitute.For<ILogger<MongoMigrationRunner>>()),
             Options.Create(new MongoMigrationOptions()),
+            TimeProvider.System,
             Substitute.For<ILogger<MongoMigrationService>>()
         );
         await database.DropCollectionAsync("_migrations", TestContext.Current.CancellationToken);

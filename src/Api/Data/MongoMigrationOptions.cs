@@ -18,6 +18,9 @@ public record MongoMigrationOptions
     [Range(1, 3600)]
     public int RetryDelaySeconds { get; init; } = 30;
 
+    [Range(1, 86400)]
+    public int LeaseAcquisitionAlertThresholdSeconds { get; init; } = 300;
+
     [Range(1, 10)]
     public int MaximumAttempts { get; init; } = 3;
 }
