@@ -217,6 +217,24 @@ public class MongoMigrationServiceTests
     }
 
     [Fact]
+    public async Task Execute_WhenLeaseBecomesAvailableAfterRetry_ShouldRunMigrations()
+    {
+        var timeProvider = new FakeTimeProvider();
+        var leaseService = Substitute.For<IMongoMigrationLeaseService>();
+        leaseService.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(false, true);
+        var migrationRunner = Substitute.For<IMongoMigrationRunner>();
+        var subject = CreateSubject(leaseService, migrationRunner, timeProvider: timeProvider);
+        var execution = subject.Execute(TestContext.Current.CancellationToken);
+
+        timeProvider.Advance(TimeSpan.FromSeconds(5));
+        await execution;
+
+        await leaseService.Received(2).TryAcquire(TimeSpan.FromSeconds(2), Arg.Any<CancellationToken>());
+        await migrationRunner.Received(1).Run(Arg.Any<CancellationToken>());
+        await leaseService.Received(1).Release(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Execute_WhenMigrationLeaseIsUnavailablePastAlertThreshold_ShouldLogAnError()
     {
         using var stopping = new CancellationTokenSource();

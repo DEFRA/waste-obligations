@@ -19,7 +19,6 @@ public class MongoMigrationService(
 
         try
         {
-            var waitingForLease = false;
             var failedLeaseAcquisitions = 0;
             var leaseAcquisitionStartedAt = timeProvider.GetUtcNow();
             var leaseAcquisitionAlertLogged = false;
@@ -40,22 +39,21 @@ public class MongoMigrationService(
                         logger.LogError(exception, "Mongo migration lease acquisition failed. Retrying.");
                     }
                     failedLeaseAcquisitions++;
-                    if (!leaseAcquisitionAlertLogged)
-                        leaseAcquisitionAlertLogged = LogLeaseAcquisitionAlertIfRequired(leaseAcquisitionStartedAt);
-                    await Task.Delay(LeaseRetryDelay, stoppingToken);
+                    leaseAcquisitionAlertLogged = await WaitForLeaseRetry(
+                        leaseAcquisitionStartedAt,
+                        leaseAcquisitionAlertLogged,
+                        stoppingToken
+                    );
                     continue;
                 }
 
                 if (!acquired)
                 {
-                    if (!waitingForLease)
-                    {
-                        waitingForLease = true;
-                    }
-
-                    if (!leaseAcquisitionAlertLogged)
-                        leaseAcquisitionAlertLogged = LogLeaseAcquisitionAlertIfRequired(leaseAcquisitionStartedAt);
-                    await Task.Delay(LeaseRetryDelay, stoppingToken);
+                    leaseAcquisitionAlertLogged = await WaitForLeaseRetry(
+                        leaseAcquisitionStartedAt,
+                        leaseAcquisitionAlertLogged,
+                        stoppingToken
+                    );
                     continue;
                 }
 
@@ -84,6 +82,20 @@ public class MongoMigrationService(
         );
 
         return true;
+    }
+
+    private async Task<bool> WaitForLeaseRetry(
+        DateTimeOffset leaseAcquisitionStartedAt,
+        bool leaseAcquisitionAlertLogged,
+        CancellationToken stoppingToken
+    )
+    {
+        if (!leaseAcquisitionAlertLogged)
+            leaseAcquisitionAlertLogged = LogLeaseAcquisitionAlertIfRequired(leaseAcquisitionStartedAt);
+
+        await Task.Delay(LeaseRetryDelay, timeProvider, stoppingToken);
+
+        return leaseAcquisitionAlertLogged;
     }
 
     private async Task RunMigrationsWithLease(TimeSpan leaseDuration, CancellationToken stoppingToken)
