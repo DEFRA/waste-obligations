@@ -159,6 +159,66 @@ public class OrganisationEligibilityRefreshWorkerTests
     }
 
     [Fact]
+    public async Task Start_WhenLeaseRenewalThrows_ShouldCancelRefreshAndReleaseLease()
+    {
+        var leaseService = Substitute.For<IOrganisationEligibilityRefreshLeaseService>();
+        leaseService.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
+        var renewalAttempted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        leaseService
+            .TryRenew(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                renewalAttempted.TrySetResult();
+
+                return Task.FromException<bool>(new InvalidOperationException());
+            });
+        var released = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        leaseService
+            .Release(CancellationToken.None)
+            .Returns(_ =>
+            {
+                released.TrySetResult();
+
+                return Task.CompletedTask;
+            });
+        var refreshService = Substitute.For<IOrganisationEligibilityRefreshService>();
+        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var refreshCompletion = new TaskCompletionSource<OrganisationEligibilityRefreshResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        refreshService
+            .Refresh(Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var cancellationToken = callInfo.Arg<CancellationToken>();
+                cancellationToken.Register(() =>
+                {
+                    cancelled.TrySetResult();
+                    refreshCompletion.TrySetCanceled(cancellationToken);
+                });
+
+                return refreshCompletion.Task;
+            });
+        var logger = new RecordingLogger<OrganisationEligibilityRefreshWorker>();
+        var subject = CreateSubject(
+            leaseService,
+            refreshService,
+            refreshLeaseRenewalIntervalSeconds: 1,
+            logger: logger
+        );
+
+        await subject.StartAsync(CancellationToken.None);
+        await renewalAttempted.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await released.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await subject.StopAsync(CancellationToken.None);
+
+        logger.Messages.Should().Contain("Organisation eligibility refresh lease renewal failed");
+        await leaseService.Received(1).TryRenew(TimeSpan.FromSeconds(300), Arg.Any<CancellationToken>());
+        await leaseService.Received(1).Release(CancellationToken.None);
+    }
+
+    [Fact]
     public async Task Start_WhenRefreshFails_ShouldLogTheFailureAndReleaseLease()
     {
         var leaseService = Substitute.For<IOrganisationEligibilityRefreshLeaseService>();
