@@ -262,6 +262,46 @@ public class MongoMigrationServiceTests
     }
 
     [Fact]
+    public async Task Execute_WhenHostStopsDuringMigrationRetryDelay_ShouldReleaseLease()
+    {
+        using var stopping = new CancellationTokenSource();
+        var leaseService = Substitute.For<IMongoMigrationLeaseService>();
+        leaseService.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
+        var migrationRunner = Substitute.For<IMongoMigrationRunner>();
+        migrationRunner.Run(Arg.Any<CancellationToken>()).Returns(Task.FromException(new InvalidOperationException()));
+        var logger = new RecordingLogger<MongoMigrationService>();
+        var subject = CreateSubject(
+            leaseService,
+            migrationRunner,
+            new MongoMigrationOptions
+            {
+                LeaseDurationSeconds = 2,
+                LeaseRenewalIntervalSeconds = 60,
+                AttemptTimeoutSeconds = 1,
+                RetryDelaySeconds = 60,
+                MaximumAttempts = 2,
+            },
+            logger
+        );
+        var execution = subject.Execute(stopping.Token);
+
+        await AsyncWaiter.WaitForAsync(
+            () =>
+            {
+                logger.Messages.Should().Contain(message => message.Contains("Retrying in 00:01:00"));
+
+                return Task.CompletedTask;
+            },
+            timeout: 5,
+            delay: TimeSpan.FromMilliseconds(10)
+        );
+        await stopping.CancelAsync();
+        await execution;
+
+        await leaseService.Received(1).Release(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Execute_WhenMigrationFailsAndLeaseReleaseFails_ShouldLogBothFailures()
     {
         var leaseService = Substitute.For<IMongoMigrationLeaseService>();

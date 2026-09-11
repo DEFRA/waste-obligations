@@ -223,29 +223,27 @@ public class OrganisationObligationHydrationWorker(
     {
         using var renewalTimer = new PeriodicTimer(TimeSpan.FromSeconds(options.Value.LeaseRenewalIntervalSeconds));
 
-        while (!renewalCancellationToken.IsCancellationRequested)
+        try
         {
-            try
+            while (await renewalTimer.WaitForNextTickAsync(renewalCancellationToken))
             {
-                if (!await renewalTimer.WaitForNextTickAsync(renewalCancellationToken))
-                    return;
-
                 if (await leaseService.TryRenew(leaseDuration, renewalCancellationToken))
                     continue;
 
                 logger.LogError("Organisation obligation hydration stopped because its lease was not renewed");
+
+                await hydrationCancellationTokenSource.CancelAsync();
             }
-            catch (OperationCanceledException) when (renewalCancellationToken.IsCancellationRequested)
-            {
-                return;
-            }
-            catch (Exception exception)
-            {
-                logger.LogError(exception, "Organisation obligation hydration lease renewal failed");
-            }
+        }
+        catch (OperationCanceledException) when (renewalCancellationToken.IsCancellationRequested)
+        {
+            // Expected when hydration processing stops.
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Organisation obligation hydration lease renewal failed");
 
             await hydrationCancellationTokenSource.CancelAsync();
-            return;
         }
     }
 }

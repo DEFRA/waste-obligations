@@ -112,29 +112,27 @@ public class OrganisationEligibilityRefreshWorker(
             TimeSpan.FromSeconds(options.Value.RefreshLeaseRenewalIntervalSeconds)
         );
 
-        while (!renewalCancellationToken.IsCancellationRequested)
+        try
         {
-            try
+            while (await renewalTimer.WaitForNextTickAsync(renewalCancellationToken))
             {
-                if (!await renewalTimer.WaitForNextTickAsync(renewalCancellationToken))
-                    return;
-
                 if (await leaseService.TryRenew(leaseDuration, renewalCancellationToken))
                     continue;
 
                 logger.LogError("Organisation eligibility refresh stopped because its lease was not renewed");
+
+                await refreshCancellationTokenSource.CancelAsync();
             }
-            catch (OperationCanceledException) when (renewalCancellationToken.IsCancellationRequested)
-            {
-                return;
-            }
-            catch (Exception exception)
-            {
-                logger.LogError(exception, "Organisation eligibility refresh lease renewal failed");
-            }
+        }
+        catch (OperationCanceledException) when (renewalCancellationToken.IsCancellationRequested)
+        {
+            // Expected when refresh processing stops.
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Organisation eligibility refresh lease renewal failed");
 
             await refreshCancellationTokenSource.CancelAsync();
-            return;
         }
     }
 
