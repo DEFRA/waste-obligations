@@ -153,6 +153,8 @@ public class EmailService(
         {
             logger.LogError(exception, "Cancellation email could not be sent");
             emailMetrics.SendFaulted(templateName, language, exception);
+
+            // intentionally swallowed as failure to send an email should not break anything
         }
         finally
         {
