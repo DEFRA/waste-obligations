@@ -184,7 +184,7 @@ sequenceDiagram
 
 The processor reads audit events where `dispatches.analytics` does not exist, or where it is `Failed` and `nextAttemptAt` is due. Each event is mapped to the analytics envelope:
 
-- `eventId`, `sequence`, `entity`, `eventType`, timestamps, actor, version, `before`, and `after` are copied from the audit event.
+- `eventId`, `sequence`, `entity`, `eventType`, timestamps, actor, version, `before`, and `after` are copied from the audit event. Submission and status-amendment events record their responsible user as `user:<UUID>`; the system-driven deletion flow records `service:waste-obligations`.
 - `entityId` is changed from the raw ObjectId string to `compliance_declaration_{objectId}`.
 - `insert` is mapped to the envelope operation `create`; `update` and `delete` are unchanged.
 - `schemaVersion` is changed from `v1.3` to `compliance_declaration_v1.3`.

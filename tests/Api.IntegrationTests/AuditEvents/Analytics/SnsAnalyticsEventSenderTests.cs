@@ -30,6 +30,7 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
         root.GetProperty("entityId").GetString().Should().Be($"compliance_declaration_{complianceDeclaration.Id}");
         root.GetProperty("operation").GetString().Should().Be("create");
         root.GetProperty("eventType").GetString().Should().Be("submission.created");
+        root.GetProperty("actor").GetString().Should().Be("user:e72be574-8b5b-4836-af47-dd7e0c0d1d87");
         root.GetProperty("deletedReason").ValueKind.Should().Be(JsonValueKind.Null);
         root.GetProperty("piiKeyRef").ValueKind.Should().Be(JsonValueKind.Null);
         root.TryGetProperty("correlationId", out _).Should().BeFalse();
@@ -72,6 +73,7 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
         root.GetProperty("entityId").GetString().Should().Be($"compliance_declaration_{complianceDeclaration.Id}");
         root.GetProperty("operation").GetString().Should().Be("update");
         root.GetProperty("eventType").GetString().Should().Be("submission.amended");
+        root.GetProperty("actor").GetString().Should().Be("user:7e91f2ac-5b44-4c8d-ae73-1d9f62b8e0f4");
         root.GetProperty("deletedReason").ValueKind.Should().Be(JsonValueKind.Null);
         root.GetProperty("piiKeyRef").ValueKind.Should().Be(JsonValueKind.Null);
         root.GetProperty("correlationId").GetString().Should().Be(TraceId);
@@ -106,6 +108,7 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
         root.GetProperty("entityId").GetString().Should().Be($"compliance_declaration_{complianceDeclaration.Id}");
         root.GetProperty("operation").GetString().Should().Be("delete");
         root.GetProperty("eventType").GetString().Should().Be("submission.removed");
+        root.GetProperty("actor").GetString().Should().Be("service:waste-obligations");
         root.GetProperty("deletedReason").GetString().Should().Be("elevated_system_allowed_removal");
         root.GetProperty("piiKeyRef").ValueKind.Should().Be(JsonValueKind.Null);
         root.TryGetProperty("correlationId", out _).Should().BeFalse();

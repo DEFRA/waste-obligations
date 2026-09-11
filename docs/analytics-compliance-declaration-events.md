@@ -28,7 +28,7 @@ All analytics events use this generic envelope:
   "piiKeyRef": null,
   "occurredAt": "2026-01-02T03:04:05.000Z",
   "recordedAt": "2026-01-02T03:04:06.000Z",
-  "actor": "service:waste-obligations",
+  "actor": "user:e72be574-8b5b-4836-af47-dd7e0c0d1d87",
   "correlationId": "cdp-request-id",
   "version": 1,
   "before": null,
@@ -49,7 +49,7 @@ All analytics events use this generic envelope:
 | `piiKeyRef` | Always `null`; PII classification and protection are outside the scope of this change. |
 | `occurredAt` | Time the entity change occurred, as a UTC ISO 8601 timestamp with millisecond precision. |
 | `recordedAt` | Time the analytics event was recorded, as a UTC ISO 8601 timestamp with millisecond precision. |
-| `actor` | Service actor that wrote the event. |
+| `actor` | `user:<UUID>` for user submissions and status amendments; `service:waste-obligations` for system-driven deletions. |
 | `correlationId` | The incoming `x-cdp-request-id` when present; omitted when no request ID is available. |
 | `version` | Entity version after the operation. |
 | `before` | Previous entity state. This is `null` for creates. |
@@ -66,7 +66,7 @@ All analytics events use this generic envelope:
 
 ## Controlled vocabulary
 
-The publisher validates the current compliance declaration entity, envelope operation, event type, actor prefix, deletion reason, and schema version before serialising a message. The supported operations are `create`, `update`, and `delete`; actor prefixes are `service`, `user`, `system`, and `integration`; and the supported declaration event types are `submission.created`, `submission.amended`, and `submission.removed`.
+The publisher validates the current compliance declaration entity, envelope operation, event type, actor prefix, deletion reason, and schema version before serialising a message. The supported operations are `create`, `update`, and `delete`; actor prefixes are `service`, `user`, `system`, and `integration`; and the supported declaration event types are `submission.created`, `submission.amended`, and `submission.removed`. Create and update events use the responsible audit user as `user:<UUID>`; the system-driven delete flow retains `service:waste-obligations`.
 
 The only current deletion reason is `elevated_system_allowed_removal`. This replaces the legacy free-text value `elevated system allowed removal`, which remains normalised for undispatched historical outbox events. The governed list maintained with the shared event schema must include `elevated_system_allowed_removal` before additional deletion paths are introduced.
 
@@ -100,7 +100,7 @@ The `before` value is `null`. The `after` value is the created compliance declar
   "piiKeyRef": null,
   "occurredAt": "2026-01-02T03:04:05.000Z",
   "recordedAt": "2026-01-02T03:04:06.000Z",
-  "actor": "service:waste-obligations",
+  "actor": "user:e72be574-8b5b-4836-af47-dd7e0c0d1d87",
   "correlationId": "cdp-request-id",
   "version": 1,
   "before": null,
@@ -183,7 +183,7 @@ The `before` value is the declaration state before the update. The `after` value
   "piiKeyRef": null,
   "occurredAt": "2026-01-02T03:05:05.000Z",
   "recordedAt": "2026-01-02T03:05:06.000Z",
-  "actor": "service:waste-obligations",
+  "actor": "user:e72be574-8b5b-4836-af47-dd7e0c0d1d87",
   "correlationId": "cdp-request-id",
   "version": 2,
   "before": {

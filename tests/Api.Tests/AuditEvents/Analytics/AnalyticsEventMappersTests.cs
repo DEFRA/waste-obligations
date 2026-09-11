@@ -21,7 +21,7 @@ public class AnalyticsEventMappersTests
             .With(x => x.Entity, entity)
             .With(x => x.EntityId, entityId)
             .With(x => x.SchemaVersion, ComplianceDeclaration.SchemaVersionValue)
-            .With(x => x.Actor, "service:waste-obligations")
+            .With(x => x.Actor, "user:e72be574-8b5b-4836-af47-dd7e0c0d1d87")
             .With(x => x.TraceId, traceId)
             .Create();
 
@@ -32,6 +32,7 @@ public class AnalyticsEventMappersTests
         result.EntityId.Should().Be($"{entity}_{entityId}");
         result.Operation.Should().Be("create");
         result.EventType.Should().Be(auditEvent.EventType);
+        result.Actor.Should().Be(auditEvent.Actor);
         result.DeletedReason.Should().Be(auditEvent.DeletedReason);
         result.PiiKeyRef.Should().BeNull();
         result.CorrelationId.Should().Be(traceId);
@@ -45,12 +46,13 @@ public class AnalyticsEventMappersTests
             .ComplianceDeclaration()
             .With(x => x.Operation, "update")
             .With(x => x.EventType, "submission.amended")
-            .With(x => x.Actor, "service:waste-obligations")
+            .With(x => x.Actor, "user:7e91f2ac-5b44-4c8d-ae73-1d9f62b8e0f4")
             .Create();
 
         var result = auditEvent.ToAnalyticsEvent();
 
         result.Operation.Should().Be("update");
+        result.Actor.Should().Be(auditEvent.Actor);
     }
 
     [Fact]
