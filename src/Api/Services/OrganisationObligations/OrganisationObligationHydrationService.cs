@@ -579,7 +579,7 @@ public class OrganisationObligationHydrationService(
         metrics.StalenessObserved(staleSummaryTimes.Count, oldestStaleSummaryAgeSeconds);
         if (staleSummaryTimes.Count > 0)
         {
-            logger.LogWarning(
+            logger.LogError(
                 "Organisation obligation hydration has {StaleSummaryCount} active summaries older than {MaximumSummaryStaleness}. The oldest is {OldestStaleSummaryAgeSeconds} seconds old for obligation year {ObligationYear}",
                 staleSummaryTimes.Count,
                 options.Value.MaximumSummaryStaleness,
