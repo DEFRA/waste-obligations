@@ -9,7 +9,10 @@ public class OrganisationObligationRequestPacer(
     TimeProvider timeProvider
 ) : IOrganisationObligationRequestPacer
 {
-    public async Task ObserveWorkload(int activeSummaryCount, CancellationToken cancellationToken)
+    public Task ObserveWorkload(int activeSummaryCount, CancellationToken cancellationToken) =>
+        ObserveWorkload(activeSummaryCount, dueSummaryCount: 0, cancellationToken: cancellationToken);
+
+    public async Task ObserveWorkload(int activeSummaryCount, int dueSummaryCount, CancellationToken cancellationToken)
     {
         if (activeSummaryCount == 0)
         {
@@ -22,7 +25,12 @@ public class OrganisationObligationRequestPacer(
 
         await pacingStateStore.Update(
             state =>
-                OrganisationObligationRequestPacingController.ObserveWorkload(state, activeSummaryCount, options.Value),
+                OrganisationObligationRequestPacingController.ObserveWorkload(
+                    state,
+                    activeSummaryCount,
+                    dueSummaryCount,
+                    options.Value
+                ),
             cancellationToken
         );
     }

@@ -38,7 +38,7 @@ public class OrganisationObligationHydrationService(
     public async Task<int> HydrateDue(int obligationYear, CancellationToken cancellationToken, int? maximumWork = null)
     {
         var work = await PrepareDueWork(obligationYear, cancellationToken);
-        await requestPacer.ObserveWorkload(work.ActiveSummaryCount, cancellationToken);
+        await requestPacer.ObserveWorkload(work.ActiveSummaryCount, work.DueSummaryCount, cancellationToken);
 
         return await HydratePreparedDueWork(work, cancellationToken, maximumWork);
     }

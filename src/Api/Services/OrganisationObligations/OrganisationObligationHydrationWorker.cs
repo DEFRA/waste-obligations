@@ -166,9 +166,10 @@ public class OrganisationObligationHydrationWorker(
     )
     {
         var totalActiveSummaryCount = currentWork.ActiveSummaryCount + secondaryWork.ActiveSummaryCount;
-        await requestPacer.ObserveWorkload(totalActiveSummaryCount, cancellationToken);
+        var totalDueSummaryCount = currentWork.DueSummaryCount + secondaryWork.DueSummaryCount;
+        await requestPacer.ObserveWorkload(totalActiveSummaryCount, totalDueSummaryCount, cancellationToken);
         var pacing = await requestPacer.GetStatus(cancellationToken);
-        metrics.QueueObserved(totalActiveSummaryCount, currentWork.DueSummaryCount + secondaryWork.DueSummaryCount);
+        metrics.QueueObserved(totalActiveSummaryCount, totalDueSummaryCount);
         metrics.CapacityObserved(
             totalActiveSummaryCount,
             options.Value.MaxDownstreamRequestsPerMinute,
