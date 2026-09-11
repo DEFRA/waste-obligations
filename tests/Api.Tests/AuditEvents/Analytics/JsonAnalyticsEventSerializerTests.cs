@@ -12,7 +12,7 @@ namespace Defra.WasteObligations.Api.Tests.AuditEvents.Analytics;
 public class JsonAnalyticsEventSerializerTests
 {
     private const string Entity = "compliance_declaration";
-    private const string AnalyticsEventSchemaVersion = $"{Entity}.{ComplianceDeclaration.SchemaVersionValue}";
+    private const string AnalyticsEventSchemaVersion = $"{Entity}_{ComplianceDeclaration.SchemaVersionValue}";
     private static readonly ObjectId s_complianceDeclarationId = ObjectId.Parse("65f1f6570bb08052a8a27b01");
     private static readonly Guid s_organisationId = Guid.Parse("5dbef606-3611-42f4-b39f-cad828badc12");
     private static readonly DateTime s_submittedAt = new(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc);
@@ -51,13 +51,13 @@ public class JsonAnalyticsEventSerializerTests
         var analyticsEvent = AnalyticsEventFixture
             .ComplianceDeclaration("01JZ8RXBMTY2K15SJB3PCFN3D0", 122)
             .With(x => x.After, document)
-            .With(x => x.SchemaVersion, "compliance_declaration.v1.2")
+            .With(x => x.SchemaVersion, "compliance_declaration_v1.2")
             .Create();
 
         var result = subject.Serialize(analyticsEvent);
         using var resultDocument = JsonDocument.Parse(result);
 
-        resultDocument.RootElement.GetProperty("schemaVersion").GetString().Should().Be("compliance_declaration.v1.2");
+        resultDocument.RootElement.GetProperty("schemaVersion").GetString().Should().Be("compliance_declaration_v1.2");
         resultDocument
             .RootElement.GetProperty("after")
             .GetProperty("organisation")
@@ -122,7 +122,7 @@ public class JsonAnalyticsEventSerializerTests
             .With(x => x.EntityId, "compliance_declaration_65f1f6570bb08052a8a27b01")
             .With(x => x.Operation, "delete")
             .With(x => x.EventType, "submission.removed")
-            .With(x => x.DeletedReason, "elevated system allowed removal")
+            .With(x => x.DeletedReason, AnalyticsEventVocabulary.ElevatedSystemAllowedRemoval)
             .With(x => x.OccurredAt, new DateTimeOffset(2026, 1, 2, 3, 5, 5, TimeSpan.Zero))
             .With(x => x.RecordedAt, new DateTimeOffset(2026, 1, 2, 3, 5, 6, TimeSpan.Zero))
             .With(x => x.Actor, "service:waste-obligations")
@@ -183,6 +183,27 @@ public class JsonAnalyticsEventSerializerTests
 
         after.GetProperty("dateWithOffset").GetString().Should().Be("2026-01-02T03:04:05+00:00");
         after.GetProperty("dateWithoutOffset").GetString().Should().Be("2026-01-02T03:04:05Z");
+    }
+
+    [Fact]
+    public void Serialize_WhenEnvelopeTimestampsAreWritten_ShouldUseUtcMilliseconds()
+    {
+        var subject = new JsonAnalyticsEventSerializer(
+            new InlineSchemaProvider("""{ "type": "object", "properties": {} }""")
+        );
+        var analyticsEvent = AnalyticsEventFixture
+            .Default("01JZ8RXBMTY2K15SJB3PCFN3D8", 126)
+            .With(x => x.Entity, "test_entity")
+            .With(x => x.SchemaVersion, "test_entity_v1.0")
+            .With(x => x.OccurredAt, new DateTimeOffset(2026, 1, 2, 3, 4, 5, 123, TimeSpan.Zero))
+            .With(x => x.RecordedAt, new DateTimeOffset(2026, 1, 2, 3, 4, 5, 456, TimeSpan.Zero))
+            .Create();
+
+        var result = subject.Serialize(analyticsEvent);
+        using var document = JsonDocument.Parse(result);
+
+        document.RootElement.GetProperty("occurredAt").GetString().Should().Be("2026-01-02T03:04:05.123Z");
+        document.RootElement.GetProperty("recordedAt").GetString().Should().Be("2026-01-02T03:04:05.456Z");
     }
 
     [Fact]

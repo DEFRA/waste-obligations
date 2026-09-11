@@ -39,7 +39,7 @@ public class DeleteComplianceDeclarationTests : IntegrationTestBase
         );
 
         created.Should().NotBeNull();
-        await AssertAnalyticsEventQueued(sqsClient, created.Id, "insert", "submission.created");
+        await AssertAnalyticsEventQueued(sqsClient, created.Id, "create", "submission.created");
 
         var filter = Builders<ComplianceDeclarationEntity>.Filter.Eq(x => x.Id, ObjectId.Parse(created.Id));
         var createdCount = await ComplianceDeclarations.CountDocumentsAsync(
@@ -67,7 +67,7 @@ public class DeleteComplianceDeclarationTests : IntegrationTestBase
             created.Id,
             "delete",
             "submission.removed",
-            "elevated system allowed removal"
+            "elevated_system_allowed_removal"
         );
     }
 }

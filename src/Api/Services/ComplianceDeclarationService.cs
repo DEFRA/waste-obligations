@@ -4,6 +4,7 @@ using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Utils.Logging;
 using Defra.WasteObligations.Api.Utils.Metrics;
 using Defra.WasteObligations.AuditEvents;
+using Defra.WasteObligations.AuditEvents.Analytics;
 using MongoDB.Bson;
 using MongoDB.Driver;
 
@@ -155,7 +156,7 @@ public class ComplianceDeclarationService(
                         ComplianceDeclarationEntity,
                         AuditEventOperation.Delete,
                         "submission.removed",
-                        "elevated system allowed removal",
+                        AnalyticsEventVocabulary.ElevatedSystemAllowedRemoval,
                         current.Id.ToString(),
                         current.Version + 1,
                         current.ToBsonDocument(),

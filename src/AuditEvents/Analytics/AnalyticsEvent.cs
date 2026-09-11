@@ -29,16 +29,22 @@ public record AnalyticsEvent
     [JsonPropertyName("piiKeyRef")]
     public string? PiiKeyRef { get; init; }
 
-    [Description("ISO 8601 extended format with offset")]
+    [Description("UTC ISO 8601 format with millisecond precision")]
+    [JsonConverter(typeof(UtcMillisecondDateTimeOffsetJsonConverter))]
     [JsonPropertyName("occurredAt")]
     public DateTimeOffset OccurredAt { get; init; }
 
-    [Description("ISO 8601 extended format with offset")]
+    [Description("UTC ISO 8601 format with millisecond precision")]
+    [JsonConverter(typeof(UtcMillisecondDateTimeOffsetJsonConverter))]
     [JsonPropertyName("recordedAt")]
     public DateTimeOffset RecordedAt { get; init; }
 
     [JsonPropertyName("actor")]
     public required string Actor { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("correlationId")]
+    public string? CorrelationId { get; init; }
 
     [JsonPropertyName("version")]
     public int Version { get; init; }
