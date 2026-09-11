@@ -39,6 +39,21 @@ public class AnalyticsEventMappersTests
     }
 
     [Fact]
+    public void ToAnalyticsEvent_WhenOutboxOperationIsUpdate_ShouldRetainUpdate()
+    {
+        var auditEvent = AuditEventFixture
+            .ComplianceDeclaration()
+            .With(x => x.Operation, "update")
+            .With(x => x.EventType, "submission.amended")
+            .With(x => x.Actor, "service:waste-obligations")
+            .Create();
+
+        var result = auditEvent.ToAnalyticsEvent();
+
+        result.Operation.Should().Be("update");
+    }
+
+    [Fact]
     public void ToAnalyticsEvent_WhenLegacyDeletionReason_ShouldMapToTheGovernedValue()
     {
         var auditEvent = AuditEventFixture
@@ -75,6 +90,16 @@ public class AnalyticsEventMappersTests
     }
 
     [Fact]
+    public void Validate_WhenOperationIsUnregistered_ShouldThrow()
+    {
+        var analyticsEvent = AnalyticsEventFixture.ComplianceDeclaration().With(x => x.Operation, "merge").Create();
+
+        var act = () => AnalyticsEventVocabulary.Validate(analyticsEvent);
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("Unregistered analytics operation 'merge'.");
+    }
+
+    [Fact]
     public void ToAnalyticsEvent_WhenEventTypeIsUnregistered_ShouldThrow()
     {
         var auditEvent = AuditEventFixture
@@ -89,14 +114,17 @@ public class AnalyticsEventMappersTests
             .WithMessage("Unregistered analytics event type 'submission.unknown'.");
     }
 
-    [Fact]
-    public void ToAnalyticsEvent_WhenActorIsUnregistered_ShouldThrow()
+    [Theory]
+    [InlineData("")]
+    [InlineData("service:")]
+    [InlineData("unknown:actor")]
+    public void ToAnalyticsEvent_WhenActorIsUnregistered_ShouldThrow(string actor)
     {
-        var auditEvent = AuditEventFixture.ComplianceDeclaration().With(x => x.Actor, "unknown:actor").Create();
+        var auditEvent = AuditEventFixture.ComplianceDeclaration().With(x => x.Actor, actor).Create();
 
         var act = () => auditEvent.ToAnalyticsEvent();
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("Unregistered analytics actor 'unknown:actor'.");
+        act.Should().Throw<InvalidOperationException>().WithMessage($"Unregistered analytics actor '{actor}'.");
     }
 
     [Fact]
@@ -115,6 +143,22 @@ public class AnalyticsEventMappersTests
         act.Should()
             .Throw<InvalidOperationException>()
             .WithMessage("Unregistered analytics deletion reason 'unknown_reason'.");
+    }
+
+    [Fact]
+    public void ToAnalyticsEvent_WhenDeletionReasonIsSetForANonDeleteOperation_ShouldThrow()
+    {
+        var auditEvent = AuditEventFixture
+            .ComplianceDeclaration()
+            .With(x => x.DeletedReason, AnalyticsEventVocabulary.ElevatedSystemAllowedRemoval)
+            .With(x => x.Actor, "service:waste-obligations")
+            .Create();
+
+        var act = () => auditEvent.ToAnalyticsEvent();
+
+        act.Should()
+            .Throw<InvalidOperationException>()
+            .WithMessage("An analytics deletion reason is only valid for delete operations.");
     }
 
     [Fact]

@@ -207,6 +207,16 @@ public class JsonAnalyticsEventSerializerTests
     }
 
     [Fact]
+    public void Deserialize_WhenEnvelopeTimestampIsRead_ShouldThrow()
+    {
+        var act = () => JsonSerializer.Deserialize<AnalyticsEvent>("""{ "occurredAt": "2026-01-02T03:04:05.123Z" }""");
+
+        act.Should()
+            .Throw<NotSupportedException>()
+            .WithMessage("UtcMillisecondDateTimeOffsetJsonConverter only supports writing.*");
+    }
+
+    [Fact]
     public void Serialize_WhenBeforeOrAfterIsNotABsonDocument_ShouldThrow()
     {
         var subject = new JsonAnalyticsEventSerializer(
