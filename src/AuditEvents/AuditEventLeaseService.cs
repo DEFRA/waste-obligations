@@ -1,15 +1,10 @@
 using Defra.WasteObligations.AuditEvents.Data;
 using Defra.WasteObligations.AuditEvents.Entities;
-using Microsoft.Extensions.Logging;
 using MongoDB.Driver;
 
 namespace Defra.WasteObligations.AuditEvents;
 
-public class AuditEventLeaseService(
-    IAuditEventDbContext dbContext,
-    TimeProvider timeProvider,
-    ILogger<AuditEventLeaseService> logger
-)
+public class AuditEventLeaseService(IAuditEventDbContext dbContext, TimeProvider timeProvider)
 {
     private const string OwnerField = "owner";
 
@@ -48,23 +43,10 @@ public class AuditEventLeaseService(
                 cancellationToken
             );
 
-            logger.LogInformation(
-                "Acquired audit event lease for process {ProcessName} by {InstanceId}",
-                processName,
-                _instanceId
-            );
-
             return true;
         }
         catch (MongoCommandException exception) when (exception.Code == 11000)
         {
-            logger.LogInformation(
-                exception,
-                "Audit event lease for process {ProcessName} is already acquired by another instance. Current instance {InstanceId} did not acquire it",
-                processName,
-                _instanceId
-            );
-
             return false;
         }
     }
@@ -89,16 +71,7 @@ public class AuditEventLeaseService(
             cancellationToken: cancellationToken
         );
 
-        if (result.MatchedCount != 1)
-            return false;
-
-        logger.LogInformation(
-            "Renewed audit event lease for process {ProcessName} by {InstanceId}",
-            processName,
-            _instanceId
-        );
-
-        return true;
+        return result.MatchedCount == 1;
     }
 
     public async Task Release(string processName, CancellationToken cancellationToken)
@@ -116,19 +89,6 @@ public class AuditEventLeaseService(
             .Set(x => x.LastSentAt, utcNow)
             .Unset(OwnerField);
 
-        var result = await dbContext.AuditEventDispatchLeases.UpdateOneAsync(
-            filter,
-            update,
-            cancellationToken: cancellationToken
-        );
-
-        if (result.ModifiedCount == 1)
-        {
-            logger.LogInformation(
-                "Released audit event lease for process {ProcessName} by {InstanceId}",
-                processName,
-                _instanceId
-            );
-        }
+        await dbContext.AuditEventDispatchLeases.UpdateOneAsync(filter, update, cancellationToken: cancellationToken);
     }
 }

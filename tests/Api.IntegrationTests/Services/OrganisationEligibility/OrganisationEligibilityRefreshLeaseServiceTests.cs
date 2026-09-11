@@ -97,9 +97,5 @@ public class OrganisationEligibilityRefreshLeaseServiceTests : IntegrationTestBa
         new(new DateTimeOffset(2026, 8, 26, 12, 0, 0, TimeSpan.Zero));
 
     private static OrganisationEligibilityRefreshLeaseService CreateSubject(TimeProvider timeProvider) =>
-        new(
-            GetMongoApplicationDatabase(),
-            timeProvider,
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<OrganisationEligibilityRefreshLeaseService>.Instance
-        );
+        new(GetMongoApplicationDatabase(), timeProvider);
 }

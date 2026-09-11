@@ -3,6 +3,7 @@ using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.OrganisationObligations;
 using Defra.WasteObligations.Api.Utils.Metrics;
+using Defra.WasteObligations.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -139,12 +140,78 @@ public class OrganisationObligationHistoricalBackfillWorkerTests
         await leaseService.DidNotReceive().TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task Start_WhenLeaseRenewalThrows_ShouldCancelHydrationAndReleaseLease()
+    {
+        var backfill = Backfill();
+        var store = Substitute.For<IOrganisationObligationHistoricalBackfillStore>();
+        store.GetNextIncomplete(Arg.Any<CancellationToken>()).Returns(backfill);
+        var leaseService = Substitute.For<IOrganisationObligationHistoricalBackfillLeaseService>();
+        leaseService.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
+        var renewalAttempted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        leaseService
+            .TryRenew(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                renewalAttempted.TrySetResult();
+
+                return Task.FromException<bool>(new InvalidOperationException());
+            });
+        var released = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        leaseService
+            .Release(CancellationToken.None)
+            .Returns(_ =>
+            {
+                released.TrySetResult();
+
+                return Task.CompletedTask;
+            });
+        var hydrationService = Substitute.For<IOrganisationObligationHydrationService>();
+        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var hydrationCompletion = new TaskCompletionSource<OrganisationObligationHistoricalBackfillProgress>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        hydrationService
+            .HydrateHistoricalBackfill(backfill, Arg.Any<CancellationToken>(), 10, preserveCurrentYearPacing: false)
+            .Returns(callInfo =>
+            {
+                var cancellationToken = callInfo.Arg<CancellationToken>();
+                cancellationToken.Register(() =>
+                {
+                    cancelled.TrySetResult();
+                    hydrationCompletion.TrySetCanceled(cancellationToken);
+                });
+
+                return hydrationCompletion.Task;
+            });
+        var logger = new RecordingLogger<OrganisationObligationHistoricalBackfillWorker>();
+        var subject = CreateSubject(
+            store,
+            leaseService,
+            hydrationService,
+            leaseRenewalIntervalSeconds: 1,
+            logger: logger
+        );
+
+        await subject.StartAsync(CancellationToken.None);
+        await renewalAttempted.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await released.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await subject.StopAsync(CancellationToken.None);
+
+        logger.Messages.Should().Contain("Organisation obligation historical backfill lease renewal failed");
+        await leaseService.Received(1).TryRenew(TimeSpan.FromSeconds(300), Arg.Any<CancellationToken>());
+        await leaseService.Received(1).Release(CancellationToken.None);
+    }
+
     private static OrganisationObligationHistoricalBackfillWorker CreateSubject(
         IOrganisationObligationHistoricalBackfillStore store,
         IOrganisationObligationHistoricalBackfillLeaseService leaseService,
         IOrganisationObligationHydrationService hydrationService,
         bool pollingEnabled = false,
-        IOrganisationObligationHydrationMetrics? metrics = null
+        IOrganisationObligationHydrationMetrics? metrics = null,
+        int leaseRenewalIntervalSeconds = 60,
+        ILogger<OrganisationObligationHistoricalBackfillWorker>? logger = null
     )
     {
         var services = new ServiceCollection();
@@ -165,10 +232,10 @@ public class OrganisationObligationHistoricalBackfillWorkerTests
                     PollingEnabled = pollingEnabled,
                     PollIntervalSeconds = 3600,
                     LeaseDurationSeconds = 300,
-                    LeaseRenewalIntervalSeconds = 60,
+                    LeaseRenewalIntervalSeconds = leaseRenewalIntervalSeconds,
                 }
             ),
-            Substitute.For<ILogger<OrganisationObligationHistoricalBackfillWorker>>()
+            logger ?? Substitute.For<ILogger<OrganisationObligationHistoricalBackfillWorker>>()
         );
     }
 

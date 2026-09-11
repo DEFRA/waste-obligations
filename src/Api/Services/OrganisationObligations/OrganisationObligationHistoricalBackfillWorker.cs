@@ -17,9 +17,10 @@ public class OrganisationObligationHistoricalBackfillWorker(
     {
         if (options.Value.PollingEnabled)
         {
-            logger.LogInformation(
+            logger.LogWarning(
                 "Organisation obligation historical backfill is off while normal obligation hydration polling is on"
             );
+
             await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken);
 
             return;
@@ -70,10 +71,6 @@ public class OrganisationObligationHistoricalBackfillWorker(
                 stoppingToken
             );
             metrics.LeaseNotAcquired();
-            logger.LogInformation(
-                "Organisation obligation historical backfill for obligation year {ObligationYear} is deferred because another instance holds its lease",
-                backfill.ObligationYear
-            );
 
             return 0;
         }
@@ -125,14 +122,7 @@ public class OrganisationObligationHistoricalBackfillWorker(
             await hydrationCancellationTokenSource.CancelAsync();
             await renewalCancellationTokenSource.CancelAsync();
 
-            try
-            {
-                await renewalTask;
-            }
-            catch (OperationCanceledException exception) when (renewalCancellationTokenSource.IsCancellationRequested)
-            {
-                logger.LogDebug(exception, "Organisation obligation historical backfill lease renewal stopped");
-            }
+            await renewalTask;
 
             await leaseService.Release(CancellationToken.None);
         }
@@ -147,9 +137,9 @@ public class OrganisationObligationHistoricalBackfillWorker(
     {
         using var renewalTimer = new PeriodicTimer(TimeSpan.FromSeconds(options.Value.LeaseRenewalIntervalSeconds));
 
-        while (await renewalTimer.WaitForNextTickAsync(renewalCancellationToken))
+        try
         {
-            try
+            while (await renewalTimer.WaitForNextTickAsync(renewalCancellationToken))
             {
                 if (await leaseService.TryRenew(leaseDuration, renewalCancellationToken))
                     continue;
@@ -157,14 +147,19 @@ public class OrganisationObligationHistoricalBackfillWorker(
                 logger.LogError(
                     "Organisation obligation historical backfill stopped because its lease was not renewed"
                 );
+
+                await hydrationCancellationTokenSource.CancelAsync();
             }
-            catch (Exception exception) when (exception is not OperationCanceledException)
-            {
-                logger.LogError(exception, "Organisation obligation historical backfill lease renewal failed");
-            }
+        }
+        catch (OperationCanceledException) when (renewalCancellationToken.IsCancellationRequested)
+        {
+            // Expected when historical backfill processing stops.
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Organisation obligation historical backfill lease renewal failed");
 
             await hydrationCancellationTokenSource.CancelAsync();
-            return;
         }
     }
 }

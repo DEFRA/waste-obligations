@@ -12,6 +12,7 @@ The migration worker is deliberately separate from request readiness. Mongo migr
 | `MongoMigrations:LeaseRenewalIntervalSeconds` | 15 seconds | Keeps the lease exclusive while its host is alive, including while Mongo work is slow. |
 | `MongoMigrations:AttemptTimeoutSeconds` | 5 minutes | Maximum time allowed for one complete migration-engine run. |
 | `MongoMigrations:RetryDelaySeconds` | 30 seconds | Delay before rerunning a cancelled or failed engine. |
+| `MongoMigrations:LeaseAcquisitionAlertThresholdSeconds` | 5 minutes | Wait before logging an error that the migration lease remains unavailable; retries continue. |
 | `MongoMigrations:MaximumAttempts` | 3 | Limits retries by one host and therefore limits repeated error logs. |
 
 The lease renewal interval must be no more than half the lease duration. This leaves at least half a lease period for a delayed renewal before another host can acquire the lease.
@@ -31,7 +32,7 @@ Each retry creates a new `AdaskoTheBeAsT.MongoDbMigrations` engine and reruns th
 
 On graceful ECS shutdown, the worker cancels the engine and uses an independent, ten-second token to release the lease. It does not use the already-cancelled host token for cleanup. If the task is killed or Mongo cannot accept the release, renewal stops and a replacement task can acquire the lease after at most 60 seconds.
 
-No metrics are emitted for this worker. Normal logs are limited to start, initial wait, acquisition, completion, and release. Errors are logged for the first acquisition failure, a timeout, renewal loss, and final attempt exhaustion; repeated acquisition failures are debug-level logs. Configure the existing error-log alerting to notify the on-call team for those error messages without alerting for normal lease contention.
+No metrics are emitted for this worker. Errors are logged for the first acquisition failure, lease wait beyond the configured alert threshold, a timeout, renewal loss, and final attempt exhaustion. Configure the existing error-log alerting to notify the on-call team for those error messages without alerting for normal lease contention.
 
 ## September 2026 deployment incident
 

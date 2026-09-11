@@ -17,7 +17,7 @@ public class AnalyticsAuditEventProcessor(
     {
         if (!options.Value.ProcessingEnabled)
         {
-            logger.LogInformation("Analytics audit event processing is off");
+            logger.LogWarning("Analytics audit event processing is off");
 
             await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken);
 
@@ -34,16 +34,7 @@ public class AnalyticsAuditEventProcessor(
 
             try
             {
-                var dispatchedCount = await Process(stoppingToken);
-
-                if (dispatchedCount > 0)
-                {
-                    logger.LogInformation(
-                        "Processed {DispatchedCount} audit events for {ProcessName}",
-                        dispatchedCount,
-                        options.Value.ProcessName
-                    );
-                }
+                await Process(stoppingToken);
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
@@ -62,7 +53,7 @@ public class AnalyticsAuditEventProcessor(
         }
     }
 
-    private async Task<int> Process(CancellationToken cancellationToken)
+    private async Task Process(CancellationToken cancellationToken)
     {
         using var scope = serviceScopeFactory.CreateScope();
         var auditEventLeaseService = scope.ServiceProvider.GetRequiredService<AuditEventLeaseService>();
@@ -76,7 +67,7 @@ public class AnalyticsAuditEventProcessor(
         {
             auditEventMetrics.DispatchLeaseNotAcquired(processName);
 
-            return 0;
+            return;
         }
 
         auditEventMetrics.DispatchLeaseAcquired(processName);
@@ -88,7 +79,6 @@ public class AnalyticsAuditEventProcessor(
                 options.Value.BatchSize,
                 cancellationToken
             );
-            var dispatchedCount = 0;
 
             foreach (var auditEvent in auditEvents)
             {
@@ -108,13 +98,6 @@ public class AnalyticsAuditEventProcessor(
                     LogRetry(auditEvent, processName);
                     await analyticsEventSender.Send(auditEvent.ToAnalyticsEvent(), cancellationToken);
                     await auditEventDispatchService.MarkDispatched(processName, auditEvent, cancellationToken);
-                    dispatchedCount++;
-                    logger.LogInformation(
-                        "Processed audit event {EventId} for {ProcessName} with trace id {TraceId}",
-                        auditEvent.EventId,
-                        processName,
-                        auditEvent.TraceId
-                    );
                 }
                 catch (Exception exception) when (exception is not OperationCanceledException)
                 {
@@ -135,8 +118,6 @@ public class AnalyticsAuditEventProcessor(
                     );
                 }
             }
-
-            return dispatchedCount;
         }
         finally
         {

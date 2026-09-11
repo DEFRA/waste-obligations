@@ -3,6 +3,7 @@ using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Testing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 
 namespace Defra.WasteObligations.Api.Tests.Data;
@@ -212,8 +213,110 @@ public class MongoMigrationServiceTests
 
         await subject.Execute(stopping.Token);
 
-        logger.Messages.Should().Contain("Mongo migration lease is held by another host. Waiting before retrying.");
         await migrationRunner.DidNotReceive().Run(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Execute_WhenLeaseBecomesAvailableAfterRetry_ShouldRunMigrations()
+    {
+        var timeProvider = new FakeTimeProvider();
+        var leaseService = Substitute.For<IMongoMigrationLeaseService>();
+        leaseService.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(false, true);
+        var migrationRunner = Substitute.For<IMongoMigrationRunner>();
+        var subject = CreateSubject(leaseService, migrationRunner, timeProvider: timeProvider);
+        var execution = subject.Execute(TestContext.Current.CancellationToken);
+
+        timeProvider.Advance(TimeSpan.FromSeconds(5));
+        await execution;
+
+        await leaseService.Received(2).TryAcquire(TimeSpan.FromSeconds(2), Arg.Any<CancellationToken>());
+        await migrationRunner.Received(1).Run(Arg.Any<CancellationToken>());
+        await leaseService.Received(1).Release(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Execute_WhenMigrationLeaseIsUnavailablePastAlertThreshold_ShouldLogAnError()
+    {
+        using var stopping = new CancellationTokenSource();
+        var timeProvider = new FakeTimeProvider();
+        var leaseService = Substitute.For<IMongoMigrationLeaseService>();
+        leaseService
+            .TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                timeProvider.Advance(TimeSpan.FromSeconds(300));
+                stopping.Cancel();
+
+                return Task.FromResult(false);
+            });
+        var migrationRunner = Substitute.For<IMongoMigrationRunner>();
+        var logger = new RecordingLogger<MongoMigrationService>();
+        var subject = CreateSubject(
+            leaseService,
+            migrationRunner,
+            new MongoMigrationOptions
+            {
+                LeaseDurationSeconds = 2,
+                LeaseRenewalIntervalSeconds = 1,
+                AttemptTimeoutSeconds = 1,
+                RetryDelaySeconds = 1,
+                LeaseAcquisitionAlertThresholdSeconds = 300,
+                MaximumAttempts = 1,
+            },
+            logger,
+            timeProvider
+        );
+
+        var execution = subject.Execute(stopping.Token);
+        await execution;
+
+        logger
+            .Entries.Should()
+            .Contain(x =>
+                x.Level == LogLevel.Error
+                && x.Message.Contains("Mongo migration lease has not been acquired after 00:05:00")
+            );
+        await migrationRunner.DidNotReceive().Run(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Execute_WhenHostStopsDuringMigrationRetryDelay_ShouldReleaseLease()
+    {
+        using var stopping = new CancellationTokenSource();
+        var leaseService = Substitute.For<IMongoMigrationLeaseService>();
+        leaseService.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
+        var migrationRunner = Substitute.For<IMongoMigrationRunner>();
+        migrationRunner.Run(Arg.Any<CancellationToken>()).Returns(Task.FromException(new InvalidOperationException()));
+        var logger = new RecordingLogger<MongoMigrationService>();
+        var subject = CreateSubject(
+            leaseService,
+            migrationRunner,
+            new MongoMigrationOptions
+            {
+                LeaseDurationSeconds = 2,
+                LeaseRenewalIntervalSeconds = 60,
+                AttemptTimeoutSeconds = 1,
+                RetryDelaySeconds = 60,
+                MaximumAttempts = 2,
+            },
+            logger
+        );
+        var execution = subject.Execute(stopping.Token);
+
+        await AsyncWaiter.WaitForAsync(
+            () =>
+            {
+                logger.Messages.Should().Contain(message => message.Contains("Retrying in 00:01:00"));
+
+                return Task.CompletedTask;
+            },
+            timeout: 5,
+            delay: TimeSpan.FromMilliseconds(10)
+        );
+        await stopping.CancelAsync();
+        await execution;
+
+        await leaseService.Received(1).Release(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -258,7 +361,8 @@ public class MongoMigrationServiceTests
         IMongoMigrationLeaseService leaseService,
         IMongoMigrationRunner migrationRunner,
         MongoMigrationOptions? options = null,
-        ILogger<MongoMigrationService>? logger = null
+        ILogger<MongoMigrationService>? logger = null,
+        TimeProvider? timeProvider = null
     ) =>
         new(
             leaseService,
@@ -274,6 +378,7 @@ public class MongoMigrationServiceTests
                         MaximumAttempts = 2,
                     }
             ),
+            timeProvider ?? TimeProvider.System,
             logger ?? Substitute.For<ILogger<MongoMigrationService>>()
         );
 
@@ -281,8 +386,9 @@ public class MongoMigrationServiceTests
         IMongoMigrationLeaseService leaseService,
         IMongoMigrationRunner migrationRunner,
         IOptions<MongoMigrationOptions> options,
+        TimeProvider timeProvider,
         ILogger<MongoMigrationService> logger
-    ) : MongoMigrationService(leaseService, migrationRunner, options, logger)
+    ) : MongoMigrationService(leaseService, migrationRunner, options, timeProvider, logger)
     {
         public Task Execute(CancellationToken stoppingToken) => ExecuteAsync(stoppingToken);
     }

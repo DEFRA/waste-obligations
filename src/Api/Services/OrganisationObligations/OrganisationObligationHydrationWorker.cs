@@ -19,8 +19,10 @@ public class OrganisationObligationHydrationWorker(
     {
         if (!options.Value.PollingEnabled)
         {
-            logger.LogInformation("Organisation obligation hydration polling is off");
+            logger.LogWarning("Organisation obligation hydration polling is off");
+
             await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken);
+
             return;
         }
 
@@ -93,14 +95,7 @@ public class OrganisationObligationHydrationWorker(
             await hydrationCancellationTokenSource.CancelAsync();
             await renewalCancellationTokenSource.CancelAsync();
 
-            try
-            {
-                await renewalTask;
-            }
-            catch (OperationCanceledException exception) when (renewalCancellationTokenSource.IsCancellationRequested)
-            {
-                logger.LogDebug(exception, "Organisation obligation hydration lease renewal stopped");
-            }
+            await renewalTask;
 
             await leaseService.Release(CancellationToken.None);
         }
@@ -229,22 +224,27 @@ public class OrganisationObligationHydrationWorker(
     {
         using var renewalTimer = new PeriodicTimer(TimeSpan.FromSeconds(options.Value.LeaseRenewalIntervalSeconds));
 
-        while (await renewalTimer.WaitForNextTickAsync(renewalCancellationToken))
+        try
         {
-            try
+            while (await renewalTimer.WaitForNextTickAsync(renewalCancellationToken))
             {
                 if (await leaseService.TryRenew(leaseDuration, renewalCancellationToken))
                     continue;
 
                 logger.LogError("Organisation obligation hydration stopped because its lease was not renewed");
+
+                await hydrationCancellationTokenSource.CancelAsync();
             }
-            catch (Exception exception) when (exception is not OperationCanceledException)
-            {
-                logger.LogError(exception, "Organisation obligation hydration lease renewal failed");
-            }
+        }
+        catch (OperationCanceledException) when (renewalCancellationToken.IsCancellationRequested)
+        {
+            // Expected when hydration processing stops.
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Organisation obligation hydration lease renewal failed");
 
             await hydrationCancellationTokenSource.CancelAsync();
-            return;
         }
     }
 }

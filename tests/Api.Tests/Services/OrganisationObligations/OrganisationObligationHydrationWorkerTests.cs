@@ -2,6 +2,7 @@ using AwesomeAssertions;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.OrganisationObligations;
 using Defra.WasteObligations.Api.Utils.Metrics;
+using Defra.WasteObligations.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -85,6 +86,67 @@ public class OrganisationObligationHydrationWorkerTests
         await hydrationService
             .DidNotReceive()
             .HydrateDue(Arg.Any<int>(), Arg.Any<CancellationToken>(), Arg.Any<int?>());
+    }
+
+    [Fact]
+    public async Task Start_WhenLeaseRenewalThrows_ShouldCancelHydrationAndReleaseLease()
+    {
+        var leaseService = Substitute.For<IOrganisationObligationHydrationLeaseService>();
+        leaseService.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
+        var renewalAttempted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        leaseService
+            .TryRenew(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                renewalAttempted.TrySetResult();
+
+                return Task.FromException<bool>(new InvalidOperationException());
+            });
+        var released = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        leaseService
+            .Release(CancellationToken.None)
+            .Returns(_ =>
+            {
+                released.TrySetResult();
+
+                return Task.CompletedTask;
+            });
+        var hydrationService = Substitute.For<IOrganisationObligationHydrationService>();
+        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var hydrationCompletion = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        hydrationService
+            .HydrateDue(2026, Arg.Any<CancellationToken>(), 10)
+            .Returns(callInfo =>
+            {
+                var cancellationToken = callInfo.Arg<CancellationToken>();
+                cancellationToken.Register(() =>
+                {
+                    cancelled.TrySetResult();
+                    hydrationCompletion.TrySetCanceled(cancellationToken);
+                });
+
+                return hydrationCompletion.Task;
+            });
+        var currentObligationYearProvider = Substitute.For<ICurrentObligationYearProvider>();
+        currentObligationYearProvider.GetHandover(Arg.Any<TimeSpan>()).Returns(new ObligationYearHandover(2026));
+        var logger = new RecordingLogger<OrganisationObligationHydrationWorker>();
+        var subject = CreateSubject(
+            leaseService,
+            hydrationService,
+            currentObligationYearProvider,
+            leaseRenewalIntervalSeconds: 1,
+            logger: logger
+        );
+
+        await subject.StartAsync(CancellationToken.None);
+        await renewalAttempted.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await released.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await subject.StopAsync(CancellationToken.None);
+
+        logger.Messages.Should().Contain("Organisation obligation hydration lease renewal failed");
+        await leaseService.Received(1).TryRenew(TimeSpan.FromSeconds(300), Arg.Any<CancellationToken>());
+        await leaseService.Received(1).Release(CancellationToken.None);
     }
 
     [Fact]
@@ -317,7 +379,9 @@ public class OrganisationObligationHydrationWorkerTests
         ICurrentObligationYearProvider currentObligationYearProvider,
         bool pollingEnabled = true,
         IOrganisationObligationHydrationMetrics? metrics = null,
-        IOrganisationObligationRequestPacer? requestPacer = null
+        IOrganisationObligationRequestPacer? requestPacer = null,
+        int leaseRenewalIntervalSeconds = 60,
+        ILogger<OrganisationObligationHydrationWorker>? logger = null
     )
     {
         var services = new ServiceCollection();
@@ -345,12 +409,12 @@ public class OrganisationObligationHydrationWorkerTests
                     PollingEnabled = pollingEnabled,
                     PollIntervalSeconds = 3600,
                     LeaseDurationSeconds = 300,
-                    LeaseRenewalIntervalSeconds = 60,
+                    LeaseRenewalIntervalSeconds = leaseRenewalIntervalSeconds,
                 }
             ),
             pacing,
             metrics ?? Substitute.For<IOrganisationObligationHydrationMetrics>(),
-            Substitute.For<ILogger<OrganisationObligationHydrationWorker>>()
+            logger ?? Substitute.For<ILogger<OrganisationObligationHydrationWorker>>()
         );
     }
 

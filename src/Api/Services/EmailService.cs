@@ -119,7 +119,7 @@ public class EmailService(
             }
 
             logger.LogInformation(
-                "Sending cancellation email for reason {Reason} to {RecipientCount} recipient email addresses",
+                "Sending cancellation email for reason {Reason} to {RecipientCount} recipient email address(s)",
                 reason,
                 recipients.Count
             );
@@ -153,6 +153,8 @@ public class EmailService(
         {
             logger.LogError(exception, "Cancellation email could not be sent");
             emailMetrics.SendFaulted(templateName, language, exception);
+
+            // intentionally swallowed as failure to send an email should not break anything
         }
         finally
         {
