@@ -22,20 +22,22 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
         var complianceDeclaration = await CreateComplianceDeclaration(client);
         using var deserializedMessage = await ReceiveAnalyticsEventsQueueJsonMessage(
             sqsClient,
-            MatchAnalyticsEvent(complianceDeclaration.Id, "insert", "submission.created")
+            MatchAnalyticsEvent(complianceDeclaration.Id, "create", "submission.created")
         );
         var root = deserializedMessage.RootElement;
 
         root.GetProperty("eventId").GetString().Should().NotBeNullOrWhiteSpace();
         root.GetProperty("entityId").GetString().Should().Be($"compliance_declaration_{complianceDeclaration.Id}");
-        root.GetProperty("operation").GetString().Should().Be("insert");
+        root.GetProperty("operation").GetString().Should().Be("create");
         root.GetProperty("eventType").GetString().Should().Be("submission.created");
+        root.GetProperty("actor").GetString().Should().Be("user:e72be574-8b5b-4836-af47-dd7e0c0d1d87");
         root.GetProperty("deletedReason").ValueKind.Should().Be(JsonValueKind.Null);
         root.GetProperty("piiKeyRef").ValueKind.Should().Be(JsonValueKind.Null);
+        root.TryGetProperty("correlationId", out _).Should().BeFalse();
         root.GetProperty("schemaVersion")
             .GetString()
             .Should()
-            .Be($"compliance_declaration.{ComplianceDeclarationEntity.SchemaVersionValue}");
+            .Be($"compliance_declaration_{ComplianceDeclarationEntity.SchemaVersionValue}");
         root.GetProperty("before").ValueKind.Should().Be(JsonValueKind.Null);
         root.GetProperty("after").GetProperty("id").GetString().Should().Be(complianceDeclaration.Id);
     }
@@ -49,7 +51,7 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
         var complianceDeclaration = await CreateComplianceDeclaration(client);
         await ReceiveAnalyticsEventsQueueJsonMessage(
             sqsClient,
-            MatchAnalyticsEvent(complianceDeclaration.Id, "insert", "submission.created")
+            MatchAnalyticsEvent(complianceDeclaration.Id, "create", "submission.created")
         );
 
         var response = await client.PatchAsJsonAsync(
@@ -71,8 +73,10 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
         root.GetProperty("entityId").GetString().Should().Be($"compliance_declaration_{complianceDeclaration.Id}");
         root.GetProperty("operation").GetString().Should().Be("update");
         root.GetProperty("eventType").GetString().Should().Be("submission.amended");
+        root.GetProperty("actor").GetString().Should().Be("user:7e91f2ac-5b44-4c8d-ae73-1d9f62b8e0f4");
         root.GetProperty("deletedReason").ValueKind.Should().Be(JsonValueKind.Null);
         root.GetProperty("piiKeyRef").ValueKind.Should().Be(JsonValueKind.Null);
+        root.GetProperty("correlationId").GetString().Should().Be(TraceId);
         root.GetProperty("version").GetInt32().Should().Be(2);
         root.GetProperty("before").GetProperty("status").GetString().Should().Be("Submitted");
         root.GetProperty("after").GetProperty("status").GetString().Should().Be("Accepted");
@@ -86,7 +90,7 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
         var complianceDeclaration = await CreateComplianceDeclaration(client);
         await ReceiveAnalyticsEventsQueueJsonMessage(
             sqsClient,
-            MatchAnalyticsEvent(complianceDeclaration.Id, "insert", "submission.created")
+            MatchAnalyticsEvent(complianceDeclaration.Id, "create", "submission.created")
         );
 
         var response = await client.DeleteAsync(
@@ -104,8 +108,10 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
         root.GetProperty("entityId").GetString().Should().Be($"compliance_declaration_{complianceDeclaration.Id}");
         root.GetProperty("operation").GetString().Should().Be("delete");
         root.GetProperty("eventType").GetString().Should().Be("submission.removed");
-        root.GetProperty("deletedReason").GetString().Should().Be("elevated system allowed removal");
+        root.GetProperty("actor").GetString().Should().Be("service:waste-obligations");
+        root.GetProperty("deletedReason").GetString().Should().Be("elevated_system_allowed_removal");
         root.GetProperty("piiKeyRef").ValueKind.Should().Be(JsonValueKind.Null);
+        root.TryGetProperty("correlationId", out _).Should().BeFalse();
         root.GetProperty("version").GetInt32().Should().Be(2);
         root.TryGetProperty("traceId", out _).Should().BeFalse();
         root.GetProperty("before").GetProperty("id").GetString().Should().Be(complianceDeclaration.Id);

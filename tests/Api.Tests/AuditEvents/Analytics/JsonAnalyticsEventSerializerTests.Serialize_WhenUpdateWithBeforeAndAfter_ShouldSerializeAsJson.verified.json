@@ -7,8 +7,8 @@
   "eventType": "submission.amended",
   "deletedReason": null,
   "piiKeyRef": null,
-  "occurredAt": "2026-01-02T03:05:05+00:00",
-  "recordedAt": "2026-01-02T03:05:06+00:00",
+  "occurredAt": "2026-01-02T03:05:05.000Z",
+  "recordedAt": "2026-01-02T03:05:06.000Z",
   "actor": "service:waste-obligations",
   "version": 2,
   "before": {
@@ -136,5 +136,5 @@
     "isRegulation43Compliant": true,
     "obligationCoveragePercentage": 40
   },
-  "schemaVersion": "compliance_declaration.v1.3"
+  "schemaVersion": "compliance_declaration_v1.3"
 }

@@ -13,15 +13,16 @@ public static class AnalyticsEventFixture
         return composer
             .With(x => x.Entity, "entity")
             .With(x => x.EntityId, "entity-1")
-            .With(x => x.Operation, "insert")
+            .With(x => x.Operation, "create")
             .With(x => x.EventType, "submission.created")
             .Without(x => x.DeletedReason)
             .Without(x => x.PiiKeyRef)
+            .Without(x => x.CorrelationId)
             .With(x => x.OccurredAt, new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero))
             .With(x => x.RecordedAt, new DateTimeOffset(2026, 1, 1, 0, 0, 1, TimeSpan.Zero))
-            .With(x => x.Actor, "user@example.com")
+            .With(x => x.Actor, "service:waste-obligations")
             .With(x => x.Version, 1)
-            .With(x => x.SchemaVersion, "entity.v1.0")
+            .With(x => x.SchemaVersion, "entity_v1.0")
             .Without(x => x.Before)
             .Without(x => x.After);
     }
@@ -46,7 +47,7 @@ public static class AnalyticsEventFixture
             .With(x => x.EntityId, "compliance_declaration_entity-1")
             .With(
                 x => x.SchemaVersion,
-                $"compliance_declaration.{Api.Data.Entities.ComplianceDeclaration.SchemaVersionValue}"
+                $"compliance_declaration_{Api.Data.Entities.ComplianceDeclaration.SchemaVersionValue}"
             );
     }
 }

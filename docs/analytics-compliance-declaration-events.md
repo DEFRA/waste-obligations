@@ -4,7 +4,7 @@ The analytics topic receives generic analytics event envelopes. Each envelope id
 
 Compliance declaration create, update, and delete operations are captured internally in the same transaction as the declaration change. The analytics processor reads undispatched changes, serialises them as analytics events, and publishes them to the analytics SNS topic configured by `AnalyticsAuditEventProcessor:TopicArn`.
 
-The nested compliance declaration payload is serialised using the embedded [compliance declaration schema](../src/Api/Schemas/ComplianceDeclaration/compliance-declaration.v1.3.schema.json). Its version history is recorded in the [compliance declaration schema changelog](../src/Api/Schemas/ComplianceDeclaration/CHANGELOG.md). For compliance declarations, the analytics message `schemaVersion` is currently `compliance_declaration.v1.3`.
+The nested compliance declaration payload is serialised using the embedded [compliance declaration schema](../src/Api/Schemas/ComplianceDeclaration/compliance-declaration.v1.3.schema.json). Its version history is recorded in the [compliance declaration schema changelog](../src/Api/Schemas/ComplianceDeclaration/CHANGELOG.md). For compliance declarations, the analytics message `schemaVersion` is currently `compliance_declaration_v1.3`.
 
 ## Message transport
 
@@ -22,17 +22,18 @@ All analytics events use this generic envelope:
   "sequence": 123,
   "entity": "entity_name",
   "entityId": "entity_name_entity-id",
-  "operation": "insert",
+  "operation": "create",
   "eventType": "domain.event",
   "deletedReason": null,
   "piiKeyRef": null,
-  "occurredAt": "2026-01-02T03:04:05+00:00",
-  "recordedAt": "2026-01-02T03:04:06+00:00",
-  "actor": "service:waste-obligations",
+  "occurredAt": "2026-01-02T03:04:05.000Z",
+  "recordedAt": "2026-01-02T03:04:06.000Z",
+  "actor": "user:e72be574-8b5b-4836-af47-dd7e0c0d1d87",
+  "correlationId": "cdp-request-id",
   "version": 1,
   "before": null,
   "after": {},
-  "schemaVersion": "entity_name.v1.0"
+  "schemaVersion": "entity_name_v1.0"
 }
 ```
 
@@ -45,12 +46,13 @@ All analytics events use this generic envelope:
 | `operation` | Event operation. See the operation values below. |
 | `eventType` | Business event name. |
 | `deletedReason` | Reason the entity was deleted. This is only set when `operation` is `delete`; otherwise it is `null`. |
-| `piiKeyRef` | Currently always `null`. |
-| `occurredAt` | Time the entity change occurred, in ISO 8601 format with offset. |
-| `recordedAt` | Time the analytics event was recorded, in ISO 8601 format with offset. |
-| `actor` | Service actor that wrote the event. |
+| `piiKeyRef` | Always `null`; PII classification and protection are outside the scope of this change. |
+| `occurredAt` | Time the entity change occurred, as a UTC ISO 8601 timestamp with millisecond precision. |
+| `recordedAt` | Time the analytics event was recorded, as a UTC ISO 8601 timestamp with millisecond precision. |
+| `actor` | `user:<UUID>` for user submissions and status amendments; `service:waste-obligations` for system-driven deletions. |
+| `correlationId` | The incoming `x-cdp-request-id` when present; omitted when no request ID is available. |
 | `version` | Entity version after the operation. |
-| `before` | Previous entity state. This is `null` for inserts. |
+| `before` | Previous entity state. This is `null` for creates. |
 | `after` | New entity state. This is `null` for deletes. |
 | `schemaVersion` | Entity-qualified schema version for the `before` and `after` payloads. |
 
@@ -58,25 +60,31 @@ All analytics events use this generic envelope:
 
 | Operation | Meaning | `before` | `after` | `deletedReason` |
 | --- | --- | --- | --- | --- |
-| `insert` | Entity was created. | `null` | Created entity state. | `null` |
+| `create` | Entity was created. | `null` | Created entity state. | `null` |
 | `update` | Entity was changed. | Previous entity state. | Updated entity state. | `null` |
 | `delete` | Entity was deleted. | Previous entity state. | `null` | Delete reason. |
 
+## Controlled vocabulary
+
+The publisher validates the current compliance declaration entity, envelope operation, event type, actor prefix, deletion reason, and schema version before serialising a message. The supported operations are `create`, `update`, and `delete`; actor prefixes are `service`, `user`, `system`, and `integration`; and the supported declaration event types are `submission.created`, `submission.amended`, and `submission.removed`. Create and update events use the responsible audit user as `user:<UUID>`; the system-driven delete flow retains `service:waste-obligations`.
+
+The only current deletion reason is `elevated_system_allowed_removal`. This replaces the legacy free-text value `elevated system allowed removal`, which remains normalised for undispatched historical outbox events. The governed list maintained with the shared event schema must include `elevated_system_allowed_removal` before additional deletion paths are introduced.
+
 ## Compliance declaration events
 
-Compliance declaration events use `entity` set to `compliance_declaration`. The `entityId` value is prefixed with the entity type, for example `compliance_declaration_65f1f6570bb08052a8a27b01`.
+Compliance declaration events use `entity` set to `compliance_declaration`. The current service identity is a Mongo ObjectId, so `entityId` remains prefixed as `compliance_declaration_65f1f6570bb08052a8a27b01`. The proposed `cdec_<ULID>` format is not implemented because it is incompatible with the existing immutable identifier model; it requires a corrected specification before it can be adopted.
 
 The current compliance declaration event types are:
 
 | Event type | Operation | Description |
 | --- | --- | --- |
-| `submission.created` | `insert` | Compliance declaration was created. |
+| `submission.created` | `create` | Compliance declaration was created. |
 | `submission.amended` | `update` | Compliance declaration was updated. |
 | `submission.removed` | `delete` | Compliance declaration was deleted. |
 
 ## Created event
 
-When a compliance declaration is created, the analytics topic receives an `insert` event with `eventType` set to `submission.created`.
+When a compliance declaration is created, the analytics topic receives a `create` event with `eventType` set to `submission.created`.
 
 The `before` value is `null`. The `after` value is the created compliance declaration, serialised according to the linked compliance declaration schema.
 
@@ -86,13 +94,14 @@ The `before` value is `null`. The `after` value is the created compliance declar
   "sequence": 123,
   "entity": "compliance_declaration",
   "entityId": "compliance_declaration_65f1f6570bb08052a8a27b01",
-  "operation": "insert",
+  "operation": "create",
   "eventType": "submission.created",
   "deletedReason": null,
   "piiKeyRef": null,
-  "occurredAt": "2026-01-02T03:04:05+00:00",
-  "recordedAt": "2026-01-02T03:04:06+00:00",
-  "actor": "service:waste-obligations",
+  "occurredAt": "2026-01-02T03:04:05.000Z",
+  "recordedAt": "2026-01-02T03:04:06.000Z",
+  "actor": "user:e72be574-8b5b-4836-af47-dd7e0c0d1d87",
+  "correlationId": "cdp-request-id",
   "version": 1,
   "before": null,
   "after": {
@@ -152,7 +161,7 @@ The `before` value is `null`. The `after` value is the created compliance declar
     "isRegulation43Compliant": true,
     "obligationCoveragePercentage": 40
   },
-  "schemaVersion": "compliance_declaration.v1.3"
+  "schemaVersion": "compliance_declaration_v1.3"
 }
 ```
 
@@ -172,9 +181,10 @@ The `before` value is the declaration state before the update. The `after` value
   "eventType": "submission.amended",
   "deletedReason": null,
   "piiKeyRef": null,
-  "occurredAt": "2026-01-02T03:05:05+00:00",
-  "recordedAt": "2026-01-02T03:05:06+00:00",
-  "actor": "service:waste-obligations",
+  "occurredAt": "2026-01-02T03:05:05.000Z",
+  "recordedAt": "2026-01-02T03:05:06.000Z",
+  "actor": "user:e72be574-8b5b-4836-af47-dd7e0c0d1d87",
+  "correlationId": "cdp-request-id",
   "version": 2,
   "before": {
     "id": "65f1f6570bb08052a8a27b01",
@@ -300,6 +310,6 @@ The `before` value is the declaration state before the update. The `after` value
     "isRegulation43Compliant": true,
     "obligationCoveragePercentage": 40
   },
-  "schemaVersion": "compliance_declaration.v1.3"
+  "schemaVersion": "compliance_declaration_v1.3"
 }
 ```

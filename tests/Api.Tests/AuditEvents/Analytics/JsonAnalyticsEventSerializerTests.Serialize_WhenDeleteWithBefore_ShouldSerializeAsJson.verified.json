@@ -5,10 +5,10 @@
   "entityId": "compliance_declaration_65f1f6570bb08052a8a27b01",
   "operation": "delete",
   "eventType": "submission.removed",
-  "deletedReason": "elevated system allowed removal",
+  "deletedReason": "elevated_system_allowed_removal",
   "piiKeyRef": null,
-  "occurredAt": "2026-01-02T03:05:05+00:00",
-  "recordedAt": "2026-01-02T03:05:06+00:00",
+  "occurredAt": "2026-01-02T03:05:05.000Z",
+  "recordedAt": "2026-01-02T03:05:06.000Z",
   "actor": "service:waste-obligations",
   "version": 2,
   "before": {
@@ -69,5 +69,5 @@
     "obligationCoveragePercentage": 40
   },
   "after": null,
-  "schemaVersion": "compliance_declaration.v1.3"
+  "schemaVersion": "compliance_declaration_v1.3"
 }

@@ -8,7 +8,7 @@
     "EventType": "submission.created",
     "OccurredAt": "{Scrubbed}",
     "RecordedAt": "{Scrubbed}",
-    "Actor": "service:waste-obligations",
+    "Actor": "user:e72be574-8b5b-4836-af47-dd7e0c0d1d87",
     "Version": 1,
     "After": {
       "audit": [
@@ -79,7 +79,7 @@
     "EventType": "submission.created",
     "OccurredAt": "{Scrubbed}",
     "RecordedAt": "{Scrubbed}",
-    "Actor": "service:waste-obligations",
+    "Actor": "user:e72be574-8b5b-4836-af47-dd7e0c0d1d87",
     "Version": 1,
     "After": {
       "audit": [
@@ -150,7 +150,7 @@
     "EventType": "submission.amended",
     "OccurredAt": "{Scrubbed}",
     "RecordedAt": "{Scrubbed}",
-    "Actor": "service:waste-obligations",
+    "Actor": "user:e72be574-8b5b-4836-af47-dd7e0c0d1d87",
     "Version": 2,
     "Before": {
       "audit": [
@@ -279,7 +279,7 @@
     "EventType": "submission.amended",
     "OccurredAt": "{Scrubbed}",
     "RecordedAt": "{Scrubbed}",
-    "Actor": "service:waste-obligations",
+    "Actor": "user:e72be574-8b5b-4836-af47-dd7e0c0d1d87",
     "Version": 2,
     "Before": {
       "audit": [

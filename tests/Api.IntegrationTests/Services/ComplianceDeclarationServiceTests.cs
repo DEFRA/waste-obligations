@@ -87,7 +87,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         auditEvent.Operation.Should().Be("insert");
         auditEvent.EventType.Should().Be("submission.created");
         auditEvent.DeletedReason.Should().BeNull();
-        auditEvent.Actor.Should().Be("service:waste-obligations");
+        auditEvent.Actor.Should().Be("user:e72be574-8b5b-4836-af47-dd7e0c0d1d87");
         auditEvent.Version.Should().Be(1);
         auditEvent.SchemaVersion.Should().Be(ComplianceDeclaration.SchemaVersionValue);
         auditEvent.TraceId.Should().Be(TraceId);
@@ -96,6 +96,21 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         auditEvent.After["_id"].Should().Be(initial.Id);
         auditEvent.After["version"].Should().Be(1);
         ComplianceDeclarationMetrics.Received(1).Created();
+    }
+
+    [Fact]
+    public async Task Create_WhenNoAuditUser_ShouldUseSystemActor()
+    {
+        var initial = await Subject.Create(
+            ComplianceDeclarationFixture.Default().With(x => x.Audit, []).Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        var auditEvent = await AuditEvents
+            .Find(x => x.EntityId == initial.Id.ToString())
+            .SingleAsync(TestContext.Current.CancellationToken);
+
+        auditEvent.Actor.Should().Be("service:waste-obligations");
     }
 
     [Fact]
@@ -397,7 +412,8 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         auditEvents[1].EntityId.Should().Be(initial.Id.ToString());
         auditEvents[1].Operation.Should().Be("delete");
         auditEvents[1].EventType.Should().Be("submission.removed");
-        auditEvents[1].DeletedReason.Should().Be("elevated system allowed removal");
+        auditEvents[1].DeletedReason.Should().Be("elevated_system_allowed_removal");
+        auditEvents[1].Actor.Should().Be("service:waste-obligations");
         auditEvents[1].Version.Should().Be(2);
         auditEvents[1].TraceId.Should().Be(TraceId);
         auditEvents[1].Before.Should().NotBeNull();
@@ -516,6 +532,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         auditEvents[1].Operation.Should().Be("update");
         auditEvents[1].EventType.Should().Be("submission.amended");
         auditEvents[1].DeletedReason.Should().BeNull();
+        auditEvents[1].Actor.Should().Be("user:e72be574-8b5b-4836-af47-dd7e0c0d1d87");
         auditEvents[1].Version.Should().Be(2);
         auditEvents[1].TraceId.Should().Be(TraceId);
         auditEvents[1].Before.Should().NotBeNull();

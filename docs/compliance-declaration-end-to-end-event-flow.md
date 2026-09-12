@@ -11,7 +11,7 @@ The service uses two audit concepts:
 
 | Action | Endpoint | Declaration change | Audit event operation | Audit event type | Analytics event |
 | --- | --- | --- | --- | --- | --- |
-| Create | `POST /organisations/{organisationId}/compliance-declarations` | Creates a submitted declaration, assigns version `1`, and adds a `Submitted` entry to the embedded `audit` array. | `insert` | `submission.created` | `insert` with `before: null` and `after` set to the created declaration. |
+| Create | `POST /organisations/{organisationId}/compliance-declarations` | Creates a submitted declaration, assigns version `1`, and adds a `Submitted` entry to the embedded `audit` array. | `insert` | `submission.created` | `create` with `before: null` and `after` set to the created declaration. |
 | Update status | `PATCH /organisations/{organisationId}/compliance-declarations/{complianceDeclarationId}` | Applies a valid status transition, increments the version, updates `updated`, and appends an embedded audit entry. | `update` | `submission.amended` | `update` with the previous declaration in `before` and the updated declaration in `after`. |
 | Delete | `DELETE /compliance-declarations/{id}` | Deletes the declaration using the current version as an optimistic concurrency check. | `delete` | `submission.removed` | `delete` with the previous declaration in `before`, `after: null`, and `deletedReason` set. |
 
@@ -114,7 +114,7 @@ flowchart TD
 | `before` | The previous declaration BSON document, or `null` for create. |
 | `after` | The new declaration BSON document, or `null` for delete. |
 | `schemaVersion` | The declaration schema version, currently `v1.3`. |
-| `traceId` | The propagated trace header value, used for service logging and not included in the analytics envelope. |
+| `traceId` | The propagated `x-cdp-request-id`, used for service logging and mapped to the analytics envelope's `correlationId` when available. |
 | `dispatches` | A per-process outcome map, initially empty. |
 
 The `AuditEvent` collection is indexed by sequence, entity/entity id/version, and the analytics dispatch fields so the dispatcher can read the oldest undispatched or retryable events efficiently.
@@ -184,10 +184,13 @@ sequenceDiagram
 
 The processor reads audit events where `dispatches.analytics` does not exist, or where it is `Failed` and `nextAttemptAt` is due. Each event is mapped to the analytics envelope:
 
-- `eventId`, `sequence`, `entity`, `operation`, `eventType`, timestamps, actor, version, `before`, and `after` are copied from the audit event.
+- `eventId`, `sequence`, `entity`, `eventType`, timestamps, actor, version, `before`, and `after` are copied from the audit event. Submission and status-amendment events record their responsible user as `user:<UUID>`; the system-driven deletion flow records `service:waste-obligations`.
 - `entityId` is changed from the raw ObjectId string to `compliance_declaration_{objectId}`.
-- `schemaVersion` is changed from `v1.3` to `compliance_declaration.v1.3`.
-- `piiKeyRef` is currently set to `null`.
+- `insert` is mapped to the envelope operation `create`; `update` and `delete` are unchanged.
+- `schemaVersion` is changed from `v1.3` to `compliance_declaration_v1.3`.
+- `traceId` is mapped to `correlationId` when the originating request supplied `x-cdp-request-id`.
+- `piiKeyRef` is set to `null` under the instructed PII scope exclusion.
+- The emitted entity, operation, event type, actor prefix, deletion reason, and schema version are validated against the current governed vocabulary before publishing.
 
 The serializer loads the embedded compliance declaration JSON schema and uses it to write the `before` and `after` BSON documents with the expected field names and JSON value formats.
 

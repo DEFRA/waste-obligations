@@ -4,6 +4,7 @@ using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Utils.Logging;
 using Defra.WasteObligations.Api.Utils.Metrics;
 using Defra.WasteObligations.AuditEvents;
+using Defra.WasteObligations.AuditEvents.Analytics;
 using MongoDB.Bson;
 using MongoDB.Driver;
 
@@ -19,7 +20,7 @@ public class ComplianceDeclarationService(
     IUnsubmittedEligibilityVisibilityService unsubmittedEligibilityVisibilityService
 ) : IComplianceDeclarationService
 {
-    private const string Actor = "service:waste-obligations";
+    private const string SystemActor = "service:waste-obligations";
     private const string ComplianceDeclarationEntity = "compliance_declaration";
 
     public async Task<ComplianceDeclaration> Create(
@@ -49,7 +50,7 @@ public class ComplianceDeclarationService(
                 await auditEventService.RecordEvent(
                     transactionSession,
                     new AuditEventRequest(
-                        Actor,
+                        GetActor(complianceDeclaration),
                         ComplianceDeclarationEntity,
                         AuditEventOperation.Insert,
                         "submission.created",
@@ -151,11 +152,11 @@ public class ComplianceDeclarationService(
                 await auditEventService.RecordEvent(
                     transactionSession,
                     new AuditEventRequest(
-                        Actor,
+                        SystemActor,
                         ComplianceDeclarationEntity,
                         AuditEventOperation.Delete,
                         "submission.removed",
-                        "elevated system allowed removal",
+                        AnalyticsEventVocabulary.ElevatedSystemAllowedRemoval,
                         current.Id.ToString(),
                         current.Version + 1,
                         current.ToBsonDocument(),
@@ -279,7 +280,7 @@ public class ComplianceDeclarationService(
                 await auditEventService.RecordEvent(
                     transactionSession,
                     new AuditEventRequest(
-                        Actor,
+                        GetActor(updated),
                         ComplianceDeclarationEntity,
                         AuditEventOperation.Update,
                         "submission.amended",
@@ -412,4 +413,7 @@ public class ComplianceDeclarationService(
         SortDefinition<ComplianceDeclaration> ascending,
         SortDefinition<ComplianceDeclaration> descending
     ) => direction is ComplianceDeclarationSortDirection.Ascending ? descending : ascending;
+
+    private static string GetActor(ComplianceDeclaration complianceDeclaration) =>
+        complianceDeclaration.Audit.LastOrDefault()?.User is { } user ? $"user:{user.Id}" : SystemActor;
 }
