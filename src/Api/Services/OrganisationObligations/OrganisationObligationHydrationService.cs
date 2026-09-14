@@ -75,6 +75,7 @@ public class OrganisationObligationHydrationService(
         CancellationToken cancellationToken
     )
     {
+        var reconciliationStartedAt = timeProvider.GetTimestamp();
         var eligibility = await GetEligibleOrganisationIds(obligationYear, cancellationToken);
         if (!eligibility.HasActiveGeneration)
         {
@@ -88,6 +89,28 @@ public class OrganisationObligationHydrationService(
 
         await RemoveInactiveWork(eligibility.OrganisationIds, obligationYear, cancellationToken);
         await EnqueueNewEligible(eligibility.OrganisationIds, obligationYear, cancellationToken);
+        var reconciliationDuration = timeProvider.GetElapsedTime(reconciliationStartedAt);
+        var warningThreshold = TimeSpan.FromSeconds(options.Value.ReconciliationWarningThresholdSeconds);
+        if (reconciliationDuration > warningThreshold)
+        {
+            logger.LogWarning(
+                "Organisation obligation reconciliation took {DurationMilliseconds}ms for {OrganisationCount} organisations in obligation year {ObligationYear}, exceeding {WarningThresholdMilliseconds}ms",
+                reconciliationDuration.TotalMilliseconds,
+                eligibility.OrganisationIds.Length,
+                obligationYear,
+                warningThreshold.TotalMilliseconds
+            );
+        }
+        else
+        {
+            logger.LogDebug(
+                "Organisation obligation reconciliation took {DurationMilliseconds}ms for {OrganisationCount} organisations in obligation year {ObligationYear}",
+                reconciliationDuration.TotalMilliseconds,
+                eligibility.OrganisationIds.Length,
+                obligationYear
+            );
+        }
+
         var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
         var activeSummaryCountTask = dbContext.OrganisationObligationSummaries.CountDocumentsAsync(
             x => x.ObligationYear == obligationYear && x.IsHydrationActive,
