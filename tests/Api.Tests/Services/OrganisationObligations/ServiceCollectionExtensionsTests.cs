@@ -3,6 +3,7 @@ using Defra.WasteObligations.Api.Services.OrganisationObligations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Defra.WasteObligations.Api.Tests.Services.OrganisationObligations;
@@ -64,6 +65,8 @@ public class ServiceCollectionExtensionsTests
                     ["OrganisationObligationHydration:InitialRetryDelay"] = "00:01:00",
                     ["OrganisationObligationHydration:MaximumRetryDelay"] = "00:30:00",
                     ["OrganisationObligationHydration:MaxDownstreamRequestsPerMinute"] = "200",
+                    ["OrganisationObligationHydration:ReconciliationWarningThresholdSeconds"] = "10",
+                    ["OrganisationObligationHydration:ReconciliationLogLevel"] = "Information",
                 }
             )
             .Build();
@@ -77,6 +80,8 @@ public class ServiceCollectionExtensionsTests
         options.Value.PollingEnabled.Should().BeFalse();
         options.Value.LeaseRenewalIntervalSeconds.Should().Be(30);
         options.Value.MaxDownstreamRequestsPerMinute.Should().Be(200);
+        options.Value.ReconciliationWarningThresholdSeconds.Should().Be(10);
+        options.Value.ReconciliationLogLevel.Should().Be(LogLevel.Information);
         services.Should().NotContain(descriptor => descriptor.ServiceType == typeof(IHostedService));
     }
 
@@ -95,5 +100,32 @@ public class ServiceCollectionExtensionsTests
         var options = serviceProvider.GetRequiredService<IOptions<OrganisationObligationHydrationOptions>>();
 
         options.Value.BatchSize.Should().Be(2);
+        options.Value.ReconciliationLogLevel.Should().Be(LogLevel.Debug);
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-1")]
+    [InlineData("86401")]
+    public void AddOrganisationObligationHydration_WhenReconciliationThresholdInvalid_ShouldRejectConfiguration(
+        string threshold
+    )
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["OrganisationObligationHydration:ReconciliationWarningThresholdSeconds"] = threshold,
+                }
+            )
+            .Build();
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(configuration);
+        services.AddOrganisationObligationHydration(addWorker: false);
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var act = () => serviceProvider.GetRequiredService<IOptions<OrganisationObligationHydrationOptions>>().Value;
+
+        act.Should().Throw<OptionsValidationException>();
     }
 }

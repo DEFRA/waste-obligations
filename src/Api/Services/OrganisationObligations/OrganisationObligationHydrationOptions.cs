@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.Extensions.Logging;
 
 namespace Defra.WasteObligations.Api.Services.OrganisationObligations;
 
@@ -38,4 +39,10 @@ public record OrganisationObligationHydrationOptions
     public TimeSpan MaximumSummaryStaleness { get; init; } = TimeSpan.FromHours(2);
 
     public TimeSpan OutgoingYearGracePeriod { get; init; } = TimeSpan.FromHours(1);
+
+    [Range(1, 86400)]
+    public int ReconciliationWarningThresholdSeconds { get; init; } = 5;
+
+    [EnumDataType(typeof(LogLevel))]
+    public LogLevel ReconciliationLogLevel { get; init; } = LogLevel.Debug;
 }
