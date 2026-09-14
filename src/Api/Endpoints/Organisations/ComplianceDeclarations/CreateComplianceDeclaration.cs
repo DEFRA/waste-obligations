@@ -40,6 +40,11 @@ public static class CreateComplianceDeclaration
         if (organisation is null)
             return Results.NotFound();
 
+        if (request.Organisation.Id != organisationId)
+            throw new BadHttpRequestException(
+                "The organisation ID in the request body must match the route organisation ID."
+            );
+
         var complianceDeclaration = await complianceDeclarationService.Create(
             request.ToEntity(organisation.BusinessCountry, timeProvider),
             cancellationToken

@@ -1,0 +1,7 @@
+﻿{
+  "type": "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+  "title": "Bad request",
+  "status": 400,
+  "detail": "The organisation ID in the request body must match the route organisation ID.",
+  "traceId": "{Scrubbed}"
+}

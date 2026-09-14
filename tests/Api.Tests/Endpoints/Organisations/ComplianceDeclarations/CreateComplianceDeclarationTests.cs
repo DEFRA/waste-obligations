@@ -63,6 +63,27 @@ public class CreateComplianceDeclarationTests : EndpointTestBase
     }
 
     [Fact]
+    public async Task WhenOrganisationDoesNotMatchRoute_ShouldBeBadRequestWithoutCreatingDeclaration()
+    {
+        var createCalled = false;
+        ComplianceDeclarationService.CreateNewId = () =>
+        {
+            createCalled = true;
+
+            return ObjectId.GenerateNewId();
+        };
+
+        var content = await RequestShouldBeBadRequest(
+            CreateComplianceDeclarationRequestFixture
+                .DirectProducer(Guid.Parse("e7df5c09-7ed6-4c8a-bf45-c324fc03e17e"))
+                .Create()
+        );
+
+        createCalled.Should().BeFalse();
+        await VerifyJson(content);
+    }
+
+    [Fact]
     public async Task WhenNotFound_ShouldBeNotFound()
     {
         var client = CreateClient(testUser: TestUser.WriteOnly);
