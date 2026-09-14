@@ -136,6 +136,8 @@ Review CDP documentation and process for relevant portal operations.
 
 ## Journey tests
 
+For repository-secret setup, see [Journey tests in Confluence](https://eaflood.atlassian.net/wiki/spaces/EDIA/pages/6597640835/Journey+tests).
+
 Trusted pull requests and manually dispatched **Check Pull Request** runs execute the Waste Obligations journey suite in a separate job. The job builds the selected source revision locally; it does not publish a test image. If a branch with the same name exists in `waste-obligations-journey-tests`, that branch supplies the journeys and dedicated CI stack; otherwise the suite uses `main`.
 
 The required GitHub Actions secrets and OIDC/CDP-role prerequisite are documented in the [journey-test CI contract](https://github.com/DEFRA/waste-obligations-journey-tests#github-actions-secrets). Configure that shared contract in this repository, or use organisation-level secrets restricted to the journey and service repositories. Fork pull requests do not run the job because repository secrets are unavailable to them.
