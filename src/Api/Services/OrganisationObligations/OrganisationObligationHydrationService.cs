@@ -288,7 +288,17 @@ public class OrganisationObligationHydrationService(
 
         var utcNow = timeProvider.GetUtcNowWithoutMicroseconds();
         await ReactivateExistingEligible(organisationIds, obligationYear, utcNow, cancellationToken);
-        var work = organisationIds
+        var existingOrganisationIds = await dbContext
+            .OrganisationObligationSummaries.Find(x =>
+                x.ObligationYear == obligationYear && organisationIds.Contains(x.OrganisationId)
+            )
+            .Project(x => x.OrganisationId)
+            .ToListAsync(cancellationToken);
+        var missingOrganisationIds = organisationIds.Except(existingOrganisationIds).ToArray();
+        if (missingOrganisationIds.Length == 0)
+            return 0;
+
+        var work = missingOrganisationIds
             .Select(organisationId => new UpdateOneModel<OrganisationObligationSummary>(
                 Builders<OrganisationObligationSummary>.Filter.And(
                     Builders<OrganisationObligationSummary>.Filter.Eq(x => x.OrganisationId, organisationId),

@@ -335,6 +335,68 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task EnqueueNewEligible_WhenSomeSummariesExist_ShouldOnlyCreateMissingSummariesForTheRequestedYear()
+    {
+        var existingOrganisationId = Guid.NewGuid();
+        var newOrganisationId = Guid.NewGuid();
+        var nextRefreshAt = _timeProvider.GetUtcNow().AddMinutes(30).UtcDateTime;
+        await InsertActiveSnapshot();
+        await InsertEligibility(existingOrganisationId, RegistrationType.DirectProducer);
+        await InsertEligibility(newOrganisationId, RegistrationType.DirectProducer);
+        await InsertSummary(
+            existingOrganisationId,
+            OrganisationObligationRefreshState.Ready,
+            _timeProvider.GetUtcNow().UtcDateTime,
+            isHydrationActive: true,
+            nextRefreshAt: nextRefreshAt
+        );
+        await InsertSummary(
+            newOrganisationId,
+            OrganisationObligationRefreshState.Ready,
+            _timeProvider.GetUtcNow().UtcDateTime,
+            obligationYear: ObligationYear - 1
+        );
+        var subject = CreateSubject();
+        await using var profiler = await MongoQueryProfiler.Start(
+            GetMongoDatabase(),
+            [MongoQueryProfiler.IntegrationTestApplicationName],
+            TestContext.Current.CancellationToken
+        );
+
+        var enqueuedCount = await subject.EnqueueNewEligible(ObligationYear, TestContext.Current.CancellationToken);
+        var repeatedCount = await subject.EnqueueNewEligible(ObligationYear, TestContext.Current.CancellationToken);
+        var profile = await profiler.Stop(TestContext.Current.CancellationToken);
+
+        enqueuedCount.Should().Be(1);
+        repeatedCount.Should().Be(0);
+        profile.QueriesWithoutAnIndex.Should().BeEmpty();
+        profile
+            .Queries.Should()
+            .Contain(x =>
+                x.Namespace == "waste-obligations.OrganisationObligationSummary"
+                && x.Command.Contains("find")
+                && x.Command.Contains("projection")
+                && x.UsesIndex
+            );
+        profile
+            .Queries.Should()
+            .ContainSingle(x =>
+                x.Namespace == "waste-obligations.OrganisationObligationSummary"
+                && x.Command.GetValue("upsert", false).AsBoolean
+            );
+        var summaries = await OrganisationObligationSummaries
+            .Find(Builders<OrganisationObligationSummary>.Filter.Empty)
+            .ToListAsync(TestContext.Current.CancellationToken);
+        summaries.Should().HaveCount(3);
+        summaries.Single(x => x.OrganisationId == existingOrganisationId).NextRefreshAt.Should().Be(nextRefreshAt);
+        summaries
+            .Single(x => x.OrganisationId == newOrganisationId && x.ObligationYear == ObligationYear)
+            .IsHydrationActive.Should()
+            .BeTrue();
+        summaries.Single(x => x.ObligationYear == ObligationYear - 1).IsHydrationActive.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task EnqueueNewEligible_WhenAnInactiveSummaryBecomesEligible_ShouldMakeItDueAndLogReactivation()
     {
         var organisationId = Guid.NewGuid();

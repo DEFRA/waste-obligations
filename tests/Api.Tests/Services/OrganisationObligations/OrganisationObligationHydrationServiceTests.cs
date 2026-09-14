@@ -104,7 +104,52 @@ public class OrganisationObligationHydrationServiceTests
         _logger.Entries.Should().BeEmpty();
     }
 
-    private void ConfigureReconciliation(int durationMilliseconds, bool fail = false)
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task EnqueueNewEligible_ShouldOnlySubmitUpsertsForMissingSummaries(bool allSummariesExist)
+    {
+        var existingOrganisationId = Guid.NewGuid();
+        var newOrganisationId = Guid.NewGuid();
+        ConfigureReconciliation(
+            0,
+            eligibleOrganisationIds: [existingOrganisationId, newOrganisationId],
+            existingOrganisationIds: allSummariesExist
+                ? [existingOrganisationId, newOrganisationId]
+                : [existingOrganisationId]
+        );
+        var subject = CreateSubject();
+
+        await subject.EnqueueNewEligible(2026, TestContext.Current.CancellationToken);
+
+        if (allSummariesExist)
+        {
+            await _dbContext
+                .OrganisationObligationSummaries.DidNotReceive()
+                .BulkWriteAsync(
+                    Arg.Any<IEnumerable<WriteModel<OrganisationObligationSummary>>>(),
+                    Arg.Any<BulkWriteOptions>(),
+                    Arg.Any<CancellationToken>()
+                );
+        }
+        else
+        {
+            await _dbContext
+                .OrganisationObligationSummaries.Received(1)
+                .BulkWriteAsync(
+                    Arg.Is<IEnumerable<WriteModel<OrganisationObligationSummary>>>(x => x.Count() == 1),
+                    Arg.Any<BulkWriteOptions>(),
+                    Arg.Any<CancellationToken>()
+                );
+        }
+    }
+
+    private void ConfigureReconciliation(
+        int durationMilliseconds,
+        bool fail = false,
+        Guid[]? eligibleOrganisationIds = null,
+        Guid[]? existingOrganisationIds = null
+    )
     {
         var snapshotCursor = Cursor(
             new OrganisationEligibilitySnapshot
@@ -120,7 +165,7 @@ public class OrganisationObligationHydrationServiceTests
                 Arg.Any<CancellationToken>()
             )
             .Returns(snapshotCursor);
-        var organisationCursor = Cursor(Guid.NewGuid());
+        var organisationCursor = Cursor(eligibleOrganisationIds ?? [Guid.NewGuid()]);
         _dbContext
             .OrganisationComplianceDeclarationEligibilities.FindAsync(
                 Arg.Any<FilterDefinition<OrganisationComplianceDeclarationEligibility>>(),
@@ -128,6 +173,14 @@ public class OrganisationObligationHydrationServiceTests
                 Arg.Any<CancellationToken>()
             )
             .Returns(organisationCursor);
+        var existingOrganisationCursor = Cursor(existingOrganisationIds ?? []);
+        _dbContext
+            .OrganisationObligationSummaries.FindAsync(
+                Arg.Any<FilterDefinition<OrganisationObligationSummary>>(),
+                Arg.Any<FindOptions<OrganisationObligationSummary, Guid>>(),
+                Arg.Any<CancellationToken>()
+            )
+            .Returns(existingOrganisationCursor);
         _dbContext
             .OrganisationObligationSummaries.UpdateManyAsync(
                 Arg.Any<FilterDefinition<OrganisationObligationSummary>>(),
@@ -152,10 +205,10 @@ public class OrganisationObligationHydrationServiceTests
             });
     }
 
-    private static IAsyncCursor<T> Cursor<T>(T item)
+    private static IAsyncCursor<T> Cursor<T>(params T[] items)
     {
         var cursor = Substitute.For<IAsyncCursor<T>>();
-        cursor.Current.Returns([item]);
+        cursor.Current.Returns(items);
         cursor.MoveNextAsync(Arg.Any<CancellationToken>()).Returns(true, false);
 
         return cursor;
