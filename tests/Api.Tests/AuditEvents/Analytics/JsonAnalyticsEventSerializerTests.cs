@@ -29,7 +29,7 @@ public class JsonAnalyticsEventSerializerTests
         var subject = CreateSubject();
         var analyticsEvent = AnalyticsEventFixture
             .ComplianceDeclaration("01JZ8RXBMTY2K15SJB3PCFN3D5", 123)
-            .With(x => x.EntityId, "compliance_declaration_65f1f6570bb08052a8a27b01")
+            .With(x => x.EntityId, "cdec_65f1f6570bb08052a8a27b01")
             .With(x => x.OccurredAt, new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero))
             .With(x => x.RecordedAt, new DateTimeOffset(2026, 1, 2, 3, 4, 6, TimeSpan.Zero))
             .With(x => x.Actor, "service:waste-obligations")
@@ -96,7 +96,7 @@ public class JsonAnalyticsEventSerializerTests
         var subject = CreateSubject();
         var analyticsEvent = AnalyticsEventFixture
             .ComplianceDeclaration("01JZ8RXBMTY2K15SJB3PCFN3D6", 124)
-            .With(x => x.EntityId, "compliance_declaration_65f1f6570bb08052a8a27b01")
+            .With(x => x.EntityId, "cdec_65f1f6570bb08052a8a27b01")
             .With(x => x.Operation, "update")
             .With(x => x.EventType, "submission.amended")
             .With(x => x.OccurredAt, new DateTimeOffset(2026, 1, 2, 3, 5, 5, TimeSpan.Zero))
@@ -119,7 +119,7 @@ public class JsonAnalyticsEventSerializerTests
         var subject = CreateSubject();
         var analyticsEvent = AnalyticsEventFixture
             .ComplianceDeclaration("01JZ8RXBMTY2K15SJB3PCFN3D7", 125)
-            .With(x => x.EntityId, "compliance_declaration_65f1f6570bb08052a8a27b01")
+            .With(x => x.EntityId, "cdec_65f1f6570bb08052a8a27b01")
             .With(x => x.Operation, "delete")
             .With(x => x.EventType, "submission.removed")
             .With(x => x.DeletedReason, AnalyticsEventVocabulary.ElevatedSystemAllowedRemoval)

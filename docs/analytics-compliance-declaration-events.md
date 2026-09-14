@@ -72,7 +72,7 @@ The only current deletion reason is `elevated_system_allowed_removal`. This repl
 
 ## Compliance declaration events
 
-Compliance declaration events use `entity` set to `compliance_declaration`. The current service identity is a Mongo ObjectId, so `entityId` remains prefixed as `compliance_declaration_65f1f6570bb08052a8a27b01`. The proposed `cdec_<ULID>` format is not implemented because it is incompatible with the existing immutable identifier model; it requires a corrected specification before it can be adopted.
+Compliance declaration events use `entity` set to `compliance_declaration`. The current service identity is a Mongo ObjectId, so `entityId` is emitted as `cdec_65f1f6570bb08052a8a27b01`.
 
 The current compliance declaration event types are:
 
@@ -93,7 +93,7 @@ The `before` value is `null`. The `after` value is the created compliance declar
   "eventId": "01JZ8RXBMTY2K15SJB3PCFN3D5",
   "sequence": 123,
   "entity": "compliance_declaration",
-  "entityId": "compliance_declaration_65f1f6570bb08052a8a27b01",
+  "entityId": "cdec_65f1f6570bb08052a8a27b01",
   "operation": "create",
   "eventType": "submission.created",
   "deletedReason": null,
@@ -176,7 +176,7 @@ The `before` value is the declaration state before the update. The `after` value
   "eventId": "01JZ8RXBMTY2K15SJB3PCFN3D6",
   "sequence": 124,
   "entity": "compliance_declaration",
-  "entityId": "compliance_declaration_65f1f6570bb08052a8a27b01",
+  "entityId": "cdec_65f1f6570bb08052a8a27b01",
   "operation": "update",
   "eventType": "submission.amended",
   "deletedReason": null,

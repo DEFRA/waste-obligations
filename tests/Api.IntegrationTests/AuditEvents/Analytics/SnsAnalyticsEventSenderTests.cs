@@ -27,7 +27,7 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
         var root = deserializedMessage.RootElement;
 
         root.GetProperty("eventId").GetString().Should().NotBeNullOrWhiteSpace();
-        root.GetProperty("entityId").GetString().Should().Be($"compliance_declaration_{complianceDeclaration.Id}");
+        root.GetProperty("entityId").GetString().Should().Be($"cdec_{complianceDeclaration.Id}");
         root.GetProperty("operation").GetString().Should().Be("create");
         root.GetProperty("eventType").GetString().Should().Be("submission.created");
         root.GetProperty("actor").GetString().Should().Be("user:e72be574-8b5b-4836-af47-dd7e0c0d1d87");
@@ -70,7 +70,7 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
         );
         var root = deserializedMessage.RootElement;
 
-        root.GetProperty("entityId").GetString().Should().Be($"compliance_declaration_{complianceDeclaration.Id}");
+        root.GetProperty("entityId").GetString().Should().Be($"cdec_{complianceDeclaration.Id}");
         root.GetProperty("operation").GetString().Should().Be("update");
         root.GetProperty("eventType").GetString().Should().Be("submission.amended");
         root.GetProperty("actor").GetString().Should().Be("user:7e91f2ac-5b44-4c8d-ae73-1d9f62b8e0f4");
@@ -105,7 +105,7 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
         );
         var root = deserializedMessage.RootElement;
 
-        root.GetProperty("entityId").GetString().Should().Be($"compliance_declaration_{complianceDeclaration.Id}");
+        root.GetProperty("entityId").GetString().Should().Be($"cdec_{complianceDeclaration.Id}");
         root.GetProperty("operation").GetString().Should().Be("delete");
         root.GetProperty("eventType").GetString().Should().Be("submission.removed");
         root.GetProperty("actor").GetString().Should().Be("service:waste-obligations");

@@ -29,7 +29,7 @@ public class AnalyticsEventMappersTests
 
         result.EventId.Should().Be(eventId);
         result.Entity.Should().Be(auditEvent.Entity);
-        result.EntityId.Should().Be($"{entity}_{entityId}");
+        result.EntityId.Should().Be($"cdec_{entityId}");
         result.Operation.Should().Be("create");
         result.EventType.Should().Be(auditEvent.EventType);
         result.Actor.Should().Be(auditEvent.Actor);

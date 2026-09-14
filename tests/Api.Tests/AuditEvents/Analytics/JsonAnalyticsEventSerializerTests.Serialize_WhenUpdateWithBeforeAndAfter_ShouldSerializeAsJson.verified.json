@@ -2,7 +2,7 @@
   "eventId": "01JZ8RXBMTY2K15SJB3PCFN3D6",
   "sequence": 124,
   "entity": "compliance_declaration",
-  "entityId": "compliance_declaration_65f1f6570bb08052a8a27b01",
+  "entityId": "cdec_65f1f6570bb08052a8a27b01",
   "operation": "update",
   "eventType": "submission.amended",
   "deletedReason": null,

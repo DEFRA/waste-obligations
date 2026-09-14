@@ -2,7 +2,7 @@
   "eventId": "01JZ8RXBMTY2K15SJB3PCFN3D7",
   "sequence": 125,
   "entity": "compliance_declaration",
-  "entityId": "compliance_declaration_65f1f6570bb08052a8a27b01",
+  "entityId": "cdec_65f1f6570bb08052a8a27b01",
   "operation": "delete",
   "eventType": "submission.removed",
   "deletedReason": "elevated_system_allowed_removal",

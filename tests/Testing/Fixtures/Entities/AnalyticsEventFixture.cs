@@ -44,7 +44,7 @@ public static class AnalyticsEventFixture
     {
         return Default(eventId, sequence)
             .With(x => x.Entity, "compliance_declaration")
-            .With(x => x.EntityId, "compliance_declaration_entity-1")
+            .With(x => x.EntityId, "cdec_entity-1")
             .With(
                 x => x.SchemaVersion,
                 $"compliance_declaration_{Api.Data.Entities.ComplianceDeclaration.SchemaVersionValue}"
