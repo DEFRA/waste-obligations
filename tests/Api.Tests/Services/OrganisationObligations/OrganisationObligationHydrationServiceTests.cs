@@ -64,6 +64,34 @@ public class OrganisationObligationHydrationServiceTests
             );
     }
 
+    [Theory]
+    [InlineData(1000, LogLevel.Information)]
+    [InlineData(5000, LogLevel.Information)]
+    [InlineData(6000, LogLevel.Warning)]
+    public async Task PrepareDueWork_WhenNormalLogLevelIsInformation_ShouldKeepSlowReconciliationsAtWarning(
+        int durationMilliseconds,
+        LogLevel expectedLevel
+    )
+    {
+        ConfigureReconciliation(durationMilliseconds);
+        var subject = CreateSubject(reconciliationLogLevel: LogLevel.Information);
+
+        await subject.PrepareDueWork(2026, TestContext.Current.CancellationToken);
+
+        _logger
+            .Entries.Should()
+            .ContainSingle()
+            .Which.Should()
+            .BeEquivalentTo(
+                new
+                {
+                    Level = expectedLevel,
+                    Message = $"Organisation obligation reconciliation took {durationMilliseconds}ms for 1 organisations in obligation year 2026"
+                        + (expectedLevel == LogLevel.Warning ? ", exceeding 5000ms" : ""),
+                }
+            );
+    }
+
     [Fact]
     public async Task PrepareDueWork_WhenReconciliationFails_ShouldPropagateWithoutLoggingDuration()
     {
@@ -133,7 +161,10 @@ public class OrganisationObligationHydrationServiceTests
         return cursor;
     }
 
-    private OrganisationObligationHydrationService CreateSubject(int warningThresholdSeconds = 5) =>
+    private OrganisationObligationHydrationService CreateSubject(
+        int warningThresholdSeconds = 5,
+        LogLevel reconciliationLogLevel = LogLevel.Debug
+    ) =>
         new(
             _dbContext,
             Substitute.For<IOrganisationObligationSource>(),
@@ -143,6 +174,7 @@ public class OrganisationObligationHydrationServiceTests
                 new OrganisationObligationHydrationOptions
                 {
                     ReconciliationWarningThresholdSeconds = warningThresholdSeconds,
+                    ReconciliationLogLevel = reconciliationLogLevel,
                 }
             ),
             _timeProvider,

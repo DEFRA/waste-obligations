@@ -103,7 +103,8 @@ public class OrganisationObligationHydrationService(
         }
         else
         {
-            logger.LogDebug(
+            logger.Log(
+                options.Value.ReconciliationLogLevel,
                 "Organisation obligation reconciliation took {DurationMilliseconds}ms for {OrganisationCount} organisations in obligation year {ObligationYear}",
                 reconciliationDuration.TotalMilliseconds,
                 eligibility.OrganisationIds.Length,
