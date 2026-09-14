@@ -231,7 +231,7 @@ public class AuditEventMetricsTests
         publishMeasurements[0].Tags[ApiMetrics.Tags.ProcessName].Should().Be(ProcessName);
         publishMeasurements[0].Tags[ApiMetrics.Tags.TopicName].Should().Be(TopicName);
         publishMeasurements[0].Tags[ApiMetrics.Tags.Entity].Should().Be("compliance_declaration");
-        publishMeasurements[0].Tags[ApiMetrics.Tags.Operation].Should().Be("insert");
+        publishMeasurements[0].Tags[ApiMetrics.Tags.Operation].Should().Be("create");
         publishMeasurements[0].Tags[ApiMetrics.Tags.EventType].Should().Be("submission.created");
 
         var activeMeasurements = activeCollector.GetMeasurementSnapshot();

@@ -239,7 +239,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         string? deletedReason = null
     )
     {
-        var expectedEntityId = $"compliance_declaration_{complianceDeclarationId}";
+        var expectedEntityId = $"cdec_{complianceDeclarationId}";
 
         using var deserializedMessage = await ReceiveAnalyticsEventsQueueJsonMessage(
             sqsClient,
@@ -271,7 +271,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         string eventType
     )
     {
-        var expectedEntityId = $"compliance_declaration_{complianceDeclarationId}";
+        var expectedEntityId = $"cdec_{complianceDeclarationId}";
 
         return root =>
             root.GetProperty("entityId").GetString() == expectedEntityId

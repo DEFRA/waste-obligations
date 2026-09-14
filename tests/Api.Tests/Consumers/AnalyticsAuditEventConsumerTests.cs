@@ -14,7 +14,7 @@ namespace Defra.WasteObligations.Api.Tests.Consumers;
 
 public class AnalyticsAuditEventConsumerTests
 {
-    private const string EntityId = "compliance_declaration_65f1f6570bb08052a8a27b01";
+    private const string EntityId = "cdec_65f1f6570bb08052a8a27b01";
     private const string EventId = "01JZ8RXBMTY2K15SJB3PCFN3D5";
     private const string QueueUrl = "http://localhost:4566/000000000000/waste_obligations_analytics_events_queue";
     private const string ReceiptHandle = "receipt-handle-1";

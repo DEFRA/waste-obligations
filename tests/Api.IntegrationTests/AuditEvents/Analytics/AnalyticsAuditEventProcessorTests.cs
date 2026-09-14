@@ -388,7 +388,12 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
         string eventId,
         long sequence,
         Dictionary<string, AuditEventDispatch>? dispatches = null
-    ) => AuditEventFixture.ComplianceDeclaration(eventId, sequence).With(x => x.Dispatches, dispatches ?? []).Create();
+    ) =>
+        AuditEventFixture
+            .ComplianceDeclaration(eventId, sequence)
+            .With(x => x.Actor, "service:waste-obligations")
+            .With(x => x.Dispatches, dispatches ?? [])
+            .Create();
 
     private sealed class RecordingAnalyticsEventSender : IAnalyticsEventSender
     {

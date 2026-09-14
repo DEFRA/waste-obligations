@@ -50,12 +50,22 @@ public sealed class EmbeddedEntityJsonSchemaProvider : IEntityJsonSchemaProvider
 
     private static string GetSchemaFileName(string entity, string schemaVersionValue)
     {
-        var schemaVersionPrefix = $"{entity}.";
-        var schemaVersion = schemaVersionValue.StartsWith(schemaVersionPrefix, StringComparison.Ordinal)
-            ? schemaVersionValue[schemaVersionPrefix.Length..]
-            : schemaVersionValue;
+        var schemaVersion = GetSchemaVersion(entity, schemaVersionValue);
 
         return $"{ToKebabCase(entity)}.{schemaVersion}{SchemaFileSuffix}";
+    }
+
+    private static string GetSchemaVersion(string entity, string schemaVersionValue)
+    {
+        var dotPrefix = $"{entity}.";
+        if (schemaVersionValue.StartsWith(dotPrefix, StringComparison.Ordinal))
+            return schemaVersionValue[dotPrefix.Length..];
+
+        var underscorePrefix = $"{entity}_";
+
+        return schemaVersionValue.StartsWith(underscorePrefix, StringComparison.Ordinal)
+            ? schemaVersionValue[underscorePrefix.Length..]
+            : schemaVersionValue;
     }
 
     private static string ToKebabCase(string value)

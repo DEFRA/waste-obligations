@@ -21,7 +21,7 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
 {
     private const string Amended = "submission.amended";
     private const string Created = "submission.created";
-    private const string Insert = "insert";
+    private const string Create = "create";
     private const string Update = "update";
 
     [Fact]
@@ -53,7 +53,7 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
         );
 
         result.Should().NotBeNull();
-        await AssertAnalyticsEventQueued(sqsClient, result.Id, Insert, Created);
+        await AssertAnalyticsEventQueued(sqsClient, result.Id, Create, Created);
 
         response = await client.PatchAsJsonAsync(
             Testing.Endpoints.Organisations.ComplianceDeclarations.Update(organisationId, result.Id),
@@ -103,7 +103,7 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
         );
 
         result.Should().NotBeNull();
-        await AssertAnalyticsEventQueued(sqsClient, result.Id, Insert, Created);
+        await AssertAnalyticsEventQueued(sqsClient, result.Id, Create, Created);
 
         response = await client.PatchAsJsonAsync(
             Testing.Endpoints.Organisations.ComplianceDeclarations.Update(organisationId, result.Id),

@@ -46,4 +46,14 @@ public class EmbeddedEntityJsonSchemaProviderTests
 
         schema.Should().NotBeNull();
     }
+
+    [Fact]
+    public void Get_WhenComplianceDeclarationUsesEnvelopeSchemaVersion_ShouldLoadSchema()
+    {
+        var subject = new EmbeddedEntityJsonSchemaProvider();
+
+        var schema = subject.Get("compliance_declaration", "compliance_declaration_v1.3");
+
+        schema.Should().NotBeNull();
+    }
 }
