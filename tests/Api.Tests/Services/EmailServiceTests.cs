@@ -13,6 +13,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using OrganisationFixture = Defra.WasteObligations.Testing.Fixtures.WasteOrganisations.OrganisationFixture;
+using WasteOrganisation = Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation;
 
 namespace Defra.WasteObligations.Api.Tests.Services;
 
@@ -27,7 +28,7 @@ public class EmailServiceTests
     public EmailServiceTests()
     {
         CancellationEmailRecipientResolver
-            .ResolveAsync(Arg.Any<ComplianceDeclaration>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .ResolveAsync(Arg.Any<ComplianceDeclaration>(), Arg.Any<WasteOrganisation>(), Arg.Any<CancellationToken>())
             .Returns([PersonEmailFixture.Submitter()]);
 
         Subject = new EmailService(
@@ -264,7 +265,7 @@ public class EmailServiceTests
             );
         await CancellationEmailRecipientResolver
             .Received(1)
-            .ResolveAsync(complianceDeclaration, OrganisationFixture.OrganisationId, Arg.Any<CancellationToken>());
+            .ResolveAsync(complianceDeclaration, organisation, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -295,7 +296,7 @@ public class EmailServiceTests
             );
         await CancellationEmailRecipientResolver
             .Received(1)
-            .ResolveAsync(complianceDeclaration, OrganisationFixture.OrganisationId, Arg.Any<CancellationToken>());
+            .ResolveAsync(complianceDeclaration, organisation, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -410,7 +411,7 @@ public class EmailServiceTests
     public async Task SendCancelledEmail_WhenNoRecipients_ShouldNotCallGovukNotify()
     {
         CancellationEmailRecipientResolver
-            .ResolveAsync(Arg.Any<ComplianceDeclaration>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .ResolveAsync(Arg.Any<ComplianceDeclaration>(), Arg.Any<WasteOrganisation>(), Arg.Any<CancellationToken>())
             .Returns([]);
 
         await Subject.SendCancelledEmail(
