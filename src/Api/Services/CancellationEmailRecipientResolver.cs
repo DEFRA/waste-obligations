@@ -1,6 +1,7 @@
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.AccountBackend;
 using ComplianceDeclarationStatus = Defra.WasteObligations.Api.Data.Entities.ComplianceDeclarationStatus;
+using WasteOrganisationsOrganisation = Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation;
 
 namespace Defra.WasteObligations.Api.Services;
 
@@ -8,7 +9,7 @@ public interface ICancellationEmailRecipientResolver
 {
     Task<IReadOnlyList<PersonEmail>> ResolveAsync(
         ComplianceDeclaration complianceDeclaration,
-        Guid organisationId,
+        WasteOrganisationsOrganisation organisation,
         CancellationToken cancellationToken
     );
 }
@@ -22,20 +23,49 @@ public class CancellationEmailRecipientResolver(
 
     public async Task<IReadOnlyList<PersonEmail>> ResolveAsync(
         ComplianceDeclaration complianceDeclaration,
-        Guid organisationId,
+        WasteOrganisationsOrganisation organisation,
         CancellationToken cancellationToken
     )
     {
-        var organisationWithPersons = await accountBackendService.ReadOrganisationWithPersons(
-            organisationId,
+        var accountOrganisationId = await ResolveAccountOrganisationId(
+            complianceDeclaration.Organisation.RegistrationType,
+            organisation,
             cancellationToken
         );
+        if (accountOrganisationId is null)
+        {
+            return [];
+        }
+
+        var organisationWithPersons = await accountBackendService.ReadOrganisationWithPersons(
+            accountOrganisationId.Value,
+            cancellationToken
+        );
+        if (organisationWithPersons is null)
+        {
+            logger.LogWarning(
+                "Cancellation email was not sent because Account returned no organisation-with-persons data for Account organisation {AccountOrganisationId} (Waste Organisations organisation {WasteOrganisationId}, registration type {RegistrationType})",
+                accountOrganisationId.Value,
+                organisation.Id,
+                complianceDeclaration.Organisation.RegistrationType
+            );
+
+            return [];
+        }
+
         var recipients = new List<PersonEmail>();
 
         var submitter = ResolveSubmitter(complianceDeclaration, organisationWithPersons);
         if (submitter is not null)
         {
             recipients.Add(submitter);
+        }
+        else
+        {
+            logger.LogInformation(
+                "Cancellation email submitter recipient was not resolved for Waste Organisations organisation {WasteOrganisationId}; the submitted audit user is missing, not on the Account organisation, or lacks a complete name",
+                organisation.Id
+            );
         }
 
         var primaryContact = ResolvePrimaryContact(organisationWithPersons);
@@ -46,15 +76,103 @@ public class CancellationEmailRecipientResolver(
         else if (submitter is not null)
         {
             logger.LogWarning(
-                "Primary contact email was not found for organisation {OrganisationId}; cancellation email will be sent to submitter only",
-                organisationId
+                "Primary contact email was not found for Account organisation {AccountOrganisationId}; cancellation email will be sent to submitter only",
+                accountOrganisationId.Value
             );
         }
 
-        return recipients
+        var resolvedRecipients = recipients
             .DistinctBy(recipient => recipient.Email, StringComparer.OrdinalIgnoreCase)
             .OrderBy(recipient => recipient.Email, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+
+        logger.LogInformation(
+            "Resolved {RecipientCount} cancellation email recipient(s) for Waste Organisations organisation {WasteOrganisationId} using Account organisation {AccountOrganisationId}",
+            resolvedRecipients.Length,
+            organisation.Id,
+            accountOrganisationId.Value
+        );
+
+        return resolvedRecipients;
+    }
+
+    private async Task<Guid?> ResolveAccountOrganisationId(
+        RegistrationType registrationType,
+        WasteOrganisationsOrganisation organisation,
+        CancellationToken cancellationToken
+    )
+    {
+        if (registrationType is RegistrationType.DirectProducer)
+        {
+            logger.LogDebug(
+                "Using Waste Organisations organisation {OrganisationId} as the Account organisation ID for a direct producer cancellation email",
+                organisation.Id
+            );
+
+            return organisation.Id;
+        }
+
+        if (string.IsNullOrWhiteSpace(organisation.CompaniesHouseNumber))
+        {
+            logger.LogWarning(
+                "Cancellation email was not sent because compliance scheme operator {WasteOrganisationId} has no Companies House number to resolve the Account organisation ID",
+                organisation.Id
+            );
+
+            return null;
+        }
+
+        var matches = (
+            await accountBackendService.SearchOrganisationsByCompaniesHouseNumbers(
+                [organisation.CompaniesHouseNumber],
+                cancellationToken
+            )
+        )
+            .Where(x => x.IsComplianceScheme && !string.IsNullOrWhiteSpace(x.ExternalId))
+            .ToArray();
+
+        if (matches.Length == 0)
+        {
+            logger.LogWarning(
+                "Cancellation email was not sent because Account returned no compliance scheme organisation for Companies House number {CompaniesHouseNumber} (Waste Organisations organisation {WasteOrganisationId})",
+                organisation.CompaniesHouseNumber,
+                organisation.Id
+            );
+
+            return null;
+        }
+
+        if (matches.Length > 1)
+        {
+            logger.LogWarning(
+                "Cancellation email was not sent because Account returned {MatchCount} compliance scheme organisations for Companies House number {CompaniesHouseNumber} (Waste Organisations organisation {WasteOrganisationId})",
+                matches.Length,
+                organisation.CompaniesHouseNumber,
+                organisation.Id
+            );
+
+            return null;
+        }
+
+        if (!Guid.TryParse(matches[0].ExternalId, out var accountOrganisationId))
+        {
+            logger.LogWarning(
+                "Cancellation email was not sent because Account returned an invalid external ID '{ExternalId}' for Companies House number {CompaniesHouseNumber}",
+                matches[0].ExternalId,
+                organisation.CompaniesHouseNumber
+            );
+
+            return null;
+        }
+
+        logger.LogInformation(
+            "Resolved Account organisation {AccountOrganisationId} from Companies House number {CompaniesHouseNumber} for Waste Organisations compliance scheme {WasteOrganisationId}",
+            accountOrganisationId,
+            organisation.CompaniesHouseNumber,
+            organisation.Id
+        );
+
+        return accountOrganisationId;
     }
 
     public static PersonEmail? ResolveSubmitter(
