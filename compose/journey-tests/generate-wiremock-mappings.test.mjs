@@ -25,7 +25,7 @@ const runGenerator = (outputDirectory, environment) =>
 const readMapping = async (outputDirectory, name) =>
     JSON.parse(await readFile(join(outputDirectory, name), "utf8"));
 
-test("generates the Account and GOV.UK Notify mappings from the supplied scenario", async (context) => {
+test("generates Account, Notify and PRN mappings from the supplied scenario", async (context) => {
     const outputDirectory = await mkdtemp(join(tmpdir(), mappingsDirectoryPrefix));
     context.after(() => rm(outputDirectory, { force: true, recursive: true }));
 
@@ -45,6 +45,22 @@ test("generates the Account and GOV.UK Notify mappings from the supplied scenari
         "backend-account-organisation-with-persons-compliance-scheme.json",
     );
     const notifyMapping = await readMapping(outputDirectory, "govuk-notify-send-email.json");
+    const prnMapping = await readMapping(outputDirectory, "journey-producer-prns.json");
+
+    assert.deepEqual(prnMapping.Request, {
+        Path: {
+            Matchers: [{ Name: "ExactMatcher", Pattern: "/api/v1/prn/search" }],
+        },
+        Methods: ["GET"],
+        Headers: [
+            {
+                Name: "X-EPR-ORGANISATION",
+                Matchers: [{ Name: "ExactMatcher", Pattern: directProducerId }],
+            },
+        ],
+    });
+    assert.equal(prnMapping.Response.StatusCode, 200);
+    assert.deepEqual(prnMapping.Response.BodyAsJson, { items: [], totalItems: 0 });
 
     assert.equal(
         directProducerMapping.Request.Path.Matchers[0].Pattern,
