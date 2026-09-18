@@ -204,6 +204,209 @@ public class CancellationEmailRecipientResolverTests
     }
 
     [Fact]
+    public async Task ResolveAsync_WhenAccountReturnsNoOrganisationWithPersons_ReturnsNoRecipients()
+    {
+        var organisation = OrganisationFixture.Default().Create();
+        AccountBackendService
+            .ReadOrganisationWithPersons(organisation.Id, Arg.Any<CancellationToken>())
+            .Returns((OrganisationWithPersons?)null);
+        var complianceDeclaration = ComplianceDeclarationFixture.DirectProducer(organisation.Id).Create();
+
+        var recipients = await Subject.ResolveAsync(
+            complianceDeclaration,
+            organisation,
+            TestContext.Current.CancellationToken
+        );
+
+        recipients.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ResolveAsync_WhenSubmitterMissing_ReturnsPrimaryContactOnly()
+    {
+        var organisation = OrganisationFixture.Default().Create();
+        AccountBackendService
+            .ReadOrganisationWithPersons(organisation.Id, Arg.Any<CancellationToken>())
+            .Returns(
+                new OrganisationWithPersons
+                {
+                    Persons =
+                    [
+                        new OrganisationPerson
+                        {
+                            FirstName = "Approved",
+                            LastName = "Person",
+                            Email = "approved-person@email.com",
+                            ServiceRole = CancellationEmailRecipientResolver.ApprovedPersonServiceRole,
+                        },
+                    ],
+                }
+            );
+        var complianceDeclaration = ComplianceDeclarationFixture
+            .DirectProducer(organisation.Id)
+            .With(
+                x => x.Audit,
+                [
+                    new AuditEntry(nameof(ComplianceDeclarationStatus.Submitted))
+                    {
+                        User = new User
+                        {
+                            Id = Guid.NewGuid().ToString("D"),
+                            Email = "unknown@email.com",
+                            Name = "Unknown Submitter",
+                        },
+                        Timestamp = new DateTime(2026, 4, 26, 14, 0, 0, DateTimeKind.Utc),
+                    },
+                ]
+            )
+            .Create();
+
+        var recipients = await Subject.ResolveAsync(
+            complianceDeclaration,
+            organisation,
+            TestContext.Current.CancellationToken
+        );
+
+        recipients.Should().ContainSingle();
+        recipients[0].Email.Should().Be("approved-person@email.com");
+    }
+
+    [Fact]
+    public async Task ResolveAsync_WhenCompaniesHouseLookupReturnsNoMatches_ReturnsNoRecipients()
+    {
+        const string companiesHouseNumber = "33892901";
+        var wasteOrganisationId = Guid.NewGuid();
+        var organisation = OrganisationFixture
+            .Default(wasteOrganisationId)
+            .With(x => x.CompaniesHouseNumber, companiesHouseNumber)
+            .Create();
+        AccountBackendService
+            .SearchOrganisationsByCompaniesHouseNumbers(
+                Arg.Is<IReadOnlyCollection<string>>(x => x.Single() == companiesHouseNumber),
+                Arg.Any<CancellationToken>()
+            )
+            .Returns(Array.Empty<AccountOrganisation>());
+        var complianceDeclaration = ComplianceDeclarationFixture.ComplianceScheme(wasteOrganisationId).Create();
+
+        var recipients = await Subject.ResolveAsync(
+            complianceDeclaration,
+            organisation,
+            TestContext.Current.CancellationToken
+        );
+
+        recipients.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ResolveAsync_WhenCompaniesHouseLookupReturnsMultipleMatchingSchemes_ReturnsNoRecipients()
+    {
+        const string companiesHouseNumber = "33892901";
+        var wasteOrganisationId = Guid.NewGuid();
+        var organisation = OrganisationFixture
+            .Default(wasteOrganisationId)
+            .With(x => x.CompaniesHouseNumber, companiesHouseNumber)
+            .Create();
+        AccountBackendService
+            .SearchOrganisationsByCompaniesHouseNumbers(
+                Arg.Is<IReadOnlyCollection<string>>(x => x.Single() == companiesHouseNumber),
+                Arg.Any<CancellationToken>()
+            )
+            .Returns([
+                new AccountOrganisation
+                {
+                    ExternalId = Guid.NewGuid().ToString("D"),
+                    ReferenceNumber = "338929",
+                    CompaniesHouseNumber = companiesHouseNumber,
+                    IsComplianceScheme = true,
+                },
+                new AccountOrganisation
+                {
+                    ExternalId = Guid.NewGuid().ToString("D"),
+                    ReferenceNumber = "338930",
+                    CompaniesHouseNumber = companiesHouseNumber,
+                    IsComplianceScheme = true,
+                },
+            ]);
+        var complianceDeclaration = ComplianceDeclarationFixture.ComplianceScheme(wasteOrganisationId).Create();
+
+        var recipients = await Subject.ResolveAsync(
+            complianceDeclaration,
+            organisation,
+            TestContext.Current.CancellationToken
+        );
+
+        recipients.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ResolveAsync_WhenCompaniesHouseLookupReturnsInvalidExternalId_ReturnsNoRecipients()
+    {
+        const string companiesHouseNumber = "33892901";
+        var wasteOrganisationId = Guid.NewGuid();
+        var organisation = OrganisationFixture
+            .Default(wasteOrganisationId)
+            .With(x => x.CompaniesHouseNumber, companiesHouseNumber)
+            .Create();
+        AccountBackendService
+            .SearchOrganisationsByCompaniesHouseNumbers(
+                Arg.Is<IReadOnlyCollection<string>>(x => x.Single() == companiesHouseNumber),
+                Arg.Any<CancellationToken>()
+            )
+            .Returns([
+                new AccountOrganisation
+                {
+                    ExternalId = "not-a-guid",
+                    ReferenceNumber = "338929",
+                    CompaniesHouseNumber = companiesHouseNumber,
+                    IsComplianceScheme = true,
+                },
+            ]);
+        var complianceDeclaration = ComplianceDeclarationFixture.ComplianceScheme(wasteOrganisationId).Create();
+
+        var recipients = await Subject.ResolveAsync(
+            complianceDeclaration,
+            organisation,
+            TestContext.Current.CancellationToken
+        );
+
+        recipients.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ResolveAsync_WhenCompaniesHouseLookupReturnsNonComplianceSchemeOnly_ReturnsNoRecipients()
+    {
+        const string companiesHouseNumber = "33892901";
+        var wasteOrganisationId = Guid.NewGuid();
+        var organisation = OrganisationFixture
+            .Default(wasteOrganisationId)
+            .With(x => x.CompaniesHouseNumber, companiesHouseNumber)
+            .Create();
+        AccountBackendService
+            .SearchOrganisationsByCompaniesHouseNumbers(
+                Arg.Is<IReadOnlyCollection<string>>(x => x.Single() == companiesHouseNumber),
+                Arg.Any<CancellationToken>()
+            )
+            .Returns([
+                new AccountOrganisation
+                {
+                    ExternalId = Guid.NewGuid().ToString("D"),
+                    ReferenceNumber = "338929",
+                    CompaniesHouseNumber = companiesHouseNumber,
+                    IsComplianceScheme = false,
+                },
+            ]);
+        var complianceDeclaration = ComplianceDeclarationFixture.ComplianceScheme(wasteOrganisationId).Create();
+
+        var recipients = await Subject.ResolveAsync(
+            complianceDeclaration,
+            organisation,
+            TestContext.Current.CancellationToken
+        );
+
+        recipients.Should().BeEmpty();
+    }
+
+    [Fact]
     public void ResolveSubmitter_WhenPersonIsNotOnOrganisation_ReturnsNull()
     {
         var complianceDeclaration = ComplianceDeclarationFixture
@@ -306,5 +509,60 @@ public class CancellationEmailRecipientResolverTests
         };
 
         CancellationEmailRecipientResolver.ResolvePrimaryContact(organisationWithPersons).Should().BeNull();
+    }
+
+    [Fact]
+    public void ResolveSubmitter_WhenPersonMatchesByUserId_ReturnsOrganisationNames()
+    {
+        const string submitterUserId = "e72be574-8b5b-4836-af47-dd7e0c0d1d87";
+        var complianceDeclaration = ComplianceDeclarationFixture
+            .DirectProducer(OrganisationFixture.OrganisationId)
+            .Create();
+        var organisationWithPersons = new OrganisationWithPersons
+        {
+            Persons =
+            [
+                new OrganisationPerson
+                {
+                    UserId = Guid.Parse(submitterUserId),
+                    FirstName = "Matched",
+                    LastName = "ByUserId",
+                    Email = "different@email.com",
+                },
+            ],
+        };
+
+        var recipient = CancellationEmailRecipientResolver.ResolveSubmitter(
+            complianceDeclaration,
+            organisationWithPersons
+        );
+
+        recipient.Should().NotBeNull();
+        recipient.FirstName.Should().Be("Matched");
+        recipient.LastName.Should().Be("ByUserId");
+        recipient.Email.Should().Be("submitter@email.com");
+    }
+
+    [Fact]
+    public void ResolvePrimaryContact_WhenApprovedPersonIsComplete_ReturnsRecipient()
+    {
+        var organisationWithPersons = new OrganisationWithPersons
+        {
+            Persons =
+            [
+                new OrganisationPerson
+                {
+                    FirstName = "Approved",
+                    LastName = "Person",
+                    Email = "approved-person@email.com",
+                    ServiceRole = CancellationEmailRecipientResolver.ApprovedPersonServiceRole,
+                },
+            ],
+        };
+
+        var recipient = CancellationEmailRecipientResolver.ResolvePrimaryContact(organisationWithPersons);
+
+        recipient.Should().NotBeNull();
+        recipient.Email.Should().Be("approved-person@email.com");
     }
 }
