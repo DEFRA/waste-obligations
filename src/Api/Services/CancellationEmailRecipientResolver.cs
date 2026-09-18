@@ -128,7 +128,11 @@ public class CancellationEmailRecipientResolver(
                 cancellationToken
             )
         )
-            .Where(x => x.IsComplianceScheme && !string.IsNullOrWhiteSpace(x.ExternalId))
+            .Where(x =>
+                x.IsComplianceScheme
+                && !string.IsNullOrWhiteSpace(x.ExternalId)
+                && string.Equals(x.CompaniesHouseNumber, organisation.CompaniesHouseNumber, StringComparison.Ordinal)
+            )
             .ToArray();
 
         if (matches.Length == 0)

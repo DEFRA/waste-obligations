@@ -132,6 +132,56 @@ public class CancellationEmailRecipientResolverTests
     }
 
     [Fact]
+    public async Task ResolveAsync_WhenCompaniesHouseLookupReturnsUnrelatedOperators_UsesMatchingOperatorOnly()
+    {
+        const string companiesHouseNumber = "33892901";
+        var wasteOrganisationId = Guid.Parse("f326c755-b0ef-4b7b-9f57-4a711a5fd215");
+        var accountOrganisationId = Guid.Parse("7F706042-E0E2-4959-9D9B-9AD87F72B188");
+        var organisation = OrganisationFixture
+            .Default(wasteOrganisationId)
+            .With(x => x.CompaniesHouseNumber, companiesHouseNumber)
+            .Create();
+
+        AccountBackendService
+            .SearchOrganisationsByCompaniesHouseNumbers(
+                Arg.Is<IReadOnlyCollection<string>>(x => x.Single() == companiesHouseNumber),
+                Arg.Any<CancellationToken>()
+            )
+            .Returns([
+                new AccountOrganisation
+                {
+                    ExternalId = accountOrganisationId.ToString("D"),
+                    ReferenceNumber = "338929",
+                    CompaniesHouseNumber = companiesHouseNumber,
+                    IsComplianceScheme = true,
+                },
+                new AccountOrganisation
+                {
+                    ExternalId = Guid.NewGuid().ToString("D"),
+                    ReferenceNumber = "999999",
+                    CompaniesHouseNumber = "99999999",
+                    IsComplianceScheme = true,
+                },
+            ]);
+        AccountBackendService
+            .ReadOrganisationWithPersons(accountOrganisationId, Arg.Any<CancellationToken>())
+            .Returns(OrganisationWithPersonsFixture.CancellationRecipients());
+
+        var complianceDeclaration = ComplianceDeclarationFixture.ComplianceScheme(wasteOrganisationId).Create();
+
+        var recipients = await Subject.ResolveAsync(
+            complianceDeclaration,
+            organisation,
+            TestContext.Current.CancellationToken
+        );
+
+        recipients.Should().HaveCount(2);
+        await AccountBackendService
+            .Received(1)
+            .ReadOrganisationWithPersons(accountOrganisationId, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task ResolveAsync_WhenComplianceSchemeHasNoCompaniesHouseNumber_ReturnsNoRecipients()
     {
         var wasteOrganisationId = Guid.NewGuid();
