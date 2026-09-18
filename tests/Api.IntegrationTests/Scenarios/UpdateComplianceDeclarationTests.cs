@@ -250,8 +250,9 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
     [Fact]
     public async Task WhenComplianceSchemeCancelled_ShouldSendStatementCancellationEmails()
     {
+        const string companiesHouseNumber = "12345678";
         var organisationId = Guid.NewGuid();
-        await StubCancellationDependencies(organisationId, welshOrganisation: false);
+        await StubComplianceSchemeCancellationDependencies(organisationId, organisationId, companiesHouseNumber);
 
         var client = CreateClient();
 
