@@ -138,4 +138,26 @@ await writeFile(
     ),
 );
 
+// Keep the Azure PRN common backend contract beside its consuming service.
+// The current journey exercises page loading with an empty producer PRNs list.
+await writeFile(
+    join(outputDirectory, "journey-producer-prns.json"),
+    json(
+        mapping(
+            {
+                ...exactPath("/api/v1/prn/search"),
+                Headers: [
+                    {
+                        Name: "X-EPR-ORGANISATION",
+                        Matchers: [
+                            { Name: "ExactMatcher", Pattern: directProducerId },
+                        ],
+                    },
+                ],
+            },
+            { items: [], totalItems: 0 },
+        ),
+    ),
+);
+
 console.log("Generated Waste Obligations WireMock mappings");
