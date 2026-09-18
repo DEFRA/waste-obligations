@@ -105,7 +105,7 @@ public class EmailService(
         {
             var recipients = await cancellationEmailRecipientResolver.ResolveAsync(
                 complianceDeclaration,
-                organisation.Id,
+                organisation,
                 cancellationToken
             );
             if (recipients.Count == 0)

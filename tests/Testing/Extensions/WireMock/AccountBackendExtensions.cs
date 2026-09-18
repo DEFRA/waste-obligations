@@ -78,6 +78,29 @@ public static class AccountBackendExtensions
             .RespondWith(Response.Create().WithStatusCode(HttpStatusCode.OK).WithBodyAsJson(response ?? []));
     }
 
+    public static async Task StubAccountBackendOrganisationsByCompaniesHouseNumbersRequest(
+        this IWireMockAdminApi wireMock,
+        string? accessToken = null,
+        IReadOnlyList<AccountOrganisation>? response = null
+    )
+    {
+        var builder = wireMock.GetMappingBuilder();
+
+        builder.Given(x =>
+            x.WithRequest(r =>
+                {
+                    r.UsingPost().WithPath("/api/organisations/organisations-by-companies-house-numbers");
+
+                    if (accessToken is not null)
+                        r.WithHeader("Authorization", $"Bearer {accessToken}");
+                })
+                .WithResponse(r => r.WithStatusCode(HttpStatusCode.OK).WithBodyAsJson(response ?? []))
+        );
+
+        var status = await builder.BuildAndPostAsync(TestContext.Current.CancellationToken);
+        status.Guid.Should().NotBeNull();
+    }
+
     public static async Task StubAccountBackendAdminHealth(this IWireMockAdminApi wireMock, string? accessToken = null)
     {
         var builder = wireMock.GetMappingBuilder();

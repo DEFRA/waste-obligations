@@ -197,10 +197,62 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task WhenComplianceSchemeCancelled_AndAccountExternalIdDiffersFromWasteOrganisationId_ShouldSendStatementCancellationEmails()
+    {
+        const string companiesHouseNumber = "88201456";
+        var wasteOrganisationId = Guid.NewGuid();
+        var accountOrganisationId = Guid.NewGuid();
+        await StubComplianceSchemeCancellationDependencies(
+            wasteOrganisationId,
+            accountOrganisationId,
+            companiesHouseNumber
+        );
+
+        var client = CreateClient();
+
+        var createResponse = await client.PostAsJsonAsync(
+            Testing.Endpoints.Organisations.ComplianceDeclarations.Create(wasteOrganisationId),
+            CreateComplianceDeclarationRequestFixture.ComplianceScheme(wasteOrganisationId).Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        createResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var result = await createResponse.Content.ReadFromJsonAsync<ComplianceDeclaration>(
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+
+        result.Should().NotBeNull();
+
+        var response = await client.PatchAsJsonAsync(
+            Testing.Endpoints.Organisations.ComplianceDeclarations.Update(wasteOrganisationId, result.Id),
+            UpdateComplianceDeclarationRequestFixture
+                .Cancelled(ComplianceDeclarationCancellationReasons.ProducerRequestedToCancel, complianceScheme: true)
+                .Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        await WaitForAsync(async () =>
+        {
+            var entries = await WireMockContext.WireMockAdminApi.GetGovukNotifySendEmail();
+
+            AssertCancelledEmailsSent(
+                entries,
+                GovukNotifyTemplateIds.ComplianceDeclarationCancellationProducerRequestedEnglish,
+                "statement",
+                "datganiad"
+            );
+        });
+    }
+
+    [Fact]
     public async Task WhenComplianceSchemeCancelled_ShouldSendStatementCancellationEmails()
     {
+        const string companiesHouseNumber = "12345678";
         var organisationId = Guid.NewGuid();
-        await StubCancellationDependencies(organisationId, welshOrganisation: false);
+        await StubComplianceSchemeCancellationDependencies(organisationId, organisationId, companiesHouseNumber);
 
         var client = CreateClient();
 
@@ -312,6 +364,39 @@ public class UpdateComplianceDeclarationTests : IntegrationTestBase
             clientId: ClientIds.AccountBackend
         );
         await WireMockContext.WireMockAdminApi.StubAccountBackendOrganisationWithPersonsRequest(organisationId);
+    }
+
+    private async Task StubComplianceSchemeCancellationDependencies(
+        Guid wasteOrganisationId,
+        Guid accountOrganisationId,
+        string companiesHouseNumber
+    )
+    {
+        await WireMockContext.WireMockAdminApi.StubWasteOrganisationsOrganisationRequest(
+            wasteOrganisationId,
+            BasicAuthCredential.ForClient(ClientIds.WasteOrganisations),
+            WasteOrganisationsOrganisationFixture
+                .Default(wasteOrganisationId)
+                .With(x => x.CompaniesHouseNumber, companiesHouseNumber)
+                .Create()
+        );
+        await WireMockContext.WireMockAdminApi.StubTokenRequest(
+            expiryInSeconds: 60,
+            clientId: ClientIds.AccountBackend
+        );
+        await WireMockContext.WireMockAdminApi.StubAccountBackendOrganisationsByCompaniesHouseNumbersRequest(
+            response:
+            [
+                new AccountOrganisation
+                {
+                    ExternalId = accountOrganisationId.ToString("D"),
+                    ReferenceNumber = "338929",
+                    CompaniesHouseNumber = companiesHouseNumber,
+                    IsComplianceScheme = true,
+                },
+            ]
+        );
+        await WireMockContext.WireMockAdminApi.StubAccountBackendOrganisationWithPersonsRequest(accountOrganisationId);
     }
 
     private static void AssertCancelledEmailsSent(
