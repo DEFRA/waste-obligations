@@ -29,9 +29,9 @@ services:
     volumes:
       - ${WASTE_OBLIGATIONS_SOURCE_DIR:?WASTE_OBLIGATIONS_SOURCE_DIR must identify a Waste Obligations checkout}/compose/init-floci.sh:/compose/init-floci.sh:ro
 
-  # The Account API and GOV.UK Notify are external to this CI stack. These
-  # mappings represent the epr-local-environment seed data used by the
-  # obligations service's notification flow.
+  # The Account API, GOV.UK Notify and Azure PRN common backend are external
+  # to this CI stack. Provide their contracts for the notification flow and
+  # an empty producer PRNs list.
   waste-obligations-wiremock-init:
     image: node:22-alpine
     entrypoint: ["node", "/source/generate-wiremock-mappings.mjs"]
