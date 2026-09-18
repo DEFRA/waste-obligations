@@ -189,5 +189,6 @@ the Floci initialiser and
 [dependency mappings](compose/journey-tests/generate-wiremock-mappings.mjs)
 for Account, GOV.UK Notify and the Azure PRN common backend. Check authentication
 and ACL settings for journey reads, status updates and admin cleanup as well as
-browser-driven submissions. The CI PRNs contract currently returns an empty
-list; row-level behavior needs corresponding fixture and assertion changes.
+browser-driven submissions. The CI PRNs contract returns a representative PRN awaiting acceptance. The
+journey compares its visible row with backend values; keep the fixture and
+assertions aligned when changing this contract.

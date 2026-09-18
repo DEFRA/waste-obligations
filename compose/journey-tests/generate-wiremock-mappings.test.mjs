@@ -60,7 +60,15 @@ test("generates Account, Notify and PRN mappings from the supplied scenario", as
         ],
     });
     assert.equal(prnMapping.Response.StatusCode, 200);
-    assert.deepEqual(prnMapping.Response.BodyAsJson, { items: [], totalItems: 0 });
+    const { items, totalItems } = prnMapping.Response.BodyAsJson;
+    assert.equal(totalItems, 1);
+    assert.equal(items.length, 1);
+    assert.equal(items[0].organisationId, directProducerId);
+    assert.equal(items[0].prnStatus, "AWAITINGACCEPTANCE");
+    assert.equal(items[0].prnNumber, "PRN123");
+    assert.equal(items[0].materialName, "Aluminium");
+    assert.equal(items[0].issuedByOrg, "Journey Reprocessors Ltd");
+    assert.equal(items[0].tonnageValue, 125);
 
     assert.equal(
         directProducerMapping.Request.Path.Matchers[0].Pattern,

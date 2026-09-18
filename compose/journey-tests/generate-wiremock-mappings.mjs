@@ -139,7 +139,7 @@ await writeFile(
 );
 
 // Keep the Azure PRN common backend contract beside its consuming service.
-// The current journey exercises page loading with an empty producer PRNs list.
+// A populated response lets the journey assert rendered PRN values.
 await writeFile(
     join(outputDirectory, "journey-producer-prns.json"),
     json(
@@ -155,7 +155,30 @@ await writeFile(
                     },
                 ],
             },
-            { items: [], totalItems: 0 },
+            {
+                items: [{
+                    externalId: "0d2f531d-0213-494b-8c8b-4133051bd44f",
+                    prnNumber: "PRN123",
+                    organisationId: directProducerId,
+                    organisationName: "Journey Producer Ltd",
+                    reprocessorExporterAgency: "Environment Agency",
+                    prnStatus: "AWAITINGACCEPTANCE",
+                    tonnageValue: 125,
+                    materialName: "Aluminium",
+                    issuerNotes: "Journey PRN list fixture",
+                    issueDate: "2026-06-15T10:30:00Z",
+                    processToBeUsed: "R3",
+                    decemberWaste: false,
+                    issuedByOrg: "Journey Reprocessors Ltd",
+                    accreditationNumber: "ACC123",
+                    accreditationYear: "2026",
+                    obligationYear: "2026",
+                    createdOn: "2026-06-15T10:00:00Z",
+                    lastUpdatedDate: "2026-06-15T10:30:00Z",
+                    isExport: false,
+                }],
+                totalItems: 1,
+            },
         ),
     ),
 );
