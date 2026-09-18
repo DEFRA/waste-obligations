@@ -99,3 +99,25 @@ updates:
       github-actions:
         patterns:
           - '*'
+
+  # Keep Dockerfile and Compose digest pins receiving reviewed updates.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      time: '10:30'
+      timezone: 'Europe/London'
+
+  - package-ecosystem: docker-compose
+    directories:
+      - /
+      - /compose
+    ignore:
+      # Allow Mongo 7 minor and patch updates, but block major upgrades.
+      - dependency-name: 'mongo'
+        update-types:
+          - 'version-update:semver-major'
+    schedule:
+      interval: weekly
+      time: '10:30'
+      timezone: 'Europe/London'
