@@ -34,7 +34,7 @@ services:
     ports:
       - 4566:4566
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:4566/_localstack/health"]
+      test: ["CMD", "/usr/local/bin/healthcheck.sh"]
       interval: 5s
       timeout: 5s
       retries: 10
