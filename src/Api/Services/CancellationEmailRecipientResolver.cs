@@ -14,6 +14,7 @@ public interface ICancellationEmailRecipientResolver
     );
 }
 
+// Resolves cancellation email recipients only; EmailService sends the notification.
 public class CancellationEmailRecipientResolver(
     IAccountBackendService accountBackendService,
     ILogger<CancellationEmailRecipientResolver> logger
@@ -44,7 +45,7 @@ public class CancellationEmailRecipientResolver(
         if (organisationWithPersons is null)
         {
             logger.LogWarning(
-                "Cancellation email was not sent because Account returned no organisation-with-persons data for Account organisation {AccountOrganisationId} (Waste Organisations organisation {WasteOrganisationId}, registration type {RegistrationType})",
+                "Cancellation email recipients were not resolved because Account returned no organisation-with-persons data for Account organisation {AccountOrganisationId} (Waste Organisations organisation {WasteOrganisationId}, registration type {RegistrationType})",
                 accountOrganisationId.Value,
                 organisation.Id,
                 complianceDeclaration.Organisation.RegistrationType
@@ -76,7 +77,7 @@ public class CancellationEmailRecipientResolver(
         else if (submitter is not null)
         {
             logger.LogWarning(
-                "Primary contact email was not found for Account organisation {AccountOrganisationId}; cancellation email will be sent to submitter only",
+                "Primary contact recipient was not resolved for Account organisation {AccountOrganisationId}; returning submitter recipient only",
                 accountOrganisationId.Value
             );
         }
@@ -112,10 +113,11 @@ public class CancellationEmailRecipientResolver(
             return organisation.Id;
         }
 
+        // Compliance scheme Account IDs differ from Waste Organisations IDs; resolve via Companies House.
         if (string.IsNullOrWhiteSpace(organisation.CompaniesHouseNumber))
         {
             logger.LogWarning(
-                "Cancellation email was not sent because compliance scheme operator {WasteOrganisationId} has no Companies House number to resolve the Account organisation ID",
+                "Cancellation email recipients were not resolved because compliance scheme operator {WasteOrganisationId} has no Companies House number to resolve the Account organisation ID",
                 organisation.Id
             );
 
@@ -128,6 +130,7 @@ public class CancellationEmailRecipientResolver(
                 cancellationToken
             )
         )
+            // Account may return unrelated operators for the same search; keep only this scheme's CH number.
             .Where(x =>
                 x.IsComplianceScheme
                 && !string.IsNullOrWhiteSpace(x.ExternalId)
@@ -138,7 +141,7 @@ public class CancellationEmailRecipientResolver(
         if (matches.Length == 0)
         {
             logger.LogWarning(
-                "Cancellation email was not sent because Account returned no compliance scheme organisation for Companies House number {CompaniesHouseNumber} (Waste Organisations organisation {WasteOrganisationId})",
+                "Cancellation email recipients were not resolved because Account returned no compliance scheme organisation for Companies House number {CompaniesHouseNumber} (Waste Organisations organisation {WasteOrganisationId})",
                 organisation.CompaniesHouseNumber,
                 organisation.Id
             );
@@ -149,7 +152,7 @@ public class CancellationEmailRecipientResolver(
         if (matches.Length > 1)
         {
             logger.LogWarning(
-                "Cancellation email was not sent because Account returned {MatchCount} compliance scheme organisations for Companies House number {CompaniesHouseNumber} (Waste Organisations organisation {WasteOrganisationId})",
+                "Cancellation email recipients were not resolved because Account returned {MatchCount} compliance scheme organisations for Companies House number {CompaniesHouseNumber} (Waste Organisations organisation {WasteOrganisationId})",
                 matches.Length,
                 organisation.CompaniesHouseNumber,
                 organisation.Id
@@ -161,7 +164,7 @@ public class CancellationEmailRecipientResolver(
         if (!Guid.TryParse(matches[0].ExternalId, out var accountOrganisationId))
         {
             logger.LogWarning(
-                "Cancellation email was not sent because Account returned an invalid external ID '{ExternalId}' for Companies House number {CompaniesHouseNumber}",
+                "Cancellation email recipients were not resolved because Account returned an invalid external ID '{ExternalId}' for Companies House number {CompaniesHouseNumber}",
                 matches[0].ExternalId,
                 organisation.CompaniesHouseNumber
             );
