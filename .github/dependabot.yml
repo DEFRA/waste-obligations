@@ -66,6 +66,25 @@ updates:
         update-types:
           - 'minor'
           - 'patch'
+      # AWS SDK packages should be reviewed together.
+      nuget-aws-sdk:
+        applies-to: version-updates
+        patterns:
+          - 'AWSSDK.*'
+        update-types:
+          - 'minor'
+          - 'patch'
+      # Group runtime extensions while retaining the existing test and documentation groups.
+      nuget-microsoft-extensions:
+        applies-to: version-updates
+        patterns:
+          - 'Microsoft.Extensions.*'
+        exclude-patterns:
+          - 'Microsoft.Extensions.TimeProvider.Testing'
+          - 'Microsoft.Extensions.ApiDescription.Server'
+        update-types:
+          - 'minor'
+          - 'patch'
       # MongoDB-related packages can be tested as one dependency family.
       nuget-data-access:
         applies-to: version-updates
