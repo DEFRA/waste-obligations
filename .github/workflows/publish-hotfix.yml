@@ -38,7 +38,7 @@ jobs:
 
   publish:
     name: CDP-publish-hotfix-workflow
-    needs: build
+    needs: [build, sonarcloud-scan]
     runs-on: ubuntu-latest
     permissions:
       contents: write # Create the release tag.
