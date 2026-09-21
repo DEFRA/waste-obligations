@@ -15,7 +15,7 @@ services:
         condition: service_completed_successfully
 
   waste-obligations-floci-init:
-    image: amazon/aws-cli:latest
+    image: amazon/aws-cli:latest@sha256:45056897f7c47a84e3ef5a4f9095f748bd9f5a24c5d54e7d5cfc3d4da52c9331
     entrypoint: ["/bin/sh", "/compose/init-floci.sh"]
     depends_on:
       floci:
@@ -33,7 +33,7 @@ services:
   # to this CI stack. Provide their contracts for the notification flow and
   # an empty producer PRNs list.
   waste-obligations-wiremock-init:
-    image: node:22-alpine
+    image: node:22-alpine@sha256:b6f26b36c8ff49624cfdac716b8ea1138d606df02586a77d364bb5536a634f85
     entrypoint: ["node", "/source/generate-wiremock-mappings.mjs"]
     environment:
       JOURNEY_TEST_WIREMOCK_MAPPINGS_DIR: /output
