@@ -341,6 +341,14 @@
             }
           },
           {
+            "name": "material",
+            "in": "query",
+            "description": "PRN material. Only supported together with status=AwaitingAcceptance",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "page",
             "in": "query",
             "description": "Page number (1-based), defaults to 1 if not specified",

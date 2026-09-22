@@ -18,6 +18,8 @@ public class EndpointFilter
 
     public static EndpointFilter Sort(string sort) => new($"sort={sort}");
 
+    public static EndpointFilter Material(string material) => new($"material={material}");
+
     public static EndpointFilter RegistrationType(RegistrationType[] registrationType) =>
         RegistrationType(string.Join(",", registrationType.Select(x => x.ToJsonValue())));
 
