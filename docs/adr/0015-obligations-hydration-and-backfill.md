@@ -12,7 +12,7 @@ Coordinate hydration/backfill through the shared lease and persist adaptive requ
 
 ## Rationale basis
 
-**Documented:** #225 establishes annual policy, finite backfill, shared lease, and adaptive pacing. **Corroborated:** current registrations. **Inference:** persisted pacing outlives a single worker process.
+**Documented:** [PR #225](https://github.com/DEFRA/waste-obligations/pull/225) establishes annual policy, finite backfill, shared lease, and adaptive pacing. **Corroborated:** current registrations. **Inference:** persisted pacing outlives a single worker process.
 
 ## Consequences and evolution
 
@@ -20,5 +20,5 @@ This has incremental progress, not eligibility generation’s all-or-nothing pub
 
 ## Evidence
 
-- #225 `39ae8281`.
+- [PR #225](https://github.com/DEFRA/waste-obligations/pull/225) `39ae8281`.
 - `src/Api/Services/OrganisationObligations/ServiceCollectionExtensions.cs`.

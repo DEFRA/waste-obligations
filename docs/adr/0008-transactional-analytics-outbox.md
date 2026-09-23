@@ -12,13 +12,13 @@ Write the audit event in the declaration transaction, then dispatch persisted ev
 
 ## Rationale basis
 
-**Documented:** PR #99 establishes the event/dispatch path. **Corroborated:** transactional recording, dispatch states, leasing, and processor remain. **Inference:** recording survives a delivery failure for later work.
+**Documented:** [PR #99](https://github.com/DEFRA/waste-obligations/pull/99) establishes the event/dispatch path. **Corroborated:** transactional recording, dispatch states, leasing, and processor remain. **Inference:** recording survives a delivery failure for later work.
 
 ## Consequences and evolution
 
-Delivery is at-least-once; consumers deduplicate. Dead-letter is persisted state, with no evidenced remediation process. #238 changes envelope compatibility, not the boundary.
+Delivery is at-least-once; consumers deduplicate. Dead-letter is persisted state, with no evidenced remediation process. [PR #238](https://github.com/DEFRA/waste-obligations/pull/238) changes envelope compatibility, not the boundary.
 
 ## Evidence
 
-- #99 `d01f57ca`, #238 `174dde3`.
+- [PR #99](https://github.com/DEFRA/waste-obligations/pull/99) `d01f57ca`, [PR #238](https://github.com/DEFRA/waste-obligations/pull/238) `174dde3`.
 - `src/AuditEvents/AuditEventService.cs`, `AuditEventDispatchService.cs`, `AuditEventLeaseService.cs`, `Analytics/AnalyticsAuditEventProcessor.cs`.

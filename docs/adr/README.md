@@ -2,7 +2,7 @@
 
 Assessed against the current checkout on **23 September 2026**. “Accepted—retrospective” records an evidenced, retained implementation; it does not assert contemporaneous formal approval.
 
-This catalogue supersedes the earlier local eight-record synthesis. It uses [PR #188](https://github.com/DEFRA/waste-obligations/pull/188) as an unmerged August candidate catalogue, reconciled with current code and later evidence through PR #263.
+This catalogue supersedes the earlier local eight-record synthesis. It uses [PR #188](https://github.com/DEFRA/waste-obligations/pull/188) as an unmerged August candidate catalogue, reconciled with current code and later evidence through [PR #263](https://github.com/DEFRA/waste-obligations/pull/263).
 
 | ADR | Decision |
 | --- | --- |
@@ -36,4 +36,4 @@ Each record distinguishes documented rationale, code/history corroboration, and 
 - Lease expiry does not fence an uncooperative migration or worker.
 - Outbox dead-letter remediation/replay procedures were not evidenced.
 - The reason for every schema version increment is not known.
-- PR #245 evidences fixture alignment, not a complete cross-repository testing architecture.
+- [PR #245](https://github.com/DEFRA/waste-obligations/pull/245) evidences fixture alignment, not a complete cross-repository testing architecture.

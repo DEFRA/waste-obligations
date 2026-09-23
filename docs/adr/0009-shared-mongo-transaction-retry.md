@@ -12,7 +12,7 @@ Own sessions, transaction options, bounded execution, and selected retry classif
 
 ## Rationale basis
 
-**Documented:** #160 says callers cannot safely retry; #161 centralises for reuse. **Corroborated:** declaration and eligibility operations use the shared boundary. **Inference:** callbacks must be safe to re-execute.
+**Documented:** [PR #160](https://github.com/DEFRA/waste-obligations/pull/160) says callers cannot safely retry; [PR #161](https://github.com/DEFRA/waste-obligations/pull/161) centralises for reuse. **Corroborated:** declaration and eligibility operations use the shared boundary. **Inference:** callbacks must be safe to re-execute.
 
 ## Consequences and evolution
 
@@ -20,5 +20,5 @@ This is not general retry. Lifecycle version guards remain ADR 0004; hydration/b
 
 ## Evidence
 
-- #99 `d01f57ca`, #160 `1f493947`, #161 `838c2f6d`.
+- [PR #99](https://github.com/DEFRA/waste-obligations/pull/99) `d01f57ca`, [PR #160](https://github.com/DEFRA/waste-obligations/pull/160) `1f493947`, [PR #161](https://github.com/DEFRA/waste-obligations/pull/161) `838c2f6d`.
 - `src/Api/Data/MongoDbContext.cs`, `src/Api/Services/ComplianceDeclarationService.cs`, `OrganisationEligibilityRefreshService.cs`.

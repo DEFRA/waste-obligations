@@ -16,9 +16,9 @@ Use legal `Name` for large-producer/unknown registrations, `TradingName` for a c
 
 ## Consequences and evolution
 
-This is not a universal display-name policy. #43 limits any inference about the obligations response.
+This is not a universal display-name policy. [PR #43](https://github.com/DEFRA/waste-obligations/pull/43) limits any inference about the obligations response.
 
 ## Evidence
 
-- #9 `423c1b`, #52 `801d9e13`, #183 `5d52d778`; counter-evidence #43 `ae8ed439`.
+- [PR #9](https://github.com/DEFRA/waste-obligations/pull/9) `423c1b`, [PR #52](https://github.com/DEFRA/waste-obligations/pull/52) `801d9e13`, [PR #183](https://github.com/DEFRA/waste-obligations/pull/183) `5d52d778`; counter-evidence [PR #43](https://github.com/DEFRA/waste-obligations/pull/43) `ae8ed439`.
 - `src/Api/Services/WasteOrganisations/Organisation.cs:33`, `src/Api/Services/OrganisationEligibility/Mappers.cs:27,54`, `tests/Api.Tests/Services/WasteOrganisations/OrganisationTests.cs`.

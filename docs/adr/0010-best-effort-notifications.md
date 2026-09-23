@@ -12,7 +12,7 @@ Treat Notify delivery as best effort; notification failure does not roll back or
 
 ## Rationale basis
 
-**Documented:** #159 and #178 preserve cancellation when account/notification parameters fail. **Corroborated:** endpoint ordering and EmailService failure handling. **Inference:** successful state change does not prove delivery.
+**Documented:** [PR #159](https://github.com/DEFRA/waste-obligations/pull/159) and [PR #178](https://github.com/DEFRA/waste-obligations/pull/178) preserve cancellation when account/notification parameters fail. **Corroborated:** endpoint ordering and EmailService failure handling. **Inference:** successful state change does not prove delivery.
 
 ## Consequences and evolution
 
@@ -20,5 +20,5 @@ Recipients use live workflow data; snapshots do not replace it. Template/recipie
 
 ## Evidence
 
-- #52 `801d9e13`, #98 `15ab20df`, #108 `f9c50c96`, #159 `13832d26`, #178 `bb23a0c5`, #179 `45e58665`.
+- [PR #52](https://github.com/DEFRA/waste-obligations/pull/52) `801d9e13`, [PR #98](https://github.com/DEFRA/waste-obligations/pull/98) `15ab20df`, [PR #108](https://github.com/DEFRA/waste-obligations/pull/108) `f9c50c96`, [PR #159](https://github.com/DEFRA/waste-obligations/pull/159) `13832d26`, [PR #178](https://github.com/DEFRA/waste-obligations/pull/178) `bb23a0c5`, [PR #179](https://github.com/DEFRA/waste-obligations/pull/179) `45e58665`.
 - `src/Api/Services/EmailService.cs`, create/update compliance-declaration endpoints.
