@@ -16,7 +16,7 @@ Refresh outside requests using a leased worker, build immutable generations, and
 
 ## Consequences and evolution
 
-Eligibility reflects the last promoted generation, not guaranteed live sources. Hydration/backfill has separate operational constraints.
+Eligibility reflects the last promoted generation, not guaranteed live sources. ADR 0021 defines the preserved source-record ID carried by its rows; hydration/backfill has separate operational constraints.
 
 ## Evidence
 

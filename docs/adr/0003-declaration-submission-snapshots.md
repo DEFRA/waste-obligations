@@ -16,7 +16,7 @@ Persist selected submission-time organisation, registration, obligation, and use
 
 ## Consequences and evolution
 
-Snapshots are selective and do not replace live recipient/organisation dependencies. Shape changes use ADR 0007.
+Snapshots are selective and do not replace live recipient/organisation dependencies. ADR 0021 defines the cross-service meaning of the stored organisation ID; shape changes use ADR 0007.
 
 ## Evidence
 

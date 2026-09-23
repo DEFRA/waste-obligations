@@ -12,11 +12,11 @@ Validate the identifiers before persistence; return 400 for mismatch and retain 
 
 ## Rationale basis
 
-**Documented:** [PR #239](https://github.com/DEFRA/waste-obligations/pull/239) identifies the persisted/audit mismatch risk. **Corroborated:** validation precedes create. **Inference:** distinct errors preserve invalid-request versus unknown-resource meaning.
+**Corroborated:** [PR #239](https://github.com/DEFRA/waste-obligations/pull/239) adds validation before create. **Inference:** mismatched IDs could make persisted declaration and audit identity inconsistent, while distinct errors preserve invalid-request versus unknown-resource meaning.
 
 ## Consequences and evolution
 
-This is separate from lifecycle, retry, and snapshot rules.
+This equality check does not define what an organisation ID denotes across service boundaries; ADR 0021 records that semantic contract. It remains separate from lifecycle, retry, and snapshot rules.
 
 ## Evidence
 

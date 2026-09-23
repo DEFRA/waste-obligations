@@ -26,6 +26,7 @@ This catalogue supersedes the earlier local eight-record synthesis. It uses [PR 
 | [0018](0018-operational-data-access.md) | Restrict destructive and diagnostic data routes |
 | [0019](0019-declaration-route-body-identity.md) | Validate route/body identity before persistence |
 | [0020](0020-build-input-and-workflow-permissions.md) | Pin build inputs and separate workflow permissions |
+| [0021](0021-waste-organisations-record-identity.md) | Preserve Waste Organisations record identity across stored and background data |
 
 Each record distinguishes documented rationale, code/history corroboration, and inference. See [PR coverage and candidate disposition](pr-coverage.md) for accountable grouping, exclusions, and evidence limits.
 
@@ -37,3 +38,4 @@ Each record distinguishes documented rationale, code/history corroboration, and 
 - Outbox dead-letter remediation/replay procedures were not evidenced.
 - The reason for every schema version increment is not known.
 - [PR #245](https://github.com/DEFRA/waste-obligations/pull/245) evidences fixture alignment, not a complete cross-repository testing architecture.
+- The [frontend ADR 0002](https://github.com/DEFRA/waste-obligations-frontend/blob/main/docs/adr/0002-actor-specific-path-identifier-contract.md) corroborates producer/CSO path semantics, but authoritative RPD/Common Data identifier provenance was not inspected.
