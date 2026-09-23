@@ -345,6 +345,15 @@
             "in": "query",
             "description": "PRN material. Only supported together with status=AwaitingAcceptance",
             "schema": {
+              "enum": [
+                "Plastic",
+                "Glass",
+                "Aluminium",
+                "Steel",
+                "Wood",
+                "GlassRemelt",
+                "Paper"
+              ],
               "type": "string"
             }
           },
