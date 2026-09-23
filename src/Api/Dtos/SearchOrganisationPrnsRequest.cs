@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Defra.WasteObligations.Api.Dtos;
 
-public record SearchOrganisationPrnsRequest
+public record SearchOrganisationPrnsRequest : IValidatableObject
 {
     [Description("Searches PRN number or issuer organisation name")]
     [FromQuery(Name = "search")]
@@ -21,6 +21,11 @@ public record SearchOrganisationPrnsRequest
     [FromQuery(Name = "sort")]
     [EnumValue<OrganisationPrnSort>(ErrorMessage = "Invalid PRN sort")]
     public string? Sort { get; init; }
+
+    [Description("PRN material. Only supported together with status=AwaitingAcceptance")]
+    [FromQuery(Name = "material")]
+    [EnumValue<OrganisationPrnMaterial>(ErrorMessage = "Invalid PRN material")]
+    public string? Material { get; init; }
 
     [Description("Page number (1-based), defaults to 1 if not specified")]
     [FromQuery(Name = "page")]
@@ -38,4 +43,17 @@ public record SearchOrganisationPrnsRequest
     public OrganisationPrnStatus? ParsedStatus() => Status?.FromJsonValue<OrganisationPrnStatus>();
 
     public OrganisationPrnSort? ParsedSort() => Sort?.FromJsonValue<OrganisationPrnSort>();
+
+    public OrganisationPrnMaterial? ParsedMaterial() => Material?.FromJsonValue<OrganisationPrnMaterial>();
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (Material is not null && ParsedStatus() != OrganisationPrnStatus.AwaitingAcceptance)
+        {
+            yield return new ValidationResult(
+                "material filtering is only supported together with status=AwaitingAcceptance",
+                [nameof(Material)]
+            );
+        }
+    }
 }

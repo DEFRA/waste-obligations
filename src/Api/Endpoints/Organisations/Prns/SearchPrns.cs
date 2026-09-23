@@ -43,7 +43,7 @@ public static class SearchPrns
                 Page = page,
                 PageSize = pageSize,
                 Search = request.Search,
-                FilterBy = ToFilterBy(request.ParsedStatus()),
+                FilterBy = ToFilterBy(request.ParsedStatus(), request.ParsedMaterial()),
                 SortBy = ToSortBy(request.ParsedSort()),
             },
             cancellationToken
@@ -72,15 +72,30 @@ public static class SearchPrns
         );
     }
 
-    private static string? ToFilterBy(OrganisationPrnStatus? status) =>
-        status switch
+    // material filtering is only supported by the common backend combined with the
+    // AwaitingAcceptance status filter - SearchOrganisationPrnsRequest rejects any other
+    // combination before this is reached, so material is only ever non-null here alongside
+    // status == AwaitingAcceptance.
+    private static string? ToFilterBy(OrganisationPrnStatus? status, OrganisationPrnMaterial? material) =>
+        material switch
         {
-            null => null,
-            OrganisationPrnStatus.AwaitingAcceptance => "awaiting-all",
-            OrganisationPrnStatus.Accepted => "accepted-all",
-            OrganisationPrnStatus.Rejected => "rejected-all",
-            OrganisationPrnStatus.Cancelled => "cancelled-all",
-            _ => throw new ArgumentOutOfRangeException(nameof(status)),
+            OrganisationPrnMaterial.Aluminium => "awaiting-aluminium",
+            OrganisationPrnMaterial.Glass => "awaiting-glassother",
+            OrganisationPrnMaterial.GlassRemelt => "awaiting-glassremelt",
+            OrganisationPrnMaterial.Paper => "awaiting-paperfiber",
+            OrganisationPrnMaterial.Plastic => "awaiting-plastic",
+            OrganisationPrnMaterial.Steel => "awaiting-steel",
+            OrganisationPrnMaterial.Wood => "awaiting-wood",
+            null => status switch
+            {
+                null => null,
+                OrganisationPrnStatus.AwaitingAcceptance => "awaiting-all",
+                OrganisationPrnStatus.Accepted => "accepted-all",
+                OrganisationPrnStatus.Rejected => "rejected-all",
+                OrganisationPrnStatus.Cancelled => "cancelled-all",
+                _ => throw new ArgumentOutOfRangeException(nameof(status)),
+            },
+            _ => throw new ArgumentOutOfRangeException(nameof(material)),
         };
 
     private static string? ToSortBy(OrganisationPrnSort? sort) =>

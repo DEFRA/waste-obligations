@@ -86,6 +86,42 @@ public class SearchPrnsTests(ApiWebApplicationFactory factory, ITestOutputHelper
             );
     }
 
+    [Theory]
+    [InlineData("Aluminium", "awaiting-aluminium")]
+    [InlineData("Glass", "awaiting-glassother")]
+    [InlineData("GlassRemelt", "awaiting-glassremelt")]
+    [InlineData("Paper", "awaiting-paperfiber")]
+    [InlineData("Plastic", "awaiting-plastic")]
+    [InlineData("Steel", "awaiting-steel")]
+    [InlineData("Wood", "awaiting-wood")]
+    public async Task WhenMaterialSpecifiedWithAwaitingAcceptanceStatus_ShouldMapMaterialFilter(
+        string material,
+        string filterBy
+    )
+    {
+        StubSearchResponse([]);
+        var client = CreateClient(testUser: TestUser.ReadOnly);
+
+        var response = await client.GetAsync(
+            Testing.Endpoints.Organisations.Prns.Search(
+                FakeWasteOrganisationsService.OrganisationId,
+                EndpointQuery
+                    .New.Where(EndpointFilter.Status("AwaitingAcceptance"))
+                    .Where(EndpointFilter.Material(material))
+            ),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        await PrnCommonBackendService
+            .Received(1)
+            .SearchPrns(
+                FakeWasteOrganisationsService.OrganisationId,
+                Arg.Is<PrnSearchRequest>(x => x.FilterBy == filterBy),
+                Arg.Any<CancellationToken>()
+            );
+    }
+
     [Fact]
     public async Task WhenSearchSpecified_ShouldMapSearch()
     {
@@ -177,6 +213,71 @@ public class SearchPrnsTests(ApiWebApplicationFactory factory, ITestOutputHelper
             Testing.Endpoints.Organisations.Prns.Search(
                 FakeWasteOrganisationsService.OrganisationId,
                 EndpointQuery.New.Where(EndpointFilter.Sort(sort))
+            ),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        await PrnCommonBackendService
+            .DidNotReceive()
+            .SearchPrns(Arg.Any<Guid>(), Arg.Any<PrnSearchRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData("unknown")]
+    [InlineData("Fibre")]
+    [InlineData("0")]
+    public async Task Validation_WhenMaterialInvalid_ShouldBeBadRequest(string material)
+    {
+        var client = CreateClient(testUser: TestUser.ReadOnly);
+
+        var response = await client.GetAsync(
+            Testing.Endpoints.Organisations.Prns.Search(
+                FakeWasteOrganisationsService.OrganisationId,
+                EndpointQuery
+                    .New.Where(EndpointFilter.Status("AwaitingAcceptance"))
+                    .Where(EndpointFilter.Material(material))
+            ),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        await PrnCommonBackendService
+            .DidNotReceive()
+            .SearchPrns(Arg.Any<Guid>(), Arg.Any<PrnSearchRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData("Accepted")]
+    [InlineData("Rejected")]
+    [InlineData("Cancelled")]
+    public async Task Validation_WhenMaterialSpecifiedWithNonAwaitingAcceptanceStatus_ShouldBeBadRequest(string status)
+    {
+        var client = CreateClient(testUser: TestUser.ReadOnly);
+
+        var response = await client.GetAsync(
+            Testing.Endpoints.Organisations.Prns.Search(
+                FakeWasteOrganisationsService.OrganisationId,
+                EndpointQuery.New.Where(EndpointFilter.Status(status)).Where(EndpointFilter.Material("Glass"))
+            ),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        await PrnCommonBackendService
+            .DidNotReceive()
+            .SearchPrns(Arg.Any<Guid>(), Arg.Any<PrnSearchRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Validation_WhenMaterialSpecifiedWithoutStatus_ShouldBeBadRequest()
+    {
+        var client = CreateClient(testUser: TestUser.ReadOnly);
+
+        var response = await client.GetAsync(
+            Testing.Endpoints.Organisations.Prns.Search(
+                FakeWasteOrganisationsService.OrganisationId,
+                EndpointQuery.New.Where(EndpointFilter.Material("Glass"))
             ),
             TestContext.Current.CancellationToken
         );

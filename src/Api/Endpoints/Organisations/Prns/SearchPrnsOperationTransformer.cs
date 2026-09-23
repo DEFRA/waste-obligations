@@ -18,6 +18,7 @@ public class SearchPrnsOperationTransformer : IOpenApiOperationTransformer
 
         ReplaceParameter<OrganisationPrnStatus>(operation, nameof(SearchOrganisationPrnsRequest.Status));
         ReplaceParameter<OrganisationPrnSort>(operation, nameof(SearchOrganisationPrnsRequest.Sort));
+        ReplaceParameter<OrganisationPrnMaterial>(operation, nameof(SearchOrganisationPrnsRequest.Material));
 
         return Task.CompletedTask;
     }
