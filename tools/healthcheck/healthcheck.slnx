@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="HealthCheck.csproj" />
+  <Folder Name="/tests/">
+    <Project Path="tests/HealthCheck.Tests/HealthCheck.Tests.csproj" />
+  </Folder>
+</Solution>
