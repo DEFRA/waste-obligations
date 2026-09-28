@@ -39,11 +39,6 @@ public record Organisation
             _ => Name,
         };
 
-        // Fall back to the legal name when a compliance scheme has no usable trading
-        // name. Blank is treated as missing, not as a name: Waste Organisations accepts
-        // and stores an empty tradingName, and a null-only fallback would materialise
-        // that as an empty eligibility Name, which the regulator list renders as an
-        // empty organisation cell and Mongo sorts ahead of every real name.
         return string.IsNullOrWhiteSpace(result) ? Name : result;
     }
 

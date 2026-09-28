@@ -76,10 +76,6 @@ public class OrganisationTests
         subject.CompanyName(2026).Should().Be("Organisation Name");
     }
 
-    // Waste Organisations accepts and stores a blank tradingName (the local seed data
-    // is full of ""), so blank has to fall back the same way null does. Without this
-    // the eligibility row materialises an empty Name and the regulator's not-submitted
-    // list renders an empty organisation cell.
     [Theory]
     [InlineData("")]
     [InlineData(" ")]
