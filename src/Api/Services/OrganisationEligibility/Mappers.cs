@@ -113,7 +113,7 @@ public static class Mappers
     )
     {
         var source = string.Concat(
-            "organisation-eligibility-source-v2",
+            "organisation-eligibility-source-v3",
             LengthPrefix(organisation.Id.ToString("D")),
             LengthPrefix(obligationYear.ToString(CultureInfo.InvariantCulture)),
             LengthPrefix(registrationType.ToString()),
