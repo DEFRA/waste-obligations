@@ -130,6 +130,10 @@ See [dependabot.yml](.github/dependabot.yml) for group configuration.
   - Build Docker image and publish to CDP
   - Sonar
 
+## System health checks
+
+The [.NET health-check CLI](tools/healthcheck/README.md) checks configurable services and their dependencies. Configure service addresses in `tools/healthcheck/appsettings.json` and credentials in the Git-ignored `tools/healthcheck/.env` file.
+
 ## CDP
 
 Review CDP documentation and process for relevant portal operations.
