@@ -252,8 +252,12 @@ const prnFilters = {
     "awaiting-wood": (prn) => prn.materialName === "Wood",
 };
 const byIssueDate = (a, b) => Date.parse(a.issueDate) - Date.parse(b.issueDate);
-const byValue = (key) => (a, b) =>
-    a[key] < b[key] ? -1 : a[key] > b[key] ? 1 : 0;
+const byValue = (key) => (a, b) => {
+    if (a[key] < b[key]) return -1;
+    if (a[key] > b[key]) return 1;
+
+    return 0;
+};
 const descending = (compare) => (a, b) => compare(b, a);
 const prnSorts = {
     "date-issued-desc": descending(byIssueDate),
