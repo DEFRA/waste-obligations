@@ -164,15 +164,24 @@ const prnFixture = (prnNumber, externalId, materialName, tonnageValue, issueDate
     isExport: false,
 });
 
+const PRN_TONNAGE_125 = 125;
+const PRN_TONNAGE_40 = 40;
+const PRN_TONNAGE_310 = 310;
+const PRN_TONNAGE_75 = 75;
+const PRN_TONNAGE_510 = 510;
+const PRN_TONNAGE_15 = 15;
+const PRN_TONNAGE_220 = 220;
+const PRN_TONNAGE_90 = 90;
+
 const producerPrns = [
-    prnFixture("PRN123", "0d2f531d-0213-494b-8c8b-4133051bd44f", "Aluminium", 125, "2026-06-15T10:30:00Z"),
-    prnFixture("PRN124", "1f6b9a52-6a0e-4d53-9a4e-6c1f7c2d8e01", "Plastic", 40, "2026-06-10T09:00:00Z"),
-    prnFixture("PRN125", "2a7c0b63-7b1f-4e64-8b5f-7d2a8d3e9f02", "Plastic", 310, "2026-05-20T11:15:00Z"),
-    prnFixture("PRN126", "3b8d1c74-8c2a-4f75-9c6a-8e3b9e4fa003", "Glass Other", 75, "2026-05-02T14:45:00Z"),
-    prnFixture("PRN127", "4c9e2d85-9d3b-4a86-8d7b-9f4cae5ab104", "Steel", 510, "2026-04-18T08:20:00Z"),
-    prnFixture("PRN128", "5daf3e96-ae4c-4b97-9e8c-a05dbf6bc205", "Paper/board", 15, "2026-03-30T16:05:00Z"),
-    prnFixture("PRN129", "6eb04fa7-bf5d-4ca8-8f9d-b16ec07cd306", "Glass Re-melt", 220, "2026-03-05T12:40:00Z"),
-    prnFixture("PRN130", "7fc150b8-c06e-4db9-9a0e-c27fd18de407", "Aluminium", 90, "2026-02-12T10:10:00Z"),
+    prnFixture("PRN123", "0d2f531d-0213-494b-8c8b-4133051bd44f", "Aluminium", PRN_TONNAGE_125, "2026-06-15T10:30:00Z"),
+    prnFixture("PRN124", "1f6b9a52-6a0e-4d53-9a4e-6c1f7c2d8e01", "Plastic", PRN_TONNAGE_40, "2026-06-10T09:00:00Z"),
+    prnFixture("PRN125", "2a7c0b63-7b1f-4e64-8b5f-7d2a8d3e9f02", "Plastic", PRN_TONNAGE_310, "2026-05-20T11:15:00Z"),
+    prnFixture("PRN126", "3b8d1c74-8c2a-4f75-9c6a-8e3b9e4fa003", "Glass Other", PRN_TONNAGE_75, "2026-05-02T14:45:00Z"),
+    prnFixture("PRN127", "4c9e2d85-9d3b-4a86-8d7b-9f4cae5ab104", "Steel", PRN_TONNAGE_510, "2026-04-18T08:20:00Z"),
+    prnFixture("PRN128", "5daf3e96-ae4c-4b97-9e8c-a05dbf6bc205", "Paper/board", PRN_TONNAGE_15, "2026-03-30T16:05:00Z"),
+    prnFixture("PRN129", "6eb04fa7-bf5d-4ca8-8f9d-b16ec07cd306", "Glass Re-melt", PRN_TONNAGE_220, "2026-03-05T12:40:00Z"),
+    prnFixture("PRN130", "7fc150b8-c06e-4db9-9a0e-c27fd18de407", "Aluminium", PRN_TONNAGE_90, "2026-02-12T10:10:00Z"),
 ];
 
 // Mirrors the common backend's filterBy and sortBy handling for awaiting PRNs.
