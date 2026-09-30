@@ -253,8 +253,12 @@ const prnFilters = {
 };
 const byIssueDate = (a, b) => Date.parse(a.issueDate) - Date.parse(b.issueDate);
 const byValue = (key) => (a, b) => {
-    if (a[key] < b[key]) return -1;
-    if (a[key] > b[key]) return 1;
+    if (a[key] < b[key]) {
+        return -1;
+    }
+    if (a[key] > b[key]) {
+        return 1;
+    }
 
     return 0;
 };
