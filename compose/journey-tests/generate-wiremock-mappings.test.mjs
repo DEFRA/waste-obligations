@@ -70,6 +70,17 @@ test("generates Account, Notify and PRN mappings from the supplied scenario", as
     assert.equal(items[0].issuedByOrg, "Journey Reprocessors Ltd");
     assert.equal(items[0].tonnageValue, 125);
 
+    const singlePrnMapping = await readMapping(outputDirectory, "journey-producer-prn.json");
+    assert.deepEqual(singlePrnMapping.Request, {
+        Path: {
+            Matchers: [{ Name: "ExactMatcher", Pattern: `/api/v1/prn/${items[0].externalId}` }],
+        },
+        Methods: ["GET"],
+        Headers: prnMapping.Request.Headers,
+    });
+    assert.equal(singlePrnMapping.Response.StatusCode, 200);
+    assert.deepEqual(singlePrnMapping.Response.BodyAsJson, items[0]);
+
     assert.equal(
         directProducerMapping.Request.Path.Matchers[0].Pattern,
         `/api/organisations/organisation-with-persons/${directProducerId}`,

@@ -140,45 +140,58 @@ await writeFile(
 
 // Keep the Azure PRN common backend contract beside its consuming service.
 // A populated response lets the journey assert rendered PRN values.
+const directProducerPrn = {
+    externalId: "0d2f531d-0213-494b-8c8b-4133051bd44f",
+    prnNumber: "PRN123",
+    organisationId: directProducerId,
+    organisationName: "Journey Producer Ltd",
+    reprocessorExporterAgency: "Environment Agency",
+    prnStatus: "AWAITINGACCEPTANCE",
+    tonnageValue: 125,
+    materialName: "Aluminium",
+    issuerNotes: "Journey PRN list fixture",
+    issueDate: "2026-06-15T10:30:00Z",
+    processToBeUsed: "R3",
+    decemberWaste: false,
+    issuedByOrg: "Journey Reprocessors Ltd",
+    accreditationNumber: "ACC123",
+    accreditationYear: "2026",
+    obligationYear: "2026",
+    createdOn: "2026-06-15T10:00:00Z",
+    lastUpdatedDate: "2026-06-15T10:30:00Z",
+    isExport: false,
+};
+const directProducerHeader = [
+    {
+        Name: "X-EPR-ORGANISATION",
+        Matchers: [{ Name: "ExactMatcher", Pattern: directProducerId }],
+    },
+];
+
 await writeFile(
     join(outputDirectory, "journey-producer-prns.json"),
     json(
         mapping(
             {
                 ...exactPath("/api/v1/prn/search"),
-                Headers: [
-                    {
-                        Name: "X-EPR-ORGANISATION",
-                        Matchers: [
-                            { Name: "ExactMatcher", Pattern: directProducerId },
-                        ],
-                    },
-                ],
+                Headers: directProducerHeader,
             },
+            { items: [directProducerPrn], totalItems: 1 },
+        ),
+    ),
+);
+
+// The journey opens the listed PRN, so its single-PRN read returns the same
+// record.
+await writeFile(
+    join(outputDirectory, "journey-producer-prn.json"),
+    json(
+        mapping(
             {
-                items: [{
-                    externalId: "0d2f531d-0213-494b-8c8b-4133051bd44f",
-                    prnNumber: "PRN123",
-                    organisationId: directProducerId,
-                    organisationName: "Journey Producer Ltd",
-                    reprocessorExporterAgency: "Environment Agency",
-                    prnStatus: "AWAITINGACCEPTANCE",
-                    tonnageValue: 125,
-                    materialName: "Aluminium",
-                    issuerNotes: "Journey PRN list fixture",
-                    issueDate: "2026-06-15T10:30:00Z",
-                    processToBeUsed: "R3",
-                    decemberWaste: false,
-                    issuedByOrg: "Journey Reprocessors Ltd",
-                    accreditationNumber: "ACC123",
-                    accreditationYear: "2026",
-                    obligationYear: "2026",
-                    createdOn: "2026-06-15T10:00:00Z",
-                    lastUpdatedDate: "2026-06-15T10:30:00Z",
-                    isExport: false,
-                }],
-                totalItems: 1,
+                ...exactPath(`/api/v1/prn/${directProducerPrn.externalId}`),
+                Headers: directProducerHeader,
             },
+            directProducerPrn,
         ),
     ),
 );
