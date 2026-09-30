@@ -140,11 +140,7 @@ await writeFile(
 
 // Keep the Azure PRN common backend contract beside its consuming service.
 // A populated response lets the journey assert rendered PRN values.
-const directProducerPrn = {
-    externalId: "0d2f531d-0213-494b-8c8b-4133051bd44f",
-    prnNumber: "PRN123",
-    organisationId: directProducerId,
-    organisationName: "Journey Producer Ltd",
+const journeyPrn = (overrides) => ({
     reprocessorExporterAgency: "Environment Agency",
     prnStatus: "AWAITINGACCEPTANCE",
     tonnageValue: 125,
@@ -160,40 +156,64 @@ const directProducerPrn = {
     createdOn: "2026-06-15T10:00:00Z",
     lastUpdatedDate: "2026-06-15T10:30:00Z",
     isExport: false,
-};
-const directProducerHeader = [
-    {
-        Name: "X-EPR-ORGANISATION",
-        Matchers: [{ Name: "ExactMatcher", Pattern: directProducerId }],
-    },
-];
-
-await writeFile(
-    join(outputDirectory, "journey-producer-prns.json"),
-    json(
-        mapping(
-            {
-                ...exactPath("/api/v1/prn/search"),
-                Headers: directProducerHeader,
-            },
-            { items: [directProducerPrn], totalItems: 1 },
-        ),
-    ),
-);
+    ...overrides,
+});
 
 // The journey opens the listed PRN, so its single-PRN read returns the same
-// record.
-await writeFile(
-    join(outputDirectory, "journey-producer-prn.json"),
-    json(
-        mapping(
-            {
-                ...exactPath(`/api/v1/prn/${directProducerPrn.externalId}`),
-                Headers: directProducerHeader,
-            },
-            directProducerPrn,
+// record as the search.
+const writePrnMappings = async (name, prn) => {
+    const organisationHeader = [
+        {
+            Name: "X-EPR-ORGANISATION",
+            Matchers: [{ Name: "ExactMatcher", Pattern: prn.organisationId }],
+        },
+    ];
+
+    await writeFile(
+        join(outputDirectory, `journey-${name}-prns.json`),
+        json(
+            mapping(
+                {
+                    ...exactPath("/api/v1/prn/search"),
+                    Headers: organisationHeader,
+                },
+                { items: [prn], totalItems: 1 },
+            ),
         ),
-    ),
+    );
+
+    await writeFile(
+        join(outputDirectory, `journey-${name}-prn.json`),
+        json(
+            mapping(
+                {
+                    ...exactPath(`/api/v1/prn/${prn.externalId}`),
+                    Headers: organisationHeader,
+                },
+                prn,
+            ),
+        ),
+    );
+};
+
+await writePrnMappings(
+    "producer",
+    journeyPrn({
+        externalId: "0d2f531d-0213-494b-8c8b-4133051bd44f",
+        prnNumber: "PRN123",
+        organisationId: directProducerId,
+        organisationName: "Journey Producer Ltd",
+    }),
+);
+
+await writePrnMappings(
+    "compliance-scheme",
+    journeyPrn({
+        externalId: "6a1e3c2b-7f4d-4e8a-9b5c-2d7f1a0e4c93",
+        prnNumber: "PRN456",
+        organisationId: complianceSchemeId,
+        organisationName: "Journey Compliance Scheme Ltd",
+    }),
 );
 
 console.log("Generated Waste Obligations WireMock mappings");
