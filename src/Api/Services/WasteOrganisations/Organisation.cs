@@ -25,23 +25,6 @@ public record Organisation
     [JsonPropertyName("registrations")]
     public Registration[] Registrations { get; init; } = [];
 
-    public string CompanyName(int? registrationYear = null)
-    {
-        return CompanyName(LatestRegistrationOrByYear(registrationYear));
-    }
-
-    public string CompanyName(Registration registration)
-    {
-        var result = registration.Type switch
-        {
-            WasteOrganisations.RegistrationType.LargeProducer => Name,
-            WasteOrganisations.RegistrationType.ComplianceScheme => TradingName,
-            _ => Name,
-        };
-
-        return result ?? Name;
-    }
-
     public string RegistrationType(int? registrationYear = null) => LatestRegistrationOrByYear(registrationYear).Type;
 
     private int LatestRegistrationYear() => Registrations.MaxBy(x => x.RegistrationYear)?.RegistrationYear ?? 0;

@@ -51,7 +51,7 @@ public static class Mappers
                         RegistrationType = registrationType.Value,
                         RegistrationStatus = registrationStatus,
                         BusinessCountry = organisation.BusinessCountry,
-                        Name = organisation.CompanyName(registration),
+                        Name = organisation.Name,
                         TradingName = organisation.TradingName,
                         CompaniesHouseNumber = organisation.CompaniesHouseNumber,
                         ReferenceNumber = null,
@@ -105,6 +105,10 @@ public static class Mappers
             ? OrganisationReferenceNumberResolutionState.AwaitingLookupKey
             : OrganisationReferenceNumberResolutionState.Pending;
 
+    // The version prefix is bumped whenever the rows derived from unchanged source
+    // fields change, so that the refresh sees a new content fingerprint and
+    // promotes a new generation. v3: AMCR-506 changed the compliance scheme
+    // display name from TradingName to Name.
     private static string CalculateSourceFingerprint(
         Organisation organisation,
         int obligationYear,
@@ -113,7 +117,7 @@ public static class Mappers
     )
     {
         var source = string.Concat(
-            "organisation-eligibility-source-v2",
+            "organisation-eligibility-source-v3",
             LengthPrefix(organisation.Id.ToString("D")),
             LengthPrefix(obligationYear.ToString(CultureInfo.InvariantCulture)),
             LengthPrefix(registrationType.ToString()),
