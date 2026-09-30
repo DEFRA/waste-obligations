@@ -59,15 +59,20 @@ test("generates Account, Notify and PRN mappings from the supplied scenario", as
             },
         ],
     });
+    assert.equal(prnMapping.Priority, 10);
     assert.equal(prnMapping.Response.StatusCode, 200);
     const { items, totalItems } = prnMapping.Response.BodyAsJson;
-    assert.equal(totalItems, 1);
-    assert.equal(items.length, 1);
-    assert.equal(items[0].organisationId, directProducerId);
-    assert.equal(items[0].prnStatus, "AWAITINGACCEPTANCE");
-    assert.equal(items[0].prnNumber, "PRN123");
+    assert.equal(totalItems, 8);
+    assert.deepEqual(
+        items.map((item) => item.prnNumber),
+        ["PRN123", "PRN124", "PRN125", "PRN126", "PRN127", "PRN128", "PRN129", "PRN130"],
+    );
+    for (const item of items) {
+        assert.equal(item.organisationId, directProducerId);
+        assert.equal(item.prnStatus, "AWAITINGACCEPTANCE");
+        assert.equal(item.issuedByOrg, "Journey Reprocessors Ltd");
+    }
     assert.equal(items[0].materialName, "Aluminium");
-    assert.equal(items[0].issuedByOrg, "Journey Reprocessors Ltd");
     assert.equal(items[0].tonnageValue, 125);
 
     const singlePrnMapping = await readMapping(outputDirectory, "journey-producer-prn.json");
@@ -140,6 +145,65 @@ test("generates Account, Notify and PRN mappings from the supplied scenario", as
             Headers: { "Content-Type": "application/json; charset=utf-8" },
         },
     });
+});
+
+test("generates PRN search mappings that filter and sort like the common backend", async (context) => {
+    const outputDirectory = await mkdtemp(join(tmpdir(), mappingsDirectoryPrefix));
+    context.after(() => rm(outputDirectory, { force: true, recursive: true }));
+
+    await runGenerator(outputDirectory, {
+        WASTE_OBLIGATION_ORG_ID: directProducerId,
+        WASTE_OBLIGATION_CSO_ORG_ID: complianceSchemeId,
+        WASTE_OBLIGATION_SUBMITTER_ID: submitterId,
+        WASTE_OBLIGATION_SUBMITTER_EMAIL: submitterEmail,
+    });
+
+    const prnNumbers = (mapping) => mapping.Response.BodyAsJson.items.map((item) => item.prnNumber);
+    const params = (mapping) =>
+        Object.fromEntries(
+            mapping.Request.Params.map((param) => [param.Name, param.Matchers[0].Pattern]),
+        );
+
+    const aluminium = await readMapping(
+        outputDirectory,
+        "journey-producer-prns-filter-awaiting-aluminium.json",
+    );
+    assert.equal(aluminium.Priority, 2);
+    assert.deepEqual(params(aluminium), { filterBy: "awaiting-aluminium" });
+    assert.deepEqual(prnNumbers(aluminium), ["PRN123", "PRN130"]);
+    assert.equal(aluminium.Response.BodyAsJson.totalItems, 2);
+
+    const wood = await readMapping(outputDirectory, "journey-producer-prns-filter-awaiting-wood.json");
+    assert.deepEqual(wood.Response.BodyAsJson, { items: [], totalItems: 0 });
+
+    const tonnageDescending = await readMapping(
+        outputDirectory,
+        "journey-producer-prns-sort-tonnage-desc.json",
+    );
+    assert.equal(tonnageDescending.Priority, 3);
+    assert.deepEqual(prnNumbers(tonnageDescending), [
+        "PRN127", "PRN125", "PRN129", "PRN123", "PRN130", "PRN126", "PRN124", "PRN128",
+    ]);
+
+    const materialAscending = await readMapping(
+        outputDirectory,
+        "journey-producer-prns-sort-material-asc.json",
+    );
+    assert.deepEqual(
+        materialAscending.Response.BodyAsJson.items.map((item) => item.materialName),
+        ["Aluminium", "Aluminium", "Glass Other", "Glass Re-melt", "Paper/board", "Plastic", "Plastic", "Steel"],
+    );
+
+    const plasticByOldest = await readMapping(
+        outputDirectory,
+        "journey-producer-prns-filter-awaiting-plastic-sort-date-issued-asc.json",
+    );
+    assert.equal(plasticByOldest.Priority, 1);
+    assert.deepEqual(params(plasticByOldest), {
+        filterBy: "awaiting-plastic",
+        sortBy: "date-issued-asc",
+    });
+    assert.deepEqual(prnNumbers(plasticByOldest), ["PRN125", "PRN124"]);
 });
 
 test("fails when a required scenario value is missing", async (context) => {

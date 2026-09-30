@@ -139,6 +139,129 @@ await writeFile(
 );
 
 // Keep the Azure PRN common backend contract beside its consuming service.
+// Several distinguishable PRNs let the journey assert rendered values, material
+// filtering and each sort order. Issue date, tonnage and material each give a
+// different order, and Wood is deliberately absent so one filter is empty.
+const prnFixture = (prnNumber, externalId, materialName, tonnageValue, issueDate) => ({
+    externalId,
+    prnNumber,
+    organisationId: directProducerId,
+    organisationName: "Journey Producer Ltd",
+    reprocessorExporterAgency: "Environment Agency",
+    prnStatus: "AWAITINGACCEPTANCE",
+    tonnageValue,
+    materialName,
+    issuerNotes: "Journey PRN list fixture",
+    issueDate,
+    processToBeUsed: "R3",
+    decemberWaste: false,
+    issuedByOrg: "Journey Reprocessors Ltd",
+    accreditationNumber: "ACC123",
+    accreditationYear: "2026",
+    obligationYear: "2026",
+    createdOn: issueDate,
+    lastUpdatedDate: issueDate,
+    isExport: false,
+});
+
+const producerPrns = [
+    prnFixture("PRN123", "0d2f531d-0213-494b-8c8b-4133051bd44f", "Aluminium", 125, "2026-06-15T10:30:00Z"),
+    prnFixture("PRN124", "1f6b9a52-6a0e-4d53-9a4e-6c1f7c2d8e01", "Plastic", 40, "2026-06-10T09:00:00Z"),
+    prnFixture("PRN125", "2a7c0b63-7b1f-4e64-8b5f-7d2a8d3e9f02", "Plastic", 310, "2026-05-20T11:15:00Z"),
+    prnFixture("PRN126", "3b8d1c74-8c2a-4f75-9c6a-8e3b9e4fa003", "Glass Other", 75, "2026-05-02T14:45:00Z"),
+    prnFixture("PRN127", "4c9e2d85-9d3b-4a86-8d7b-9f4cae5ab104", "Steel", 510, "2026-04-18T08:20:00Z"),
+    prnFixture("PRN128", "5daf3e96-ae4c-4b97-9e8c-a05dbf6bc205", "Paper/board", 15, "2026-03-30T16:05:00Z"),
+    prnFixture("PRN129", "6eb04fa7-bf5d-4ca8-8f9d-b16ec07cd306", "Glass Re-melt", 220, "2026-03-05T12:40:00Z"),
+    prnFixture("PRN130", "7fc150b8-c06e-4db9-9a0e-c27fd18de407", "Aluminium", 90, "2026-02-12T10:10:00Z"),
+];
+
+// Mirrors the common backend's filterBy and sortBy handling for awaiting PRNs.
+// Without sortBy the backend orders by issue date, newest first.
+const prnFilters = {
+    "awaiting-all": () => true,
+    "awaiting-aluminium": (prn) => prn.materialName === "Aluminium",
+    "awaiting-glassother": (prn) => prn.materialName === "Glass Other",
+    "awaiting-glassremelt": (prn) => prn.materialName === "Glass Re-melt",
+    "awaiting-paperfiber": (prn) => ["Paper/board", "Fibre"].includes(prn.materialName),
+    "awaiting-plastic": (prn) => prn.materialName === "Plastic",
+    "awaiting-steel": (prn) => prn.materialName === "Steel",
+    "awaiting-wood": (prn) => prn.materialName === "Wood",
+};
+const byIssueDate = (a, b) => Date.parse(a.issueDate) - Date.parse(b.issueDate);
+const byValue = (key) => (a, b) => (a[key] < b[key] ? -1 : a[key] > b[key] ? 1 : 0);
+const descending = (compare) => (a, b) => compare(b, a);
+const prnSorts = {
+    "date-issued-desc": descending(byIssueDate),
+    "date-issued-asc": byIssueDate,
+    "tonnage-desc": descending(byValue("tonnageValue")),
+    "tonnage-asc": byValue("tonnageValue"),
+    "issued-by-desc": descending(byValue("issuedByOrg")),
+    "issued-by-asc": byValue("issuedByOrg"),
+    "december-waste-desc": descending(byValue("decemberWaste")),
+    "material-desc": descending(byValue("materialName")),
+    "material-asc": byValue("materialName"),
+};
+const defaultPrnSort = prnSorts["date-issued-desc"];
+
+const searchPrns = (filter = () => true, sort = defaultPrnSort) => {
+    // Break ties on issue date so repeated generation is deterministic.
+    const items = producerPrns
+        .filter(filter)
+        .sort((a, b) => sort(a, b) || defaultPrnSort(a, b));
+
+    return { items, totalItems: items.length };
+};
+const queryParam = (name, value) => ({
+    Name: name,
+    Matchers: [{ Name: "ExactMatcher", Pattern: value }],
+});
+// WireMock.Net matches the lowest Priority first, so the most specific
+// parameter combination wins and an unrecognised query falls back to every
+// PRN in default order.
+const prnSearchMapping = (params, body, priority) => ({
+    Priority: priority,
+    ...mapping(
+        {
+            ...exactPath("/api/v1/prn/search"),
+            Headers: [
+                {
+                    Name: "X-EPR-ORGANISATION",
+                    Matchers: [
+                        { Name: "ExactMatcher", Pattern: directProducerId },
+                    ],
+                },
+            ],
+            ...(params.length ? { Params: params } : {}),
+        },
+        body,
+    ),
+});
+
+const prnMappings = [["journey-producer-prns.json", prnSearchMapping([], searchPrns(), 10)]];
+for (const [sortBy, sort] of Object.entries(prnSorts)) {
+    prnMappings.push([
+        `journey-producer-prns-sort-${sortBy}.json`,
+        prnSearchMapping([queryParam("sortBy", sortBy)], searchPrns(undefined, sort), 3),
+    ]);
+}
+for (const [filterBy, filter] of Object.entries(prnFilters)) {
+    prnMappings.push([
+        `journey-producer-prns-filter-${filterBy}.json`,
+        prnSearchMapping([queryParam("filterBy", filterBy)], searchPrns(filter), 2),
+    ]);
+    for (const [sortBy, sort] of Object.entries(prnSorts)) {
+        prnMappings.push([
+            `journey-producer-prns-filter-${filterBy}-sort-${sortBy}.json`,
+            prnSearchMapping(
+                [queryParam("filterBy", filterBy), queryParam("sortBy", sortBy)],
+                searchPrns(filter, sort),
+                1,
+            ),
+        ]);
+    }
+}
+await Promise.all(
+    prnMappings.map(([name, value]) => writeFile(join(outputDirectory, name), json(value))),
 // A populated response lets the journey assert rendered PRN values.
 const journeyPrn = (overrides) => ({
     reprocessorExporterAgency: "Environment Agency",
