@@ -88,7 +88,7 @@ public class MappersTests
             .Be("Example Organisation");
         rows.Single(x => x.RegistrationType == EntityRegistrationType.ComplianceScheme)
             .Name.Should()
-            .Be("Example Trading Name");
+            .Be("Example Organisation");
     }
 
     [Fact]
@@ -211,7 +211,7 @@ public class MappersTests
                     {
                         RegistrationType = EntityRegistrationType.ComplianceScheme,
                         RegistrationStatus = OrganisationRegistrationStatus.Registered,
-                        Name = "Example Trading Name",
+                        Name = "Example Organisation",
                     },
                 ],
                 options => options.ExcludingMissingMembers()
@@ -279,6 +279,40 @@ public class MappersTests
         var row = Mappers.ToEligibilityRows([organisation], "g1", s_refreshedAt).Single();
 
         row.ReferenceNumberResolutionState.Should().Be(OrganisationReferenceNumberResolutionState.AwaitingLookupKey);
+    }
+
+    // AMCR-506. The CSoC "Not submitted" tab renders this row's Name verbatim.
+    // waste-organisations holds a compliance scheme's own name in Name and its
+    // operator's legal company name in TradingName, so the row must carry Name -
+    // matching the detail page and the Pending/Accepted tabs, which both resolve
+    // to the same field.
+    [Fact]
+    public void ToEligibilityRows_WhenComplianceScheme_ShouldUseNameNotTradingName()
+    {
+        var organisationId = Guid.NewGuid();
+        var organisation = new Organisation
+        {
+            Id = organisationId,
+            Name = "Valpak Compliance Scheme",
+            TradingName = "BARCLAYS PLC",
+            CompaniesHouseNumber = "12345678",
+            Address = new WasteOrganisationsAddress(),
+            Registrations =
+            [
+                CreateRegistration(
+                    WasteOrganisationsRegistrationType.ComplianceScheme,
+                    WasteOrganisationsRegistrationStatus.Registered,
+                    2026
+                ),
+            ],
+        };
+
+        var rows = Mappers.ToEligibilityRows([organisation], "g1", s_refreshedAt);
+
+        var row = rows.Single();
+        row.RegistrationType.Should().Be(EntityRegistrationType.ComplianceScheme);
+        row.Name.Should().Be("Valpak Compliance Scheme");
+        row.TradingName.Should().Be("BARCLAYS PLC");
     }
 
     private static Organisation CreateOrganisation(Guid organisationId, Registration[] registrations) =>
