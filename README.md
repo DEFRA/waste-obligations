@@ -134,6 +134,10 @@ See [dependabot.yml](.github/dependabot.yml) for group configuration.
 
 The [.NET health-check CLI](tools/healthcheck/README.md) checks configurable services and their dependencies. Configure service addresses in `tools/healthcheck/appsettings.json` and credentials in the Git-ignored `tools/healthcheck/.env` file.
 
+## Analytics message tool
+
+The [analytics message tool](tools/analytics-messages/README.md) writes plain or gzip/base64 message bodies and AWS attributes to disk. It has its own solution under `tools/analytics-messages` and an optional local SNS-to-SQS Compose stack for testing consumers.
+
 ## CDP
 
 Review CDP documentation and process for relevant portal operations.

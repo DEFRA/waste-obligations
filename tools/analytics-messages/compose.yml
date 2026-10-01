@@ -1,0 +1,59 @@
+name: waste-obligations-analytics-messages
+
+x-aws-cli: &aws-cli
+  image: amazon/aws-cli:latest@sha256:45056897f7c47a84e3ef5a4f9095f748bd9f5a24c5d54e7d5cfc3d4da52c9331
+  environment:
+    AWS_ACCESS_KEY_ID: test
+    AWS_SECRET_ACCESS_KEY: test
+    AWS_DEFAULT_REGION: eu-west-2
+    AWS_ENDPOINT_URL: http://floci:4566
+    AWS_EC2_METADATA_DISABLED: "true"
+    AWS_PAGER: ""
+
+services:
+  floci:
+    image: floci/floci:latest@sha256:f5aa8c18302cedb4f2385f5c4e455b3efc77fee6bf7b6e5d1712b2817ba102db
+    ports:
+      - "127.0.0.1:${ANALYTICS_MESSAGES_PORT:-14566}:4566"
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck.sh"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  floci-init:
+    <<: *aws-cli
+    entrypoint: ["/bin/sh", "/tools/init-queue.sh"]
+    depends_on:
+      floci:
+        condition: service_healthy
+    volumes:
+      - ./init-queue.sh:/tools/init-queue.sh:ro
+
+  generator:
+    image: mcr.microsoft.com/dotnet/sdk:10.0@sha256:35d40304542c8689331f8cab17c65926cdf48fe711e289321d71924b230a7d29
+    profiles: [tools]
+    working_dir: /workspace
+    entrypoint:
+      [
+        "dotnet",
+        "run",
+        "--project",
+        "tools/analytics-messages",
+        "--artifacts-path",
+        "/tmp/analytics-messages-build",
+        "--",
+      ]
+    depends_on:
+      floci-init:
+        condition: service_completed_successfully
+    volumes:
+      - ../..:/workspace:ro
+      - ${MESSAGE_DIRECTORY:-./output}:/messages
+
+  aws:
+    <<: *aws-cli
+    profiles: [tools]
+    volumes:
+      - ${MESSAGE_DIRECTORY:-./output}:/messages:ro

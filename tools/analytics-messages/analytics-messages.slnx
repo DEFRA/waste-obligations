@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="AnalyticsMessages.csproj" />
+  <Folder Name="/tests/">
+    <Project Path="tests/AnalyticsMessages.Tests/AnalyticsMessages.Tests.csproj" />
+  </Folder>
+</Solution>
