@@ -349,7 +349,7 @@ for (const [filterBy, filter] of Object.entries(prnFilters)) {
                     queryParam("sortBy", sortBy),
                 ],
                 searchPrns(filter, sort),
-                1,
+                PRN_MAPPING_1,
             ),
         ]);
     }
