@@ -151,10 +151,10 @@ const PRN_TONNAGE_90 = 90;
 
 // A populated response lets the journey assert rendered PRN values.
 const directProducerPrn = (overrides) => ({
-    externalId: "0d2f531d-0213-494b-8c8b-4133051bd44f",
+    externalId: journeyPrnExternalId,
     prnNumber: "PRN131",
     organisationId: directProducerId,
-    organisationName: "Journey Producer Ltd",
+    organisationName: journeyPrnOrganisationName,
     reprocessorExporterAgency: "Environment Agency",
     prnStatus: "AWAITINGACCEPTANCE",
     tonnageValue: PRN_TONNAGE_125,
@@ -208,20 +208,6 @@ await writeFile(
     ),
 );
 
-for (const [sortBy, sort] of Object.entries(prnSorts)) {
-    prnMappings.push([
-        `journey-producer-prns-filter-${filterBy}-sort-${sortBy}.json`,
-        prnSearchMapping(
-            [
-                queryParam("filterBy", filterBy),
-                queryParam("sortBy", sortBy),
-            ],
-            searchPrns(filter, sort),
-            PRN_MAPPING_1,
-        ),
-    ]);
-}
-
 await Promise.all(
     prnMappings.map(([name, value]) =>
         writeFile(join(outputDirectory, name), json(value)),
@@ -256,7 +242,7 @@ const prnFixture = (
     externalId,
     prnNumber,
     organisationId: directProducerId,
-    organisationName: "Journey Producer Ltd",
+    organisationName: journeyPrnOrganisationName,
     reprocessorExporterAgency: "Environment Agency",
     prnStatus: "AWAITINGACCEPTANCE",
     tonnageValue,
@@ -277,7 +263,7 @@ const prnFixture = (
 const producerPrns = [
     prnFixture(
         "PRN123",
-        "0d2f531d-0213-494b-8c8b-4133051bd44f",
+        journeyPrnExternalId,
         "Aluminium",
         PRN_TONNAGE_125,
         "2026-06-15T10:30:00Z",
@@ -383,6 +369,7 @@ const queryParam = (name, value) => ({
     Name: name,
     Matchers: [{ Name: "ExactMatcher", Pattern: value }],
 });
+
 // WireMock.Net matches the lowest Priority first, so the most specific
 // parameter combination wins and an unrecognised query falls back to every
 // PRN in default order.
@@ -513,13 +500,16 @@ const writePrnMappings = async (name, prn) => {
     );
 };
 
+const journeyPrnExternalId = "0d2f531d-0213-494b-8c8b-4133051bd44f";
+const journeyPrnOrganisationName = "Journey Producer Ltd";
+
 await writePrnMappings(
     "producer",
     journeyPrn({
-        externalId: "0d2f531d-0213-494b-8c8b-4133051bd44f",
+        externalId: journeyPrnExternalId,
         prnNumber: "PRN123",
         organisationId: directProducerId,
-        organisationName: "Journey Producer Ltd",
+        organisationName: journeyPrnOrganisationName,
     }),
 );
 
