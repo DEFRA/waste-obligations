@@ -140,6 +140,15 @@ await writeFile(
 
 // Keep the Azure PRN common backend contract beside its consuming service.
 
+const PRN_TONNAGE_125 = 125;
+const PRN_TONNAGE_40 = 40;
+const PRN_TONNAGE_310 = 310;
+const PRN_TONNAGE_75 = 75;
+const PRN_TONNAGE_510 = 510;
+const PRN_TONNAGE_15 = 15;
+const PRN_TONNAGE_220 = 220;
+const PRN_TONNAGE_90 = 90;
+
 // A populated response lets the journey assert rendered PRN values.
 const directProducerPrn = (overrides) => ({
     externalId: "0d2f531d-0213-494b-8c8b-4133051bd44f",
