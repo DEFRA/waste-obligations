@@ -338,7 +338,7 @@ for (const [filterBy, filter] of Object.entries(prnFilters)) {
             [queryParam("filterBy", filterBy)],
             searchPrns(filter),
             PRN_MAPPING_2,
-        ),
+
     ]);
     for (const [sortBy, sort] of Object.entries(prnSorts)) {
         prnMappings.push([
@@ -416,6 +416,24 @@ await writeFile(
             },
             directProducerPrn,
         ),
+    ]);
+    for (const [sortBy, sort] of Object.entries(prnSorts)) {
+        prnMappings.push([
+            `journey-producer-prns-filter-${filterBy}-sort-${sortBy}.json`,
+            prnSearchMapping(
+                [
+                    queryParam("filterBy", filterBy),
+                    queryParam("sortBy", sortBy),
+                ],
+                searchPrns(filter, sort),
+                PRN_MAPPING_1,
+            ),
+        ]);
+    }
+}
+await Promise.all(
+    prnMappings.map(([name, value]) =>
+        writeFile(join(outputDirectory, name), json(value)),
     ),
 );
 
