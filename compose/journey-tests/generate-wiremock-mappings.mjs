@@ -164,6 +164,13 @@ const directProducerPrn = (overrides) => ({
     ...overrides,
 });
 
+const directProducerHeader = [
+    {
+        Name: "X-EPR-ORGANISATION",
+        Matchers: [{ Name: "ExactMatcher", Pattern: directProducerId }],
+    },
+];
+
 await writeFile(
     join(outputDirectory, "journey-producer-prns.json"),
     json(
