@@ -378,13 +378,18 @@ const directProducerPrn = {
     createdOn: "2026-06-15T10:00:00Z",
     lastUpdatedDate: "2026-06-15T10:30:00Z",
     isExport: false,
-};
-const directProducerHeader = [
-    {
-        Name: "X-EPR-ORGANISATION",
-        Matchers: [{ Name: "ExactMatcher", Pattern: directProducerId }],
-    },
-];
+    ...overrides,
+});
+
+// The journey opens the listed PRN, so its single-PRN read returns the same
+// record as the search.
+const writePrnMappings = async (name, prn) => {
+    const organisationHeader = [
+        {
+            Name: "X-EPR-ORGANISATION",
+            Matchers: [{ Name: "ExactMatcher", Pattern: prn.organisationId }],
+        },
+    ];
 
 await writeFile(
     join(outputDirectory, "journey-producer-prns.json"),
