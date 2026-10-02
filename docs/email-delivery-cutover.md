@@ -36,7 +36,7 @@ Notifications uses
 `NotificationCommandDelivery__EmailDeliveryCutoverUtc` and makes the inverse
 decision: it sends commands for actions at or after the same instant.
 
-## Activation and rollback
+## Activation and recovery
 
 Leave the setting null until submitted and cancellation notification
 initiation is ready under MO-549 and MO-550. MO-561 provides delivery but does
@@ -49,10 +49,10 @@ separately. This PR adds no CDP or Azure configuration and no production
 cutover date. There is no entity or analytics schema change, migration, queue
 publication or rewrite of historical audit events.
 
-Restarting Waste Obligations hosts with this setting null restores the direct
-email path for subsequent calls. Pause or otherwise coordinate the Notifications path first to avoid
-both services sending for the same action. This service does not replay
-emails it previously suppressed.
+After X, handover is forward-only. Do not clear or move the cutover backward
+to restore direct sending. Waste Obligations continues to suppress actions at
+or after X. Resolve delivery failures through Notifications retry and DLQ
+recovery; this service does not replay emails it previously suppressed.
 
 ## Journey coverage
 
