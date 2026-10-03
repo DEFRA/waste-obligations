@@ -10,6 +10,7 @@ using Defra.WasteObligations.Testing.Fixtures.AccountBackend;
 using Defra.WasteObligations.Testing.Fixtures.Dtos;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using OrganisationFixture = Defra.WasteObligations.Testing.Fixtures.WasteOrganisations.OrganisationFixture;
@@ -35,6 +36,7 @@ public class EmailServiceTests
             GovukNotifyService,
             CancellationEmailRecipientResolver,
             EmailMetrics,
+            Options.Create(new EmailDeliveryOptions()),
             NullLogger<EmailService>.Instance
         );
     }
