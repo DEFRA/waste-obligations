@@ -36,6 +36,11 @@ Notifications uses
 `NotificationCommandDelivery__EmailDeliveryCutoverUtc` and makes the inverse
 decision: it sends commands for actions at or after the same instant.
 
+Each host logs the parsed UTC cutover at startup. `/health/all` reports an
+`EmailDeliveryCutover` entry with its normalized nullable value, validity and
+fixed mode (`send-all` or `boundary`). The diagnostic is healthy for intentional
+null and does not participate in `/health` readiness checks.
+
 ## Activation and recovery
 
 Leave the setting null until submitted and cancellation notification
@@ -53,14 +58,13 @@ startup diagnostics and `/health/all`, not only the saved CDP settings.
 If Waste Obligations stops sending while a Notifications host still uses null,
 both paths suppress the action. Notifications suppression is permanent, so
 redrive cannot restore delivery for the same command. Do not begin the Waste
-Obligations rollout until Notifications is verified. If the future boundary is
-too close to finish both rollouts, keep Waste Obligations unset and complete a
-new coordinated future-boundary plan before activating its gate. This PR adds no CDP or Azure configuration and no production
+Obligations rollout until Notifications is verified. Choose the boundary far enough in the future to finish both rollouts. If that
+cannot be achieved, stop before configuring Waste Obligations and escalate the
+handover; do not assume a later change can undo permanent suppression. This PR adds no CDP or Azure configuration and no production
 cutover date. There is no entity or analytics schema change, migration, queue
 publication or rewrite of historical audit events.
 
-After X, handover is forward-only. Do not clear or move the cutover backward
-to restore direct sending. Waste Obligations continues to suppress actions at
+After X, handover is forward-only. Do not clear or change the cutover. Waste Obligations continues to suppress actions at
 or after X. Resolve delivery failures through Notifications retry and DLQ
 recovery; this service does not replay emails it previously suppressed.
 

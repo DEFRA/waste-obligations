@@ -92,6 +92,15 @@ try
 
     var app = builder.Build();
 
+    var cutoverValid = app
+        .Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<EmailDeliveryOptions>>()
+        .Value.TryReadCutover(out var cutover);
+    app.Logger.LogInformation(
+        "Email delivery cutover {EmailDeliveryCutoverUtc}; cutover valid {CutoverValid}",
+        cutover,
+        cutoverValid
+    );
+
     app.UseErrorHandling();
     app.UseHstsUnconditionally();
     app.UseHeaderPropagation();

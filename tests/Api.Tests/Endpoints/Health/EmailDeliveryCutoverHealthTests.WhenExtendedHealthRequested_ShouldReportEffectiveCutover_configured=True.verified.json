@@ -1,0 +1,13 @@
+﻿{
+  "status": "Healthy",
+  "results": {
+    "EmailDeliveryCutover": {
+      "status": "Healthy",
+      "data": {
+        "emailDeliveryCutoverUtc": "2027-01-01T00:00:00.1230000+00:00",
+        "cutoverValid": true,
+        "mode": "boundary"
+      }
+    }
+  }
+}
