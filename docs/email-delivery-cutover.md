@@ -43,9 +43,19 @@ initiation is ready under MO-549 and MO-550. MO-561 provides delivery but does
 not initiate declaration notifications. Activating this cutoff before those
 producers are ready would suppress emails without a replacement send.
 
-The deployment owners must configure both services with the identical future
-UTC instant before it takes effect and verify the deployed CDP configuration
-separately. This PR adds no CDP or Azure configuration and no production
+Configure Notifications with the future UTC instant first. Verify every active
+Notifications host has that value, processing enabled and the post-cutover
+delivery implementation; stop every old null-cutover consumer. Only then
+configure Waste Obligations with the identical instant and verify all of its
+active hosts before the boundary. Compare the effective values in each host's
+startup diagnostics and `/health/all`, not only the saved CDP settings.
+
+If Waste Obligations stops sending while a Notifications host still uses null,
+both paths suppress the action. Notifications suppression is permanent, so
+redrive cannot restore delivery for the same command. Do not begin the Waste
+Obligations rollout until Notifications is verified. If the future boundary is
+too close to finish both rollouts, keep Waste Obligations unset and complete a
+new coordinated future-boundary plan before activating its gate. This PR adds no CDP or Azure configuration and no production
 cutover date. There is no entity or analytics schema change, migration, queue
 publication or rewrite of historical audit events.
 
