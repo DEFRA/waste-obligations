@@ -37,7 +37,7 @@ Notifications uses
 decision: it sends commands for actions at or after the same instant.
 
 Each host logs the parsed UTC cutover at startup. `/health/all` reports an
-`EmailDeliveryCutover` entry with its normalized nullable value, validity and
+`EmailDeliveryCutover` entry with its normalized nullable value and
 fixed mode (`send-all` or `boundary`). The diagnostic is healthy for intentional
 null and does not participate in `/health` readiness checks.
 
@@ -49,8 +49,8 @@ not initiate declaration notifications. Activating this cutoff before those
 producers are ready would suppress emails without a replacement send.
 
 Configure Notifications with the future UTC instant first. Verify every active
-Notifications host has that value, processing enabled and the post-cutover
-delivery implementation; stop every old null-cutover consumer. Only then
+Notifications host has that value, successful startup readiness and the
+post-cutover delivery implementation; stop every old null-cutover consumer. Only then
 configure Waste Obligations with the identical instant and verify all of its
 active hosts before the boundary. Compare the effective values in each host's
 startup diagnostics and `/health/all`, not only the saved CDP settings.
