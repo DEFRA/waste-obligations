@@ -12,20 +12,14 @@ public sealed class EmailDeliveryCutoverHealthCheck(IOptions<EmailDeliveryOption
         CancellationToken cancellationToken = default
     )
     {
-        var valid = options.Value.TryReadCutover(out var cutover);
-        var mode = (valid, cutover) switch
-        {
-            (false, _) => "invalid",
-            (_, null) => "send-all",
-            _ => "boundary",
-        };
+        options.Value.TryReadCutover(out var cutover);
+        var mode = cutover is null ? "send-all" : "boundary";
 
         return Task.FromResult(
             HealthCheckResult.Healthy(
                 data: new Dictionary<string, object>
                 {
                     ["emailDeliveryCutoverUtc"] = cutover?.ToString("O", CultureInfo.InvariantCulture)!,
-                    ["cutoverValid"] = valid,
                     ["mode"] = mode,
                 }
             )

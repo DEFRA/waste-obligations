@@ -5,7 +5,6 @@
       "status": "Healthy",
       "data": {
         "emailDeliveryCutoverUtc": null,
-        "cutoverValid": true,
         "mode": "send-all"
       }
     },
