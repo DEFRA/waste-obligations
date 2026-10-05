@@ -75,6 +75,39 @@ test("generates Account, Notify and PRN mappings from the supplied scenario", as
     assert.equal(items[0].materialName, "Aluminium");
     assert.equal(items[0].tonnageValue, 125);
 
+    const singlePrnMapping = await readMapping(outputDirectory, "journey-producer-prn.json");
+    assert.deepEqual(singlePrnMapping.Request, {
+        Path: {
+            Matchers: [{ Name: "ExactMatcher", Pattern: `/api/v1/prn/${items[0].externalId}` }],
+        },
+        Methods: ["GET"],
+        Headers: prnMapping.Request.Headers,
+    });
+    assert.equal(singlePrnMapping.Response.StatusCode, 200);
+    assert.deepEqual(singlePrnMapping.Response.BodyAsJson, items[0]);
+
+    const csoPrnsMapping = await readMapping(outputDirectory, "journey-compliance-scheme-prns.json");
+    assert.deepEqual(csoPrnsMapping.Request.Headers, [
+        {
+            Name: "X-EPR-ORGANISATION",
+            Matchers: [{ Name: "ExactMatcher", Pattern: complianceSchemeId }],
+        },
+    ]);
+    const [csoPrn] = csoPrnsMapping.Response.BodyAsJson.items;
+    assert.equal(csoPrnsMapping.Response.BodyAsJson.totalItems, 1);
+    assert.equal(csoPrn.organisationId, complianceSchemeId);
+    assert.equal(csoPrn.prnNumber, "PRN456");
+    assert.equal(csoPrn.prnStatus, "AWAITINGACCEPTANCE");
+    assert.notEqual(csoPrn.externalId, items[0].externalId);
+
+    const csoSinglePrnMapping = await readMapping(outputDirectory, "journey-compliance-scheme-prn.json");
+    assert.equal(
+        csoSinglePrnMapping.Request.Path.Matchers[0].Pattern,
+        `/api/v1/prn/${csoPrn.externalId}`,
+    );
+    assert.deepEqual(csoSinglePrnMapping.Request.Headers, csoPrnsMapping.Request.Headers);
+    assert.deepEqual(csoSinglePrnMapping.Response.BodyAsJson, csoPrn);
+
     assert.equal(
         directProducerMapping.Request.Path.Matchers[0].Pattern,
         `/api/organisations/organisation-with-persons/${directProducerId}`,
