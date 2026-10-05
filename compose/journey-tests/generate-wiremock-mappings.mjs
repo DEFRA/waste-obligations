@@ -139,6 +139,69 @@ await writeFile(
 );
 
 // Keep the Azure PRN common backend contract beside its consuming service.
+
+const PRN_TONNAGE_125 = 125;
+const PRN_TONNAGE_40 = 40;
+const PRN_TONNAGE_310 = 310;
+const PRN_TONNAGE_75 = 75;
+const PRN_TONNAGE_510 = 510;
+const PRN_TONNAGE_15 = 15;
+const PRN_TONNAGE_220 = 220;
+const PRN_TONNAGE_90 = 90;
+
+const organisationHeader = (organisationId) => [
+    {
+        Name: "X-EPR-ORGANISATION",
+        Matchers: [{ Name: "ExactMatcher", Pattern: organisationId }],
+    },
+];
+
+const PRN_MAPPING_1 = 1;
+const PRN_MAPPING_2 = 2;
+const PRN_MAPPING_3 = 3;
+const PRN_MAPPING_10 = 10;
+
+// WireMock.Net matches the lowest Priority first, so the most specific
+// parameter combination wins and an unrecognised query falls back to every
+// PRN in default order.
+const prnSearchMapping = (params, body, priority) => ({
+    Priority: priority,
+    ...mapping(
+        {
+            ...exactPath("/api/v1/prn/search"),
+            Headers: organisationHeader(directProducerId),
+            ...(params.length ? { Params: params } : {}),
+        },
+        body,
+    ),
+});
+
+const byIssueDate = (a, b) => Date.parse(a.issueDate) - Date.parse(b.issueDate);
+const byValue = (key) => (a, b) => {
+    if (a[key] < b[key]) {
+        return -1;
+    }
+    if (a[key] > b[key]) {
+        return 1;
+    }
+
+    return 0;
+};
+const descending = (compare) => (a, b) => compare(b, a);
+const prnSorts = {
+    "date-issued-desc": descending(byIssueDate),
+    "date-issued-asc": byIssueDate,
+    "tonnage-desc": descending(byValue("tonnageValue")),
+    "tonnage-asc": byValue("tonnageValue"),
+    "issued-by-desc": descending(byValue("issuedByOrg")),
+    "issued-by-asc": byValue("issuedByOrg"),
+    "december-waste-desc": descending(byValue("decemberWaste")),
+    "material-desc": descending(byValue("materialName")),
+    "material-asc": byValue("materialName"),
+};
+
+const defaultPrnSort = prnSorts["date-issued-desc"];
+
 // Several distinguishable PRNs let the journey assert rendered values, material
 // filtering and each sort order. Issue date, tonnage and material each give a
 // different order, and Wood is deliberately absent so one filter is empty.
@@ -152,7 +215,7 @@ const prnFixture = (
     externalId,
     prnNumber,
     organisationId: directProducerId,
-    organisationName: "Journey Producer Ltd",
+    organisationName: journeyPrnOrganisationName,
     reprocessorExporterAgency: "Environment Agency",
     prnStatus: "AWAITINGACCEPTANCE",
     tonnageValue,
@@ -170,19 +233,13 @@ const prnFixture = (
     isExport: false,
 });
 
-const PRN_TONNAGE_125 = 125;
-const PRN_TONNAGE_40 = 40;
-const PRN_TONNAGE_310 = 310;
-const PRN_TONNAGE_75 = 75;
-const PRN_TONNAGE_510 = 510;
-const PRN_TONNAGE_15 = 15;
-const PRN_TONNAGE_220 = 220;
-const PRN_TONNAGE_90 = 90;
+const journeyPrnExternalId = "0d2f531d-0213-494b-8c8b-4133051bd44f";
+const journeyPrnOrganisationName = "Journey Producer Ltd";
 
 const producerPrns = [
     prnFixture(
         "PRN123",
-        "0d2f531d-0213-494b-8c8b-4133051bd44f",
+        journeyPrnExternalId,
         "Aluminium",
         PRN_TONNAGE_125,
         "2026-06-15T10:30:00Z",
@@ -238,6 +295,22 @@ const producerPrns = [
     ),
 ];
 
+const searchPrns = (filter = () => true, sort = defaultPrnSort) => {
+    // Break ties on issue date so repeated generation is deterministic.
+    const items = producerPrns
+        .filter(filter)
+        .sort((a, b) => sort(a, b) || defaultPrnSort(a, b));
+
+    return { items, totalItems: items.length };
+};
+
+const prnMappings = [
+    [
+        "journey-producer-prns.json",
+        prnSearchMapping([], searchPrns(), PRN_MAPPING_10),
+    ],
+];
+
 // Mirrors the common backend's filterBy and sortBy handling for awaiting PRNs.
 // Without sortBy the backend orders by issue date, newest first.
 const prnFilters = {
@@ -251,76 +324,12 @@ const prnFilters = {
     "awaiting-steel": (prn) => prn.materialName === "Steel",
     "awaiting-wood": (prn) => prn.materialName === "Wood",
 };
-const byIssueDate = (a, b) => Date.parse(a.issueDate) - Date.parse(b.issueDate);
-const byValue = (key) => (a, b) => {
-    if (a[key] < b[key]) {
-        return -1;
-    }
-    if (a[key] > b[key]) {
-        return 1;
-    }
 
-    return 0;
-};
-const descending = (compare) => (a, b) => compare(b, a);
-const prnSorts = {
-    "date-issued-desc": descending(byIssueDate),
-    "date-issued-asc": byIssueDate,
-    "tonnage-desc": descending(byValue("tonnageValue")),
-    "tonnage-asc": byValue("tonnageValue"),
-    "issued-by-desc": descending(byValue("issuedByOrg")),
-    "issued-by-asc": byValue("issuedByOrg"),
-    "december-waste-desc": descending(byValue("decemberWaste")),
-    "material-desc": descending(byValue("materialName")),
-    "material-asc": byValue("materialName"),
-};
-const defaultPrnSort = prnSorts["date-issued-desc"];
-
-const searchPrns = (filter = () => true, sort = defaultPrnSort) => {
-    // Break ties on issue date so repeated generation is deterministic.
-    const items = producerPrns
-        .filter(filter)
-        .sort((a, b) => sort(a, b) || defaultPrnSort(a, b));
-
-    return { items, totalItems: items.length };
-};
 const queryParam = (name, value) => ({
     Name: name,
     Matchers: [{ Name: "ExactMatcher", Pattern: value }],
 });
-// WireMock.Net matches the lowest Priority first, so the most specific
-// parameter combination wins and an unrecognised query falls back to every
-// PRN in default order.
-const prnSearchMapping = (params, body, priority) => ({
-    Priority: priority,
-    ...mapping(
-        {
-            ...exactPath("/api/v1/prn/search"),
-            Headers: [
-                {
-                    Name: "X-EPR-ORGANISATION",
-                    Matchers: [
-                        { Name: "ExactMatcher", Pattern: directProducerId },
-                    ],
-                },
-            ],
-            ...(params.length ? { Params: params } : {}),
-        },
-        body,
-    ),
-});
 
-const PRN_MAPPING_1 = 1;
-const PRN_MAPPING_2 = 2;
-const PRN_MAPPING_3 = 3;
-const PRN_MAPPING_10 = 10;
-
-const prnMappings = [
-    [
-        "journey-producer-prns.json",
-        prnSearchMapping([], searchPrns(), PRN_MAPPING_10),
-    ],
-];
 for (const [sortBy, sort] of Object.entries(prnSorts)) {
     prnMappings.push([
         `journey-producer-prns-sort-${sortBy}.json`,
@@ -354,6 +363,44 @@ for (const [filterBy, filter] of Object.entries(prnFilters)) {
         ]);
     }
 }
+// The journey opens a listed PRN, so its single-PRN read returns the same
+// record as the search.
+const singlePrnMapping = (prn) =>
+    mapping(
+        {
+            ...exactPath(`/api/v1/prn/${prn.externalId}`),
+            Headers: organisationHeader(prn.organisationId),
+        },
+        prn,
+    );
+
+const compliancePrn = {
+    ...prnFixture(
+        "PRN456",
+        "6a1e3c2b-7f4d-4e8a-9b5c-2d7f1a0e4c93",
+        "Aluminium",
+        PRN_TONNAGE_125,
+        "2026-06-15T10:30:00Z",
+    ),
+    organisationId: complianceSchemeId,
+    organisationName: "Journey Compliance Scheme Ltd",
+};
+
+prnMappings.push(
+    ["journey-producer-prn.json", singlePrnMapping(producerPrns[0])],
+    [
+        "journey-compliance-scheme-prns.json",
+        mapping(
+            {
+                ...exactPath("/api/v1/prn/search"),
+                Headers: organisationHeader(complianceSchemeId),
+            },
+            { items: [compliancePrn], totalItems: 1 },
+        ),
+    ],
+    ["journey-compliance-scheme-prn.json", singlePrnMapping(compliancePrn)],
+);
+
 await Promise.all(
     prnMappings.map(([name, value]) =>
         writeFile(join(outputDirectory, name), json(value)),
