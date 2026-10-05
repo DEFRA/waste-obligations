@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -81,6 +82,58 @@ public class CreateComplianceDeclarationTests : EndpointTestBase
 
         createCalled.Should().BeFalse();
         await VerifyJson(content);
+    }
+
+    [Theory]
+    [InlineData("2026-04-26T14:00:00Z", 2027)] // the year after the current obligation year
+    [InlineData("2026-04-26T14:00:00Z", 2050)]
+    [InlineData("2027-01-31T23:30:00Z", 2027)] // January still belongs to the 2026 obligation year
+    [InlineData("2027-02-01T00:00:00Z", 2028)]
+    public async Task WhenObligationYearIsAfterCurrentYear_ShouldBeBadRequestWithoutCreatingDeclaration(
+        string utcNow,
+        int obligationYear
+    )
+    {
+        TimeProvider.SetUtcNow(DateTimeOffset.Parse(utcNow, CultureInfo.InvariantCulture));
+        var createCalled = false;
+        ComplianceDeclarationService.CreateNewId = () =>
+        {
+            createCalled = true;
+
+            return ObjectId.GenerateNewId();
+        };
+
+        await RequestShouldBeBadRequest(
+            CreateComplianceDeclarationRequestFixture
+                .DirectProducer(FakeWasteOrganisationsService.OrganisationId)
+                .With(x => x.ObligationYear, obligationYear)
+                .Create()
+        );
+
+        createCalled.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("2026-04-26T14:00:00Z", 2026)]
+    [InlineData("2026-04-26T14:00:00Z", 2025)]
+    [InlineData("2027-01-31T23:30:00Z", 2026)] // still the 2026 obligation year in January
+    [InlineData("2027-02-01T00:00:00Z", 2027)]
+    public async Task WhenObligationYearIsNotAfterCurrentYear_ShouldBeCreated(string utcNow, int obligationYear)
+    {
+        TimeProvider.SetUtcNow(DateTimeOffset.Parse(utcNow, CultureInfo.InvariantCulture));
+        ComplianceDeclarationService.CreateNewId = () => ObjectId.GenerateNewId();
+        var client = CreateClient(testUser: TestUser.WriteOnly);
+
+        var response = await client.PostAsJsonAsync(
+            Testing.Endpoints.Organisations.ComplianceDeclarations.Create(FakeWasteOrganisationsService.OrganisationId),
+            CreateComplianceDeclarationRequestFixture
+                .DirectProducer(FakeWasteOrganisationsService.OrganisationId)
+                .With(x => x.ObligationYear, obligationYear)
+                .Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
     }
 
     [Fact]

@@ -31,6 +31,7 @@ public static class CreateComplianceDeclaration
         [FromBody] CreateComplianceDeclarationRequest request,
         [FromServices] IWasteOrganisationsService wasteOrganisationsService,
         [FromServices] IComplianceDeclarationService complianceDeclarationService,
+        [FromServices] ICurrentObligationYearProvider currentObligationYearProvider,
         [FromServices] TimeProvider timeProvider,
         [FromServices] IEmailService emailService,
         CancellationToken cancellationToken
@@ -43,6 +44,12 @@ public static class CreateComplianceDeclaration
         if (request.Organisation.Id != organisationId)
             throw new BadHttpRequestException(
                 "The organisation ID in the request body must match the route organisation ID."
+            );
+
+        var currentObligationYear = currentObligationYearProvider.GetCurrentObligationYear();
+        if (request.ObligationYear > currentObligationYear)
+            throw new BadHttpRequestException(
+                $"The obligation year must not be after the current obligation year ({currentObligationYear})."
             );
 
         var complianceDeclaration = await complianceDeclarationService.Create(
