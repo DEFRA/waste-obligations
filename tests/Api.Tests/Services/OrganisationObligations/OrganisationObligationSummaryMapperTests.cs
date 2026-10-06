@@ -59,7 +59,7 @@ public class OrganisationObligationSummaryMapperTests
     }
 
     [Fact]
-    public void Map_WhenAnyMaterialHasNoDataYet_ShouldSetRecyclingObligationsMetToNull()
+    public void Map_WhenMaterialsAreMetAndNoDataYet_ShouldSetRecyclingObligationsMetToTrue()
     {
         var result = OrganisationObligationSummaryMapper.Map(
             ObligationFixture.OrganisationId,
@@ -70,7 +70,62 @@ public class OrganisationObligationSummaryMapperTests
             ]
         );
 
-        result.RecyclingObligationsMet.Should().BeNull();
+        result.RecyclingObligationsMet.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Map_WhenMaterialsAreNotMetAndNoDataYet_ShouldSetRecyclingObligationsMetToFalse()
+    {
+        var result = OrganisationObligationSummaryMapper.Map(
+            ObligationFixture.OrganisationId,
+            ObligationYear,
+            [
+                CreateObligation("Glass", accepted: 5, obligated: 10, ObligationStatus.NotMet),
+                CreateObligation("Plastic", accepted: 0, obligated: 10, ObligationStatus.NoDataYet),
+            ]
+        );
+
+        result.RecyclingObligationsMet.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Map_WhenMaterialsAreNotMetMetAndNoDataYet_ShouldSetRecyclingObligationsMetToFalse()
+    {
+        var result = OrganisationObligationSummaryMapper.Map(
+            ObligationFixture.OrganisationId,
+            ObligationYear,
+            [
+                CreateObligation("Glass", accepted: 5, obligated: 10, ObligationStatus.NotMet),
+                CreateObligation("Plastic", accepted: 10, obligated: 10, ObligationStatus.Met),
+                CreateObligation("Wood", accepted: 0, obligated: 10, ObligationStatus.NoDataYet),
+            ]
+        );
+
+        result.RecyclingObligationsMet.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Map_WhenAZeroTonnageMaterialIsMetAndAnotherHasNoDataYet_ShouldSetRecyclingObligationsMetToTrue()
+    {
+        var result = OrganisationObligationSummaryMapper.Map(
+            ObligationFixture.OrganisationId,
+            ObligationYear,
+            [
+                ObligationFixture
+                    .Default()
+                    .With(x => x.MaterialName, "Glass")
+                    .With(x => x.Tonnage, 0)
+                    .With(x => x.ObligationToMeet, (int?)0)
+                    .With(x => x.TonnageAwaitingAcceptance, 0)
+                    .With(x => x.TonnageAccepted, 0)
+                    .With(x => x.TonnageOutstanding, (int?)0)
+                    .With(x => x.Status, ObligationStatus.Met)
+                    .Create(),
+                CreateObligation("Wood", accepted: 0, obligated: 10, ObligationStatus.NoDataYet),
+            ]
+        );
+
+        result.RecyclingObligationsMet.Should().BeTrue();
     }
 
     [Fact]

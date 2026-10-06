@@ -943,7 +943,7 @@ The initial response contains the eligibility fields plus the locally hydrated o
 }
 ```
 
-`obligationCoveragePercentage: null` means no successful calculation is available; it is not evidence that the organisation has met zero percent of a known obligation. The public response intentionally does not expose a data-state or successful-read timestamp. `recyclingObligationsMet` remains `null` until every returned material has a calculated status. The private administration endpoint distinguishes the materialised summary states and provides their timestamps/counts.
+`obligationCoveragePercentage: null` means no successful calculation is available; it is not evidence that the organisation has met zero percent of a known obligation. The public response intentionally does not expose a data-state or successful-read timestamp. `recyclingObligationsMet` is `false` when any returned material is NotMet, otherwise `true` when at least one is Met, and `null` for empty or all-NoDataYet results. The private administration endpoint distinguishes the materialised summary states and provides their timestamps/counts.
 
 ### Private polling-status endpoint
 

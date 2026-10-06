@@ -156,6 +156,73 @@ const organisationHeader = (organisationId) => [
     },
 ];
 
+await writeFile(
+    join(outputDirectory, "backend-account-organisations-by-externalIds.json"),
+    json(
+        mapping(
+            {
+                ...exactPath("/api/organisations/organisations-by-externalIds"),
+                Methods: ["POST"],
+                Body: {
+                    Matcher: {
+                        Name: "JsonPathMatcher",
+                        Pattern: `$.externalIds[?(@ == '${directProducerId}')]`,
+                    },
+                },
+            },
+            {
+                organisations: [
+                    {
+                        externalId: directProducerId,
+                        referenceNumber: "100001",
+                        isComplianceScheme: false,
+                    },
+                ],
+                notFoundExternalIds: [],
+            },
+        ),
+    ),
+);
+
+await writeFile(
+    join(outputDirectory, "journey-producer-obligation-calculation-2026.json"),
+    json(
+        mapping(
+            {
+                ...exactPath("/api/v1/prn/obligationcalculation/2026"),
+                Headers: organisationHeader(directProducerId),
+            },
+            {
+                numberOfPrnsAwaitingAcceptance: 8,
+                obligationData: [
+                    {
+                        organisationId: directProducerId,
+                        materialName: "Aluminium",
+                        tonnage: 100,
+                        materialTarget: 0.75,
+                        obligationToMeet: 75,
+                        tonnageAwaitingAcceptance: 215,
+                        tonnageAccepted: 80,
+                        tonnageOutstanding: 0,
+                        status: "Met",
+                    },
+                    {
+                        organisationId: directProducerId,
+                        materialName: "Wood",
+                        tonnage: 200,
+                        materialTarget: 0.35,
+                        obligationToMeet: null,
+                        tonnageAwaitingAcceptance: 0,
+                        tonnageAccepted: 0,
+                        tonnageOutstanding: null,
+                        status: "NoDataYet",
+                    },
+                ],
+            },
+        ),
+    ),
+);
+
 const PRN_MAPPING_1 = 1;
 const PRN_MAPPING_2 = 2;
 const PRN_MAPPING_3 = 3;
