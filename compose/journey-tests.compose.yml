@@ -5,11 +5,6 @@
 # definition beside the Waste Obligations service that consumes it.
 services:
   waste-obligations:
-    environment:
-      OrganisationEligibility__RefreshPollingEnabled: "true"
-      OrganisationEligibility__RefreshPollIntervalSeconds: "1"
-      OrganisationObligationHydration__PollingEnabled: "true"
-      OrganisationObligationHydration__PollIntervalSeconds: "1"
     depends_on:
       waste-obligations-floci-init:
         condition: service_completed_successfully

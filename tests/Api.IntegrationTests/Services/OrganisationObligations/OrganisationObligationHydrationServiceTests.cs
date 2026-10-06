@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Http.Json;
 using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
@@ -7,6 +9,7 @@ using Defra.WasteObligations.Api.Services.OrganisationObligations;
 using Defra.WasteObligations.Api.Services.PrnCommonBackend;
 using Defra.WasteObligations.Api.Utils.Metrics;
 using Defra.WasteObligations.Testing;
+using Defra.WasteObligations.Testing.Fixtures.Entities;
 using Defra.WasteObligations.Testing.Fixtures.PrnCommonBackend;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -16,6 +19,7 @@ using MongoDB.Driver;
 using NSubstitute;
 using ObligationStatus = Defra.WasteObligations.Api.Dtos.ObligationStatus;
 using PrnObligation = Defra.WasteObligations.Api.Services.PrnCommonBackend.Obligation;
+using UnsubmittedOrganisationsPaged = Defra.WasteObligations.Api.Dtos.UnsubmittedOrganisationsPaged;
 
 namespace Defra.WasteObligations.Api.IntegrationTests.Services.OrganisationObligations;
 
@@ -552,6 +556,60 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
         await ObligationSource
             .Received(1)
             .ReadObligations(organisationId, ObligationYear, Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData(ObligationStatus.Met, 10, true)]
+    [InlineData(ObligationStatus.NotMet, 5, false)]
+    public async Task HydrateDue_WhenSourceHasMixedStatuses_ShouldReturnPersistedRecyclingStatusInUnsubmittedSearch(
+        string status,
+        int acceptedTonnage,
+        bool expectedRecyclingObligationsMet
+    )
+    {
+        var organisationId = Guid.NewGuid();
+        await InsertActiveSnapshot();
+        await OrganisationComplianceDeclarationEligibilities.InsertOneAsync(
+            OrganisationComplianceDeclarationEligibilityFixture
+                .Default(organisationId)
+                .With(x => x.Generation, "active")
+                .Create(),
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        ObligationSource
+            .ReadObligations(organisationId, ObligationYear, Arg.Any<CancellationToken>())
+            .Returns([
+                CreateObligation("Glass", acceptedTonnage, obligated: 10, status),
+                CreateObligation("Plastic", accepted: 0, obligated: 10, ObligationStatus.NoDataYet),
+            ]);
+        var subject = CreateSubject();
+
+        var processedCount = await subject.HydrateDue(ObligationYear, TestContext.Current.CancellationToken);
+
+        processedCount.Should().Be(1);
+        var summary = await OrganisationObligationSummaries
+            .Find(x => x.OrganisationId == organisationId && x.ObligationYear == ObligationYear)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        summary.RecyclingObligationsMet.Should().Be(expectedRecyclingObligationsMet);
+        using var client = CreateClient();
+        using var response = await client.GetAsync(
+            Testing.Endpoints.ComplianceDeclarations.Unsubmitted(
+                EndpointQuery
+                    .New.Where(EndpointFilter.ObligationYear(ObligationYear))
+                    .Where(EndpointFilter.RegistrationType("DirectProducer"))
+            ),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<UnsubmittedOrganisationsPaged>(
+            TestContext.Current.CancellationToken
+        );
+
+        result.Should().NotBeNull();
+        var row = result.UnsubmittedOrganisations.Should().ContainSingle().Which;
+        row.OrganisationId.Should().Be(organisationId);
+        row.RecyclingObligationsMet.Should().Be(expectedRecyclingObligationsMet);
     }
 
     [Fact]
