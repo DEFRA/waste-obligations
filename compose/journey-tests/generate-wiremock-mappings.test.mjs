@@ -87,15 +87,15 @@ test("generates Account, Notify and PRN mappings from the supplied scenario", as
 
     const obligationCalculationMapping = await readMapping(
         outputDirectory,
-        "journey-producer-obligation-calculation-2026.json",
+        "journey-producer-obligation-calculation.json",
     );
     assert.deepEqual(obligationCalculationMapping, {
         Request: {
             Path: {
                 Matchers: [
                     {
-                        Name: "ExactMatcher",
-                        Pattern: "/api/v1/prn/obligationcalculation/2026",
+                        Name: "RegexMatcher",
+                        Pattern: "^/api/v1/prn/obligationcalculation/[0-9]{4}$",
                     },
                 ],
             },
@@ -139,6 +139,16 @@ test("generates Account, Notify and PRN mappings from the supplied scenario", as
             Headers: { "Content-Type": "application/json; charset=utf-8" },
         },
     });
+
+    const obligationCalculationPath = new RegExp(
+        obligationCalculationMapping.Request.Path.Matchers[0].Pattern,
+    );
+    assert.equal(obligationCalculationPath.test("/api/v1/prn/obligationcalculation/2026"), true);
+    assert.equal(obligationCalculationPath.test("/api/v1/prn/obligationcalculation/2027"), true);
+    assert.equal(obligationCalculationPath.test("/api/v1/prn/obligationcalculation/not-a-year"), false);
+    assert.equal(obligationCalculationPath.test("/api/v1/prn/obligationcalculation/20270"), false);
+    assert.equal(obligationCalculationPath.test("/api/v1/prn/search/2027"), false);
+    assert.equal(obligationCalculationPath.test("/api/v1/prn/obligationcalculation/2027/extra"), false);
 
     assert.deepEqual(prnMapping.Request, {
         Path: {

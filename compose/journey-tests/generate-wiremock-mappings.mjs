@@ -185,11 +185,19 @@ await writeFile(
 );
 
 await writeFile(
-    join(outputDirectory, "journey-producer-obligation-calculation-2026.json"),
+    join(outputDirectory, "journey-producer-obligation-calculation.json"),
     json(
         mapping(
             {
-                ...exactPath("/api/v1/prn/obligationcalculation/2026"),
+                Path: {
+                    Matchers: [
+                        {
+                            Name: "RegexMatcher",
+                            Pattern: "^/api/v1/prn/obligationcalculation/[0-9]{4}$",
+                        },
+                    ],
+                },
+                Methods: ["GET"],
                 Headers: organisationHeader(directProducerId),
             },
             {
