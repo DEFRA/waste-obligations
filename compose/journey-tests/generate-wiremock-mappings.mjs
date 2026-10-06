@@ -140,6 +140,7 @@ await writeFile(
 
 // Keep the Azure PRN common backend contract beside its consuming service.
 
+const PAPER_BOARD = "Paper/board";
 const PRN_TONNAGE_125 = 125;
 const PRN_TONNAGE_40 = 40;
 const PRN_TONNAGE_310 = 310;
@@ -277,7 +278,7 @@ const producerPrns = [
     prnFixture(
         "PRN128",
         "5daf3e96-ae4c-4b97-9e8c-a05dbf6bc205",
-        "Paper/board",
+        PAPER_BOARD,
         PRN_TONNAGE_15,
         "2026-03-30T16:05:00Z",
     ),
@@ -321,7 +322,7 @@ const prnFilters = {
     "awaiting-glassother": (prn) => prn.materialName === "Glass Other",
     "awaiting-glassremelt": (prn) => prn.materialName === "Glass Re-melt",
     "awaiting-paperfiber": (prn) =>
-        ["Paper/board", "Fibre"].includes(prn.materialName),
+        [PAPER_BOARD, "Fibre"].includes(prn.materialName),
     "awaiting-plastic": (prn) => prn.materialName === "Plastic",
     "awaiting-steel": (prn) => prn.materialName === "Steel",
     "awaiting-wood": (prn) => prn.materialName === "Wood",
@@ -397,7 +398,7 @@ const acceptedProducerPrn = acceptedPrn(
     prnFixture(
         "PRN131",
         "0f2e14dd-6969-4311-90c5-e1fa89f9c85d",
-        "Paper/board",
+        PAPER_BOARD,
         PRN_TONNAGE_1,
         "2026-02-05T09:30:00Z",
     ),
