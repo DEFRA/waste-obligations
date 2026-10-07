@@ -49,8 +49,8 @@ the next approval even though its result is optional.
 
 ## Eligibility and trust
 
-The privileged job explicitly checks out the trusted `main` branch, with Git
-credentials disabled. It never checks out or runs a PR's code or downloads its
+The privileged job explicitly checks out `main` from `DEFRA/waste-obligations`,
+with Git credentials disabled. It never checks out or runs a PR's code or downloads its
 artifacts. PR CI runs separately with its existing permissions and secrets.
 
 Dependency review runs first, without checking out or executing candidate code

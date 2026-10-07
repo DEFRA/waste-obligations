@@ -6,11 +6,14 @@ const optionalSonarChecks = new Set([
   'SonarCloud Code Analysis'
 ]);
 const publishJob = 'CDP-publish-workflow';
+const mainBranch = 'main';
 const maxQueueCandidates = 50;
 const maxQueuePages = 5;
 const failureConclusion = 'failure';
 const githubActionsIntegrationId = 15368;
-const blockedMergeStatuses = new Set([405, 409]);
+const methodNotAllowedStatus = 405;
+const conflictStatus = 409;
+const blockedMergeStatuses = new Set([methodNotAllowedStatus, conflictStatus]);
 
 // Accept the canonical signed Dependabot metadata format; unfamiliar formats stay manual.
 export function hasOnlyMinorOrPatchUpdates(message) {
@@ -18,7 +21,7 @@ export function hasOnlyMinorOrPatchUpdates(message) {
 }
 
 function isDependabotPullRequest(pr, repository) {
-  return pr.user?.login === 'dependabot[bot]' && pr.base.ref === 'main'
+  return pr.user?.login === 'dependabot[bot]' && pr.base.ref === mainBranch
     && pr.base.repo.full_name === repository && pr.head.repo?.full_name === repository;
 }
 
@@ -56,7 +59,7 @@ function compareRunRecency(a, b) {
 }
 
 async function isSuccessfulReleaseRun(github, repository, run) {
-  if (!run || run.status !== 'completed') {
+  if (run?.status !== 'completed') {
     return false;
   }
   if (run.conclusion === 'success') {
@@ -133,7 +136,7 @@ async function hasReleaseCapacity(github, repository, mainSha, core) {
   const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
     ...repository, workflow_id: 'publish.yml', head_sha: mainSha, per_page: 100
   });
-  const mainRuns = runs.filter(x => x.head_branch === 'main').sort((a, b) => compareRunRecency(b, a));
+  const mainRuns = runs.filter(x => x.head_branch === mainBranch).sort((a, b) => compareRunRecency(b, a));
   // A later failed/cancelled attempt must not inherit an earlier successful release.
   if (!await isSuccessfulReleaseRun(github, repository, mainRuns[0])
     || !await hasMainPublication(github, repository, mainRuns)) {
@@ -153,7 +156,7 @@ export async function processDependabotQueue({ github, context, core, pullNumber
     return;
   }
 
-  const { data: main } = await github.rest.repos.getBranch({ ...context.repo, branch: 'main' });
+  const { data: main } = await github.rest.repos.getBranch({ ...context.repo, branch: mainBranch });
   if (!await hasReleaseCapacity(github, context.repo, main.commit.sha, core)) {
     return;
   }
@@ -161,7 +164,7 @@ export async function processDependabotQueue({ github, context, core, pullNumber
   const candidates = [];
   for (let page = 1; page <= maxQueuePages; page++) {
     const { data: prs } = await github.rest.pulls.list({
-      ...context.repo, state: 'open', base: 'main', sort: 'created', direction: 'asc', per_page: 100, page
+      ...context.repo, state: 'open', base: mainBranch, sort: 'created', direction: 'asc', per_page: 100, page
     });
     candidates.push(...prs.filter(x => isDependabotPullRequest(x, `${context.repo.owner}/${context.repo.repo}`)));
     if (candidates.length >= maxQueueCandidates || prs.length < 100) {
@@ -189,7 +192,7 @@ function matchesRunAttempt(latest, runId, runAttempt) {
 function recordsCurrentPullRequest(run, pr) {
   const recordedPr = run.pull_requests?.find(x => x.number === pr.number);
 
-  return recordedPr?.base.ref === 'main' && recordedPr.head.sha === pr.head.sha && Boolean(recordedPr.base.sha);
+  return recordedPr?.base.ref === mainBranch && recordedPr.head.sha === pr.head.sha && Boolean(recordedPr.base.sha);
 }
 
 function isCompletedPullRequestRun(run, latest, repository, pr) {
@@ -267,7 +270,7 @@ async function verifyCommits(github, repository, pr, core) {
 
 async function hasStrictMergeRules(github, repository, core) {
   const { data: rules } = await github.request('GET /repos/{owner}/{repo}/rules/branches/{branch}', {
-    ...repository, branch: 'main'
+    ...repository, branch: mainBranch
   });
   const protectedChecks = rules.filter(x => x.type === 'required_status_checks');
   if (!protectedChecks.some(x => x.parameters.strict_required_status_checks_policy === true
@@ -326,7 +329,7 @@ async function isEligibleOpenPullRequest({ github, repository, pr, runId, runAtt
   }
 
   const { data: currentPr } = await github.rest.pulls.get({ ...repository, pull_number: pr.number });
-  const { data: main } = await github.rest.repos.getBranch({ ...repository, branch: 'main' });
+  const { data: main } = await github.rest.repos.getBranch({ ...repository, branch: mainBranch });
   if (!isFreshPullRequest(currentPr, pr, repository, run, main)) {
     skip(core, 'The PR or main changed since CI; wait for a rebase and a fresh CI run.');
 
@@ -393,7 +396,7 @@ export async function dispatchPublish({ github, context, core, mergeCommitSha })
   }
 
   const repository = context.repo;
-  const { data: main } = await github.rest.repos.getBranch({ ...repository, branch: 'main' });
+  const { data: main } = await github.rest.repos.getBranch({ ...repository, branch: mainBranch });
   const { data: comparison } = await github.rest.repos.compareCommitsWithBasehead({
     ...repository, basehead: `${mergeCommitSha}...${main.commit.sha}`
   });
@@ -412,7 +415,7 @@ export async function dispatchPublish({ github, context, core, mergeCommitSha })
     }
   }
 
-  await github.rest.actions.createWorkflowDispatch({ ...repository, workflow_id: 'publish.yml', ref: 'main' });
+  await github.rest.actions.createWorkflowDispatch({ ...repository, workflow_id: 'publish.yml', ref: mainBranch });
   core.notice('Requested Publish on main. Check its result; rerun this workflow with the PR number if dispatch or publishing fails.');
 }
 
@@ -421,7 +424,7 @@ export async function shouldPublish({ github, context, core }) {
     throw new Error('Publish must run on main.');
   }
 
-  const { data: main } = await github.rest.repos.getBranch({ ...context.repo, branch: 'main' });
+  const { data: main } = await github.rest.repos.getBranch({ ...context.repo, branch: mainBranch });
   if (context.sha !== main.commit.sha) {
     core.notice('This queued revision was superseded; request publication of current main instead.');
     core.setOutput('should_publish', 'false');
