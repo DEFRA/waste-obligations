@@ -89,6 +89,7 @@ public class MappersTests
         rows.Single(x => x.RegistrationType == EntityRegistrationType.ComplianceScheme)
             .Name.Should()
             .Be("Example Trading Name");
+        rows.Should().OnlyContain(x => x.SchemeOperatorName == "Example Operator");
     }
 
     [Fact]
@@ -287,6 +288,7 @@ public class MappersTests
             Id = organisationId,
             Name = "Example Organisation",
             TradingName = "Example Trading Name",
+            SchemeOperatorName = "Example Operator",
             CompaniesHouseNumber = "12345678",
             Address = new WasteOrganisationsAddress(),
             Registrations = registrations,

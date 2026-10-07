@@ -59,6 +59,7 @@ public static class Mappers
                             registrationType.Value,
                             organisation.CompaniesHouseNumber
                         ),
+                        SchemeOperatorName = organisation.SchemeOperatorName,
                         RecyclingObligationsMet = null,
                         ObligationCoveragePercentage = null,
                         SourceFingerprint = CalculateSourceFingerprint(
@@ -113,7 +114,7 @@ public static class Mappers
     )
     {
         var source = string.Concat(
-            "organisation-eligibility-source-v2",
+            "organisation-eligibility-source-v3",
             LengthPrefix(organisation.Id.ToString("D")),
             LengthPrefix(obligationYear.ToString(CultureInfo.InvariantCulture)),
             LengthPrefix(registrationType.ToString()),
@@ -121,6 +122,7 @@ public static class Mappers
             LengthPrefix(organisation.BusinessCountry),
             LengthPrefix(organisation.Name),
             LengthPrefix(organisation.TradingName),
+            LengthPrefix(organisation.SchemeOperatorName),
             LengthPrefix(organisation.CompaniesHouseNumber)
         );
 
