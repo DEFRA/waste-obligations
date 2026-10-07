@@ -1,6 +1,13 @@
-{
+﻿{
   "status": "Healthy",
   "results": {
+    "EmailDeliveryCutover": {
+      "status": "Healthy",
+      "data": {
+        "emailDeliveryCutoverUtc": null,
+        "mode": "send-all"
+      }
+    },
     "PrnCommonBackend": {
       "status": "Healthy",
       "description": "Connected to http://wiremock/admin/health",
