@@ -1,7 +1,7 @@
 # Dependabot approval and merging
 
 `Merge Dependabot updates` uses the built-in `GITHUB_TOKEN` to approve and
-squash-merge verified Dependabot minor/patch updates. It needs no GitHub App or
+squash-merge allowlisted runtime NuGet minor/patch updates. It needs no GitHub App or
 personal access token. It is disabled until the repository variable
 `DEPENDABOT_AUTO_MERGE_ENABLED` is set to the string `true`.
 
@@ -47,6 +47,28 @@ the next approval even though its result is optional.
 The privileged job checks out the workflow's trusted `main` commit, with Git
 credentials disabled. It never checks out or runs a PR's code or downloads its
 artifacts. PR CI runs separately with its existing permissions and secrets.
+
+Routine version updates have an explicit seven-day Dependabot cooldown in all
+four configured ecosystems. GitHub's current default is three days; security
+updates are exempt from Dependabot cooldown. Independently of PR age or update
+type, this workflow checks each signed target version against NuGet's registry:
+the package must still be listed and its publication date must be at least
+seven days old. This also applies to already-open PRs and any future security
+update PRs. A new target version is checked again; a rebase does not restart the
+release-age clock. Unknown dates, prereleases, unlisted versions and registry
+failures leave the PR for manual review. Urgent security fixes may be reviewed
+and merged manually before the hold expires; the workflow has no delay bypass.
+
+The explicit package allowlist in
+[`dependabot-security-policy.mjs`](../.github/scripts/dependabot-security-policy.mjs)
+starts with selected Microsoft runtime libraries, AWS SDK packages and MongoDB
+drivers. Expanding it requires a reviewed code change. Actions, container images,
+analyzers, formatters, test frameworks and other packages stay manual even when
+their version classification is minor or patch. Mixed groups stay manual.
+For eligible packages, complete base/head project files are compared: only the
+existing `PackageReference` version values may change. Shared runtime references
+may also move in known test projects. Added references, new projects, build
+targets, workflow edits or any other file-content changes are rejected.
 
 An eligible PR is open, non-draft, authored by `dependabot[bot]`, hosted in this
 repository and targeting `main`. Every commit must have a verified signature,
@@ -163,6 +185,12 @@ blocked merges, all active release states, skipped/failed publications, one
 merge per published head, queue scanning and merged-PR recovery. These tests
 run in `Run Pull Request Checks` alongside existing Compose-helper tests.
 Workflow syntax is checked locally with actionlint.
+
+Supply-chain tests additionally cover allowlist/group rejection, version-only
+project changes, target/identity mismatches, registry failures, unlisted and
+newly released packages, the seven-day boundary and a newly opened/rebased PR
+whose target release is old enough. The registry adapter is checked against a
+real NuGet registration/catalog response in an isolated container.
 
 Before enabling, take one eligible Dependabot PR through the real GitHub path
 and confirm its bot approval, squash merge and successful CDP publication. Then

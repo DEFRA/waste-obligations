@@ -18,7 +18,7 @@ const repositoryName = 'DEFRA/waste-obligations';
 
 function metadata(types = ['version-update:semver-minor']) {
   return `Bump dependencies\n\n---\nupdated-dependencies:\n${types.map((type, i) =>
-    `- dependency-name: Package${i}\n  dependency-type: direct:production${type ? `\n  update-type: ${type}` : ''}`
+    `- dependency-name: ${i === 0 ? 'MongoDB.Driver' : 'AWSSDK.SQS'}\n  dependency-version: 3.10.0\n  dependency-type: direct:production${type ? `\n  update-type: ${type}` : ''}`
   ).join('\n')}\ndependency-group: nuget-runtime\n...\n\nSigned-off-by: dependabot[bot]`;
 }
 
@@ -67,6 +67,7 @@ function harness() {
     },
     rest: {
       pulls: {
+        async listFiles() { return { data: state.files ?? [{ filename: 'src/Api/Api.csproj', status: 'modified' }] }; },
         async list(input) { return { data: state.openPrs.slice((input.page - 1) * input.per_page, input.page * input.per_page) }; },
         async get(input) {
           if (state.candidates[input.pull_number]) return { data: state.candidates[input.pull_number].pr };
@@ -87,6 +88,13 @@ function harness() {
         }
       },
       repos: {
+        async getContent(input) {
+          const version = input.ref === headSha ? '3.10.0' : '3.9.0';
+
+          return { data: { type: 'file', encoding: 'base64', size: 200,
+            content: Buffer.from((input.ref === headSha ? state.after : state.before)
+              ?? `<Project><PackageReference Include="MongoDB.Driver" Version="${version}" /></Project>`).toString('base64') } };
+        },
         async getBranch() { return { data: { commit: { sha: state.mainSha } } }; },
         async getCombinedStatusForRef() { return { data: { statuses: state.statuses } }; },
         async compareCommitsWithBasehead() { return { data: { status: state.comparison } }; },
@@ -120,7 +128,9 @@ function harness() {
     }
   };
 
-  return { github, context, core, state, effects, output };
+  return { github, context, core, state, effects, output,
+    now: Date.parse('2026-10-07T12:00:00Z'),
+    releaseLookup: async () => ({ published: '2026-09-29T12:00:00Z', listed: true }) };
 }
 
 async function merge(h) {
@@ -169,6 +179,37 @@ test('an optional Sonar failure does not block the two successful required jobs'
   await merge(h);
 
   assert.equal(h.output.merge_commit_sha, mergeSha);
+});
+
+for (const [name, change] of [
+  ['runtime release younger than seven days', h => { h.releaseLookup = async () => ({ listed: true, published: '2026-10-01T12:00:00Z' }); }],
+  ['unlisted runtime release', h => { h.releaseLookup = async () => ({ listed: false, published: '2026-09-29T12:00:00Z' }); }],
+  ['future release timestamp', h => { h.releaseLookup = async () => ({ listed: true, published: '2026-10-08T12:00:00Z' }); }],
+  ['unknown release timestamp', h => { h.releaseLookup = async () => ({ listed: true, published: 'unknown' }); }],
+  ['NuGet unlisted sentinel timestamp', h => { h.releaseLookup = async () => ({ listed: true, published: '1900-01-01T00:00:00Z' }); }],
+  ['registry unavailable', h => { h.releaseLookup = async () => { throw new Error('NuGet unavailable'); }; }],
+  ['an Actions update', h => { h.state.commits[0].commit.message = metadata().replace('MongoDB.Driver', 'actions/checkout'); }],
+  ['missing target version metadata', h => { h.state.commits[0].commit.message = metadata().replace('  dependency-version: 3.10.0\n', ''); }],
+  ['a workflow edit alongside a dependency update', h => { h.state.files = [{ filename: '.github/workflows/publish.yml', status: 'modified' }]; }],
+  ['an added project', h => { h.state.files = [{ filename: 'src/Api/Api.csproj', status: 'added' }]; }],
+  ['an executable build target alongside a version update', h => { h.state.after = '<Project><PackageReference Include="MongoDB.Driver" Version="3.10.0" /><Target Name="Build"><Exec Command="attack" /></Target></Project>'; }]
+]) {
+  test(`${name} causes no approval, merge or dispatch`, async () => {
+    const h = harness();
+    change(h);
+    await merge(h);
+
+    assertUntouched(h);
+  });
+}
+
+test('a release exactly seven days old is eligible regardless of PR creation/rebase date', async () => {
+  const h = harness();
+  h.state.pr.created_at = '2026-10-07T11:00:00Z';
+  h.releaseLookup = async () => ({ listed: true, published: '2026-09-30T12:00:00Z' });
+  await merge(h);
+
+  assert.equal(h.effects.merges.length, 1);
 });
 
 for (const [name, change] of [

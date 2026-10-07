@@ -1,35 +1,17 @@
+import { getRuntimeTargets, passesSupplyChainPolicy, readMinorOrPatchUpdates } from './dependabot-security-policy.mjs';
+
 const requiredJobs = ['Run Pull Request Checks', 'Run journey tests'];
 const optionalSonarChecks = new Set([
   'CDP SonarCloud Scan / CDP SonarCloud coverage scan',
   'SonarCloud Code Analysis'
 ]);
-const allowedUpdates = new Set(['version-update:semver-minor', 'version-update:semver-patch']);
 const publishJob = 'CDP-publish-workflow';
 const maxQueueCandidates = 50;
 const maxQueuePages = 5;
 
 // Accept the canonical signed Dependabot metadata format; unfamiliar formats stay manual.
 export function hasOnlyMinorOrPatchUpdates(message) {
-  const blocks = [...message.matchAll(/^---\r?\n([\s\S]*?)^\.\.\.\r?$/gm)];
-  if (blocks.length !== 1) return false;
-
-  const lines = blocks[0][1].trimEnd().split(/\r?\n/);
-  if (lines.shift() !== 'updated-dependencies:') return false;
-
-  const updates = [];
-  let dependency;
-  for (const line of lines) {
-    if (/^- dependency-name: \S.*$/.test(line)) {
-      dependency = [];
-      updates.push(dependency);
-    } else if (/^  update-type: /.test(line) && dependency) {
-      dependency.push(line.slice('  update-type: '.length));
-    } else if (!/^  [a-z-]+: .+$/.test(line) && !/^dependency-group: .+$/.test(line)) {
-      return false;
-    }
-  }
-
-  return updates.length > 0 && updates.every(x => x.length === 1 && allowedUpdates.has(x[0]));
+  return readMinorOrPatchUpdates(message) !== undefined;
 }
 
 function isDependabotPullRequest(pr, repository) {
@@ -124,10 +106,10 @@ async function hasReleaseCapacity(github, repository, mainSha, core) {
   return false;
 }
 
-export async function processDependabotQueue({ github, context, core, pullNumber }) {
+export async function processDependabotQueue({ github, context, core, pullNumber, releaseLookup, now }) {
   if (pullNumber) {
     // Explicit recovery of an already merged PR must work while main is unpublished.
-    await mergeDependabotPullRequest({ github, context, core, pullNumber });
+    await mergeDependabotPullRequest({ github, context, core, pullNumber, releaseLookup, now });
 
     return;
   }
@@ -147,7 +129,7 @@ export async function processDependabotQueue({ github, context, core, pullNumber
   if (candidates.length >= maxQueueCandidates) core.notice('Queue scan is limited to 50 Dependabot candidates; retry an omitted PR by number.');
 
   for (const pr of candidates.slice(0, maxQueueCandidates)) {
-    if (await mergeDependabotPullRequest({ github, context, core, pullNumber: pr.number })) return;
+    if (await mergeDependabotPullRequest({ github, context, core, pullNumber: pr.number, releaseLookup, now })) return;
   }
 }
 
@@ -208,10 +190,10 @@ async function verifyCommits(github, repository, pr, core) {
     || !hasOnlyMinorOrPatchUpdates(x.commit.message))) {
     skip(core, 'Every commit must be verified Dependabot metadata containing only minor/patch updates.');
 
-    return false;
+    return;
   }
 
-  return true;
+  return commits;
 }
 
 async function hasStrictMergeRules(github, repository, core) {
@@ -229,11 +211,13 @@ async function hasStrictMergeRules(github, repository, core) {
   return true;
 }
 
-export async function mergeDependabotPullRequest({ github, context, core, pullNumber, runId, runAttempt }) {
+export async function mergeDependabotPullRequest({ github, context, core, pullNumber, runId, runAttempt, releaseLookup, now }) {
   const repository = context.repo;
   const { data: pr } = await github.rest.pulls.get({ ...repository, pull_number: pullNumber });
-  if (!isDependabotPullRequest(pr, `${repository.owner}/${repository.repo}`)
-    || pr.draft || !await verifyCommits(github, repository, pr, core)) return;
+  if (!isDependabotPullRequest(pr, `${repository.owner}/${repository.repo}`) || pr.draft) return;
+
+  const commits = await verifyCommits(github, repository, pr, core);
+  if (!commits) return;
 
   // A duplicate event or manual retry can recover a merge that preceded a failed dispatch.
   if (pr.merged) {
@@ -260,13 +244,16 @@ export async function mergeDependabotPullRequest({ github, context, core, pullNu
 
   if (!await hasReleaseCapacity(github, repository, main.commit.sha, core)) return;
 
+  if (!await passesSupplyChainPolicy({ github, repository, pr, baseSha: main.commit.sha,
+    targets: getRuntimeTargets(commits), core, releaseLookup, now })) return;
+
   const reviews = await github.paginate(github.rest.pulls.listReviews, {
     ...repository, pull_number: pr.number, per_page: 100
   });
   if (!reviews.some(x => x.user?.login === 'github-actions[bot]' && x.commit_id === pr.head.sha && x.state === 'APPROVED')) {
     await github.rest.pulls.createReview({
       ...repository, pull_number: pr.number, commit_id: pr.head.sha, event: 'APPROVE',
-      body: 'Verified Dependabot minor/patch update. Required PR and journey checks passed for this revision.'
+      body: 'Allowlisted runtime NuGet minor/patch update with version-only changes and listed releases at least seven days old. Required checks passed for this revision. These controls do not certify upstream code as safe.'
     });
   }
 
