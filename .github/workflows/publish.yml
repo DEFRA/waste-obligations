@@ -1,16 +1,63 @@
 name: Publish
+run-name: Publish ${{ github.sha }}
 
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
+
+concurrency:
+  group: publish-main
+  cancel-in-progress: false
 
 permissions:
   contents: read
 
 jobs:
+  validate:
+    if: github.ref == 'refs/heads/main'
+    name: Check publication revision
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      should_publish: ${{ steps.validate.outputs.should_publish }}
+      superseded: ${{ steps.validate.outputs.superseded }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Avoid publishing an already published revision
+        id: validate
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const { shouldPublish } = await import(`${process.env.GITHUB_WORKSPACE}/.github/scripts/dependabot-auto-merge.mjs`);
+            await shouldPublish({ github, context, core });
+
+  publish-current-main:
+    needs: validate
+    if: needs.validate.outputs.superseded == 'true'
+    name: Request publication of current main
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const { dispatchPublish } = await import(`${process.env.GITHUB_WORKSPACE}/.github/scripts/dependabot-auto-merge.mjs`);
+            await dispatchPublish({ github, context, core, mergeCommitSha: context.sha });
+
   build:
-    if: github.run_number != 1
+    needs: validate
+    if: needs.validate.outputs.should_publish == 'true' && github.run_number != 1
     name: CDP-build-workflow
     runs-on: ubuntu-latest
     steps:
@@ -38,8 +85,11 @@ jobs:
           docker compose logs
 
   publish:
+    concurrency:
+      group: cdp-release-publish
+      cancel-in-progress: false
     name: CDP-publish-workflow
-    needs: [build, sonarcloud-scan]
+    needs: build # Sonar runs independently and does not gate publication.
     runs-on: ubuntu-latest
     permissions:
       contents: write # Create the release tag.
@@ -56,6 +106,8 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
   sonarcloud-scan:
+    needs: validate
+    if: needs.validate.outputs.should_publish == 'true'
     name: CDP SonarCloud Scan
     permissions:
       contents: read

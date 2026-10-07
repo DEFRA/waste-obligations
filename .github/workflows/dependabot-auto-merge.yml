@@ -1,0 +1,81 @@
+name: Merge Dependabot updates
+
+on:
+  workflow_run:
+    workflows: [Check Pull Request, Publish, Publish Hot Fix]
+    types: [completed]
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      pull-request-number:
+        description: Optional Dependabot PR to retry or recover; leave blank to scan the queue
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    if: github.ref == 'refs/heads/main' && vars.DEPENDABOT_AUTO_MERGE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      pull_number: ${{ steps.resolve.outputs.pull_number }}
+      scan_queue: ${{ steps.resolve.outputs.scan_queue }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Resolve the Dependabot PR
+        id: resolve
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const { resolvePullRequest } = await import(`${process.env.GITHUB_WORKSPACE}/.github/scripts/dependabot-auto-merge.mjs`);
+            await resolvePullRequest({ github, context, core });
+
+  merge:
+    needs: resolve
+    if: needs.resolve.outputs.pull_number != '' || needs.resolve.outputs.scan_queue == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: dependabot-auto-merge
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+      checks: read
+      statuses: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Approve and merge at most one eligible update after publication
+        id: merge
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          PULL_NUMBER: ${{ needs.resolve.outputs.pull_number }}
+        with:
+          script: |
+            const { processDependabotQueue } = await import(`${process.env.GITHUB_WORKSPACE}/.github/scripts/dependabot-auto-merge.mjs`);
+            await processDependabotQueue({
+              github, context, core,
+              pullNumber: Number(process.env.PULL_NUMBER)
+            });
+      - name: Publish main after the confirmed merge
+        if: steps.merge.outputs.merge_commit_sha != ''
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          MERGE_COMMIT_SHA: ${{ steps.merge.outputs.merge_commit_sha }}
+        with:
+          script: |
+            const { dispatchPublish } = await import(`${process.env.GITHUB_WORKSPACE}/.github/scripts/dependabot-auto-merge.mjs`);
+            await dispatchPublish({ github, context, core, mergeCommitSha: process.env.MERGE_COMMIT_SHA });

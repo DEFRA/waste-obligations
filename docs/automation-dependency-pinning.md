@@ -1,6 +1,6 @@
 # Automation dependency pinning
 
-The four GitHub workflows use full commit SHAs for external actions. Version or
+The GitHub workflows use full commit SHAs for external actions. Version or
 branch comments record the reference resolved when the pin was chosen. Local
 reusable workflows run from the caller's commit and do not need a separate SHA.
 The existing Docker build action pin was verified and retained.
@@ -18,8 +18,10 @@ installation reference.
 ## Updating pins
 
 Dependabot checks GitHub Actions, Docker and Docker Compose dependencies weekly
-using their [separate supported ecosystems](https://docs.github.com/en/code-security/reference/supply-chain-security/supported-ecosystems-and-repositories). Review
-its changes before merging. Mongo permits minor, patch and digest updates within version 7; major
+using their [separate supported ecosystems](https://docs.github.com/en/code-security/reference/supply-chain-security/supported-ecosystems-and-repositories).
+[Dependabot automation](dependabot-auto-merge.md) can approve and merge verified
+minor/patch updates after the required checks pass; other updates need review.
+Mongo permits minor, patch and digest updates within version 7; major
 version upgrades are excluded. A hash prevents a reference from moving silently,
 but does not establish that the selected code is trustworthy. The Sonar scanner
 version, Trivy command and Vacuum Makefile pin need explicit review when updating;
