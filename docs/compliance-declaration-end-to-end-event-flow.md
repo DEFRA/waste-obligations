@@ -86,6 +86,8 @@ Update and delete use optimistic concurrency:
 
 Create sends the submitted email after `ComplianceDeclarationService.Create` returns, so email delivery is outside the transaction and outside the analytics write path.
 
+The nullable [email delivery cutover](email-delivery-cutover.md) preserves this path by default. When configured, submitted and cancellation emails are sent only for their respective audit-entry timestamps before the cutover; actions at or after it are suppressed without changing declaration or analytics behaviour.
+
 ## Audit event outbox
 
 ```mermaid

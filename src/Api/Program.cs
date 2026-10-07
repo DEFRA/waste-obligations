@@ -80,9 +80,21 @@ try
     builder.Services.AddTransient<IUnsubmittedHistoricalBackfillService, UnsubmittedHistoricalBackfillService>();
     builder.Services.AddTransient<IUnsubmittedOrganisationDetailsService, UnsubmittedOrganisationDetailsService>();
     builder.Services.AddTransient<ICancellationEmailRecipientResolver, CancellationEmailRecipientResolver>();
+    builder
+        .Services.AddOptions<EmailDeliveryOptions>()
+        .BindConfiguration(EmailDeliveryOptions.SectionName)
+        .Validate(
+            options => options.TryReadCutover(out _),
+            "EmailDeliveryCutoverUtc must be null or an ISO timestamp with an explicit UTC offset"
+        )
+        .ValidateOnStart();
     builder.Services.AddTransient<IEmailService, EmailService>();
 
     var app = builder.Build();
+
+    app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<EmailDeliveryOptions>>()
+        .Value.TryReadCutover(out var cutover);
+    app.Logger.LogInformation("Email delivery cutover {EmailDeliveryCutoverUtc}", cutover);
 
     app.UseErrorHandling();
     app.UseHstsUnconditionally();

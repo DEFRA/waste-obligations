@@ -1,0 +1,12 @@
+﻿{
+  "status": "Healthy",
+  "results": {
+    "EmailDeliveryCutover": {
+      "status": "Healthy",
+      "data": {
+        "emailDeliveryCutoverUtc": null,
+        "mode": "send-all"
+      }
+    }
+  }
+}

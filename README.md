@@ -92,6 +92,8 @@ dotnet test --test-modules tests/Api.IntegrationTests/bin/Debug/net10.0/Api.Inte
 
 ### Govuk Notify
 
+The nullable [email delivery cutover](docs/email-delivery-cutover.md) defaults to null, preserving current email behaviour. Configure the shared future UTC boundary only when the replacement Notifications producers are ready.
+
 The `GovukNotifyTests` integration tests can run against Govuk Notify if you provide an API Key.
 
 Set the `GOVUKNOTIFY_APIKEY` env var in a terminal and then run the integration tests:

@@ -1,6 +1,7 @@
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.GovukNotify;
 using Defra.WasteObligations.Api.Utils.Metrics;
+using Microsoft.Extensions.Options;
 using BusinessCountry = Defra.WasteObligations.Api.Services.WasteOrganisations.BusinessCountry;
 using Organisation = Defra.WasteObligations.Api.Services.WasteOrganisations.Organisation;
 using RegistrationType = Defra.WasteObligations.Api.Data.Entities.RegistrationType;
@@ -11,9 +12,14 @@ public class EmailService(
     IGovukNotifyService govukNotifyService,
     ICancellationEmailRecipientResolver cancellationEmailRecipientResolver,
     IEmailMetrics emailMetrics,
+    IOptions<EmailDeliveryOptions> options,
     ILogger<EmailService> logger
 ) : IEmailService
 {
+    private readonly DateTimeOffset? _cutover = options.Value.TryReadCutover(out var cutover)
+        ? cutover
+        : throw new InvalidOperationException("Email delivery cutover must include an explicit UTC offset");
+
     public async Task SendSubmittedEmail(
         ComplianceDeclaration complianceDeclaration,
         Organisation organisation,
@@ -22,6 +28,9 @@ public class EmailService(
     {
         if (complianceDeclaration.Organisation.Id != organisation.Id)
             throw new InvalidOperationException("Organisations do not match");
+
+        if (ShouldSuppress(complianceDeclaration, nameof(ComplianceDeclarationStatus.Submitted)))
+            return;
 
         var template =
             complianceDeclaration.Organisation.RegistrationType is RegistrationType.ComplianceScheme
@@ -86,6 +95,9 @@ public class EmailService(
     {
         if (complianceDeclaration.Organisation.Id != organisation.Id)
             throw new InvalidOperationException("Organisations do not match");
+
+        if (ShouldSuppress(complianceDeclaration, nameof(ComplianceDeclarationStatus.Cancelled)))
+            return;
 
         var template = ComplianceDeclarationCancellationReasons.TryGetTemplate(reason);
         if (template is null)
@@ -164,5 +176,28 @@ public class EmailService(
                 TimeProvider.System.GetElapsedTime(startingTimestamp).TotalMilliseconds
             );
         }
+    }
+
+    private bool ShouldSuppress(ComplianceDeclaration complianceDeclaration, string action)
+    {
+        if (_cutover is null)
+            return false;
+
+        var auditEntry = complianceDeclaration.Audit.FirstOrDefault(x => x.Action == action);
+        if (auditEntry is null)
+        {
+            logger.LogWarning("Email for {Action} was not sent because its action audit entry is missing", action);
+
+            return true;
+        }
+
+        var actionTicks = auditEntry.Timestamp.Ticks;
+        var actionTimestampTicks = actionTicks - actionTicks % TimeSpan.TicksPerMillisecond;
+        if (actionTimestampTicks < _cutover.Value.UtcTicks)
+            return false;
+
+        logger.LogInformation("Email for {Action} was suppressed at or after the email delivery cutover", action);
+
+        return true;
     }
 }
