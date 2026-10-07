@@ -39,12 +39,13 @@ function harness() {
   const state = {
     pr, run, ciRuns: [run], ciJobs: {}, mainSha: baseSha, reviews: [], checks: [], statuses: [],
     jobs: [successfulJob('Run Pull Request Checks'), successfulJob('Run journey tests'),
-      successfulJob('CDP SonarCloud Scan / CDP SonarCloud coverage scan')],
+      successfulJob('CDP SonarCloud Scan / CDP SonarCloud coverage scan'), successfulJob('Dependency security review')],
     commits: [{ sha: headSha, author: { login: 'dependabot[bot]' },
       commit: { verification: { verified: true }, message: metadata() } }],
     rules: [{ type: 'required_status_checks', parameters: {
       strict_required_status_checks_policy: true,
       required_status_checks: [{ context: 'Run Pull Request Checks', integration_id: 15368 },
+        { context: 'Dependency security review', integration_id: 15368 },
         { context: 'Run journey tests', integration_id: 15368 }]
     } }],
     publishRuns: [{ id: 40, status: 'completed', conclusion: 'success', head_sha: baseSha, head_branch: 'main' }],
@@ -214,6 +215,10 @@ test('a release exactly seven days old is eligible regardless of PR creation/reb
 
 for (const [name, change] of [
   ['failed PR build', h => { h.state.jobs[0].conclusion = 'failure'; }],
+  ['failed dependency security review', h => { h.state.jobs[3].conclusion = 'failure'; }],
+  ['missing dependency security review', h => { h.state.jobs.splice(3, 1); }],
+  ['skipped dependency security review', h => { h.state.jobs[3].conclusion = 'skipped'; }],
+  ['security review absent from branch protection', h => { h.state.rules[0].parameters.required_status_checks.splice(1, 1); }],
   ['missing journey job', h => { h.state.jobs.splice(1, 1); }],
   ['skipped journey job', h => { h.state.jobs[1].conclusion = 'skipped'; }],
   ['pending extra check', h => { h.state.checks.push({ name: 'Security', status: 'in_progress', conclusion: null }); }],

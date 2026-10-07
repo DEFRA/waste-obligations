@@ -14,8 +14,8 @@ or a merge whose publication was never dispatched pauses the queue.
 1. Merge these changes into `main`. Retain the repository setting that allows
    GitHub Actions to create and approve pull requests. This setting was already
    enabled when the proposal was inspected.
-2. In the `main` ruleset, require `Run Pull Request Checks` and `Run journey
-   tests`, both from GitHub Actions, and enable **Require branches to be up to
+2. In the `main` ruleset, require `Dependency security review`, `Run Pull Request Checks`
+   and `Run journey tests`, all from GitHub Actions, and enable **Require branches to be up to
    date before merging**. Retain approvals, signed commits, resolved review
    conversations and stale-approval dismissal. Give the bot no bypass.
 3. Confirm the current `main` revision has a successful `CDP-publish-workflow`
@@ -25,8 +25,9 @@ or a merge whose publication was never dispatched pauses the queue.
    `main` with no PR number to scan existing PRs, or let CI/release completion
    and the scheduled scan pick them up.
 
-The inspected ruleset required the two jobs but had the up-to-date policy
-disabled. The script checks this policy itself before approving. Setting the
+The inspected ruleset required the existing build/journey jobs but had the
+up-to-date policy disabled and did not require the new security job. The script
+checks the required job identities and this policy itself before approving. Setting the
 variable alone therefore cannot enable merging yet.
 
 A PR's tested base SHA must match current `main`. Dependabot must rebase and
@@ -47,6 +48,18 @@ the next approval even though its result is optional.
 The privileged job checks out the workflow's trusted `main` commit, with Git
 credentials disabled. It never checks out or runs a PR's code or downloads its
 artifacts. PR CI runs separately with its existing permissions and secrets.
+
+Dependency review runs first, without checking out or executing candidate code
+or receiving CI credentials. It blocks newly introduced high/critical known
+vulnerabilities across runtime, development and unknown dependency scopes.
+Builds, journeys and Sonar wait for that job. NuGet restore explicitly audits
+all resolved packages, retaining the repository's warnings-as-errors policy and
+existing advisory suppression. Trivy scans the built image and fails on high or
+critical findings, including vulnerabilities without fixes. The scanner receives
+only a read-only image tar, without Docker-socket access. PR tokens default to
+`contents: read`, and checkouts do not persist credentials. The journey job
+retains its required OIDC permission. Integration compilation happens before
+the secret-bearing Notify test step; the tests still execute candidate code.
 
 Routine version updates have an explicit seven-day Dependabot cooldown in all
 four configured ecosystems. GitHub's current default is three days; security
@@ -77,8 +90,8 @@ Dependabot authorship and one canonical metadata block containing only
 a group keeps the whole PR manual. Missing or unfamiliar metadata also keeps
 the PR manual; the current AWS CLI `latest` digest updates have no update type.
 
-Only the latest PR CI run and attempt for the current head are eligible. Both
-required jobs must exist and succeed. Missing, pending, failed, cancelled,
+Only the latest PR CI run and attempt for the current head are eligible. All
+three required jobs must exist and succeed. Missing, pending, failed, cancelled,
 neutral or skipped non-Sonar jobs/checks block approval. Other non-Sonar check
 runs and commit statuses must also succeed. The overall PR CI conclusion is
 not the gate because an optional Sonar failure can make it red.

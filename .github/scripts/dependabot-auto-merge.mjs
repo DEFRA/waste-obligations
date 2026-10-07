@@ -1,6 +1,6 @@
 import { getRuntimeTargets, passesSupplyChainPolicy, readMinorOrPatchUpdates } from './dependabot-security-policy.mjs';
 
-const requiredJobs = ['Run Pull Request Checks', 'Run journey tests'];
+const requiredJobs = ['Dependency security review', 'Run Pull Request Checks', 'Run journey tests'];
 const optionalSonarChecks = new Set([
   'CDP SonarCloud Scan / CDP SonarCloud coverage scan',
   'SonarCloud Code Analysis'
@@ -162,7 +162,7 @@ async function getEligibleRun(github, repository, pr, runId, runAttempt, core) {
   });
   if (requiredJobs.some(name => jobs.filter(x => x.name === name).length !== 1)
     || jobs.filter(x => !optionalSonarChecks.has(x.name)).some(x => x.status !== 'completed' || x.conclusion !== 'success')) {
-    skip(core, 'Both required jobs must succeed; missing, skipped or failed jobs stay manual.');
+    skip(core, 'Every required job must succeed; missing, skipped or failed jobs stay manual.');
 
     return;
   }
@@ -203,7 +203,7 @@ async function hasStrictMergeRules(github, repository, core) {
   const protectedChecks = rules.filter(x => x.type === 'required_status_checks');
   if (!protectedChecks.some(x => x.parameters.strict_required_status_checks_policy === true
     && requiredJobs.every(name => x.parameters.required_status_checks.some(y => y.context === name && y.integration_id === 15368)))) {
-    skip(core, 'Enable strict up-to-date checks for both required GitHub Actions jobs on main first.');
+    skip(core, 'Enable strict up-to-date checks for every required GitHub Actions job on main first.');
 
     return false;
   }
