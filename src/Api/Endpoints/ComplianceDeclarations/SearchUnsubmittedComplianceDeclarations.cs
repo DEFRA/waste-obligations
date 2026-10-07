@@ -61,6 +61,7 @@ public static class SearchUnsubmittedComplianceDeclarations
                     BusinessCountry = x.BusinessCountry,
                     Name = x.Name,
                     ReferenceNumber = x.ReferenceNumber,
+                    SchemeOperatorName = x.SchemeOperatorName,
                     RecyclingObligationsMet = x.RecyclingObligationsMet,
                     ObligationCoveragePercentage = x.ObligationCoveragePercentage,
                 }),

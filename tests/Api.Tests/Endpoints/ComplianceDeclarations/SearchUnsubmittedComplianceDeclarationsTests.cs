@@ -115,6 +115,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
                             RegistrationType = EntityRegistrationType.ComplianceScheme,
                             Name = "Bravo Scheme",
                             ReferenceNumber = "200001",
+                            SchemeOperatorName = "Bravo Operator",
                         },
                     ],
                     Total = 1,
