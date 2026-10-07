@@ -1,5 +1,10 @@
 const allowedUpdates = new Set(['version-update:semver-minor', 'version-update:semver-patch']);
-const minimumReleaseAge = 7 * 24 * 60 * 60 * 1000;
+const minimumReleaseAgeDays = 7;
+const minimumReleaseAge = minimumReleaseAgeDays * 24 * 60 * 60 * 1000;
+const earliestPublicationYear = 2010;
+const earliestPublication = Date.UTC(earliestPublicationYear, 0, 1);
+const updateTypePrefix = '  update-type: ';
+const dependencyVersionPrefix = '  dependency-version: ';
 const stableVersion = /^\d+\.\d+\.\d+(?:\.\d+)?$/;
 
 // Expanding this list is a reviewed policy change. Build/test tooling stays manual.
@@ -35,13 +40,19 @@ const projectFiles = new Set([
 
 // Read only canonical signed metadata. Duplicate dependency entries are normal
 // when the same NuGet reference occurs in multiple projects.
-export function readMinorOrPatchUpdates(message) {
-  const blocks = [...message.matchAll(/^---\r?\n([\s\S]*?)^\.\.\.\r?$/gm)];
-  if (blocks.length !== 1) return;
+function readDependencyAttribute(line, dependency) {
+  if (line.startsWith(updateTypePrefix) && dependency) {
+    dependency.types.push(line.slice(updateTypePrefix.length));
+  } else if (line.startsWith(dependencyVersionPrefix) && dependency) {
+    dependency.versions.push(line.slice(dependencyVersionPrefix.length));
+  } else {
+    return /^ {2}[a-z-]+: .+$/.test(line) || /^dependency-group: .+$/.test(line);
+  }
 
-  const lines = blocks[0][1].trimEnd().split(/\r?\n/);
-  if (lines.shift() !== 'updated-dependencies:') return;
+  return true;
+}
 
+function readDependencyLines(lines) {
   const updates = [];
   let dependency;
   for (const line of lines) {
@@ -49,15 +60,31 @@ export function readMinorOrPatchUpdates(message) {
     if (name) {
       dependency = { name: name[1], types: [], versions: [] };
       updates.push(dependency);
-    } else if (/^  update-type: /.test(line) && dependency) {
-      dependency.types.push(line.slice('  update-type: '.length));
-    } else if (/^  dependency-version: /.test(line) && dependency) {
-      dependency.versions.push(line.slice('  dependency-version: '.length));
-    } else if (!/^  [a-z-]+: .+$/.test(line) && !/^dependency-group: .+$/.test(line)) {
-      return;
+    } else {
+      if (!readDependencyAttribute(line, dependency)) {
+        return undefined;
+      }
     }
   }
-  if (!updates.length || updates.some(x => x.types.length !== 1 || !allowedUpdates.has(x.types[0]))) return;
+
+  return updates;
+}
+
+export function readMinorOrPatchUpdates(message) {
+  const blocks = [...message.matchAll(/^---\r?\n([\s\S]*?)^\.\.\.\r?$/gm)];
+  if (blocks.length !== 1) {
+    return undefined;
+  }
+
+  const lines = blocks[0][1].trimEnd().split(/\r?\n/);
+  if (lines.shift() !== 'updated-dependencies:') {
+    return undefined;
+  }
+
+  const updates = readDependencyLines(lines);
+  if (!updates?.length || updates.some(x => x.types.length !== 1 || !allowedUpdates.has(x.types[0]))) {
+    return undefined;
+  }
 
   return updates;
 }
@@ -67,7 +94,9 @@ export function getRuntimeTargets(commits) {
   for (const commit of commits) {
     const updates = readMinorOrPatchUpdates(commit.commit.message);
     if (!updates || updates.some(x => !runtimePackages.has(x.name.toLowerCase())
-      || x.versions.length !== 1 || !stableVersion.test(x.versions[0]))) return;
+      || x.versions.length !== 1 || !stableVersion.test(x.versions[0]))) {
+      return undefined;
+    }
     for (const update of updates) {
       targets.set(update.name.toLowerCase(), update.versions[0]);
     }
@@ -81,7 +110,9 @@ function numericVersion(version) {
 }
 
 function isRoutineIncrease(before, after) {
-  if (!stableVersion.test(before) || !stableVersion.test(after)) return false;
+  if (!stableVersion.test(before) || !stableVersion.test(after)) {
+    return false;
+  }
 
   const a = numericVersion(before);
   const b = numericVersion(after);
@@ -97,8 +128,12 @@ export function isRuntimeVersionOnlyChange(before, after, targets, changed) {
   const previous = new Map();
   const maskedBefore = before.replace(references, (text, prefix, name, version, suffix) => {
     const key = name.toLowerCase();
-    if (!targets.has(key)) return text;
-    if (previous.has(key)) return text;
+    if (!targets.has(key)) {
+      return text;
+    }
+    if (previous.has(key)) {
+      return text;
+    }
     previous.set(key, version);
 
     return `${prefix}__VERSION__${suffix}`;
@@ -107,11 +142,17 @@ export function isRuntimeVersionOnlyChange(before, after, targets, changed) {
   const seen = new Set();
   const maskedAfter = after.replace(references, (text, prefix, name, version, suffix) => {
     const key = name.toLowerCase();
-    if (!targets.has(key)) return text;
-    if (!previous.has(key) || seen.has(key) || version !== targets.get(key)) valid = false;
+    if (!targets.has(key)) {
+      return text;
+    }
+    if (!previous.has(key) || seen.has(key) || version !== targets.get(key)) {
+      valid = false;
+    }
     seen.add(key);
     if (previous.get(key) !== version) {
-      if (!isRoutineIncrease(previous.get(key) ?? '', version)) valid = false;
+      if (!isRoutineIncrease(previous.get(key) ?? '', version)) {
+        valid = false;
+      }
       changed.add(key);
     }
 
@@ -123,7 +164,9 @@ export function isRuntimeVersionOnlyChange(before, after, targets, changed) {
 
 async function readProject(github, repository, path, ref) {
   const { data } = await github.rest.repos.getContent({ ...repository, path, ref });
-  if (data.type !== 'file' || data.encoding !== 'base64' || data.size > 65536) return;
+  if (data.type !== 'file' || data.encoding !== 'base64' || data.size > 65536) {
+    return undefined;
+  }
 
   return Buffer.from(data.content, 'base64').toString('utf8');
 }
@@ -131,7 +174,9 @@ async function readProject(github, repository, path, ref) {
 export async function getNugetRelease(name, version, fetchJson = fetch) {
   async function readJson(url) {
     const response = await fetchJson(url, { signal: AbortSignal.timeout(10000), redirect: 'error' });
-    if (!response.ok) throw new Error(`NuGet returned HTTP ${response.status}.`);
+    if (!response.ok) {
+      throw new Error(`NuGet returned HTTP ${response.status}.`);
+    }
 
     return response.json();
   }
@@ -150,6 +195,41 @@ export async function getNugetRelease(name, version, fetchJson = fetch) {
   return { published: catalog.published, listed: leaf.listed === true && catalog.listed === true };
 }
 
+async function hasOnlyTargetVersionChanges(github, repository, pr, baseSha, targets) {
+  const files = await github.paginate(github.rest.pulls.listFiles, {
+    ...repository, pull_number: pr.number, per_page: 100
+  });
+  if (!files.length || files.some(x => x.status !== 'modified' || !projectFiles.has(x.filename))) {
+    return false;
+  }
+
+  const changed = new Set();
+  for (const file of files) {
+    const before = await readProject(github, repository, file.filename, baseSha);
+    const after = await readProject(github, repository, file.filename, pr.head.sha);
+    if (before === undefined || after === undefined || !isRuntimeVersionOnlyChange(before, after, targets, changed)) {
+      return false;
+    }
+  }
+
+  return changed.size === targets.size && [...targets.keys()].every(x => changed.has(x));
+}
+
+async function hasMatureListedReleases(targets, releaseLookup, now, core) {
+  for (const [name, version] of targets) {
+    const release = await releaseLookup(name, version);
+    const published = Date.parse(release.published);
+    if (release.listed !== true || !Number.isFinite(published)
+      || published < earliestPublication || now - published < minimumReleaseAge) {
+      core.notice('Every target NuGet release must be listed and at least seven days old; otherwise leave the PR manual.');
+
+      return false;
+    }
+  }
+
+  return true;
+}
+
 export async function passesSupplyChainPolicy({ github, repository, pr, baseSha, targets, core,
   releaseLookup = getNugetRelease, now = Date.now() }) {
   if (!targets) {
@@ -158,31 +238,11 @@ export async function passesSupplyChainPolicy({ github, repository, pr, baseSha,
     return false;
   }
   try {
-    const files = await github.paginate(github.rest.pulls.listFiles, {
-      ...repository, pull_number: pr.number, per_page: 100
-    });
-    if (!files.length || files.some(x => x.status !== 'modified' || !projectFiles.has(x.filename))) return false;
-
-    const changed = new Set();
-    for (const file of files) {
-      const before = await readProject(github, repository, file.filename, baseSha);
-      const after = await readProject(github, repository, file.filename, pr.head.sha);
-      if (before === undefined || after === undefined || !isRuntimeVersionOnlyChange(before, after, targets, changed)) return false;
-    }
-    if (changed.size !== targets.size || [...targets.keys()].some(x => !changed.has(x))) return false;
-
-    for (const [name, version] of targets) {
-      const release = await releaseLookup(name, version);
-      const published = Date.parse(release.published);
-      if (release.listed !== true || !Number.isFinite(published)
-        || published < Date.UTC(2010, 0, 1) || now - published < minimumReleaseAge) {
-        core.notice('Every target NuGet release must be listed and at least seven days old; otherwise leave the PR manual.');
-
-        return false;
-      }
+    if (!await hasOnlyTargetVersionChanges(github, repository, pr, baseSha, targets)) {
+      return false;
     }
 
-    return true;
+    return await hasMatureListedReleases(targets, releaseLookup, now, core);
   } catch (error) {
     core.notice(`Could not verify dependency contents/release age; no approval: ${error.message}`);
 

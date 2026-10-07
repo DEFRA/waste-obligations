@@ -49,7 +49,7 @@ the next approval even though its result is optional.
 
 ## Eligibility and trust
 
-The privileged job checks out the workflow's trusted `main` commit, with Git
+The privileged job explicitly checks out the trusted `main` branch, with Git
 credentials disabled. It never checks out or runs a PR's code or downloads its
 artifacts. PR CI runs separately with its existing permissions and secrets.
 
@@ -249,6 +249,11 @@ blocked merges, all active release states, skipped/failed publications, one
 merge per published head, queue scanning and merged-PR recovery. These tests
 run in `Run Pull Request Checks` alongside existing Compose-helper tests.
 Workflow syntax is checked locally with actionlint.
+
+The Sonar workflow runs the Node policy tests with genuine LCOV coverage and
+imports that report alongside the .NET coverage reports. Sonar's configured
+quality thresholds and the dependency automation's optional-Sonar policy are
+unchanged.
 
 Supply-chain tests additionally cover allowlist/group rejection, version-only
 project changes, target/identity mismatches, registry failures, unlisted and
