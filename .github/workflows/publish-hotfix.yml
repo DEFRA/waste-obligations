@@ -37,8 +37,11 @@ jobs:
           docker compose logs
 
   publish:
+    concurrency:
+      group: cdp-release-publish
+      cancel-in-progress: false
     name: CDP-publish-hotfix-workflow
-    needs: [build, sonarcloud-scan]
+    needs: build # Sonar runs independently and does not gate publication.
     runs-on: ubuntu-latest
     permissions:
       contents: write # Create the release tag.
