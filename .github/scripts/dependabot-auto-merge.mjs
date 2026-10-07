@@ -6,6 +6,7 @@ const optionalSonarChecks = new Set([
   'SonarCloud Code Analysis'
 ]);
 const publishJob = 'CDP-publish-workflow';
+const publishWorkflow = 'publish.yml';
 const mainBranch = 'main';
 const maxQueueCandidates = 50;
 const maxQueuePages = 5;
@@ -134,7 +135,7 @@ async function hasReleaseCapacity(github, repository, mainSha, core) {
   }
 
   const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
-    ...repository, workflow_id: 'publish.yml', head_sha: mainSha, per_page: 100
+    ...repository, workflow_id: publishWorkflow, head_sha: mainSha, per_page: 100
   });
   const mainRuns = runs.filter(x => x.head_branch === mainBranch).sort((a, b) => compareRunRecency(b, a));
   // A later failed/cancelled attempt must not inherit an earlier successful release.
@@ -405,7 +406,7 @@ export async function dispatchPublish({ github, context, core, mergeCommitSha })
   }
 
   const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
-    ...repository, workflow_id: 'publish.yml', head_sha: main.commit.sha, per_page: 100
+    ...repository, workflow_id: publishWorkflow, head_sha: main.commit.sha, per_page: 100
   });
   for (const run of runs) {
     if (run.status !== 'completed' || await hasPublished(github, repository, run)) {
@@ -415,7 +416,7 @@ export async function dispatchPublish({ github, context, core, mergeCommitSha })
     }
   }
 
-  await github.rest.actions.createWorkflowDispatch({ ...repository, workflow_id: 'publish.yml', ref: mainBranch });
+  await github.rest.actions.createWorkflowDispatch({ ...repository, workflow_id: publishWorkflow, ref: mainBranch });
   core.notice('Requested Publish on main. Check its result; rerun this workflow with the PR number if dispatch or publishing fails.');
 }
 
@@ -434,7 +435,7 @@ export async function shouldPublish({ github, context, core }) {
   }
 
   const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
-    ...context.repo, workflow_id: 'publish.yml', head_sha: context.sha, per_page: 100
+    ...context.repo, workflow_id: publishWorkflow, head_sha: context.sha, per_page: 100
   });
   for (const run of runs) {
     if (await hasPublished(github, context.repo, run)) {

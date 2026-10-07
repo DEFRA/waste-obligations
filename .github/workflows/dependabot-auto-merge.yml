@@ -1,9 +1,6 @@
 name: Merge Dependabot updates
 
 on:
-  workflow_run:
-    workflows: [Check Pull Request, Publish, Publish Hot Fix]
-    types: [completed]
   schedule:
     - cron: '*/15 * * * *'
   workflow_dispatch:

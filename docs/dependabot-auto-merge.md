@@ -9,6 +9,13 @@ The automation permits one merge per successfully published `main` revision.
 Further approvals wait for that merge's CDP release to finish. A release failure
 or a merge whose publication was never dispatched pauses the queue.
 
+The queue runs on the existing 15-minute schedule or a manual dispatch on
+`main`. It does not use a privileged `workflow_run` trigger, so a fork workflow
+cannot start this automation. Completed PR and release checks are inspected
+at the next poll. GitHub can delay or drop scheduled runs, and schedules can be
+disabled on inactive public repositories. Manual dispatch is the recovery path
+when polling does not run; the checks still apply.
+
 ## Enabling
 
 1. Merge these changes into `main`. Retain the repository setting that allows
@@ -26,8 +33,8 @@ or a merge whose publication was never dispatched pauses the queue.
    upstream journey/CDP references in their owning repositories. Keep automation
    disabled until these prerequisites have been accepted.
 5. Set `DEPENDABOT_AUTO_MERGE_ENABLED=true`. Run **Merge Dependabot updates** on
-   `main` with no PR number to scan existing PRs, or let CI/release completion
-   and the scheduled scan pick them up.
+   `main` with no PR number to scan existing PRs, or let the scheduled scan pick
+   them up after CI and publication finish.
 
 The inspected ruleset required the existing build/journey jobs but had the
 up-to-date policy disabled and did not require the new security job. The script
@@ -153,8 +160,8 @@ and merge an urgent fix sooner. No settings are changed by this proposal.
 
 ## Approval frequency and CDP versioning
 
-Every CI completion, main/hotfix release completion and 15-minute scheduled
-fallback scans the same open Dependabot queue, oldest first. Each scan reads at
+Each scheduled or manual run scans the same open Dependabot queue, oldest
+first. Each scan reads at
 most 500 open PRs and considers at most 50 Dependabot candidates; an omitted PR
 can be retried by its number. It skips ineligible PRs and stops after at most one approval/merge attempt. A repository-wide
 `dependabot-auto-merge` job lock covers verification, approval, merge and the
@@ -180,10 +187,10 @@ successful hotfix publication or an inspected, successful main Publish recovery.
 A skipped hotfix publishing job cannot clear an earlier failure.
 
 After one bot merge, `main` points to an unpublished SHA. This closes the gap
-between merging and dispatching: another event cannot approve the next PR even
+between merging and dispatching: another run cannot approve the next PR even
 if the dispatch is delayed or lost. The next PR waits for actual publication
-and fresh CI, rather than an arbitrary delay. The 15-minute fallback is for
-missed events; GitHub does not guarantee its timing.
+and fresh CI. The 15-minute polling interval controls how often those conditions
+are inspected; GitHub does not guarantee delivery or pickup timing.
 
 The pinned CDP build action calculates a version, builds images, then writes
 the release tag and pushes build stages. The publishing jobs in **Publish** and
@@ -209,8 +216,8 @@ included in that captured revision.
 
 GitHub concurrency keeps one running job and one pending job per group. A new
 pending job can replace an older pending job; `cancel-in-progress: false` does
-not make a durable FIFO queue. Scanning on all relevant events and on a schedule
-recovers lost merge events. A superseded queued main Publish run requests
+not make a durable FIFO queue. Each scheduled or manual scan reads the current
+queue again. A superseded queued main Publish run requests
 publication of current `main`. A publishing job displaced by a hotfix can leave
 main unpublished; the approval gate then stays closed until publication is
 recovered. No fixed cooldown or automatic retry conceals a release failure.

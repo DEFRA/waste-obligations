@@ -60,7 +60,9 @@ function readDependencyLines(lines) {
     if (name) {
       dependency = { name: name[1], types: [], versions: [] };
       updates.push(dependency);
-    } else if (!readDependencyAttribute(line, dependency)) {
+      continue;
+    }
+    if (!readDependencyAttribute(line, dependency)) {
       return undefined;
     }
   }
