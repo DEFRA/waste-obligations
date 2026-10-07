@@ -13,6 +13,9 @@ public record Organisation
     [JsonPropertyName("tradingName")]
     public string? TradingName { get; init; }
 
+    [JsonPropertyName("schemeOperatorName")]
+    public string? SchemeOperatorName { get; init; }
+
     [JsonPropertyName("businessCountry")]
     public string? BusinessCountry { get; init; }
 

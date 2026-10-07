@@ -16,6 +16,7 @@ public record UnsubmittedOrganisationSearchRow
     public string? BusinessCountry { get; init; }
     public required string Name { get; init; }
     public required string ReferenceNumber { get; init; }
+    public string? SchemeOperatorName { get; init; }
     public bool? RecyclingObligationsMet { get; init; }
     public decimal? ObligationCoveragePercentage { get; init; }
 }
