@@ -172,7 +172,7 @@ test('a passing update approves and merges the exact tested SHA', async () => {
   assert.equal(h.output.merge_commit_sha, mergeSha);
 });
 
-test('an optional Sonar failure does not block the two successful required jobs', async () => {
+test('an optional Sonar failure does not block the three successful required jobs', async () => {
   const h = harness();
   h.state.run.conclusion = 'failure';
   h.state.jobs[2].conclusion = 'failure';

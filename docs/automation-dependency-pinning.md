@@ -57,3 +57,8 @@ against the registry. Run the repository's required Compose/build/test cycle.
 
 Pins were resolved from upstream GitHub, container registry and NuGet APIs on
 18 September 2026. No upstream repositories or repository settings were changed.
+The dependency-review action v5.0.0 pin and the refreshed ASP.NET runtime digest
+were verified on 7 October 2026. The runtime update removes the high-severity
+OpenSSL finding exposed by the new blocking image scan. See
+[dependency automation security exposure](dependabot-auto-merge.md#security-exposure)
+for credential, transitive-dependency and unknown-malware limits.

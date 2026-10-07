@@ -21,7 +21,11 @@ or a merge whose publication was never dispatched pauses the queue.
 3. Confirm the current `main` revision has a successful `CDP-publish-workflow`
    job and no later failed/cancelled build or publishing attempt. Include the shared publishing
    lock in any branch used for **Publish Hot Fix** before running that workflow.
-4. Set `DEPENDABOT_AUTO_MERGE_ENABLED=true`. Run **Merge Dependabot updates** on
+4. Review the CI credential and OIDC exposure below. Confirm credentials and
+   AWS role access are restricted to disposable test resources. Harden mutable
+   upstream journey/CDP references in their owning repositories. Keep automation
+   disabled until these prerequisites have been accepted.
+5. Set `DEPENDABOT_AUTO_MERGE_ENABLED=true`. Run **Merge Dependabot updates** on
    `main` with no PR number to scan existing PRs, or let CI/release completion
    and the scheduled scan pick them up.
 
@@ -99,6 +103,53 @@ not the gate because an optional Sonar failure can make it red.
 Approval attaches to the tested head SHA. The merge API receives that SHA and
 obeys GitHub's rules. GitHub rejects an intervening head change or outdated
 base; the workflow uses no admin override.
+
+## Security exposure
+
+Dependabot selects dependency updates and uses known vulnerability advisories;
+it does not certify package contents. A compromised minor/patch release can pass
+tests and remain undiscovered beyond seven days. Signed bot commits establish
+PR provenance. Pins establish selected content. Neither establishes that the
+upstream code is benign, and a package allowlist does not certify its maintainers.
+
+The independent release-age gate covers signed direct targets. NuGet restore
+audits the resolved graph, but transitive dependencies have no independent age
+gate or lock-file guarantee here. Dependency review sees the graph reported to
+GitHub, and Trivy scans the final image; missing graph coverage or an unknown
+malicious release can escape those checks. The existing SharpCompress audit
+suppression for GHSA-6c8g-7p36-r338 is retained. Its advisory was medium severity
+when inspected, below the image/dependency-review high threshold, and now lists
+a fix in 0.48.0. Review that existing exception separately.
+
+The isolated image scan found OpenSSL CVE-2026-84782 in `libssl3t64` and
+`openssl` 3.0.13-0ubuntu3.15. Updating the runtime base digest supplies the fixed
+3.0.13-0ubuntu3.16 packages. This is a narrow remediation of the blocking finding,
+not a claim that the image or its upstream supply chain is safe.
+
+Candidate code executes before merging. Integration tests still receive a live
+Notify API key to verify template rendering. Journeys receive account passwords,
+a B2C client secret and a Notify key. The upstream journey action needs OIDC to
+retrieve Docker-login credentials through the CDP AWS/Secrets Manager path.
+AWS role trust and resource permissions have not been audited here. Confirm
+these identities can access only disposable test resources before activation.
+Compiling before credential injection reduces direct build-step exposure, but
+malicious build code can persist or alter the test binaries that later run with
+credentials. This is not isolation. Removing the key or replacing live preview
+responses with canned data would lose the template contract check; existing
+Notify and journey coverage is retained.
+
+The matching-branch journey action and nested mutable CDP/journey references
+remain upstream trust boundaries; see
+[automation dependency pinning](automation-dependency-pinning.md). Restricting
+Actions/images/tooling to manual merges does not prevent a malicious update from
+executing in its PR CI before review. Least-privilege credentials and isolated
+test resources therefore remain necessary for manual updates too.
+
+Automatic security-update PRs were disabled when the repository was inspected;
+vulnerability alerts were enabled. Enabling security updates is a separate
+repository setting. If enabled later, an allowlisted security fix must satisfy
+the same independent seven-day gate to merge automatically. A human may review
+and merge an urgent fix sooner. No settings are changed by this proposal.
 
 ## Approval frequency and CDP versioning
 
