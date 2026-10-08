@@ -114,6 +114,23 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Refresh_WhenSourceIncludesSchemeOperatorName_ShouldStoreItOnTheEligibilityRow()
+    {
+        var organisationId = Guid.NewGuid();
+        ArrangeSource(organisationId, schemeOperatorName: "Scheme Operator Ltd");
+        ArrangeDirectProducerReference(organisationId, "051829");
+        var subject = CreateSubject();
+
+        var result = await subject.Refresh(TestContext.Current.CancellationToken);
+
+        var row = await OrganisationComplianceDeclarationEligibilities
+            .Find(x => x.Generation == result.ActiveGeneration)
+            .SingleAsync(TestContext.Current.CancellationToken);
+
+        row.SchemeOperatorName.Should().Be("Scheme Operator Ltd");
+    }
+
+    [Fact]
     public async Task Refresh_WhenTimeHasSubMillisecondPrecision_ShouldPersistMillisecondPrecision()
     {
         var utcNow = new DateTimeOffset(2026, 8, 26, 12, 0, 0, TimeSpan.Zero).AddTicks(1_234);
@@ -779,14 +796,18 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
     private void ArrangeSource(
         Guid organisationId,
         string name = "Example organisation",
-        string? businessCountry = null
+        string? businessCountry = null,
+        string? schemeOperatorName = null
     ) =>
         OrganisationEligibilitySource
             .Search(Arg.Any<CancellationToken>())
             .Returns(
                 new OrganisationSearch
                 {
-                    Organisations = [CreateSourceOrganisation(organisationId, name, businessCountry)],
+                    Organisations =
+                    [
+                        CreateSourceOrganisation(organisationId, name, businessCountry, schemeOperatorName),
+                    ],
                 }
             );
 
@@ -812,13 +833,15 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
     private static Organisation CreateSourceOrganisation(
         Guid organisationId,
         string name,
-        string? businessCountry = null
+        string? businessCountry = null,
+        string? schemeOperatorName = null
     ) =>
         new()
         {
             Id = organisationId,
             Name = name,
             BusinessCountry = businessCountry,
+            SchemeOperatorName = schemeOperatorName,
             Address = new WasteOrganisationsAddress(),
             Registrations =
             [
