@@ -300,7 +300,7 @@ const producerPrns = [
         "2026-02-12T10:10:00Z",
     ),
     // December waste (MO-479). The journey stack sets the frontend's test-only
-    // FAKE_NOW to 15 Dec 2026, so PRN131 (issued in that window, acceptable
+    // DECEMBER_WASTE_FLASH_DATE to 15 Dec 2026, so PRN131 (issued in that window, acceptable
     // into 2026 or 2027) shows the flash and PRN132 (from the December 2025
     // window) does not.
     prnFixture(
