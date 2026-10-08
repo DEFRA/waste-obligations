@@ -176,6 +176,33 @@ public class MappersTests
     }
 
     [Fact]
+    public void ToEligibilityRows_ShouldStoreSchemeOperatorNameAndIncludeItInTheSourceFingerprint()
+    {
+        var organisation = CreateOrganisation(
+            Guid.NewGuid(),
+            [
+                CreateRegistration(
+                    WasteOrganisationsRegistrationType.ComplianceScheme,
+                    WasteOrganisationsRegistrationStatus.Registered,
+                    2026
+                ),
+            ]
+        ) with
+        {
+            SchemeOperatorName = "Alpha Operator Ltd",
+        };
+
+        var initialRow = Mappers.ToEligibilityRows([organisation], "g1", s_refreshedAt).Single();
+        var changedRow = Mappers
+            .ToEligibilityRows([organisation with { SchemeOperatorName = "Beta Operator Ltd" }], "g2", s_refreshedAt)
+            .Single();
+
+        initialRow.SchemeOperatorName.Should().Be("Alpha Operator Ltd");
+        changedRow.SchemeOperatorName.Should().Be("Beta Operator Ltd");
+        changedRow.SourceFingerprint.Should().NotBe(initialRow.SourceFingerprint);
+    }
+
+    [Fact]
     public void ToEligibilityRows_WhenOrganisationChangesTypeWithinAYear_ShouldRetainBothRegistrations()
     {
         var latestUpdated = s_refreshedAt.AddMinutes(1);
