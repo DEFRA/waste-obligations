@@ -141,16 +141,17 @@ await writeFile(
 // Keep the Azure PRN common backend contract beside its consuming service.
 
 const PAPER_BOARD = "Paper/board";
-const PRN_TONNAGE_125 = 125;
-const PRN_TONNAGE_40 = 40;
-const PRN_TONNAGE_310 = 310;
-const PRN_TONNAGE_75 = 75;
-const PRN_TONNAGE_510 = 510;
-const PRN_TONNAGE_15 = 15;
-const PRN_TONNAGE_220 = 220;
-const PRN_TONNAGE_90 = 90;
 const PRN_TONNAGE_1 = 1;
+const PRN_TONNAGE_15 = 15;
+const PRN_TONNAGE_35 = 35;
+const PRN_TONNAGE_40 = 40;
 const PRN_TONNAGE_60 = 60;
+const PRN_TONNAGE_75 = 75;
+const PRN_TONNAGE_90 = 90;
+const PRN_TONNAGE_125 = 125;
+const PRN_TONNAGE_220 = 220;
+const PRN_TONNAGE_310 = 310;
+const PRN_TONNAGE_510 = 510;
 
 const organisationHeader = (organisationId) => [
     {
@@ -214,6 +215,7 @@ const prnFixture = (
     materialName,
     tonnageValue,
     issueDate,
+    overrides = {},
 ) => ({
     externalId,
     prnNumber,
@@ -234,6 +236,7 @@ const prnFixture = (
     createdOn: issueDate,
     lastUpdatedDate: issueDate,
     isExport: false,
+    ...overrides,
 });
 
 const journeyPrnExternalId = "0d2f531d-0213-494b-8c8b-4133051bd44f";
@@ -295,6 +298,26 @@ const producerPrns = [
         "Aluminium",
         PRN_TONNAGE_90,
         "2026-02-12T10:10:00Z",
+    ),
+    // December waste (MO-479). The journey stack sets the frontend's test-only
+    // FAKE_NOW to 15 Dec 2026, so PRN131 (issued in that window, acceptable
+    // into 2026 or 2027) shows the flash and PRN132 (from the December 2025
+    // window) does not.
+    prnFixture(
+        "PRN131",
+        "8ad261c9-d17f-4eca-8b1f-d38fe29ef508",
+        "Plastic",
+        PRN_TONNAGE_60,
+        "2026-12-05T09:00:00Z",
+        { decemberWaste: true },
+    ),
+    prnFixture(
+        "PRN132",
+        "9be372da-e28a-4fdb-9c2a-e49af3a0f609",
+        "Paper/board",
+        PRN_TONNAGE_35,
+        "2025-12-10T09:00:00Z",
+        { decemberWaste: true, accreditationYear: "2025", obligationYear: "2025" },
     ),
 ];
 
@@ -433,6 +456,14 @@ const compliancePrnSearchMapping = (params, body, priority) => ({
 
 prnMappings.push(
     ["journey-producer-prn.json", singlePrnMapping(producerPrns[0])],
+    // Every other producer PRN can be opened too: the newest listed PRN is no
+    // longer producerPrns[0], and the December waste journey opens PRN131.
+    ...producerPrns
+        .slice(1)
+        .map((prn) => [
+            `journey-producer-prn-${prn.prnNumber.toLowerCase()}.json`,
+            singlePrnMapping(prn),
+        ]),
     [
         "journey-producer-prns-filter-accepted-all.json",
         prnSearchMapping(

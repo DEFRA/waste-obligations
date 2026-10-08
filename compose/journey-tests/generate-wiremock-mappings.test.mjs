@@ -62,29 +62,67 @@ test("generates Account, Notify and PRN mappings from the supplied scenario", as
     assert.equal(prnMapping.Priority, 10);
     assert.equal(prnMapping.Response.StatusCode, 200);
     const { items, totalItems } = prnMapping.Response.BodyAsJson;
-    assert.equal(totalItems, 8);
+    assert.equal(totalItems, 10);
+    // Newest issue date first: the December 2026 waste PRN, then the standard
+    // 2026 PRNs, then the December 2025 waste PRN.
     assert.deepEqual(
         items.map((item) => item.prnNumber),
-        ["PRN123", "PRN124", "PRN125", "PRN126", "PRN127", "PRN128", "PRN129", "PRN130"],
+        [
+            "PRN131",
+            "PRN123",
+            "PRN124",
+            "PRN125",
+            "PRN126",
+            "PRN127",
+            "PRN128",
+            "PRN129",
+            "PRN130",
+            "PRN132",
+        ],
     );
     for (const item of items) {
         assert.equal(item.organisationId, directProducerId);
         assert.equal(item.prnStatus, "AWAITINGACCEPTANCE");
         assert.equal(item.issuedByOrg, "Journey Reprocessors Ltd");
     }
-    assert.equal(items[0].materialName, "Aluminium");
-    assert.equal(items[0].tonnageValue, 125);
+    const byNumber = Object.fromEntries(items.map((item) => [item.prnNumber, item]));
+    assert.equal(byNumber.PRN123.materialName, "Aluminium");
+    assert.equal(byNumber.PRN123.tonnageValue, 125);
+    assert.equal(byNumber.PRN123.decemberWaste, false);
+
+    // December waste (MO-479): PRN131 in the Dec 2026 window, PRN132 stale.
+    assert.equal(byNumber.PRN131.decemberWaste, true);
+    assert.equal(byNumber.PRN131.obligationYear, "2026");
+    assert.equal(byNumber.PRN131.issueDate, "2026-12-05T09:00:00Z");
+    assert.equal(byNumber.PRN132.decemberWaste, true);
+    assert.equal(byNumber.PRN132.obligationYear, "2025");
+    assert.equal(byNumber.PRN132.issueDate, "2025-12-10T09:00:00Z");
 
     const singlePrnMapping = await readMapping(outputDirectory, "journey-producer-prn.json");
     assert.deepEqual(singlePrnMapping.Request, {
         Path: {
-            Matchers: [{ Name: "ExactMatcher", Pattern: `/api/v1/prn/${items[0].externalId}` }],
+            Matchers: [
+                { Name: "ExactMatcher", Pattern: `/api/v1/prn/${byNumber.PRN123.externalId}` },
+            ],
         },
         Methods: ["GET"],
         Headers: prnMapping.Request.Headers,
     });
     assert.equal(singlePrnMapping.Response.StatusCode, 200);
-    assert.deepEqual(singlePrnMapping.Response.BodyAsJson, items[0]);
+    assert.deepEqual(singlePrnMapping.Response.BodyAsJson, byNumber.PRN123);
+
+    // Every other producer PRN has its own single-PRN read.
+    for (const item of items.filter((prn) => prn.prnNumber !== "PRN123")) {
+        const single = await readMapping(
+            outputDirectory,
+            `journey-producer-prn-${item.prnNumber.toLowerCase()}.json`,
+        );
+        assert.equal(
+            single.Request.Path.Matchers[0].Pattern,
+            `/api/v1/prn/${item.externalId}`,
+        );
+        assert.deepEqual(single.Response.BodyAsJson, item);
+    }
 
     const csoPrnsMapping = await readMapping(outputDirectory, "journey-compliance-scheme-prns.json");
     assert.deepEqual(csoPrnsMapping.Request.Headers, [
@@ -182,7 +220,8 @@ test("generates PRN search mappings that filter and sort like the common backend
     );
     assert.equal(tonnageDescending.Priority, 3);
     assert.deepEqual(prnNumbers(tonnageDescending), [
-        "PRN127", "PRN125", "PRN129", "PRN123", "PRN130", "PRN126", "PRN124", "PRN128",
+        "PRN127", "PRN125", "PRN129", "PRN123", "PRN130", "PRN126", "PRN131", "PRN124", "PRN132",
+        "PRN128",
     ]);
 
     const materialAscending = await readMapping(
@@ -191,7 +230,18 @@ test("generates PRN search mappings that filter and sort like the common backend
     );
     assert.deepEqual(
         materialAscending.Response.BodyAsJson.items.map((item) => item.materialName),
-        ["Aluminium", "Aluminium", "Glass Other", "Glass Re-melt", "Paper/board", "Plastic", "Plastic", "Steel"],
+        [
+            "Aluminium",
+            "Aluminium",
+            "Glass Other",
+            "Glass Re-melt",
+            "Paper/board",
+            "Paper/board",
+            "Plastic",
+            "Plastic",
+            "Plastic",
+            "Steel",
+        ],
     );
 
     const plasticByOldest = await readMapping(
@@ -203,7 +253,7 @@ test("generates PRN search mappings that filter and sort like the common backend
         filterBy: "awaiting-plastic",
         sortBy: "date-issued-asc",
     });
-    assert.deepEqual(prnNumbers(plasticByOldest), ["PRN125", "PRN124"]);
+    assert.deepEqual(prnNumbers(plasticByOldest), ["PRN125", "PRN124", "PRN131"]);
 });
 
 test("generates accepted PRN mappings for the accepted confirmation view", async (context) => {
