@@ -140,6 +140,7 @@ await writeFile(
 
 // Keep the Azure PRN common backend contract beside its consuming service.
 
+const PAPER_BOARD = "Paper/board";
 const PRN_TONNAGE_125 = 125;
 const PRN_TONNAGE_40 = 40;
 const PRN_TONNAGE_310 = 310;
@@ -148,6 +149,8 @@ const PRN_TONNAGE_510 = 510;
 const PRN_TONNAGE_15 = 15;
 const PRN_TONNAGE_220 = 220;
 const PRN_TONNAGE_90 = 90;
+const PRN_TONNAGE_1 = 1;
+const PRN_TONNAGE_60 = 60;
 
 const organisationHeader = (organisationId) => [
     {
@@ -275,7 +278,7 @@ const producerPrns = [
     prnFixture(
         "PRN128",
         "5daf3e96-ae4c-4b97-9e8c-a05dbf6bc205",
-        "Paper/board",
+        PAPER_BOARD,
         PRN_TONNAGE_15,
         "2026-03-30T16:05:00Z",
     ),
@@ -319,7 +322,7 @@ const prnFilters = {
     "awaiting-glassother": (prn) => prn.materialName === "Glass Other",
     "awaiting-glassremelt": (prn) => prn.materialName === "Glass Re-melt",
     "awaiting-paperfiber": (prn) =>
-        ["Paper/board", "Fibre"].includes(prn.materialName),
+        [PAPER_BOARD, "Fibre"].includes(prn.materialName),
     "awaiting-plastic": (prn) => prn.materialName === "Plastic",
     "awaiting-steel": (prn) => prn.materialName === "Steel",
     "awaiting-wood": (prn) => prn.materialName === "Wood",
@@ -386,19 +389,83 @@ const compliancePrn = {
     organisationName: "Journey Compliance Scheme Ltd",
 };
 
+// The journey opens an accepted PRN to check the accepted confirmation view.
+// Accepted PRNs only answer the accepted-all filter, so the awaiting lists and
+// their sorts are unchanged. The CSO one is a PERN to cover that wording.
+const acceptedPrn = (prn) => ({ ...prn, prnStatus: "ACCEPTED" });
+
+const acceptedProducerPrn = acceptedPrn(
+    prnFixture(
+        "PRN131",
+        "0f2e14dd-6969-4311-90c5-e1fa89f9c85d",
+        PAPER_BOARD,
+        PRN_TONNAGE_1,
+        "2026-02-05T09:30:00Z",
+    ),
+);
+
+const acceptedCompliancePrn = acceptedPrn({
+    ...prnFixture(
+        "PERN457",
+        "45edaa0b-cb34-4aec-a66c-9e8230c5df22",
+        "Plastic",
+        PRN_TONNAGE_60,
+        "2026-02-05T09:30:00Z",
+    ),
+    organisationId: complianceSchemeId,
+    organisationName: compliancePrn.organisationName,
+    isExport: true,
+});
+
+const acceptedFilter = [queryParam("filterBy", "accepted-all")];
+
+const compliancePrnSearchMapping = (params, body, priority) => ({
+    Priority: priority,
+    ...mapping(
+        {
+            ...exactPath("/api/v1/prn/search"),
+            Headers: organisationHeader(complianceSchemeId),
+            ...(params.length ? { Params: params } : {}),
+        },
+        body,
+    ),
+});
+
 prnMappings.push(
     ["journey-producer-prn.json", singlePrnMapping(producerPrns[0])],
     [
+        "journey-producer-prns-filter-accepted-all.json",
+        prnSearchMapping(
+            acceptedFilter,
+            { items: [acceptedProducerPrn], totalItems: 1 },
+            PRN_MAPPING_2,
+        ),
+    ],
+    [
+        "journey-producer-accepted-prn.json",
+        singlePrnMapping(acceptedProducerPrn),
+    ],
+    [
         "journey-compliance-scheme-prns.json",
-        mapping(
-            {
-                ...exactPath("/api/v1/prn/search"),
-                Headers: organisationHeader(complianceSchemeId),
-            },
+        compliancePrnSearchMapping(
+            [],
             { items: [compliancePrn], totalItems: 1 },
+            PRN_MAPPING_10,
+        ),
+    ],
+    [
+        "journey-compliance-scheme-prns-filter-accepted-all.json",
+        compliancePrnSearchMapping(
+            acceptedFilter,
+            { items: [acceptedCompliancePrn], totalItems: 1 },
+            PRN_MAPPING_2,
         ),
     ],
     ["journey-compliance-scheme-prn.json", singlePrnMapping(compliancePrn)],
+    [
+        "journey-compliance-scheme-accepted-prn.json",
+        singlePrnMapping(acceptedCompliancePrn),
+    ],
 );
 
 await Promise.all(

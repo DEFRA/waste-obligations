@@ -206,6 +206,55 @@ test("generates PRN search mappings that filter and sort like the common backend
     assert.deepEqual(prnNumbers(plasticByOldest), ["PRN125", "PRN124"]);
 });
 
+test("generates accepted PRN mappings for the accepted confirmation view", async (context) => {
+    const outputDirectory = await mkdtemp(join(tmpdir(), mappingsDirectoryPrefix));
+    context.after(() => rm(outputDirectory, { force: true, recursive: true }));
+
+    await runGenerator(outputDirectory, {
+        WASTE_OBLIGATION_ORG_ID: directProducerId,
+        WASTE_OBLIGATION_CSO_ORG_ID: complianceSchemeId,
+        WASTE_OBLIGATION_SUBMITTER_ID: submitterId,
+        WASTE_OBLIGATION_SUBMITTER_EMAIL: submitterEmail,
+    });
+
+    const acceptedParams = [
+        { Name: "filterBy", Matchers: [{ Name: "ExactMatcher", Pattern: "accepted-all" }] },
+    ];
+
+    for (const [account, organisationId, number, isExport] of [
+        ["producer", directProducerId, "PRN131", false],
+        ["compliance-scheme", complianceSchemeId, "PERN457", true],
+    ]) {
+        const search = await readMapping(
+            outputDirectory,
+            `journey-${account}-prns-filter-accepted-all.json`,
+        );
+        assert.equal(search.Priority, 2);
+        assert.deepEqual(search.Request.Params, acceptedParams);
+        assert.equal(search.Request.Headers[0].Matchers[0].Pattern, organisationId);
+        const [prn] = search.Response.BodyAsJson.items;
+        assert.equal(search.Response.BodyAsJson.totalItems, 1);
+        assert.equal(prn.prnNumber, number);
+        assert.equal(prn.prnStatus, "ACCEPTED");
+        assert.equal(prn.organisationId, organisationId);
+        assert.equal(prn.isExport, isExport);
+
+        const single = await readMapping(outputDirectory, `journey-${account}-accepted-prn.json`);
+        assert.equal(single.Request.Path.Matchers[0].Pattern, `/api/v1/prn/${prn.externalId}`);
+        assert.deepEqual(single.Request.Headers, search.Request.Headers);
+        assert.deepEqual(single.Response.BodyAsJson, prn);
+    }
+
+    // The unfiltered CSO search stays the awaiting list, below the accepted filter.
+    const csoAwaiting = await readMapping(outputDirectory, "journey-compliance-scheme-prns.json");
+    assert.equal(csoAwaiting.Priority, 10);
+    assert.equal(csoAwaiting.Request.Params, undefined);
+
+    // Accepted PRNs never appear in the awaiting list or its filters.
+    const awaiting = await readMapping(outputDirectory, "journey-producer-prns.json");
+    assert.ok(awaiting.Response.BodyAsJson.items.every((item) => item.prnStatus === "AWAITINGACCEPTANCE"));
+});
+
 test("fails when a required scenario value is missing", async (context) => {
     const outputDirectory = await mkdtemp(join(tmpdir(), mappingsDirectoryPrefix));
     context.after(() => rm(outputDirectory, { force: true, recursive: true }));
