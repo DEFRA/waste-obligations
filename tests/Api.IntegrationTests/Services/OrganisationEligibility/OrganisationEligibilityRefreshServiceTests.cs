@@ -52,7 +52,6 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
                         {
                             Id = csoOrganisationId,
                             Name = "Example Compliance Scheme",
-                            SchemeOperatorName = "Example Scheme Operator Ltd",
                             CompaniesHouseNumber = csoCompaniesHouseNumber,
                             Address = new WasteOrganisationsAddress(),
                             Registrations =
@@ -81,6 +80,7 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
                         {
                             CompaniesHouseNumber = csoCompaniesHouseNumber,
                             ReferenceNumber = "100002",
+                            Name = "Example Scheme Operator Ltd",
                             IsComplianceScheme = true,
                         },
                     ]
@@ -172,11 +172,53 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task Refresh_WhenSourceIncludesSchemeOperatorName_ShouldStoreItOnTheEligibilityRow()
+    public async Task Refresh_WhenAccountProvidesSchemeOperatorName_ShouldStoreItOnTheEligibilityRow()
     {
+        const string companiesHouseNumber = "01234567";
         var organisationId = Guid.NewGuid();
-        ArrangeSource(organisationId, schemeOperatorName: "Scheme Operator Ltd");
-        ArrangeDirectProducerReference(organisationId, "051829");
+        OrganisationEligibilitySource
+            .Search(Arg.Any<CancellationToken>())
+            .Returns(
+                new OrganisationSearch
+                {
+                    Organisations =
+                    [
+                        new Organisation
+                        {
+                            Id = organisationId,
+                            Name = "Example Compliance Scheme",
+                            CompaniesHouseNumber = companiesHouseNumber,
+                            Address = new WasteOrganisationsAddress(),
+                            Registrations =
+                            [
+                                new Registration
+                                {
+                                    Type = WasteOrganisationsRegistrationType.ComplianceScheme,
+                                    Status = WasteOrganisationsRegistrationStatus.Registered,
+                                    RegistrationYear = 2026,
+                                },
+                            ],
+                        },
+                    ],
+                }
+            );
+        OrganisationReferenceSearchService
+            .SearchOrganisationsByCompaniesHouseNumbers(
+                Arg.Any<IReadOnlyCollection<string>>(),
+                Arg.Any<CancellationToken>()
+            )
+            .Returns(
+                (IReadOnlyList<AccountOrganisation>)
+                    [
+                        new AccountOrganisation
+                        {
+                            CompaniesHouseNumber = companiesHouseNumber,
+                            ReferenceNumber = "530001",
+                            Name = "Scheme Operator Ltd",
+                            IsComplianceScheme = true,
+                        },
+                    ]
+            );
         var subject = CreateSubject();
 
         var result = await subject.Refresh(TestContext.Current.CancellationToken);
@@ -854,18 +896,14 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
     private void ArrangeSource(
         Guid organisationId,
         string name = "Example organisation",
-        string? businessCountry = null,
-        string? schemeOperatorName = null
+        string? businessCountry = null
     ) =>
         OrganisationEligibilitySource
             .Search(Arg.Any<CancellationToken>())
             .Returns(
                 new OrganisationSearch
                 {
-                    Organisations =
-                    [
-                        CreateSourceOrganisation(organisationId, name, businessCountry, schemeOperatorName),
-                    ],
+                    Organisations = [CreateSourceOrganisation(organisationId, name, businessCountry)],
                 }
             );
 
@@ -891,15 +929,13 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
     private static Organisation CreateSourceOrganisation(
         Guid organisationId,
         string name,
-        string? businessCountry = null,
-        string? schemeOperatorName = null
+        string? businessCountry = null
     ) =>
         new()
         {
             Id = organisationId,
             Name = name,
             BusinessCountry = businessCountry,
-            SchemeOperatorName = schemeOperatorName,
             Address = new WasteOrganisationsAddress(),
             Registrations =
             [

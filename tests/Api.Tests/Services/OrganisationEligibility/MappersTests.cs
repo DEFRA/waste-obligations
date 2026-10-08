@@ -89,7 +89,7 @@ public class MappersTests
         rows.Single(x => x.RegistrationType == EntityRegistrationType.ComplianceScheme)
             .Name.Should()
             .Be("Example Trading Name");
-        rows.Should().OnlyContain(x => x.SchemeOperatorName == "Example Operator");
+        rows.Should().OnlyContain(x => x.SchemeOperatorName == null);
     }
 
     [Fact]
@@ -176,30 +176,14 @@ public class MappersTests
     }
 
     [Fact]
-    public void ToEligibilityRows_ShouldStoreSchemeOperatorNameAndIncludeItInTheSourceFingerprint()
+    public void AppendAccountData_WhenSchemeOperatorNameChanges_ShouldChangeFingerprint()
     {
-        var organisation = CreateOrganisation(
-            Guid.NewGuid(),
-            [
-                CreateRegistration(
-                    WasteOrganisationsRegistrationType.ComplianceScheme,
-                    WasteOrganisationsRegistrationStatus.Registered,
-                    2026
-                ),
-            ]
-        ) with
-        {
-            SchemeOperatorName = "Alpha Operator Ltd",
-        };
+        const string baseFingerprint = "some-fingerprint";
 
-        var initialRow = Mappers.ToEligibilityRows([organisation], "g1", s_refreshedAt).Single();
-        var changedRow = Mappers
-            .ToEligibilityRows([organisation with { SchemeOperatorName = "Beta Operator Ltd" }], "g2", s_refreshedAt)
-            .Single();
+        var first = Mappers.AppendAccountData(baseFingerprint, "Alpha Operator Ltd");
+        var second = Mappers.AppendAccountData(baseFingerprint, "Beta Operator Ltd");
 
-        initialRow.SchemeOperatorName.Should().Be("Alpha Operator Ltd");
-        changedRow.SchemeOperatorName.Should().Be("Beta Operator Ltd");
-        changedRow.SourceFingerprint.Should().NotBe(initialRow.SourceFingerprint);
+        first.Should().NotBe(second);
     }
 
     [Fact]
@@ -315,7 +299,6 @@ public class MappersTests
             Id = organisationId,
             Name = "Example Organisation",
             TradingName = "Example Trading Name",
-            SchemeOperatorName = "Example Operator",
             CompaniesHouseNumber = "12345678",
             Address = new WasteOrganisationsAddress(),
             Registrations = registrations,

@@ -59,7 +59,6 @@ public static class Mappers
                             registrationType.Value,
                             organisation.CompaniesHouseNumber
                         ),
-                        SchemeOperatorName = organisation.SchemeOperatorName,
                         RecyclingObligationsMet = null,
                         ObligationCoveragePercentage = null,
                         SourceFingerprint = CalculateSourceFingerprint(
@@ -122,8 +121,18 @@ public static class Mappers
             LengthPrefix(organisation.BusinessCountry),
             LengthPrefix(organisation.Name),
             LengthPrefix(organisation.TradingName),
-            LengthPrefix(organisation.SchemeOperatorName),
             LengthPrefix(organisation.CompaniesHouseNumber)
+        );
+
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(source)));
+    }
+
+    public static string AppendAccountData(string wasteOrganisationsFingerprint, string? schemeOperatorName)
+    {
+        var source = string.Concat(
+            "organisation-eligibility-account-v1",
+            LengthPrefix(wasteOrganisationsFingerprint),
+            LengthPrefix(schemeOperatorName)
         );
 
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(source)));
