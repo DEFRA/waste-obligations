@@ -35,61 +35,7 @@ public class OrganisationReferenceResolver(
         var complianceSchemes = new List<Source>();
 
         foreach (var source in sources)
-        {
-            if (source.InitialResolutionState == OrganisationReferenceNumberResolutionState.AwaitingLookupKey)
-            {
-                var awaitingSource = source with
-                {
-                    ExistingReferenceNumber = ResolvedReference(activeRowsByKey.GetValueOrDefault(source.Key)),
-                    LastKnownSchemeOperatorName = GetLastKnownSchemeOperatorName(activeRowsByKey, source.Key),
-                };
-                resolutions[source.Key] = FallbackResolution(
-                    awaitingSource,
-                    OrganisationReferenceNumberResolutionState.AwaitingLookupKey
-                );
-                continue;
-            }
-
-            if (source.Key.RegistrationType == RegistrationType.DirectProducer)
-            {
-                if (ResolvedReference(activeRowsByKey.GetValueOrDefault(source.Key)) is { } referenceNumber)
-                {
-                    resolutions[source.Key] = new ReferenceResolution(
-                        referenceNumber,
-                        OrganisationReferenceNumberResolutionState.Resolved
-                    );
-                    continue;
-                }
-
-                directProducers.Add(source);
-            }
-            else
-            {
-                var existingRef = ResolvedReference(activeRowsByKey.GetValueOrDefault(source.Key));
-                var lastKnownName = GetLastKnownSchemeOperatorName(activeRowsByKey, source.Key);
-
-                if (existingRef != null && lastKnownName != null)
-                {
-                    resolutions[source.Key] = new ReferenceResolution(
-                        existingRef,
-                        OrganisationReferenceNumberResolutionState.Resolved,
-                        lastKnownName
-                    );
-                    continue;
-                }
-
-                if (existingRef != null)
-                    WarnOnChangedResolvedSchemeLookupKey(source, activeRowsByKey[source.Key]);
-
-                complianceSchemes.Add(
-                    source with
-                    {
-                        ExistingReferenceNumber = existingRef,
-                        LastKnownSchemeOperatorName = lastKnownName,
-                    }
-                );
-            }
-        }
+            ProcessSource(source, activeRowsByKey, directProducers, complianceSchemes, resolutions);
 
         await ResolveDirectProducers(directProducers, resolutions, cancellationToken);
         await ResolveComplianceSchemes(complianceSchemes, resolutions, cancellationToken);
@@ -118,6 +64,69 @@ public class OrganisationReferenceResolver(
         metrics.ReferenceResolutionObserved(resolvedRows);
 
         return resolvedRows;
+    }
+
+    private void ProcessSource(
+        Source source,
+        Dictionary<ReferenceKey, OrganisationComplianceDeclarationEligibility[]> activeRowsByKey,
+        List<Source> directProducers,
+        List<Source> complianceSchemes,
+        IDictionary<ReferenceKey, ReferenceResolution> resolutions
+    )
+    {
+        if (source.InitialResolutionState == OrganisationReferenceNumberResolutionState.AwaitingLookupKey)
+        {
+            var awaitingSource = source with
+            {
+                ExistingReferenceNumber = ResolvedReference(activeRowsByKey.GetValueOrDefault(source.Key)),
+                LastKnownSchemeOperatorName = GetLastKnownSchemeOperatorName(activeRowsByKey, source.Key),
+            };
+            resolutions[source.Key] = FallbackResolution(
+                awaitingSource,
+                OrganisationReferenceNumberResolutionState.AwaitingLookupKey
+            );
+            return;
+        }
+
+        if (source.Key.RegistrationType == RegistrationType.DirectProducer)
+        {
+            if (ResolvedReference(activeRowsByKey.GetValueOrDefault(source.Key)) is { } referenceNumber)
+            {
+                resolutions[source.Key] = new ReferenceResolution(
+                    referenceNumber,
+                    OrganisationReferenceNumberResolutionState.Resolved
+                );
+                return;
+            }
+
+            directProducers.Add(source);
+        }
+        else
+        {
+            var existingRef = ResolvedReference(activeRowsByKey.GetValueOrDefault(source.Key));
+            var lastKnownName = GetLastKnownSchemeOperatorName(activeRowsByKey, source.Key);
+
+            if (existingRef != null && lastKnownName != null)
+            {
+                resolutions[source.Key] = new ReferenceResolution(
+                    existingRef,
+                    OrganisationReferenceNumberResolutionState.Resolved,
+                    lastKnownName
+                );
+                return;
+            }
+
+            if (existingRef != null)
+                WarnOnChangedResolvedSchemeLookupKey(source, activeRowsByKey[source.Key]);
+
+            complianceSchemes.Add(
+                source with
+                {
+                    ExistingReferenceNumber = existingRef,
+                    LastKnownSchemeOperatorName = lastKnownName,
+                }
+            );
+        }
     }
 
     private async Task ResolveDirectProducers(
