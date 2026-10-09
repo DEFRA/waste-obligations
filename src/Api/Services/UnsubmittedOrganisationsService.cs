@@ -112,6 +112,7 @@ public class UnsubmittedOrganisationsService(
                 BusinessCountry = x.BusinessCountry,
                 Name = x.Name,
                 ReferenceNumber = x.ReferenceNumber!,
+                SchemeOperatorName = x.SchemeOperatorName,
                 RecyclingObligationsMet = x.RecyclingObligationsMet,
                 ObligationCoveragePercentage = x.ObligationCoveragePercentage,
             })

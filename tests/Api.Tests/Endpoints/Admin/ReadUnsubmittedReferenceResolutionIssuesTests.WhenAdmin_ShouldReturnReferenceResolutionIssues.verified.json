@@ -13,6 +13,7 @@
     "referenceNumber": "100001",
     "referenceNumberResolutionState": "NotFound",
     "isVisibleInUnsubmittedView": false,
+    "schemeOperatorName": null,
     "recyclingObligationsMet": null,
     "obligationCoveragePercentage": null,
     "declarationStateUpdatedAt": "DateTimeOffset_1",

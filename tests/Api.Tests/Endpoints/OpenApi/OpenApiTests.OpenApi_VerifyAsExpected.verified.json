@@ -1952,6 +1952,12 @@
           "referenceNumber": {
             "type": "string"
           },
+          "schemeOperatorName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "recyclingObligationsMet": {
             "type": [
               "null",

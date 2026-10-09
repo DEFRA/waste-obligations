@@ -22,6 +22,7 @@ public record OrganisationComplianceDeclarationEligibility
     public string? ReferenceNumber { get; init; }
     public OrganisationReferenceNumberResolutionState ReferenceNumberResolutionState { get; init; }
     public bool IsVisibleInUnsubmittedView { get; init; }
+    public string? SchemeOperatorName { get; init; }
     public bool? RecyclingObligationsMet { get; init; }
     public decimal? ObligationCoveragePercentage { get; init; }
 

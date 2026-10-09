@@ -35,31 +35,7 @@ public class OrganisationReferenceResolver(
         var complianceSchemes = new List<Source>();
 
         foreach (var source in sources)
-        {
-            if (ResolvedReference(activeRowsByKey.GetValueOrDefault(source.Key)) is { } referenceNumber)
-            {
-                WarnOnChangedResolvedSchemeLookupKey(source, activeRowsByKey[source.Key]);
-                resolutions[source.Key] = new ReferenceResolution(
-                    referenceNumber,
-                    OrganisationReferenceNumberResolutionState.Resolved
-                );
-                continue;
-            }
-
-            if (source.InitialResolutionState == OrganisationReferenceNumberResolutionState.AwaitingLookupKey)
-            {
-                resolutions[source.Key] = new ReferenceResolution(
-                    null,
-                    OrganisationReferenceNumberResolutionState.AwaitingLookupKey
-                );
-                continue;
-            }
-
-            if (source.Key.RegistrationType == RegistrationType.DirectProducer)
-                directProducers.Add(source);
-            else
-                complianceSchemes.Add(source);
-        }
+            ProcessSource(source, activeRowsByKey, directProducers, complianceSchemes, resolutions);
 
         await ResolveDirectProducers(directProducers, resolutions, cancellationToken);
         await ResolveComplianceSchemes(complianceSchemes, resolutions, cancellationToken);
@@ -73,6 +49,11 @@ public class OrganisationReferenceResolver(
                 {
                     ReferenceNumber = resolution.ReferenceNumber,
                     ReferenceNumberResolutionState = resolution.State,
+                    SchemeOperatorName = resolution.SchemeOperatorName,
+                    SourceFingerprint =
+                        row.RegistrationType == RegistrationType.ComplianceScheme
+                            ? Mappers.AppendAccountData(row.SourceFingerprint, resolution.SchemeOperatorName)
+                            : row.SourceFingerprint,
                 };
             })
             .OrderBy(x => x.OrganisationId)
@@ -83,6 +64,69 @@ public class OrganisationReferenceResolver(
         metrics.ReferenceResolutionObserved(resolvedRows);
 
         return resolvedRows;
+    }
+
+    private void ProcessSource(
+        Source source,
+        Dictionary<ReferenceKey, OrganisationComplianceDeclarationEligibility[]> activeRowsByKey,
+        List<Source> directProducers,
+        List<Source> complianceSchemes,
+        IDictionary<ReferenceKey, ReferenceResolution> resolutions
+    )
+    {
+        if (source.InitialResolutionState == OrganisationReferenceNumberResolutionState.AwaitingLookupKey)
+        {
+            var awaitingSource = source with
+            {
+                ExistingReferenceNumber = ResolvedReference(activeRowsByKey.GetValueOrDefault(source.Key)),
+                LastKnownSchemeOperatorName = GetLastKnownSchemeOperatorName(activeRowsByKey, source.Key),
+            };
+            resolutions[source.Key] = FallbackResolution(
+                awaitingSource,
+                OrganisationReferenceNumberResolutionState.AwaitingLookupKey
+            );
+            return;
+        }
+
+        if (source.Key.RegistrationType == RegistrationType.DirectProducer)
+        {
+            if (ResolvedReference(activeRowsByKey.GetValueOrDefault(source.Key)) is { } referenceNumber)
+            {
+                resolutions[source.Key] = new ReferenceResolution(
+                    referenceNumber,
+                    OrganisationReferenceNumberResolutionState.Resolved
+                );
+                return;
+            }
+
+            directProducers.Add(source);
+        }
+        else
+        {
+            var existingRef = ResolvedReference(activeRowsByKey.GetValueOrDefault(source.Key));
+            var lastKnownName = GetLastKnownSchemeOperatorName(activeRowsByKey, source.Key);
+
+            if (existingRef != null && lastKnownName != null)
+            {
+                resolutions[source.Key] = new ReferenceResolution(
+                    existingRef,
+                    OrganisationReferenceNumberResolutionState.Resolved,
+                    lastKnownName
+                );
+                return;
+            }
+
+            if (existingRef != null)
+                WarnOnChangedResolvedSchemeLookupKey(source, activeRowsByKey[source.Key]);
+
+            complianceSchemes.Add(
+                source with
+                {
+                    ExistingReferenceNumber = existingRef,
+                    LastKnownSchemeOperatorName = lastKnownName,
+                }
+            );
+        }
     }
 
     private async Task ResolveDirectProducers(
@@ -112,7 +156,15 @@ public class OrganisationReferenceResolver(
                             ) && !string.IsNullOrWhiteSpace(x.ReferenceNumber)
                         )
                         .ToArray();
-                    resolutions[key] = Resolve(matches);
+                    resolutions[key] = matches.Length switch
+                    {
+                        0 => new ReferenceResolution(null, OrganisationReferenceNumberResolutionState.NotFound),
+                        1 => new ReferenceResolution(
+                            matches.Single().ReferenceNumber,
+                            OrganisationReferenceNumberResolutionState.Resolved
+                        ),
+                        _ => new ReferenceResolution(null, OrganisationReferenceNumberResolutionState.Ambiguous),
+                    };
                 }
 
                 lookupStopwatch.Stop();
@@ -169,7 +221,7 @@ public class OrganisationReferenceResolver(
                             && !string.IsNullOrWhiteSpace(x.ReferenceNumber)
                         )
                         .ToArray();
-                    resolutions[source.Key] = Resolve(matches);
+                    resolutions[source.Key] = ResolveWithName(source, matches);
                 }
 
                 lookupStopwatch.Stop();
@@ -190,10 +242,7 @@ public class OrganisationReferenceResolver(
                 );
                 foreach (var source in batch)
                 {
-                    resolutions[source.Key] = new ReferenceResolution(
-                        null,
-                        OrganisationReferenceNumberResolutionState.Failed
-                    );
+                    resolutions[source.Key] = FallbackResolution(source);
                 }
             }
         }
@@ -228,16 +277,33 @@ public class OrganisationReferenceResolver(
         );
     }
 
-    private static ReferenceResolution Resolve(AccountOrganisation[] matches) =>
-        matches.Length switch
-        {
-            0 => new ReferenceResolution(null, OrganisationReferenceNumberResolutionState.NotFound),
-            1 => new ReferenceResolution(
-                matches.Single().ReferenceNumber,
-                OrganisationReferenceNumberResolutionState.Resolved
-            ),
-            _ => new ReferenceResolution(null, OrganisationReferenceNumberResolutionState.Ambiguous),
-        };
+    private static ReferenceResolution ResolveWithName(Source source, AccountOrganisation[] matches)
+    {
+        if (matches.Length == 1)
+            return new ReferenceResolution(
+                source.ExistingReferenceNumber ?? matches.Single().ReferenceNumber,
+                OrganisationReferenceNumberResolutionState.Resolved,
+                matches.Single().Name
+            );
+
+        var stateIfUnresolved =
+            matches.Length > 1
+                ? OrganisationReferenceNumberResolutionState.Ambiguous
+                : OrganisationReferenceNumberResolutionState.NotFound;
+        return FallbackResolution(source, stateIfUnresolved);
+    }
+
+    private static ReferenceResolution FallbackResolution(
+        Source source,
+        OrganisationReferenceNumberResolutionState? stateIfUnresolved = null
+    ) =>
+        source.ExistingReferenceNumber != null
+            ? new ReferenceResolution(
+                source.ExistingReferenceNumber,
+                OrganisationReferenceNumberResolutionState.Resolved,
+                source.LastKnownSchemeOperatorName
+            )
+            : new ReferenceResolution(null, stateIfUnresolved ?? OrganisationReferenceNumberResolutionState.Failed);
 
     private static string? ResolvedReference(
         IReadOnlyCollection<OrganisationComplianceDeclarationEligibility>? activeRows
@@ -292,16 +358,24 @@ public class OrganisationReferenceResolver(
             .ThenBy(x => x.Key.RegistrationType)
             .ToArray();
 
+    private static string? GetLastKnownSchemeOperatorName(
+        Dictionary<ReferenceKey, OrganisationComplianceDeclarationEligibility[]> activeRowsByKey,
+        ReferenceKey key
+    ) => activeRowsByKey.GetValueOrDefault(key)?.Select(x => x.SchemeOperatorName).FirstOrDefault(name => name != null);
+
     private readonly record struct ReferenceKey(Guid OrganisationId, RegistrationType RegistrationType);
 
     private sealed record Source(
         ReferenceKey Key,
         string? CompaniesHouseNumber,
-        OrganisationReferenceNumberResolutionState InitialResolutionState
+        OrganisationReferenceNumberResolutionState InitialResolutionState,
+        string? ExistingReferenceNumber = null,
+        string? LastKnownSchemeOperatorName = null
     );
 
     private sealed record ReferenceResolution(
         string? ReferenceNumber,
-        OrganisationReferenceNumberResolutionState State
+        OrganisationReferenceNumberResolutionState State,
+        string? SchemeOperatorName = null
     );
 }

@@ -37,26 +37,79 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
     [Fact]
     public async Task Refresh_WhenNoActiveSnapshot_ShouldPromoteResolvedRows()
     {
-        var organisationId = Guid.NewGuid();
-        ArrangeSource(organisationId);
-        ArrangeDirectProducerReference(organisationId, "051829");
+        var directProducerOrganisationId = Guid.NewGuid();
+        var csoOrganisationId = Guid.NewGuid();
+        const string csoCompaniesHouseNumber = "01234567";
+        OrganisationEligibilitySource
+            .Search(Arg.Any<CancellationToken>())
+            .Returns(
+                new OrganisationSearch
+                {
+                    Organisations =
+                    [
+                        CreateSourceOrganisation(directProducerOrganisationId, "Example organisation"),
+                        new Organisation
+                        {
+                            Id = csoOrganisationId,
+                            Name = "Example Compliance Scheme",
+                            CompaniesHouseNumber = csoCompaniesHouseNumber,
+                            Address = new WasteOrganisationsAddress(),
+                            Registrations =
+                            [
+                                new Registration
+                                {
+                                    Type = WasteOrganisationsRegistrationType.ComplianceScheme,
+                                    Status = WasteOrganisationsRegistrationStatus.Registered,
+                                    RegistrationYear = 2026,
+                                },
+                            ],
+                        },
+                    ],
+                }
+            );
+        ArrangeDirectProducerReference(directProducerOrganisationId, "051829");
+        OrganisationReferenceSearchService
+            .SearchOrganisationsByCompaniesHouseNumbers(
+                Arg.Any<IReadOnlyCollection<string>>(),
+                Arg.Any<CancellationToken>()
+            )
+            .Returns(
+                (IReadOnlyList<AccountOrganisation>)
+                    [
+                        new AccountOrganisation
+                        {
+                            CompaniesHouseNumber = csoCompaniesHouseNumber,
+                            ReferenceNumber = "100002",
+                            Name = "Example Scheme Operator Ltd",
+                            IsComplianceScheme = true,
+                        },
+                    ]
+            );
         var subject = CreateSubject();
 
         var result = await subject.Refresh(TestContext.Current.CancellationToken);
 
         result.Outcome.Should().Be(OrganisationEligibilityRefreshOutcome.Promoted);
         result.ActiveGeneration.Should().NotBeNullOrWhiteSpace();
-        result.RowCount.Should().Be(1);
+        result.RowCount.Should().Be(2);
         var snapshot = await OrganisationEligibilitySnapshots
             .Find(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId)
             .SingleAsync(TestContext.Current.CancellationToken);
         snapshot.ActiveGeneration.Should().Be(result.ActiveGeneration);
         snapshot.ActiveContentFingerprint.Should().Be(result.ContentFingerprint);
-        var row = await OrganisationComplianceDeclarationEligibilities
-            .Find(x => x.Generation == result.ActiveGeneration)
+        var directProducerRow = await OrganisationComplianceDeclarationEligibilities
+            .Find(x => x.Generation == result.ActiveGeneration && x.OrganisationId == directProducerOrganisationId)
             .SingleAsync(TestContext.Current.CancellationToken);
-        row.ReferenceNumber.Should().Be("051829");
-        row.ReferenceNumberResolutionState.Should().Be(OrganisationReferenceNumberResolutionState.Resolved);
+        directProducerRow.ReferenceNumber.Should().Be("051829");
+        directProducerRow
+            .ReferenceNumberResolutionState.Should()
+            .Be(OrganisationReferenceNumberResolutionState.Resolved);
+        var csoRow = await OrganisationComplianceDeclarationEligibilities
+            .Find(x => x.Generation == result.ActiveGeneration && x.OrganisationId == csoOrganisationId)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        csoRow.ReferenceNumber.Should().Be("100002");
+        csoRow.SchemeOperatorName.Should().Be("Example Scheme Operator Ltd");
+        csoRow.ReferenceNumberResolutionState.Should().Be(OrganisationReferenceNumberResolutionState.Resolved);
         var persistedProjection = JsonSerializer.Serialize(
             new
             {
@@ -65,7 +118,12 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
                     ActiveGeneration = "{Generated}",
                     ActiveContentFingerprint = "{Calculated}",
                 },
-                Row = row with
+                DirectProducerRow = directProducerRow with
+                {
+                    Generation = "{Generated}",
+                    SourceFingerprint = "{Calculated}",
+                },
+                CsoRow = csoRow with
                 {
                     Generation = "{Generated}",
                     SourceFingerprint = "{Calculated}",
@@ -111,6 +169,65 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
             .SingleAsync(TestContext.Current.CancellationToken);
 
         row.BusinessCountry.Should().Be("GB-WLS");
+    }
+
+    [Fact]
+    public async Task Refresh_WhenAccountProvidesSchemeOperatorName_ShouldStoreItOnTheEligibilityRow()
+    {
+        const string companiesHouseNumber = "01234567";
+        var organisationId = Guid.NewGuid();
+        OrganisationEligibilitySource
+            .Search(Arg.Any<CancellationToken>())
+            .Returns(
+                new OrganisationSearch
+                {
+                    Organisations =
+                    [
+                        new Organisation
+                        {
+                            Id = organisationId,
+                            Name = "Example Compliance Scheme",
+                            CompaniesHouseNumber = companiesHouseNumber,
+                            Address = new WasteOrganisationsAddress(),
+                            Registrations =
+                            [
+                                new Registration
+                                {
+                                    Type = WasteOrganisationsRegistrationType.ComplianceScheme,
+                                    Status = WasteOrganisationsRegistrationStatus.Registered,
+                                    RegistrationYear = 2026,
+                                },
+                            ],
+                        },
+                    ],
+                }
+            );
+        OrganisationReferenceSearchService
+            .SearchOrganisationsByCompaniesHouseNumbers(
+                Arg.Any<IReadOnlyCollection<string>>(),
+                Arg.Any<CancellationToken>()
+            )
+            .Returns(
+                (IReadOnlyList<AccountOrganisation>)
+                    [
+                        new AccountOrganisation
+                        {
+                            CompaniesHouseNumber = companiesHouseNumber,
+                            ReferenceNumber = "530001",
+                            Name = "Scheme Operator Ltd",
+                            IsComplianceScheme = true,
+                        },
+                    ]
+            );
+        var subject = CreateSubject();
+
+        var result = await subject.Refresh(TestContext.Current.CancellationToken);
+
+        var row = await OrganisationComplianceDeclarationEligibilities
+            .Find(x => x.Generation == result.ActiveGeneration)
+            .SingleAsync(TestContext.Current.CancellationToken);
+
+        row.SchemeOperatorName.Should().Be("Scheme Operator Ltd");
     }
 
     [Fact]
