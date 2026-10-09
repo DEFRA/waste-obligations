@@ -102,7 +102,7 @@ public class OrganisationReferenceResolverTests
     }
 
     [Fact]
-    public async Task Resolve_WhenAResolvedSchemeLookupKeyChanges_ShouldRetainTheExistingReference()
+    public async Task Resolve_WhenAResolvedSchemeLookupKeyChanges_ShouldRetainTheExistingReferenceAndName()
     {
         var organisationId = Guid.NewGuid();
         var activeRow = Row(
@@ -114,42 +114,11 @@ public class OrganisationReferenceResolverTests
         {
             ReferenceNumber = "530001",
             ReferenceNumberResolutionState = OrganisationReferenceNumberResolutionState.Resolved,
+            SchemeOperatorName = "Original Operator",
         };
-        OrganisationReferenceSearchService
-            .SearchOrganisationsByCompaniesHouseNumbers(
-                Arg.Any<IReadOnlyCollection<string>>(),
-                Arg.Any<CancellationToken>()
-            )
-            .Returns((IReadOnlyList<AccountOrganisation>)[]);
-        var subject = CreateSubject();
-
-        var result = await subject.Resolve(
-            [Row(organisationId, 2027, RegistrationType.ComplianceScheme, companiesHouseNumber: "87654321")],
-            [activeRow],
-            TestContext.Current.CancellationToken
-        );
-
-        result.Single().ReferenceNumber.Should().Be("530001");
-        result.Single().ReferenceNumberResolutionState.Should().Be(OrganisationReferenceNumberResolutionState.Resolved);
-        await OrganisationReferenceSearchService
-            .Received(1)
-            .SearchOrganisationsByCompaniesHouseNumbers(
-                Arg.Any<IReadOnlyCollection<string>>(),
-                Arg.Any<CancellationToken>()
-            );
-    }
-
-    [Fact]
-    public async Task Resolve_WhenSchemeIsAlreadyResolved_ShouldRefreshNameFromAccountLookup()
-    {
-        const string companiesHouseNumber = "12345678";
-        var organisationId = Guid.NewGuid();
-        var activeRow = Row(organisationId, 2026, RegistrationType.ComplianceScheme, companiesHouseNumber) with
-        {
-            ReferenceNumber = "530001",
-            ReferenceNumberResolutionState = OrganisationReferenceNumberResolutionState.Resolved,
-            SchemeOperatorName = "Old Operator Name",
-        };
+        // Account returns a record for the new CHN, but with a different reference number.
+        // The name "Other Operator" belongs to that different Account record and must not
+        // be applied to our cached reference 530001.
         OrganisationReferenceSearchService
             .SearchOrganisationsByCompaniesHouseNumbers(
                 Arg.Any<IReadOnlyCollection<string>>(),
@@ -160,13 +129,43 @@ public class OrganisationReferenceResolverTests
                     [
                         new AccountOrganisation
                         {
-                            CompaniesHouseNumber = companiesHouseNumber,
-                            ReferenceNumber = "530001",
-                            Name = "Updated Operator Name",
+                            CompaniesHouseNumber = "87654321",
+                            ReferenceNumber = "530002",
+                            Name = "Other Operator",
                             IsComplianceScheme = true,
                         },
                     ]
             );
+        var subject = CreateSubject();
+
+        var result = await subject.Resolve(
+            [Row(organisationId, 2027, RegistrationType.ComplianceScheme, companiesHouseNumber: "87654321")],
+            [activeRow],
+            TestContext.Current.CancellationToken
+        );
+
+        result.Single().ReferenceNumber.Should().Be("530001");
+        result.Single().SchemeOperatorName.Should().Be("Original Operator");
+        result.Single().ReferenceNumberResolutionState.Should().Be(OrganisationReferenceNumberResolutionState.Resolved);
+        await OrganisationReferenceSearchService
+            .DidNotReceive()
+            .SearchOrganisationsByCompaniesHouseNumbers(
+                Arg.Any<IReadOnlyCollection<string>>(),
+                Arg.Any<CancellationToken>()
+            );
+    }
+
+    [Fact]
+    public async Task Resolve_WhenSchemeIsAlreadyResolvedWithName_ShouldSkipAccountLookupAndRetainCachedValues()
+    {
+        const string companiesHouseNumber = "12345678";
+        var organisationId = Guid.NewGuid();
+        var activeRow = Row(organisationId, 2026, RegistrationType.ComplianceScheme, companiesHouseNumber) with
+        {
+            ReferenceNumber = "530001",
+            ReferenceNumberResolutionState = OrganisationReferenceNumberResolutionState.Resolved,
+            SchemeOperatorName = "Cached Operator Name",
+        };
         var subject = CreateSubject();
 
         var result = await subject.Resolve(
@@ -176,12 +175,18 @@ public class OrganisationReferenceResolverTests
         );
 
         result.Single().ReferenceNumber.Should().Be("530001");
-        result.Single().SchemeOperatorName.Should().Be("Updated Operator Name");
+        result.Single().SchemeOperatorName.Should().Be("Cached Operator Name");
         result.Single().ReferenceNumberResolutionState.Should().Be(OrganisationReferenceNumberResolutionState.Resolved);
+        await OrganisationReferenceSearchService
+            .DidNotReceive()
+            .SearchOrganisationsByCompaniesHouseNumbers(
+                Arg.Any<IReadOnlyCollection<string>>(),
+                Arg.Any<CancellationToken>()
+            );
     }
 
     [Fact]
-    public async Task Resolve_WhenSchemeAccountLookupFails_ShouldPreserveExistingReferenceAndName()
+    public async Task Resolve_WhenSchemeHasReferenceButNoNameAndAccountLookupFails_ShouldPreserveReference()
     {
         const string companiesHouseNumber = "12345678";
         var organisationId = Guid.NewGuid();
@@ -189,7 +194,6 @@ public class OrganisationReferenceResolverTests
         {
             ReferenceNumber = "530001",
             ReferenceNumberResolutionState = OrganisationReferenceNumberResolutionState.Resolved,
-            SchemeOperatorName = "Preserved Operator Name",
         };
         OrganisationReferenceSearchService
             .SearchOrganisationsByCompaniesHouseNumbers(
@@ -208,12 +212,11 @@ public class OrganisationReferenceResolverTests
         );
 
         result.Single().ReferenceNumber.Should().Be("530001");
-        result.Single().SchemeOperatorName.Should().Be("Preserved Operator Name");
         result.Single().ReferenceNumberResolutionState.Should().Be(OrganisationReferenceNumberResolutionState.Resolved);
     }
 
     [Fact]
-    public async Task Resolve_WhenSchemeHasNoCompaniesHouseNumberAndHasLastKnownName_ShouldPreserveTheName()
+    public async Task Resolve_WhenSchemeHasNoCompaniesHouseNumberAndHasLastKnownName_ShouldPreserveReferenceAndName()
     {
         var organisationId = Guid.NewGuid();
         var activeRow = Row(
@@ -235,12 +238,15 @@ public class OrganisationReferenceResolverTests
             TestContext.Current.CancellationToken
         );
 
-        result.Single().ReferenceNumber.Should().BeNull();
+        result.Single().ReferenceNumber.Should().Be("530001");
         result.Single().SchemeOperatorName.Should().Be("Last Known Operator Name");
-        result
-            .Single()
-            .ReferenceNumberResolutionState.Should()
-            .Be(OrganisationReferenceNumberResolutionState.AwaitingLookupKey);
+        result.Single().ReferenceNumberResolutionState.Should().Be(OrganisationReferenceNumberResolutionState.Resolved);
+        await OrganisationReferenceSearchService
+            .DidNotReceive()
+            .SearchOrganisationsByCompaniesHouseNumbers(
+                Arg.Any<IReadOnlyCollection<string>>(),
+                Arg.Any<CancellationToken>()
+            );
     }
 
     [Fact]

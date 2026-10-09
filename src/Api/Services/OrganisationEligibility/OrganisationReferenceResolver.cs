@@ -38,10 +38,14 @@ public class OrganisationReferenceResolver(
         {
             if (source.InitialResolutionState == OrganisationReferenceNumberResolutionState.AwaitingLookupKey)
             {
-                resolutions[source.Key] = new ReferenceResolution(
-                    null,
-                    OrganisationReferenceNumberResolutionState.AwaitingLookupKey,
-                    GetLastKnownSchemeOperatorName(activeRowsByKey, source.Key)
+                var awaitingSource = source with
+                {
+                    ExistingReferenceNumber = ResolvedReference(activeRowsByKey.GetValueOrDefault(source.Key)),
+                    LastKnownSchemeOperatorName = GetLastKnownSchemeOperatorName(activeRowsByKey, source.Key),
+                };
+                resolutions[source.Key] = FallbackResolution(
+                    awaitingSource,
+                    OrganisationReferenceNumberResolutionState.AwaitingLookupKey
                 );
                 continue;
             }
@@ -62,6 +66,18 @@ public class OrganisationReferenceResolver(
             else
             {
                 var existingRef = ResolvedReference(activeRowsByKey.GetValueOrDefault(source.Key));
+                var lastKnownName = GetLastKnownSchemeOperatorName(activeRowsByKey, source.Key);
+
+                if (existingRef != null && lastKnownName != null)
+                {
+                    resolutions[source.Key] = new ReferenceResolution(
+                        existingRef,
+                        OrganisationReferenceNumberResolutionState.Resolved,
+                        lastKnownName
+                    );
+                    continue;
+                }
+
                 if (existingRef != null)
                     WarnOnChangedResolvedSchemeLookupKey(source, activeRowsByKey[source.Key]);
 
@@ -69,7 +85,7 @@ public class OrganisationReferenceResolver(
                     source with
                     {
                         ExistingReferenceNumber = existingRef,
-                        LastKnownSchemeOperatorName = GetLastKnownSchemeOperatorName(activeRowsByKey, source.Key),
+                        LastKnownSchemeOperatorName = lastKnownName,
                     }
                 );
             }
