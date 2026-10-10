@@ -48,10 +48,13 @@ public static class OrganisationObligationSummaryMapper
 
     private static bool? CalculateRecyclingObligationsMet(PrnObligation[] obligations)
     {
-        if (obligations.Length == 0 || obligations.Any(x => x.Status == ObligationStatus.NoDataYet))
-            return null;
+        if (obligations.Any(x => x.Status == ObligationStatus.NotMet))
+            return false;
 
-        return !obligations.Any(x => x.Status == ObligationStatus.NotMet);
+        if (obligations.Any(x => x.Status == ObligationStatus.Met))
+            return true;
+
+        return null;
     }
 
     private static string CreateSourceFingerprint(
