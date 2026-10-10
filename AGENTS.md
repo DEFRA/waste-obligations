@@ -116,10 +116,17 @@ checks does not prove that deployed Azure navigation or configuration works.
 
 ### Coordinating application and journey changes
 
-1. For every application behavior change, assess the shared journey coverage.
-   Add or amend scenarios and assertions alongside the application change when
-   user-visible behavior, API contracts, authentication, routing or error paths
-   change. Record why no journey update is needed when existing coverage suffices.
+1. Choose verification from evidence about the changed behaviour and credible
+   failures. Inspect existing coverage and use the lowest-cost boundary that
+   faithfully exposes the risk; focused tests, in-process endpoints, real
+   dependency integration and journeys are options, not a required sequence.
+   Use real local Docker services when their wiring or persistence is part of
+   the risk. Add or amend a shared journey when a user flow, authentication,
+   routing or cross-service interaction needs coverage that cheaper checks
+   cannot establish. An API value change or an absent journey assertion alone
+   does not establish that need. Reuse adequate existing coverage, run required
+   suites, and briefly record the evidence for the selected boundary and any
+   necessary companion change.
 2. When coordinating changes, create and push the **exact same branch name**
    in `waste-obligations-journey-tests` and every affected application repository
    (`waste-obligations`, `waste-obligations-frontend`, `packaging-waste-proxy`).
