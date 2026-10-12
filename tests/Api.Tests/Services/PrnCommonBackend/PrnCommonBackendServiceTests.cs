@@ -270,6 +270,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
             userId,
             statusUpdate.PrnId.ToString("D"),
             statusUpdate.Status,
+            null,
             TestContext.Current.CancellationToken
         );
 
@@ -291,6 +292,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
             userId,
             statusUpdate.PrnId.ToString("D"),
             statusUpdate.Status,
+            null,
             TestContext.Current.CancellationToken
         );
 
@@ -324,6 +326,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
             userId,
             statusUpdate.PrnId.ToString("D"),
             statusUpdate.Status,
+            null,
             TestContext.Current.CancellationToken
         );
 
@@ -351,6 +354,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
                 userId,
                 statusUpdate.PrnId.ToString("D"),
                 statusUpdate.Status,
+                null,
                 TestContext.Current.CancellationToken
             );
 
@@ -378,6 +382,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
                 userId,
                 statusUpdate.PrnId.ToString("D"),
                 statusUpdate.Status,
+                null,
                 TestContext.Current.CancellationToken
             );
 
@@ -404,6 +409,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
             userId,
             statusUpdate.PrnId.ToString("D"),
             statusUpdate.Status,
+            null,
             TestContext.Current.CancellationToken
         );
 
@@ -420,6 +426,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
             Guid.NewGuid(),
             "not-a-guid",
             "ACCEPTED",
+            null,
             TestContext.Current.CancellationToken
         );
 

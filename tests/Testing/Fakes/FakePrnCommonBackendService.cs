@@ -92,6 +92,7 @@ public class FakePrnCommonBackendService : IPrnCommonBackendService
         Guid userId,
         string prnId,
         string status,
+        string? obligationYear,
         CancellationToken cancellationToken
     )
     {
@@ -104,7 +105,12 @@ public class FakePrnCommonBackendService : IPrnCommonBackendService
         if (!Guid.TryParse(prnId, out var commonBackendPrnId))
             return Task.FromResult(PrnStatusUpdateResult.NotFound);
 
-        LastPrnStatusUpdate = new PrnStatusUpdate { PrnId = commonBackendPrnId, Status = status };
+        LastPrnStatusUpdate = new PrnStatusUpdate
+        {
+            PrnId = commonBackendPrnId,
+            Status = status,
+            ObligationYear = obligationYear,
+        };
 
         return Task.FromResult(StatusUpdateResult);
     }
