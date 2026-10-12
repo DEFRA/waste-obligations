@@ -2,6 +2,7 @@
   "complianceDeclarations": [
     {
       "id": "{Scrubbed}",
+      "version": 1,
       "created": "2026-04-27T14:00:00+00:00",
       "updated": "2026-04-27T14:00:00+00:00",
       "status": "Submitted",
@@ -58,6 +59,7 @@
     },
     {
       "id": "{Scrubbed}",
+      "version": 1,
       "created": "2026-04-26T14:00:00+00:00",
       "updated": "2026-04-26T14:00:00+00:00",
       "status": "Submitted",

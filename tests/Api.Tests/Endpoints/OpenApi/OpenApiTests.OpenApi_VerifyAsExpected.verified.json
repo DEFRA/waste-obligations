@@ -1258,6 +1258,14 @@
           "id": {
             "type": "string"
           },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
           "created": {
             "type": "string",
             "description": "ISO 8601 extended format with offset",
