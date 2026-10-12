@@ -94,6 +94,7 @@ public class FakePrnCommonBackendService : IPrnCommonBackendService
         Guid userId,
         string prnId,
         string status,
+        int? obligationYear,
         CancellationToken cancellationToken
     )
     {
@@ -106,7 +107,7 @@ public class FakePrnCommonBackendService : IPrnCommonBackendService
             userId,
             [commonBackendPrnId],
             status,
-            obligationYear: null,
+            obligationYear,
             options: new PrnStatusUpdateOptions(null, PrnStatusConflict.SinglePrn),
             cancellationToken
         );

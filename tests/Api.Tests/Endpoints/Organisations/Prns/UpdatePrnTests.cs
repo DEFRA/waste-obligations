@@ -66,6 +66,72 @@ public class UpdatePrnTests(ApiWebApplicationFactory factory, ITestOutputHelper 
     }
 
     [Fact]
+    public async Task WhenAcceptedWithObligationYear_ShouldPassTheYearToTheCommonBackend()
+    {
+        var client = CreateClient(testUser: TestUser.WriteOnly);
+        var prnId = Guid.NewGuid();
+
+        var response = await client.PatchAsJsonAsync(
+            Testing.Endpoints.Organisations.Prns.Update(
+                FakeWasteOrganisationsService.OrganisationId,
+                prnId.ToString("D")
+            ),
+            UpdatePrnRequestFixture.Accepted().With(x => x.ObligationYear, 2027).Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        PrnCommonBackendService
+            .LastPrnStatusUpdates.Should()
+            .BeEquivalentTo([
+                new PrnStatusUpdate
+                {
+                    PrnId = prnId,
+                    Status = PrnCommonBackendStatus.Accepted,
+                    ObligationYear = "2027",
+                },
+            ]);
+    }
+
+    [Fact]
+    public async Task WhenRejectedWithObligationYear_ShouldIgnoreTheYear()
+    {
+        var client = CreateClient(testUser: TestUser.WriteOnly);
+        var prnId = Guid.NewGuid();
+
+        var response = await client.PatchAsJsonAsync(
+            Testing.Endpoints.Organisations.Prns.Update(
+                FakeWasteOrganisationsService.OrganisationId,
+                prnId.ToString("D")
+            ),
+            UpdatePrnRequestFixture.Rejected().With(x => x.ObligationYear, 2027).Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        PrnCommonBackendService
+            .LastPrnStatusUpdates.Should()
+            .BeEquivalentTo([new PrnStatusUpdate { PrnId = prnId, Status = PrnCommonBackendStatus.Rejected }]);
+    }
+
+    [Fact]
+    public async Task WhenObligationYearOutOfRange_ShouldBeBadRequest()
+    {
+        var client = CreateClient(testUser: TestUser.WriteOnly);
+
+        var response = await client.PatchAsJsonAsync(
+            Testing.Endpoints.Organisations.Prns.Update(
+                FakeWasteOrganisationsService.OrganisationId,
+                Guid.NewGuid().ToString("D")
+            ),
+            UpdatePrnRequestFixture.Accepted().With(x => x.ObligationYear, 1999).Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task WhenRequestBodyMissing_ShouldBeBadRequestWithoutProxying()
     {
         var client = CreateClient(testUser: TestUser.WriteOnly);

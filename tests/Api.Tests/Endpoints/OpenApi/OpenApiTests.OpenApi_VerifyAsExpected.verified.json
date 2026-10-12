@@ -2168,6 +2168,18 @@
           },
           "user": {
             "$ref": "#/components/schemas/User"
+          },
+          "obligationYear": {
+            "maximum": 2100,
+            "minimum": 2025,
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "description": "The obligation year to accept the PRN into. Only applies when accepting, and only\nneeded for December waste PRNs where the user chooses between two years.",
+            "format": "int32"
           }
         }
       },
