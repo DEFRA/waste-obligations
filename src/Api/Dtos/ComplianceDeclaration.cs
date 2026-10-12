@@ -10,6 +10,9 @@ public record ComplianceDeclaration
     [JsonPropertyName("id")]
     public required string Id { get; init; }
 
+    [JsonPropertyName("version")]
+    public int Version { get; init; }
+
     [Description("ISO 8601 extended format with offset")]
     [JsonPropertyName("created")]
     public DateTimeOffset Created { get; init; }

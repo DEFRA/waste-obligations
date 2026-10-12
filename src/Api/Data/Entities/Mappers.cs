@@ -6,6 +6,7 @@ public static class Mappers
         new()
         {
             Id = entity.Id.ToString(),
+            Version = entity.Version,
             Created = entity.Created,
             Updated = entity.Updated,
             Status = entity.Status switch

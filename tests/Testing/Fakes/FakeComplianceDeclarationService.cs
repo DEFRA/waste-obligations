@@ -13,6 +13,7 @@ public class FakeComplianceDeclarationService : IComplianceDeclarationService
     public Func<ObjectId> CreateNewId = ObjectId.GenerateNewId;
     public Func<DateTimeOffset> UtcNow = () => DateTimeOffset.UtcNow;
     public bool ConcurrencyError = false;
+    public ComplianceDeclaration? ReadResult { get; set; }
 
     private static readonly DateTime s_start = new(2026, 4, 26, 14, 0, 0, DateTimeKind.Utc);
 
@@ -74,7 +75,8 @@ public class FakeComplianceDeclarationService : IComplianceDeclarationService
 
     public Task<ComplianceDeclaration?> Read(string id, CancellationToken cancellationToken) =>
         Task.FromResult(
-            s_complianceDeclarations.SelectMany(x => x.Value).FirstOrDefault(x => x.Id == ObjectId.Parse(id))
+            ReadResult
+                ?? s_complianceDeclarations.SelectMany(x => x.Value).FirstOrDefault(x => x.Id == ObjectId.Parse(id))
         );
 
     public Task<ComplianceDeclarationPageResult> Read(
