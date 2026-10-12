@@ -9,4 +9,8 @@ public record PrnStatusUpdate
 
     [JsonPropertyName("status")]
     public required string Status { get; init; }
+
+    [JsonPropertyName("obligationYear")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ObligationYear { get; init; }
 }

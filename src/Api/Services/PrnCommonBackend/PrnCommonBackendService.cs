@@ -130,6 +130,7 @@ public class PrnCommonBackendService(HttpClient httpClient, ILogger<PrnCommonBac
         Guid userId,
         string prnId,
         string status,
+        string? obligationYear,
         CancellationToken cancellationToken
     )
     {
@@ -141,7 +142,12 @@ public class PrnCommonBackendService(HttpClient httpClient, ILogger<PrnCommonBac
         request.Content = JsonContent.Create(
             new[]
             {
-                new PrnStatusUpdate { PrnId = commonBackendPrnId, Status = status },
+                new PrnStatusUpdate
+                {
+                    PrnId = commonBackendPrnId,
+                    Status = status,
+                    ObligationYear = obligationYear,
+                },
             }
         );
 

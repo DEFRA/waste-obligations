@@ -48,6 +48,7 @@ public static class UpdatePrn
                 UpdatePrnStatus.Rejected => "REJECTED",
                 _ => throw new ArgumentOutOfRangeException(nameof(request)),
             },
+            request.Status == UpdatePrnStatus.Accepted ? request.ObligationYear?.ToString() : null,
             cancellationToken
         );
 
