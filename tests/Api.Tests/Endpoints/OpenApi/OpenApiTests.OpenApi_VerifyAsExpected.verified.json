@@ -2170,8 +2170,8 @@
             "$ref": "#/components/schemas/User"
           },
           "obligationYear": {
-            "maximum": 2100,
-            "minimum": 2025,
+            "maximum": 2050,
+            "minimum": 2023,
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
               "null",

@@ -18,6 +18,6 @@ public record UpdatePrnRequest
     /// needed for December waste PRNs where the user chooses between two years.
     /// </summary>
     [JsonPropertyName("obligationYear")]
-    [Range(2025, 2100)]
+    [Range(Dtos.ObligationYear.Minimum, Dtos.ObligationYear.Maximum)]
     public int? ObligationYear { get; init; }
 }
