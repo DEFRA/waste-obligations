@@ -1,4 +1,4 @@
-﻿using MartinCostello.Logging.XUnit;
+using MartinCostello.Logging.XUnit;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Hosting;

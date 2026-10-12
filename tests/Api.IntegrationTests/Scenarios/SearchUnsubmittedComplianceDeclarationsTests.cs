@@ -6,6 +6,7 @@ using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
+using RegistrationType = Defra.WasteObligations.Api.Data.Entities.RegistrationType;
 
 namespace Defra.WasteObligations.Api.IntegrationTests.Scenarios;
 
@@ -80,9 +81,56 @@ public class SearchUnsubmittedComplianceDeclarationsTests : IntegrationTestBase
         row.OrganisationId.Should().Be(secondIncludedOrganisationId);
         row.BusinessCountry.Should().Be("GB-WLS");
         row.ReferenceNumber.Should().Be("100004");
+        row.SchemeOperatorName.Should().BeNull();
         row.ObligationCoveragePercentage.Should().Be(80);
         row.RecyclingObligationsMet.Should().BeTrue();
         await VerifyJson(responseBody);
+    }
+
+    [Fact]
+    public async Task Search_WhenComplianceScheme_ShouldReturnSchemeOperatorName()
+    {
+        var organisationId = Guid.NewGuid();
+        var generation = "generation";
+        var verifiedAt = DateTime.UtcNow;
+        await OrganisationEligibilitySnapshots.InsertOneAsync(
+            new OrganisationEligibilitySnapshot
+            {
+                Id = OrganisationEligibilitySnapshot.SnapshotId,
+                ActiveGeneration = generation,
+                ActiveContentFingerprint = "fingerprint",
+                ActiveRowCount = 1,
+                ActiveGenerationPromotedAt = verifiedAt,
+                LastVerifiedAt = verifiedAt,
+            },
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        await OrganisationComplianceDeclarationEligibilities.InsertOneAsync(
+            Eligibility(organisationId, generation, "Bravo Scheme", "200001") with
+            {
+                RegistrationType = RegistrationType.ComplianceScheme,
+                SchemeOperatorName = "Bravo Operator Ltd",
+            },
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        var client = CreateClient();
+
+        var response = await client.GetAsync(
+            Testing.Endpoints.ComplianceDeclarations.Unsubmitted(
+                EndpointQuery
+                    .New.Where(EndpointFilter.ObligationYear(2026))
+                    .Where(EndpointFilter.RegistrationType("ComplianceScheme"))
+            ),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<UnsubmittedOrganisationsPaged>(
+            TestContext.Current.CancellationToken
+        );
+        result.Should().NotBeNull();
+        result.Total.Should().Be(1);
+        result.UnsubmittedOrganisations.Single().SchemeOperatorName.Should().Be("Bravo Operator Ltd");
     }
 
     [Fact]

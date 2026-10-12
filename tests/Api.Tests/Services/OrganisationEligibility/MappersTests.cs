@@ -89,6 +89,7 @@ public class MappersTests
         rows.Single(x => x.RegistrationType == EntityRegistrationType.ComplianceScheme)
             .Name.Should()
             .Be("Example Trading Name");
+        rows.Should().OnlyContain(x => x.SchemeOperatorName == null);
     }
 
     [Fact]
@@ -172,6 +173,17 @@ public class MappersTests
         initialRow.BusinessCountry.Should().Be("GB-ENG");
         changedRow.BusinessCountry.Should().Be("GB-WLS");
         changedRow.SourceFingerprint.Should().NotBe(initialRow.SourceFingerprint);
+    }
+
+    [Fact]
+    public void AppendAccountData_WhenSchemeOperatorNameChanges_ShouldChangeFingerprint()
+    {
+        const string baseFingerprint = "some-fingerprint";
+
+        var first = Mappers.AppendAccountData(baseFingerprint, "Alpha Operator Ltd");
+        var second = Mappers.AppendAccountData(baseFingerprint, "Beta Operator Ltd");
+
+        first.Should().NotBe(second);
     }
 
     [Fact]
