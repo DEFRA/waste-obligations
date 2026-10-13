@@ -62,10 +62,10 @@ test("generates Account, Notify and PRN mappings from the supplied scenario", as
     assert.equal(prnMapping.Priority, 10);
     assert.equal(prnMapping.Response.StatusCode, 200);
     const { items, totalItems } = prnMapping.Response.BodyAsJson;
-    assert.equal(totalItems, 8);
+    assert.equal(totalItems, 9);
     assert.deepEqual(
         items.map((item) => item.prnNumber),
-        ["PRN123", "PRN124", "PRN125", "PRN126", "PRN127", "PRN128", "PRN129", "PRN130"],
+        ["PRN123", "PRN124", "PRN125", "PRN126", "PRN127", "PRN128", "PRN129", "PRN130", "PRN132"],
     );
     for (const item of items) {
         assert.equal(item.organisationId, directProducerId);
@@ -93,8 +93,17 @@ test("generates Account, Notify and PRN mappings from the supplied scenario", as
             Matchers: [{ Name: "ExactMatcher", Pattern: complianceSchemeId }],
         },
     ]);
-    const [csoPrn] = csoPrnsMapping.Response.BodyAsJson.items;
-    assert.equal(csoPrnsMapping.Response.BodyAsJson.totalItems, 1);
+    const csoPrns = csoPrnsMapping.Response.BodyAsJson.items;
+    const [csoPrn] = csoPrns;
+    assert.equal(csoPrnsMapping.Response.BodyAsJson.totalItems, 3);
+    assert.deepEqual(
+        csoPrns.map((item) => [item.prnNumber, item.materialName]),
+        [["PRN456", "Aluminium"], ["PRN458", "Paper/board"], ["PRN459", "Fibre"]],
+    );
+    for (const item of csoPrns) {
+        assert.equal(item.organisationId, complianceSchemeId);
+        assert.equal(item.prnStatus, "AWAITINGACCEPTANCE");
+    }
     assert.equal(csoPrn.organisationId, complianceSchemeId);
     assert.equal(csoPrn.prnNumber, "PRN456");
     assert.equal(csoPrn.prnStatus, "AWAITINGACCEPTANCE");
@@ -173,6 +182,12 @@ test("generates PRN search mappings that filter and sort like the common backend
     assert.deepEqual(prnNumbers(aluminium), ["PRN123", "PRN130"]);
     assert.equal(aluminium.Response.BodyAsJson.totalItems, 2);
 
+    const paperFibre = await readMapping(
+        outputDirectory,
+        "journey-producer-prns-filter-awaiting-paperfiber.json",
+    );
+    assert.deepEqual(prnNumbers(paperFibre), ["PRN128", "PRN132"]);
+
     const wood = await readMapping(outputDirectory, "journey-producer-prns-filter-awaiting-wood.json");
     assert.deepEqual(wood.Response.BodyAsJson, { items: [], totalItems: 0 });
 
@@ -182,7 +197,7 @@ test("generates PRN search mappings that filter and sort like the common backend
     );
     assert.equal(tonnageDescending.Priority, 3);
     assert.deepEqual(prnNumbers(tonnageDescending), [
-        "PRN127", "PRN125", "PRN129", "PRN123", "PRN130", "PRN126", "PRN124", "PRN128",
+        "PRN127", "PRN125", "PRN129", "PRN123", "PRN130", "PRN126", "PRN124", "PRN132", "PRN128",
     ]);
 
     const materialAscending = await readMapping(
@@ -191,7 +206,7 @@ test("generates PRN search mappings that filter and sort like the common backend
     );
     assert.deepEqual(
         materialAscending.Response.BodyAsJson.items.map((item) => item.materialName),
-        ["Aluminium", "Aluminium", "Glass Other", "Glass Re-melt", "Paper/board", "Plastic", "Plastic", "Steel"],
+        ["Aluminium", "Aluminium", "Fibre", "Glass Other", "Glass Re-melt", "Paper/board", "Plastic", "Plastic", "Steel"],
     );
 
     const plasticByOldest = await readMapping(

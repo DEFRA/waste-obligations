@@ -151,6 +151,9 @@ const PRN_TONNAGE_220 = 220;
 const PRN_TONNAGE_90 = 90;
 const PRN_TONNAGE_1 = 1;
 const PRN_TONNAGE_60 = 60;
+const PRN_TONNAGE_35 = 35;
+const PRN_TONNAGE_20 = 20;
+const PRN_TONNAGE_30 = 30;
 
 const organisationHeader = (organisationId) => [
     {
@@ -296,6 +299,15 @@ const producerPrns = [
         PRN_TONNAGE_90,
         "2026-02-12T10:10:00Z",
     ),
+    // Fibre-based composite shares the paper table with PRN128 on the
+    // frontend's check-selection page.
+    prnFixture(
+        "PRN132",
+        "8ad261c9-d17e-4eca-8b1f-d38ae29ef508",
+        "Fibre",
+        PRN_TONNAGE_35,
+        "2026-02-08T13:25:00Z",
+    ),
 ];
 
 const searchPrns = (filter = () => true, sort = defaultPrnSort) => {
@@ -377,17 +389,39 @@ const singlePrnMapping = (prn) =>
         prn,
     );
 
-const compliancePrn = {
-    ...prnFixture(
-        "PRN456",
-        "6a1e3c2b-7f4d-4e8a-9b5c-2d7f1a0e4c93",
-        "Aluminium",
-        PRN_TONNAGE_125,
-        "2026-06-15T10:30:00Z",
-    ),
+const compliancePrnFixture = (...args) => ({
+    ...prnFixture(...args),
     organisationId: complianceSchemeId,
     organisationName: "Journey Compliance Scheme Ltd",
-};
+});
+
+const compliancePrn = compliancePrnFixture(
+    "PRN456",
+    "6a1e3c2b-7f4d-4e8a-9b5c-2d7f1a0e4c93",
+    "Aluminium",
+    PRN_TONNAGE_125,
+    "2026-06-15T10:30:00Z",
+);
+
+// A paper and a fibre PRN, which the frontend's check-selection page groups
+// into one table. Older than PRN456 so it stays the list's first row.
+const compliancePrns = [
+    compliancePrn,
+    compliancePrnFixture(
+        "PRN458",
+        "9be372da-e28f-4fdb-9c3a-e49bf30fa619",
+        PAPER_BOARD,
+        PRN_TONNAGE_20,
+        "2026-05-01T09:45:00Z",
+    ),
+    compliancePrnFixture(
+        "PRN459",
+        "acf483eb-f390-40ec-8d4b-f5acf41fb72a",
+        "Fibre",
+        PRN_TONNAGE_30,
+        "2026-04-01T15:00:00Z",
+    ),
+];
 
 // The journey opens an accepted PRN to check the accepted confirmation view.
 // Accepted PRNs only answer the accepted-all filter, so the awaiting lists and
@@ -449,7 +483,7 @@ prnMappings.push(
         "journey-compliance-scheme-prns.json",
         compliancePrnSearchMapping(
             [],
-            { items: [compliancePrn], totalItems: 1 },
+            { items: compliancePrns, totalItems: compliancePrns.length },
             PRN_MAPPING_10,
         ),
     ],
