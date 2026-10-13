@@ -6,6 +6,7 @@ public static class ComplianceDeclarationEndpoints
     {
         app.MapComplianceDeclarationsSearch();
         app.MapUnsubmittedComplianceDeclarationsSearch();
+        app.MapUnsubmittedPollingConfiguration();
         app.MapComplianceDeclarationDelete();
     }
 }

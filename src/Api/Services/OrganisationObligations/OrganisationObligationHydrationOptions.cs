@@ -36,7 +36,7 @@ public record OrganisationObligationHydrationOptions
 
     public TimeSpan MaximumRetryDelay { get; init; } = TimeSpan.FromMinutes(30);
 
-    public TimeSpan MaximumSummaryStaleness { get; init; } = TimeSpan.FromHours(2);
+    public TimeSpan MaximumSummaryStaleness { get; init; } = TimeSpan.FromMinutes(30);
 
     public TimeSpan OutgoingYearGracePeriod { get; init; } = TimeSpan.FromHours(1);
 
