@@ -18,6 +18,7 @@ public class AdminAuthorizationTests(ApiWebApplicationFactory factory, ITestOutp
             { HttpMethod.Get.Method, Testing.Endpoints.Admin.AuditEventCounter() },
             { HttpMethod.Get.Method, Testing.Endpoints.Admin.OrganisationComplianceDeclarations(OrganisationId) },
             { HttpMethod.Get.Method, Testing.Endpoints.Admin.OrganisationObligationSummaries(OrganisationId) },
+            { HttpMethod.Get.Method, Testing.Endpoints.Admin.UnsubmittedPollingConfiguration() },
             { HttpMethod.Get.Method, Testing.Endpoints.Admin.UnsubmittedPollingStatus() },
             { HttpMethod.Get.Method, Testing.Endpoints.Admin.UnsubmittedPollingVolume() },
             { HttpMethod.Get.Method, Testing.Endpoints.Admin.UnsubmittedPollingPlan() },
