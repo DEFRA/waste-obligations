@@ -15,6 +15,7 @@ public interface IPrnCommonBackendService : IOrganisationObligationSource
         Guid userId,
         string prnId,
         string status,
+        string? obligationYear,
         CancellationToken cancellationToken
     );
 }

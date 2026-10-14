@@ -12,7 +12,7 @@ public static class UpdatePrnRequestFixture
         this ICustomizationComposer<UpdatePrnRequest> composer
     )
     {
-        return composer;
+        return composer.Without(x => x.ObligationYear);
     }
 
     public static IPostprocessComposer<UpdatePrnRequest> Request()
