@@ -17,4 +17,13 @@ public interface IPrnCommonBackendService : IOrganisationObligationSource
         string status,
         CancellationToken cancellationToken
     );
+
+    Task<PrnStatusUpdateResult> UpdatePrnStatuses(
+        Guid organisationId,
+        Guid userId,
+        IReadOnlyCollection<Guid> prnIds,
+        string status,
+        int? obligationYear,
+        CancellationToken cancellationToken
+    );
 }

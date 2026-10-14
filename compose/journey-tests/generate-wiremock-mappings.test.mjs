@@ -62,10 +62,10 @@ test("generates Account, Notify and PRN mappings from the supplied scenario", as
     assert.equal(prnMapping.Priority, 10);
     assert.equal(prnMapping.Response.StatusCode, 200);
     const { items, totalItems } = prnMapping.Response.BodyAsJson;
-    assert.equal(totalItems, 8);
+    assert.equal(totalItems, 9);
     assert.deepEqual(
         items.map((item) => item.prnNumber),
-        ["PRN123", "PRN124", "PRN125", "PRN126", "PRN127", "PRN128", "PRN129", "PRN130"],
+        ["PRN123", "PRN124", "PRN125", "PRN126", "PRN127", "PRN132", "PRN128", "PRN129", "PRN130"],
     );
     for (const item of items) {
         assert.equal(item.organisationId, directProducerId);
@@ -93,8 +93,25 @@ test("generates Account, Notify and PRN mappings from the supplied scenario", as
             Matchers: [{ Name: "ExactMatcher", Pattern: complianceSchemeId }],
         },
     ]);
-    const [csoPrn] = csoPrnsMapping.Response.BodyAsJson.items;
-    assert.equal(csoPrnsMapping.Response.BodyAsJson.totalItems, 1);
+    const csoPrns = csoPrnsMapping.Response.BodyAsJson.items;
+    const [csoPrn] = csoPrns;
+    assert.equal(csoPrnsMapping.Response.BodyAsJson.totalItems, 5);
+    // One PRN of each material the CSO check-selection journey selects.
+    assert.deepEqual(
+        csoPrns.map((item) => [item.prnNumber, item.materialName]),
+        [
+            ["PRN456", "Aluminium"],
+            ["PRN459", "Paper/board"],
+            ["PRN460", "Fibre"],
+            ["PRN461", "Glass Other"],
+            ["PRN462", "Glass Re-melt"],
+        ],
+    );
+    for (const item of csoPrns) {
+        assert.equal(item.organisationId, complianceSchemeId);
+        assert.equal(item.prnStatus, "AWAITINGACCEPTANCE");
+        assert.equal(item.obligationYear, "2026");
+    }
     assert.equal(csoPrn.organisationId, complianceSchemeId);
     assert.equal(csoPrn.prnNumber, "PRN456");
     assert.equal(csoPrn.prnStatus, "AWAITINGACCEPTANCE");
@@ -182,7 +199,7 @@ test("generates PRN search mappings that filter and sort like the common backend
     );
     assert.equal(tonnageDescending.Priority, 3);
     assert.deepEqual(prnNumbers(tonnageDescending), [
-        "PRN127", "PRN125", "PRN129", "PRN123", "PRN130", "PRN126", "PRN124", "PRN128",
+        "PRN127", "PRN125", "PRN129", "PRN123", "PRN130", "PRN126", "PRN124", "PRN132", "PRN128",
     ]);
 
     const materialAscending = await readMapping(
@@ -191,7 +208,7 @@ test("generates PRN search mappings that filter and sort like the common backend
     );
     assert.deepEqual(
         materialAscending.Response.BodyAsJson.items.map((item) => item.materialName),
-        ["Aluminium", "Aluminium", "Glass Other", "Glass Re-melt", "Paper/board", "Plastic", "Plastic", "Steel"],
+        ["Aluminium", "Aluminium", "Fibre", "Glass Other", "Glass Re-melt", "Paper/board", "Plastic", "Plastic", "Steel"],
     );
 
     const plasticByOldest = await readMapping(
@@ -253,6 +270,120 @@ test("generates accepted PRN mappings for the accepted confirmation view", async
     // Accepted PRNs never appear in the awaiting list or its filters.
     const awaiting = await readMapping(outputDirectory, "journey-producer-prns.json");
     assert.ok(awaiting.Response.BodyAsJson.items.every((item) => item.prnStatus === "AWAITINGACCEPTANCE"));
+});
+
+test("generates accept mappings that count the journey PRN once the status is updated", async (context) => {
+    const outputDirectory = await mkdtemp(join(tmpdir(), mappingsDirectoryPrefix));
+    context.after(() => rm(outputDirectory, { force: true, recursive: true }));
+
+    await runGenerator(outputDirectory, {
+        WASTE_OBLIGATION_ORG_ID: directProducerId,
+        WASTE_OBLIGATION_CSO_ORG_ID: complianceSchemeId,
+        WASTE_OBLIGATION_SUBMITTER_ID: submitterId,
+        WASTE_OBLIGATION_SUBMITTER_EMAIL: submitterEmail,
+    });
+
+    const scenario = "journey-producer-bulk-accept";
+    const statusUpdate = await readMapping(outputDirectory, "journey-producer-prn-status-update.json");
+    assert.equal(statusUpdate.Scenario, scenario);
+    assert.equal(statusUpdate.WhenStateIs, undefined);
+    assert.equal(statusUpdate.SetStateTo, "PaperPrnAccepted");
+    assert.deepEqual(statusUpdate.Request.Methods, ["POST"]);
+    assert.equal(statusUpdate.Request.Headers[0].Matchers[0].Pattern, directProducerId);
+    assert.equal(statusUpdate.Response.StatusCode, 200);
+
+    const repeat = await readMapping(outputDirectory, "journey-producer-prn-status-update-repeat.json");
+    assert.equal(repeat.Scenario, undefined);
+    assert.ok(repeat.Priority > statusUpdate.Priority);
+
+    const tonnages = (mapping) =>
+        Object.fromEntries(
+            mapping.Response.BodyAsJson.obligationData.map((obligation) => [
+                obligation.materialName,
+                [obligation.tonnageAwaitingAcceptance, obligation.tonnageAccepted],
+            ]),
+        );
+
+    const before = await readMapping(outputDirectory, "journey-producer-obligations.json");
+    assert.equal(before.Scenario, scenario);
+    assert.equal(before.WhenStateIs, undefined);
+    assert.equal(before.Request.Path.Matchers[0].Pattern, "/api/v1/prn/obligationcalculation/2026");
+    // Paper counts the fibre PRN; the accepted paper PRN131 is already accepted.
+    assert.deepEqual(tonnages(before), {
+        Paper: [50, 1],
+        Plastic: [350, 0],
+        Wood: [0, 0],
+        Steel: [510, 0],
+        Aluminium: [215, 0],
+        Glass: [75, 0],
+        GlassRemelt: [220, 0],
+    });
+
+    const after = await readMapping(outputDirectory, "journey-producer-obligations-bulk-accepted.json");
+    assert.equal(after.Scenario, scenario);
+    assert.equal(after.WhenStateIs, "PaperPrnAccepted");
+    // Only PRN128 (15 t of paper/board) moves: 1 + 15 accepted, the fibre PRN
+    // still awaiting.
+    assert.deepEqual(tonnages(after), {
+        Paper: [35, 16],
+        Plastic: [350, 0],
+        Wood: [0, 0],
+        Steel: [510, 0],
+        Aluminium: [215, 0],
+        Glass: [75, 0],
+        GlassRemelt: [220, 0],
+    });
+    assert.equal(after.Response.BodyAsJson.numberOfPrnsAwaitingAcceptance, 8);
+
+    for (const number of ["PRN126", "PRN128", "PRN129", "PRN132"]) {
+        const single = await readMapping(outputDirectory, `journey-producer-prn-${number}.json`);
+        assert.equal(single.Response.BodyAsJson.prnNumber, number);
+        assert.equal(single.Response.BodyAsJson.prnStatus, "AWAITINGACCEPTANCE");
+    }
+});
+
+test("generates compliance scheme accept mappings that count its paper PRN once accepted", async (context) => {
+    const outputDirectory = await mkdtemp(join(tmpdir(), mappingsDirectoryPrefix));
+    context.after(() => rm(outputDirectory, { force: true, recursive: true }));
+
+    await runGenerator(outputDirectory, {
+        WASTE_OBLIGATION_ORG_ID: directProducerId,
+        WASTE_OBLIGATION_CSO_ORG_ID: complianceSchemeId,
+        WASTE_OBLIGATION_SUBMITTER_ID: submitterId,
+        WASTE_OBLIGATION_SUBMITTER_EMAIL: submitterEmail,
+    });
+
+    const scenario = "journey-compliance-scheme-prn-accept";
+    const statusUpdate = await readMapping(outputDirectory, "journey-compliance-scheme-prn-status-update.json");
+    assert.equal(statusUpdate.Scenario, scenario);
+    assert.equal(statusUpdate.SetStateTo, "PaperPrnAccepted");
+    assert.equal(statusUpdate.Request.Headers[0].Matchers[0].Pattern, complianceSchemeId);
+
+    const tonnages = (mapping) =>
+        Object.fromEntries(
+            mapping.Response.BodyAsJson.obligationData.map((obligation) => [
+                obligation.materialName,
+                [obligation.tonnageAwaitingAcceptance, obligation.tonnageAccepted],
+            ]),
+        );
+
+    const before = await readMapping(outputDirectory, "journey-compliance-scheme-obligations.json");
+    assert.equal(before.Scenario, scenario);
+    assert.equal(before.WhenStateIs, undefined);
+    assert.equal(before.Request.Headers[0].Matchers[0].Pattern, complianceSchemeId);
+    // Paper counts the fibre PRN (PRN460) too: 15 + 35 awaiting, none accepted.
+    assert.deepEqual(tonnages(before).Paper, [50, 0]);
+
+    const after = await readMapping(outputDirectory, "journey-compliance-scheme-obligations-accepted.json");
+    assert.equal(after.WhenStateIs, "PaperPrnAccepted");
+    // Only PRN459 (15 t) moves to accepted.
+    assert.deepEqual(tonnages(after).Paper, [35, 15]);
+
+    for (const number of ["PRN459", "PRN460", "PRN461", "PRN462"]) {
+        const single = await readMapping(outputDirectory, `journey-compliance-scheme-prn-${number}.json`);
+        assert.equal(single.Response.BodyAsJson.prnNumber, number);
+        assert.equal(single.Response.BodyAsJson.prnStatus, "AWAITINGACCEPTANCE");
+    }
 });
 
 test("fails when a required scenario value is missing", async (context) => {

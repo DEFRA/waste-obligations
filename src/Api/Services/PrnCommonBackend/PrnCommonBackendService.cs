@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Utils.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
 
 namespace Defra.WasteObligations.Api.Services.PrnCommonBackend;
@@ -136,16 +137,52 @@ public class PrnCommonBackendService(HttpClient httpClient, ILogger<PrnCommonBac
         if (!Guid.TryParse(prnId, out var commonBackendPrnId))
             return PrnStatusUpdateResult.NotFound;
 
+        return await UpdatePrnStatuses(
+            organisationId,
+            userId,
+            [commonBackendPrnId],
+            status,
+            obligationYear: null,
+            cancellationToken
+        );
+    }
+
+    // The PRN common backend applies the whole list in one transaction: a missing
+    // PRN (404), or one whose current status differs from the requested one
+    // (409), leaves every PRN unchanged. A PRN already in the requested status is
+    // updated again rather than rejected.
+    public async Task<PrnStatusUpdateResult> UpdatePrnStatuses(
+        Guid organisationId,
+        Guid userId,
+        IReadOnlyCollection<Guid> prnIds,
+        string status,
+        int? obligationYear,
+        CancellationToken cancellationToken
+    )
+    {
+        var commonBackendObligationYear = obligationYear?.ToString(CultureInfo.InvariantCulture);
         var request = CreateOrganisationRequest(HttpMethod.Post, "api/v1/prn/status", organisationId);
         request.Headers.Add(UserHeaderName, userId.ToString("D"));
         request.Content = JsonContent.Create(
-            new[]
+            prnIds.Select(x => new PrnStatusUpdate
             {
-                new PrnStatusUpdate { PrnId = commonBackendPrnId, Status = status },
-            }
+                PrnId = x,
+                Status = status,
+                ObligationYear = commonBackendObligationYear,
+            })
         );
 
         var response = await Send(request, cancellationToken);
+
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            logger.LogInformation(
+                "PRN common backend found no matching PRN for organisation {OrganisationId} in a status update of {PrnCount} PRNs: {Detail}",
+                organisationId,
+                prnIds.Count,
+                await ReadProblemDetail(response, cancellationToken)
+            );
+        }
 
         return response.StatusCode switch
         {
@@ -154,6 +191,27 @@ public class PrnCommonBackendService(HttpClient httpClient, ILogger<PrnCommonBac
             HttpStatusCode.Conflict => throw new ConcurrencyException("The PRN status has already been updated."),
             _ => EnsureSuccessAndReturnUpdated(response),
         };
+    }
+
+    // The common backend's not-found detail names the missing PRN IDs, which are
+    // opaque identifiers. Reading it is only for the log, so any failure to read
+    // it (bad JSON, unsupported charset, a dropped connection) is logged as an
+    // absent detail rather than turning the not-found result into an error.
+    private static async Task<string?> ReadProblemDetail(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken
+    )
+    {
+        try
+        {
+            var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>(cancellationToken);
+
+            return problem?.Detail;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return null;
+        }
     }
 
     private static PrnStatusUpdateResult EnsureSuccessAndReturnUpdated(HttpResponseMessage response)

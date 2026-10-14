@@ -94,7 +94,7 @@ public static class Mappers
     private static string MapStatus(string? status) =>
         Required(status, nameof(PrnData.PrnStatus)) switch
         {
-            "AWAITINGACCEPTANCE" => PrnStatus.AwaitingAcceptance,
+            PrnCommonBackendStatus.AwaitingAcceptance => PrnStatus.AwaitingAcceptance,
             "ACCEPTED" => PrnStatus.Accepted,
             "REJECTED" => PrnStatus.Rejected,
             "CANCELLED" or "CANCELED" => PrnStatus.Cancelled,

@@ -151,6 +151,8 @@ const PRN_TONNAGE_220 = 220;
 const PRN_TONNAGE_90 = 90;
 const PRN_TONNAGE_1 = 1;
 const PRN_TONNAGE_60 = 60;
+const PRN_TONNAGE_35 = 35;
+const PRN_OBLIGATION_YEAR = "2026";
 
 const organisationHeader = (organisationId) => [
     {
@@ -230,7 +232,7 @@ const prnFixture = (
     issuedByOrg: "Journey Reprocessors Ltd",
     accreditationNumber: "ACC123",
     accreditationYear: "2026",
-    obligationYear: "2026",
+    obligationYear: PRN_OBLIGATION_YEAR,
     createdOn: issueDate,
     lastUpdatedDate: issueDate,
     isExport: false,
@@ -295,6 +297,13 @@ const producerPrns = [
         "Aluminium",
         PRN_TONNAGE_90,
         "2026-02-12T10:10:00Z",
+    ),
+    prnFixture(
+        "PRN132",
+        "8ad261c9-d1a0-4e1a-8b1f-d38fe29fe508",
+        "Fibre",
+        PRN_TONNAGE_35,
+        "2026-04-02T13:00:00Z",
     ),
 ];
 
@@ -389,6 +398,46 @@ const compliancePrn = {
     organisationName: "Journey Compliance Scheme Ltd",
 };
 
+const compliancePrnFixture = (...args) => ({
+    ...prnFixture(...args),
+    organisationId: complianceSchemeId,
+    organisationName: compliancePrn.organisationName,
+});
+
+// The CSO check-selection journey selects one paper, fibre, glass other and
+// glass re-melt PRN. They are older than PRN456, which stays first.
+const complianceAwaitingPrns = [
+    compliancePrn,
+    compliancePrnFixture(
+        "PRN459",
+        "9b3d6e1a-4c2f-4d8b-a7e5-1f0c2b3a4d59",
+        PAPER_BOARD,
+        PRN_TONNAGE_15,
+        "2026-05-11T09:00:00Z",
+    ),
+    compliancePrnFixture(
+        "PRN460",
+        "a4c7e2f9-5d3b-4e1a-b8f6-2a1d3c4b5e60",
+        "Fibre",
+        PRN_TONNAGE_35,
+        "2026-04-22T11:30:00Z",
+    ),
+    compliancePrnFixture(
+        "PRN461",
+        "b5d8f3a0-6e4c-4f2b-89a7-3b2e4d5c6f61",
+        "Glass Other",
+        PRN_TONNAGE_75,
+        "2026-04-09T14:15:00Z",
+    ),
+    compliancePrnFixture(
+        "PRN462",
+        "c6e9a4b1-7f5d-4a3c-9ab8-4c3f5e6d7a62",
+        "Glass Re-melt",
+        PRN_TONNAGE_220,
+        "2026-03-18T08:45:00Z",
+    ),
+];
+
 // The journey opens an accepted PRN to check the accepted confirmation view.
 // Accepted PRNs only answer the accepted-all filter, so the awaiting lists and
 // their sorts are unchanged. The CSO one is a PERN to cover that wording.
@@ -431,8 +480,16 @@ const compliancePrnSearchMapping = (params, body, priority) => ({
     ),
 });
 
+// Every listed PRN answers a single-PRN read: the bulk accept checks each one
+// is still awaiting acceptance before updating it.
 prnMappings.push(
     ["journey-producer-prn.json", singlePrnMapping(producerPrns[0])],
+    ...producerPrns
+        .slice(1)
+        .map((prn) => [
+            `journey-producer-prn-${prn.prnNumber}.json`,
+            singlePrnMapping(prn),
+        ]),
     [
         "journey-producer-prns-filter-accepted-all.json",
         prnSearchMapping(
@@ -449,7 +506,10 @@ prnMappings.push(
         "journey-compliance-scheme-prns.json",
         compliancePrnSearchMapping(
             [],
-            { items: [compliancePrn], totalItems: 1 },
+            {
+                items: complianceAwaitingPrns,
+                totalItems: complianceAwaitingPrns.length,
+            },
             PRN_MAPPING_10,
         ),
     ],
@@ -467,6 +527,218 @@ prnMappings.push(
         singlePrnMapping(acceptedCompliancePrn),
     ],
 );
+
+// The accept-and-obligations journey accepts the producer's one paper/board
+// PRN (PRN128). Its status update moves the scenario into the state in which
+// the obligation calculation counts that PRN as accepted, so Paper's accepted
+// tonnage rises by its tonnage. Before any accept, the calculation reports
+// every listed PRN as awaiting acceptance. The stub cannot tell which PRN a
+// status update names, so it assumes the journey's PRN is the one accepted.
+const BULK_ACCEPT_SCENARIO = "journey-producer-bulk-accept";
+const BULK_ACCEPTED_STATE = "PaperPrnAccepted";
+const JOURNEY_ACCEPTED_PRN_NUMBER = "PRN128";
+// The compliance scheme's accept journey, on its own scenario: it accepts its
+// paper/board PRN (PRN459), which is its only one in the fixture.
+const COMPLIANCE_ACCEPT_SCENARIO = "journey-compliance-scheme-prn-accept";
+const COMPLIANCE_ACCEPTED_STATE = "PaperPrnAccepted";
+const COMPLIANCE_JOURNEY_PRN_NUMBER = "PRN459";
+
+const obligationMaterial = (materialName) =>
+    ({
+        [PAPER_BOARD]: "Paper",
+        Fibre: "Paper",
+        "Glass Other": "Glass",
+        "Glass Re-melt": "GlassRemelt",
+    })[materialName] ?? materialName;
+
+const OBLIGATIONS_TO_MEET = {
+    Paper: 400,
+    Plastic: 600,
+    Wood: 100,
+    Steel: 700,
+    Aluminium: 300,
+    Glass: 200,
+    GlassRemelt: 500,
+};
+const MATERIAL_TARGET = 0.5;
+
+const sumTonnage = (prns, material) =>
+    prns
+        .filter((prn) => obligationMaterial(prn.materialName) === material)
+        .reduce((total, prn) => total + prn.tonnageValue, 0);
+
+// An organisation's obligation calculation: `listed` are its awaiting PRNs and
+// `accepted` its already accepted ones. When `journeyAccepted`, the journey's
+// PRN (`journeyPrnNumber`) counts as accepted rather than awaiting.
+const obligationsFor = ({
+    organisationId,
+    listed,
+    accepted: alreadyAccepted,
+    journeyPrnNumber,
+    journeyAccepted,
+}) => {
+    const isAccepted = (prn) =>
+        journeyAccepted && prn.prnNumber === journeyPrnNumber;
+    const awaiting = listed.filter((prn) => !isAccepted(prn));
+    const accepted = [...alreadyAccepted, ...listed.filter(isAccepted)];
+
+    return {
+        numberOfPrnsAwaitingAcceptance: awaiting.length,
+        obligationData: Object.entries(OBLIGATIONS_TO_MEET).map(
+            ([materialName, obligationToMeet]) => {
+                const tonnageAccepted = sumTonnage(accepted, materialName);
+
+                return {
+                    organisationId,
+                    materialName,
+                    tonnage: obligationToMeet / MATERIAL_TARGET,
+                    materialTarget: MATERIAL_TARGET,
+                    obligationToMeet,
+                    tonnageAwaitingAcceptance: sumTonnage(awaiting, materialName),
+                    tonnageAccepted,
+                    tonnageOutstanding: Math.max(
+                        obligationToMeet - tonnageAccepted,
+                        0,
+                    ),
+                    status:
+                        tonnageAccepted >= obligationToMeet ? "Met" : "NotMet",
+                };
+            },
+        ),
+    };
+};
+
+// The obligation calculation for one organisation, in one scenario state (no
+// state: the scenario's starting state).
+const obligationCalculationMapping = (scenario, organisationId, state, obligations) => ({
+    Scenario: scenario,
+    ...(state ? { WhenStateIs: state } : {}),
+    ...mapping(
+        {
+            ...exactPath(
+                `/api/v1/prn/obligationcalculation/${PRN_OBLIGATION_YEAR}`,
+            ),
+            Headers: organisationHeader(organisationId),
+        },
+        obligations,
+    ),
+});
+
+// The status update for one organisation's accept, moving its scenario to
+// `state`.
+const statusUpdateMapping = (scenario, organisationId, state) => ({
+    Priority: PRN_MAPPING_1,
+    Scenario: scenario,
+    SetStateTo: state,
+    Request: {
+        Path: {
+            Matchers: [{ Name: "ExactMatcher", Pattern: "/api/v1/prn/status" }],
+        },
+        Methods: ["POST"],
+        Headers: organisationHeader(organisationId),
+    },
+    Response: { StatusCode: 200 },
+});
+
+const producerJourneyObligations = (journeyAccepted) =>
+    obligationsFor({
+        organisationId: directProducerId,
+        listed: producerPrns,
+        accepted: [acceptedProducerPrn],
+        journeyPrnNumber: JOURNEY_ACCEPTED_PRN_NUMBER,
+        journeyAccepted,
+    });
+
+const complianceJourneyObligations = (journeyAccepted) =>
+    obligationsFor({
+        organisationId: complianceSchemeId,
+        listed: complianceAwaitingPrns,
+        accepted: [acceptedCompliancePrn],
+        journeyPrnNumber: COMPLIANCE_JOURNEY_PRN_NUMBER,
+        journeyAccepted,
+    });
+
+prnMappings.push(
+    [
+        "journey-producer-obligations.json",
+        obligationCalculationMapping(
+            BULK_ACCEPT_SCENARIO,
+            directProducerId,
+            undefined,
+            producerJourneyObligations(false),
+        ),
+    ],
+    [
+        "journey-producer-obligations-bulk-accepted.json",
+        obligationCalculationMapping(
+            BULK_ACCEPT_SCENARIO,
+            directProducerId,
+            BULK_ACCEPTED_STATE,
+            producerJourneyObligations(true),
+        ),
+    ],
+    [
+        "journey-producer-prn-status-update.json",
+        statusUpdateMapping(
+            BULK_ACCEPT_SCENARIO,
+            directProducerId,
+            BULK_ACCEPTED_STATE,
+        ),
+    ],
+    [
+        "journey-compliance-scheme-obligations.json",
+        obligationCalculationMapping(
+            COMPLIANCE_ACCEPT_SCENARIO,
+            complianceSchemeId,
+            undefined,
+            complianceJourneyObligations(false),
+        ),
+    ],
+    [
+        "journey-compliance-scheme-obligations-accepted.json",
+        obligationCalculationMapping(
+            COMPLIANCE_ACCEPT_SCENARIO,
+            complianceSchemeId,
+            COMPLIANCE_ACCEPTED_STATE,
+            complianceJourneyObligations(true),
+        ),
+    ],
+    [
+        "journey-compliance-scheme-prn-status-update.json",
+        statusUpdateMapping(
+            COMPLIANCE_ACCEPT_SCENARIO,
+            complianceSchemeId,
+            COMPLIANCE_ACCEPTED_STATE,
+        ),
+    ],
+    // A later update (e.g. a retried accept) still succeeds, without changing
+    // the obligations again.
+    [
+        "journey-producer-prn-status-update-repeat.json",
+        {
+            Priority: PRN_MAPPING_10,
+            Request: {
+                Path: {
+                    Matchers: [
+                        { Name: "ExactMatcher", Pattern: "/api/v1/prn/status" },
+                    ],
+                },
+                Methods: ["POST"],
+                Headers: organisationHeader(directProducerId),
+            },
+            Response: { StatusCode: 200 },
+        },
+    ],
+);
+
+// Single-PRN reads for the compliance scheme's awaiting PRNs: a selected PRN is
+// read again before it is accepted.
+for (const prn of complianceAwaitingPrns.slice(1)) {
+    prnMappings.push([
+        `journey-compliance-scheme-prn-${prn.prnNumber}.json`,
+        singlePrnMapping(prn),
+    ]);
+}
 
 await Promise.all(
     prnMappings.map(([name, value]) =>

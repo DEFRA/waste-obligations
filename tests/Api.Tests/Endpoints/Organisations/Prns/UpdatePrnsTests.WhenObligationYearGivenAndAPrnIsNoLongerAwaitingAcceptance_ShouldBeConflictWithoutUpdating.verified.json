@@ -1,0 +1,7 @@
+﻿{
+  "type": "https://tools.ietf.org/html/rfc9110#section-15.5.10",
+  "title": "Concurrency conflict",
+  "status": 409,
+  "detail": "One or more PRNs are no longer awaiting acceptance.",
+  "traceId": "{Scrubbed}"
+}
