@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Services.PrnCommonBackend;
@@ -7,6 +8,7 @@ using WireMock.Admin.Mappings;
 using WireMock.Admin.Requests;
 using WireMock.Client;
 using WireMock.Client.Extensions;
+using WireMock.Matchers;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
 using WireMock.Server;
@@ -33,18 +35,13 @@ public static class PrnCommonBackendExtensions
         string? accessToken = null
     )
     {
-        var request = Request
-            .Create()
-            .UsingPost()
-            .WithPath("/api/v1/prn/status")
-            .WithHeader("X-EPR-ORGANISATION", organisationId.ToString("D"))
-            .WithHeader("X-EPR-USER", userId.ToString("D"))
-            .WithBody($"[{{\"prnId\":\"{statusUpdate.PrnId:D}\",\"status\":\"{statusUpdate.Status}\"}}]");
-
-        if (accessToken is not null)
-            request = request.WithHeader("Authorization", $"Bearer {accessToken}");
-
-        wireMock.Given(request).RespondWith(Response.Create().WithStatusCode(statusCode));
+        wireMock.StubPrnCommonBackendPrnStatusUpdatesRequest(
+            [statusUpdate],
+            organisationId,
+            userId,
+            statusCode,
+            accessToken
+        );
     }
 
     public static async Task StubPrnCommonBackendPrnStatusUpdateRequest(
@@ -73,6 +70,37 @@ public static class PrnCommonBackendExtensions
 
         var status = await builder.BuildAndPostAsync(TestContext.Current.CancellationToken);
         status.Guid.Should().NotBeNull();
+    }
+
+    public static void StubPrnCommonBackendPrnStatusUpdatesRequest(
+        this WireMockServer wireMock,
+        IEnumerable<PrnStatusUpdate> statusUpdates,
+        Guid organisationId,
+        Guid userId,
+        HttpStatusCode statusCode = HttpStatusCode.OK,
+        string? accessToken = null,
+        string? problemDetail = null
+    )
+    {
+        // Matches JSON equivalence rather than exact text, so property order and
+        // whitespace do not matter and an absent obligationYear is matched exactly.
+        var request = Request
+            .Create()
+            .UsingPost()
+            .WithPath("/api/v1/prn/status")
+            .WithHeader("X-EPR-ORGANISATION", organisationId.ToString("D"))
+            .WithHeader("X-EPR-USER", userId.ToString("D"))
+            .WithBody(new JsonMatcher(JsonSerializer.Serialize(statusUpdates)));
+
+        if (accessToken is not null)
+            request = request.WithHeader("Authorization", $"Bearer {accessToken}");
+
+        var response = Response.Create().WithStatusCode(statusCode);
+
+        if (problemDetail is not null)
+            response = response.WithBodyAsJson(new { status = (int)statusCode, detail = problemDetail });
+
+        wireMock.Given(request).RespondWith(response);
     }
 
     public static void StubPrnCommonBackendPrnRequest(

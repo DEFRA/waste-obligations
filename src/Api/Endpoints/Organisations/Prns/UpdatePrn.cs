@@ -42,20 +42,10 @@ public static class UpdatePrn
             organisationId,
             request.User.EffectiveId,
             prnId,
-            request.Status switch
-            {
-                UpdatePrnStatus.Accepted => "ACCEPTED",
-                UpdatePrnStatus.Rejected => "REJECTED",
-                _ => throw new ArgumentOutOfRangeException(nameof(request)),
-            },
+            request.Status.ToPrnCommonBackendStatus(),
             cancellationToken
         );
 
-        return result switch
-        {
-            PrnStatusUpdateResult.Updated => Results.Ok(),
-            PrnStatusUpdateResult.NotFound => Results.NotFound(),
-            _ => throw new ArgumentOutOfRangeException(nameof(request)),
-        };
+        return result.ToResult();
     }
 }

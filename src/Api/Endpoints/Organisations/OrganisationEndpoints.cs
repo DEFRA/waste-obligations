@@ -11,6 +11,7 @@ public static class OrganisationEndpoints
         app.MapObligationsRead();
         app.MapPrnRead();
         app.MapPrnUpdate();
+        app.MapPrnsUpdate();
         app.MapPrnsSearch();
 
         app.MapComplianceDeclarationsCreate();

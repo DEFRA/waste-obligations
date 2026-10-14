@@ -1,3 +1,4 @@
+using System.Globalization;
 using AutoFixture;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Dtos;
@@ -57,7 +58,10 @@ public class FakePrnCommonBackendService : IPrnCommonBackendService
         },
     };
 
-    public PrnStatusUpdate? LastPrnStatusUpdate { get; private set; }
+    public IReadOnlyList<PrnStatusUpdate>? LastPrnStatusUpdates { get; private set; }
+
+    // PRNs a test adds for this instance, read before the shared fixtures.
+    public Dictionary<Guid, PrnData> Prns { get; } = [];
     public PrnStatusUpdateResult StatusUpdateResult { get; set; } = PrnStatusUpdateResult.Updated;
     public bool ConcurrencyError { get; set; }
     public bool Throws { get; set; }
@@ -75,6 +79,9 @@ public class FakePrnCommonBackendService : IPrnCommonBackendService
 
     public Task<PrnData?> ReadPrn(Guid organisationId, string prnId, CancellationToken cancellationToken)
     {
+        if (Guid.TryParse(prnId, out var id) && Prns.TryGetValue(id, out var prn))
+            return Task.FromResult<PrnData?>(prn);
+
         return Task.FromResult(s_prns.GetValueOrDefault((organisationId, prnId)));
     }
 
@@ -95,16 +102,44 @@ public class FakePrnCommonBackendService : IPrnCommonBackendService
         CancellationToken cancellationToken
     )
     {
+        if (!Guid.TryParse(prnId, out var commonBackendPrnId))
+            return Task.FromResult(PrnStatusUpdateResult.NotFound);
+
+        // Mirrors the real service, where a single update is a list of one.
+        return UpdatePrnStatuses(
+            organisationId,
+            userId,
+            [commonBackendPrnId],
+            status,
+            obligationYear: null,
+            cancellationToken
+        );
+    }
+
+    public Task<PrnStatusUpdateResult> UpdatePrnStatuses(
+        Guid organisationId,
+        Guid userId,
+        IReadOnlyCollection<Guid> prnIds,
+        string status,
+        int? obligationYear,
+        CancellationToken cancellationToken
+    )
+    {
         if (ConcurrencyError)
             throw new ConcurrencyException("The PRN status has already been updated.");
 
         if (Throws)
             throw new HttpRequestException();
 
-        if (!Guid.TryParse(prnId, out var commonBackendPrnId))
-            return Task.FromResult(PrnStatusUpdateResult.NotFound);
-
-        LastPrnStatusUpdate = new PrnStatusUpdate { PrnId = commonBackendPrnId, Status = status };
+        LastPrnStatusUpdates =
+        [
+            .. prnIds.Select(x => new PrnStatusUpdate
+            {
+                PrnId = x,
+                Status = status,
+                ObligationYear = obligationYear?.ToString(CultureInfo.InvariantCulture),
+            }),
+        ];
 
         return Task.FromResult(StatusUpdateResult);
     }

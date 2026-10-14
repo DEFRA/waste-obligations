@@ -502,4 +502,224 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
         HttpClient httpClient,
         ILogger<PrnCommonBackendService>? logger = null
     ) => new(httpClient, logger ?? NullLogger<PrnCommonBackendService>.Instance);
+
+    [Fact]
+    public async Task UpdatePrnStatuses_ShouldSendEveryStatusUpdateInOneRequest()
+    {
+        var subject = CreateSubject(Context.HttpClient);
+        var organisationId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        PrnStatusUpdate[] statusUpdates =
+        [
+            new() { PrnId = Guid.NewGuid(), Status = "ACCEPTED" },
+            new() { PrnId = Guid.NewGuid(), Status = "ACCEPTED" },
+        ];
+
+        WireMock.StubPrnCommonBackendPrnStatusUpdatesRequest(statusUpdates, organisationId, userId);
+
+        var result = await subject.UpdatePrnStatuses(
+            organisationId,
+            userId,
+            [.. statusUpdates.Select(x => x.PrnId)],
+            "ACCEPTED",
+            obligationYear: null,
+            TestContext.Current.CancellationToken
+        );
+
+        result.Should().Be(PrnStatusUpdateResult.Updated);
+        WireMock.LogEntries.Count(x => x.RequestMessage?.Path == "/api/v1/prn/status").Should().Be(1);
+    }
+
+    [Fact]
+    public async Task UpdatePrnStatuses_WhenPrnCommonBackendReturnsNotFound_ShouldReturnNotFound()
+    {
+        var subject = CreateSubject(Context.HttpClient);
+        var organisationId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        PrnStatusUpdate[] statusUpdates =
+        [
+            new() { PrnId = Guid.NewGuid(), Status = "ACCEPTED" },
+            new() { PrnId = Guid.NewGuid(), Status = "ACCEPTED" },
+        ];
+
+        WireMock.StubPrnCommonBackendPrnStatusUpdatesRequest(
+            statusUpdates,
+            organisationId,
+            userId,
+            HttpStatusCode.NotFound
+        );
+
+        var result = await subject.UpdatePrnStatuses(
+            organisationId,
+            userId,
+            [.. statusUpdates.Select(x => x.PrnId)],
+            "ACCEPTED",
+            obligationYear: null,
+            TestContext.Current.CancellationToken
+        );
+
+        result.Should().Be(PrnStatusUpdateResult.NotFound);
+    }
+
+    [Fact]
+    public async Task UpdatePrnStatuses_WhenPrnCommonBackendReturnsConflict_ShouldThrowConcurrencyException()
+    {
+        var subject = CreateSubject(Context.HttpClient);
+        var organisationId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        PrnStatusUpdate[] statusUpdates =
+        [
+            new() { PrnId = Guid.NewGuid(), Status = "ACCEPTED" },
+            new() { PrnId = Guid.NewGuid(), Status = "ACCEPTED" },
+        ];
+
+        WireMock.StubPrnCommonBackendPrnStatusUpdatesRequest(
+            statusUpdates,
+            organisationId,
+            userId,
+            HttpStatusCode.Conflict
+        );
+
+        var act = () =>
+            subject.UpdatePrnStatuses(
+                organisationId,
+                userId,
+                [.. statusUpdates.Select(x => x.PrnId)],
+                "ACCEPTED",
+                obligationYear: null,
+                TestContext.Current.CancellationToken
+            );
+
+        await act.Should().ThrowAsync<ConcurrencyException>();
+    }
+
+    [Fact]
+    public async Task UpdatePrnStatuses_WhenObligationYearGiven_ShouldSendItForEveryPrn()
+    {
+        var subject = CreateSubject(Context.HttpClient);
+        var organisationId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        PrnStatusUpdate[] statusUpdates =
+        [
+            new()
+            {
+                PrnId = Guid.NewGuid(),
+                Status = "ACCEPTED",
+                ObligationYear = "2026",
+            },
+            new()
+            {
+                PrnId = Guid.NewGuid(),
+                Status = "ACCEPTED",
+                ObligationYear = "2026",
+            },
+        ];
+
+        WireMock.StubPrnCommonBackendPrnStatusUpdatesRequest(statusUpdates, organisationId, userId);
+
+        var result = await subject.UpdatePrnStatuses(
+            organisationId,
+            userId,
+            [.. statusUpdates.Select(x => x.PrnId)],
+            "ACCEPTED",
+            2026,
+            TestContext.Current.CancellationToken
+        );
+
+        result.Should().Be(PrnStatusUpdateResult.Updated);
+    }
+
+    [Fact]
+    public async Task UpdatePrnStatuses_WhenPrnCommonBackendReturnsNotFound_ShouldLogItsDetail()
+    {
+        var logger = new RecordingLogger<PrnCommonBackendService>();
+        var subject = CreateSubject(Context.HttpClient, logger);
+        var organisationId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var statusUpdate = new PrnStatusUpdate { PrnId = Guid.NewGuid(), Status = "ACCEPTED" };
+        var detail = $"{statusUpdate.PrnId:D} Prns doesn't exists in system";
+
+        WireMock.StubPrnCommonBackendPrnStatusUpdatesRequest(
+            [statusUpdate],
+            organisationId,
+            userId,
+            HttpStatusCode.NotFound,
+            problemDetail: detail
+        );
+
+        await subject.UpdatePrnStatuses(
+            organisationId,
+            userId,
+            [statusUpdate.PrnId],
+            "ACCEPTED",
+            obligationYear: null,
+            TestContext.Current.CancellationToken
+        );
+
+        logger
+            .Entries.Should()
+            .Contain(x =>
+                x.Level == LogLevel.Information
+                && x.Message
+                    == $"PRN common backend found no matching PRN for organisation {organisationId:D} in a status update of 1 PRNs: {detail}"
+            );
+    }
+
+    [Fact]
+    public async Task UpdatePrnStatuses_WhenNotFoundBodyIsNotJson_ShouldLogWithoutDetail()
+    {
+        var logger = new RecordingLogger<PrnCommonBackendService>();
+        var subject = CreateSubject(Context.HttpClient, logger);
+        var organisationId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        WireMock
+            .Given(Request.Create().UsingPost().WithPath("/api/v1/prn/status"))
+            .RespondWith(Response.Create().WithStatusCode(HttpStatusCode.NotFound).WithBody("not json"));
+
+        var result = await subject.UpdatePrnStatuses(
+            organisationId,
+            userId,
+            [Guid.NewGuid()],
+            "ACCEPTED",
+            obligationYear: null,
+            TestContext.Current.CancellationToken
+        );
+
+        result.Should().Be(PrnStatusUpdateResult.NotFound);
+        logger
+            .Entries.Should()
+            .Contain(x =>
+                x.Level == LogLevel.Information
+                && x.Message.StartsWith(
+                    $"PRN common backend found no matching PRN for organisation {organisationId:D}",
+                    StringComparison.Ordinal
+                )
+            );
+    }
+
+    [Fact]
+    public async Task UpdatePrnStatuses_WhenNotFoundBodyCannotBeRead_ShouldStillReturnNotFound()
+    {
+        var subject = CreateSubject(Context.HttpClient);
+        WireMock
+            .Given(Request.Create().UsingPost().WithPath("/api/v1/prn/status"))
+            .RespondWith(
+                Response
+                    .Create()
+                    .WithStatusCode(HttpStatusCode.NotFound)
+                    .WithHeader("Content-Type", "application/json; charset=not-a-charset")
+                    .WithBody("{}")
+            );
+
+        var result = await subject.UpdatePrnStatuses(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            [Guid.NewGuid()],
+            PrnCommonBackendStatus.Accepted,
+            obligationYear: null,
+            TestContext.Current.CancellationToken
+        );
+
+        result.Should().Be(PrnStatusUpdateResult.NotFound);
+    }
 }
