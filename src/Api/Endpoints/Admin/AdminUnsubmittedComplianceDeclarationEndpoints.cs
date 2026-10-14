@@ -14,7 +14,6 @@ public static class AdminUnsubmittedComplianceDeclarationEndpoints
     public static void MapAdminUnsubmittedComplianceDeclarationEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapGet("unsubmitted-compliance-declarations/polling-configuration", HandlePollingConfiguration)
-            .WithName("GetUnsubmittedPollingConfiguration")
             .ExcludeFromDescription();
         app.MapGet("unsubmitted-compliance-declarations/polling-status", HandlePollingStatus).ExcludeFromDescription();
         app.MapGet("unsubmitted-compliance-declarations/polling-volume", HandlePollingVolume).ExcludeFromDescription();
