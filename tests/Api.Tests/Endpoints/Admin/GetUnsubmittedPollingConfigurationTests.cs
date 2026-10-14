@@ -24,8 +24,8 @@ public class GetUnsubmittedPollingConfigurationTests(ApiWebApplicationFactory fa
                 new OrganisationObligationHydrationOptions
                 {
                     PollingEnabled = true,
-                    RefreshInterval = TimeSpan.FromMinutes(5),
-                    MaximumSummaryStaleness = TimeSpan.FromMinutes(30),
+                    RefreshInterval = TimeSpan.FromMinutes(5).Add(TimeSpan.FromMilliseconds(500)),
+                    MaximumSummaryStaleness = TimeSpan.FromMinutes(30).Add(TimeSpan.FromMilliseconds(500)),
                     MaxDownstreamRequestsPerMinute = 180,
                     PollIntervalSeconds = 15,
                 }

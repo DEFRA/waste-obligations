@@ -13,6 +13,7 @@ public static class AdminUnsubmittedComplianceDeclarationEndpoints
 {
     public static void MapAdminUnsubmittedComplianceDeclarationEndpoints(this IEndpointRouteBuilder app)
     {
+        // Performance-test preflight reads configured timings without the database queries used by polling-status.
         app.MapGet("unsubmitted-compliance-declarations/polling-configuration", HandlePollingConfiguration)
             .ExcludeFromDescription();
         app.MapGet("unsubmitted-compliance-declarations/polling-status", HandlePollingStatus).ExcludeFromDescription();
@@ -47,8 +48,8 @@ public static class AdminUnsubmittedComplianceDeclarationEndpoints
                 EligibilityRefreshPollingEnabled = eligibility.Value.RefreshPollingEnabled,
                 OrganisationPollIntervalSeconds = eligibility.Value.RefreshPollIntervalSeconds,
                 ObligationPollingEnabled = hydration.Value.PollingEnabled,
-                ObligationRefreshIntervalSeconds = hydration.Value.RefreshInterval.TotalSeconds,
-                MaximumSummaryStalenessSeconds = hydration.Value.MaximumSummaryStaleness.TotalSeconds,
+                ObligationRefreshIntervalSeconds = (int)hydration.Value.RefreshInterval.TotalSeconds,
+                MaximumSummaryStalenessSeconds = (int)hydration.Value.MaximumSummaryStaleness.TotalSeconds,
                 MaxDownstreamRequestsPerMinute = hydration.Value.MaxDownstreamRequestsPerMinute,
                 ObligationPollIntervalSeconds = hydration.Value.PollIntervalSeconds,
                 CurrentObligationYear = yearProvider.GetCurrentObligationYear(),

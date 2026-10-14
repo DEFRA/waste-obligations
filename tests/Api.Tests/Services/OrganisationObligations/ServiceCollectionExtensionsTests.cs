@@ -62,6 +62,7 @@ public class ServiceCollectionExtensionsTests
                     ["OrganisationObligationHydration:LeaseDurationSeconds"] = "60",
                     ["OrganisationObligationHydration:LeaseRenewalIntervalSeconds"] = "30",
                     ["OrganisationObligationHydration:RefreshInterval"] = "00:30:00",
+                    ["OrganisationObligationHydration:MaximumSummaryStaleness"] = "01:00:00",
                     ["OrganisationObligationHydration:InitialRetryDelay"] = "00:01:00",
                     ["OrganisationObligationHydration:MaximumRetryDelay"] = "00:30:00",
                     ["OrganisationObligationHydration:MaxDownstreamRequestsPerMinute"] = "200",
@@ -79,6 +80,8 @@ public class ServiceCollectionExtensionsTests
 
         options.Value.PollingEnabled.Should().BeFalse();
         options.Value.LeaseRenewalIntervalSeconds.Should().Be(30);
+        options.Value.RefreshInterval.Should().Be(TimeSpan.FromMinutes(30));
+        options.Value.MaximumSummaryStaleness.Should().Be(TimeSpan.FromHours(1));
         options.Value.MaxDownstreamRequestsPerMinute.Should().Be(200);
         options.Value.ReconciliationWarningThresholdSeconds.Should().Be(10);
         options.Value.ReconciliationLogLevel.Should().Be(LogLevel.Information);
@@ -100,7 +103,35 @@ public class ServiceCollectionExtensionsTests
         var options = serviceProvider.GetRequiredService<IOptions<OrganisationObligationHydrationOptions>>();
 
         options.Value.BatchSize.Should().Be(2);
+        options.Value.MaximumSummaryStaleness.Should().Be(TimeSpan.FromHours(1));
         options.Value.ReconciliationLogLevel.Should().Be(LogLevel.Debug);
+    }
+
+    [Theory]
+    [InlineData("00:00:00")]
+    [InlineData("00:29:59")]
+    [InlineData("00:30:00")]
+    public void AddOrganisationObligationHydration_WhenStalenessDoesNotExceedRefreshInterval_ShouldRejectConfiguration(
+        string maximumSummaryStaleness
+    )
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["OrganisationObligationHydration:RefreshInterval"] = "00:30:00",
+                    ["OrganisationObligationHydration:MaximumSummaryStaleness"] = maximumSummaryStaleness,
+                }
+            )
+            .Build();
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(configuration);
+        services.AddOrganisationObligationHydration(addWorker: false);
+        using var serviceProvider = services.BuildServiceProvider();
+
+        var act = () => serviceProvider.GetRequiredService<IOptions<OrganisationObligationHydrationOptions>>().Value;
+
+        act.Should().Throw<OptionsValidationException>();
     }
 
     [Theory]
