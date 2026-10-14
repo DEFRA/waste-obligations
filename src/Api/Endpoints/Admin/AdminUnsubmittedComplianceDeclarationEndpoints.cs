@@ -1,6 +1,7 @@
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.Admin;
+using Defra.WasteObligations.Api.Services.OrganisationEligibility;
 using Defra.WasteObligations.Api.Services.OrganisationObligations;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -12,6 +13,9 @@ public static class AdminUnsubmittedComplianceDeclarationEndpoints
 {
     public static void MapAdminUnsubmittedComplianceDeclarationEndpoints(this IEndpointRouteBuilder app)
     {
+        app.MapGet("unsubmitted-compliance-declarations/polling-configuration", HandlePollingConfiguration)
+            .WithName("GetUnsubmittedPollingConfiguration")
+            .ExcludeFromDescription();
         app.MapGet("unsubmitted-compliance-declarations/polling-status", HandlePollingStatus).ExcludeFromDescription();
         app.MapGet("unsubmitted-compliance-declarations/polling-volume", HandlePollingVolume).ExcludeFromDescription();
         app.MapGet("unsubmitted-compliance-declarations/polling-plan", HandlePollingPlan).ExcludeFromDescription();
@@ -30,6 +34,27 @@ public static class AdminUnsubmittedComplianceDeclarationEndpoints
             .ExcludeFromDescription();
         app.MapGet("unsubmitted-compliance-declarations/request-pacing", HandleRequestPacingState)
             .ExcludeFromDescription();
+    }
+
+    private static IResult HandlePollingConfiguration(
+        [FromServices] IOptions<OrganisationEligibilityOptions> eligibility,
+        [FromServices] IOptions<OrganisationObligationHydrationOptions> hydration,
+        [FromServices] ICurrentObligationYearProvider yearProvider
+    )
+    {
+        return Results.Ok(
+            new Dtos.UnsubmittedPollingConfiguration
+            {
+                EligibilityRefreshPollingEnabled = eligibility.Value.RefreshPollingEnabled,
+                OrganisationPollIntervalSeconds = eligibility.Value.RefreshPollIntervalSeconds,
+                ObligationPollingEnabled = hydration.Value.PollingEnabled,
+                ObligationRefreshIntervalSeconds = hydration.Value.RefreshInterval.TotalSeconds,
+                MaximumSummaryStalenessSeconds = hydration.Value.MaximumSummaryStaleness.TotalSeconds,
+                MaxDownstreamRequestsPerMinute = hydration.Value.MaxDownstreamRequestsPerMinute,
+                ObligationPollIntervalSeconds = hydration.Value.PollIntervalSeconds,
+                CurrentObligationYear = yearProvider.GetCurrentObligationYear(),
+            }
+        );
     }
 
     private static async Task<IResult> HandlePollingStatus(

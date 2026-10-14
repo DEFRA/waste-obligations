@@ -7,13 +7,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 
-namespace Defra.WasteObligations.Api.Tests.Endpoints.ComplianceDeclarations;
+namespace Defra.WasteObligations.Api.Tests.Endpoints.Admin;
 
 public class GetUnsubmittedPollingConfigurationTests(ApiWebApplicationFactory factory, ITestOutputHelper outputHelper)
     : EndpointTestBase(factory, outputHelper)
 {
-    private const string Path = "/compliance-declarations/unsubmitted/polling-configuration";
-
     protected override void ConfigureTestServices(IServiceCollection services)
     {
         services.AddSingleton<IOptions<OrganisationEligibilityOptions>>(
@@ -39,10 +37,13 @@ public class GetUnsubmittedPollingConfigurationTests(ApiWebApplicationFactory fa
     }
 
     [Fact]
-    public async Task WhenReadOnly_ShouldReturnEffectiveConfiguration()
+    public async Task WhenAdmin_ShouldReturnEffectiveConfiguration()
     {
-        var client = CreateClient(testUser: TestUser.ReadOnly);
-        var response = await client.GetAsync(Path, TestContext.Current.CancellationToken);
+        var client = CreateClient(testUser: TestUser.Admin);
+        var response = await client.GetAsync(
+            Testing.Endpoints.Admin.UnsubmittedPollingConfiguration(),
+            TestContext.Current.CancellationToken
+        );
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         await VerifyJson(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
@@ -52,7 +53,10 @@ public class GetUnsubmittedPollingConfigurationTests(ApiWebApplicationFactory fa
     public async Task WhenUnauthenticated_ShouldBeUnauthorized()
     {
         var client = CreateClient(addAuthorizationHeader: false);
-        var response = await client.GetAsync(Path, TestContext.Current.CancellationToken);
+        var response = await client.GetAsync(
+            Testing.Endpoints.Admin.UnsubmittedPollingConfiguration(),
+            TestContext.Current.CancellationToken
+        );
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
 
         (await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).Should().BeEmpty();
@@ -62,8 +66,37 @@ public class GetUnsubmittedPollingConfigurationTests(ApiWebApplicationFactory fa
     public async Task WhenWriteOnly_ShouldBeForbidden()
     {
         var client = CreateClient(testUser: TestUser.WriteOnly);
-        var response = await client.GetAsync(Path, TestContext.Current.CancellationToken);
+        var response = await client.GetAsync(
+            Testing.Endpoints.Admin.UnsubmittedPollingConfiguration(),
+            TestContext.Current.CancellationToken
+        );
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        (await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task WhenReadOnly_ShouldBeForbidden()
+    {
+        var client = CreateClient(testUser: TestUser.ReadOnly);
+        var response = await client.GetAsync(
+            Testing.Endpoints.Admin.UnsubmittedPollingConfiguration(),
+            TestContext.Current.CancellationToken
+        );
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        (await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task WhenPublicPath_ShouldNotBeAvailable()
+    {
+        var client = CreateClient(testUser: TestUser.Admin);
+        var response = await client.GetAsync(
+            "/compliance-declarations/unsubmitted/polling-configuration",
+            TestContext.Current.CancellationToken
+        );
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
 
         (await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).Should().BeEmpty();
     }

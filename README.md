@@ -2,23 +2,6 @@
 
 An API for managing obligation data in relation to EPR.
 
-## Unsubmitted polling configuration
-
-`GET /compliance-declarations/unsubmitted/polling-configuration` requires the
-ordinary read policy. It returns effective nonsecret discovery/obligation polling
-flags, intervals, request cap, summary staleness threshold and current obligation
-year. Performance runners can size their observation window without admin access;
-this endpoint does not change configuration or start a backfill.
-
-Organisation discovery and obligation refresh default to 30 minutes. The default
-maximum summary staleness threshold is also 30 minutes. Staleness is observed in
-logs/metrics; populated public metrics do not guarantee that age. Worker slots,
-pacing, retries and generation contention can delay updates. Configure discovery
-and refresh independently through `OrganisationEligibility` and
-`OrganisationObligationHydration`; smaller intervals can increase traffic while
-the staleness threshold remains 30 minutes. Polling flags are unchanged by this
-endpoint or default adjustment.
-
 ## Prerequisites
 
 - .NET 10

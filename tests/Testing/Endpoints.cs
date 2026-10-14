@@ -33,6 +33,9 @@ public static class Endpoints
 
         public static string AuditEventCounter() => "admin/audit-events/counter";
 
+        public static string UnsubmittedPollingConfiguration() =>
+            "admin/unsubmitted-compliance-declarations/polling-configuration";
+
         public static string UnsubmittedPollingStatus() => "admin/unsubmitted-compliance-declarations/polling-status";
 
         public static string UnsubmittedPollingVolume() => "admin/unsubmitted-compliance-declarations/polling-volume";
