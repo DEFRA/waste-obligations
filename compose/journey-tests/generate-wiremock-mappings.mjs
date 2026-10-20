@@ -417,7 +417,49 @@ const acceptedCompliancePrn = acceptedPrn({
     isExport: true,
 });
 
+// The PDF journey opens a rejected note and expects the download inside the
+// green banner. These stay off the awaiting lists.
+const rejectedPrn = (prn) => ({ ...prn, prnStatus: "REJECTED" });
+
+const rejectedProducerPrn = rejectedPrn(
+    prnFixture(
+        "PRN132",
+        "8ad261c9-d17f-4ec0-ab1f-d380e29ef518",
+        "Steel",
+        PRN_TONNAGE_40,
+        "2026-01-20T09:30:00Z",
+    ),
+);
+
+// The CSO awaiting list starts as a PRN. The PDF journey also needs a PERN.
+const awaitingCompliancePern = {
+    ...prnFixture(
+        "PERN458",
+        "9be372da-e280-4fd1-bc20-e491f30af629",
+        "Aluminium",
+        PRN_TONNAGE_15,
+        "2026-04-01T09:30:00Z",
+    ),
+    organisationId: complianceSchemeId,
+    organisationName: compliancePrn.organisationName,
+    isExport: true,
+};
+
+const rejectedCompliancePrn = rejectedPrn({
+    ...prnFixture(
+        "PERN459",
+        "acf483eb-f391-40e2-cd31-f5a2041b073a",
+        "Plastic",
+        PRN_TONNAGE_75,
+        "2026-01-15T09:30:00Z",
+    ),
+    organisationId: complianceSchemeId,
+    organisationName: compliancePrn.organisationName,
+    isExport: true,
+});
+
 const acceptedFilter = [queryParam("filterBy", "accepted-all")];
+const rejectedFilter = [queryParam("filterBy", "rejected-all")];
 
 const compliancePrnSearchMapping = (params, body, priority) => ({
     Priority: priority,
@@ -446,10 +488,25 @@ prnMappings.push(
         singlePrnMapping(acceptedProducerPrn),
     ],
     [
+        "journey-producer-prns-filter-rejected-all.json",
+        prnSearchMapping(
+            rejectedFilter,
+            { items: [rejectedProducerPrn], totalItems: 1 },
+            PRN_MAPPING_2,
+        ),
+    ],
+    [
+        "journey-producer-rejected-prn.json",
+        singlePrnMapping(rejectedProducerPrn),
+    ],
+    [
         "journey-compliance-scheme-prns.json",
         compliancePrnSearchMapping(
             [],
-            { items: [compliancePrn], totalItems: 1 },
+            {
+                items: [compliancePrn, awaitingCompliancePern],
+                totalItems: 2,
+            },
             PRN_MAPPING_10,
         ),
     ],
@@ -463,8 +520,24 @@ prnMappings.push(
     ],
     ["journey-compliance-scheme-prn.json", singlePrnMapping(compliancePrn)],
     [
+        "journey-compliance-scheme-awaiting-pern.json",
+        singlePrnMapping(awaitingCompliancePern),
+    ],
+    [
         "journey-compliance-scheme-accepted-prn.json",
         singlePrnMapping(acceptedCompliancePrn),
+    ],
+    [
+        "journey-compliance-scheme-prns-filter-rejected-all.json",
+        compliancePrnSearchMapping(
+            rejectedFilter,
+            { items: [rejectedCompliancePrn], totalItems: 1 },
+            PRN_MAPPING_2,
+        ),
+    ],
+    [
+        "journey-compliance-scheme-rejected-prn.json",
+        singlePrnMapping(rejectedCompliancePrn),
     ],
 );
 
