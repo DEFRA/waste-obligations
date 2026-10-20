@@ -305,6 +305,12 @@ test("generates rejected PRN mappings for the PDF download view", async (context
         const [prn] = search.Response.BodyAsJson.items;
         assert.equal(search.Response.BodyAsJson.totalItems, 1);
         assert.equal(prn.prnNumber, number);
+        // The frontend detail route only accepts a UUID v4 or v5. A reserved
+        // variant never reaches the PRN page.
+        assert.match(
+            prn.externalId,
+            /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+        );
         assert.equal(prn.prnStatus, "REJECTED");
         assert.equal(prn.organisationId, organisationId);
         assert.equal(prn.isExport, isExport);

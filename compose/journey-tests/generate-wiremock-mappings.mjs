@@ -448,7 +448,7 @@ const awaitingCompliancePern = {
 const rejectedCompliancePrn = rejectedPrn({
     ...prnFixture(
         "PERN459",
-        "acf483eb-f391-40e2-cd31-f5a2041b073a",
+        "acf483eb-f391-40e2-8d31-f5a2041b073a",
         "Plastic",
         PRN_TONNAGE_75,
         "2026-01-15T09:30:00Z",
