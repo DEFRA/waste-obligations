@@ -140,7 +140,6 @@ await writeFile(
 
 // Keep the Azure PRN common backend contract beside its consuming service.
 
-const PAPER_BOARD = "Paper/board";
 const PRN_TONNAGE_125 = 125;
 const PRN_TONNAGE_40 = 40;
 const PRN_TONNAGE_310 = 310;
@@ -241,67 +240,76 @@ const prnFixture = (
 const journeyPrnExternalId = "0d2f531d-0213-494b-8c8b-4133051bd44f";
 const journeyPrnOrganisationName = "Journey Producer Ltd";
 
+const PRN_MATERIAL_GLASS_OTHER = "Glass Other"
+const PRN_MATERIAL_GLASS_REMELT = "Glass Re-melt"
+const PRN_MATERIAL_PAPER_BOARD = "Paper/board";
+const PRN_MATERIAL_FIBRE = "Fibre"
+const PRN_MATERIAL_ALUMINIUM = "Aluminium"
+const PRN_MATERIAL_PLASTIC = "Plastic"
+const PRN_MATERIAL_STEEL = "Steel"
+const PRN_MATERIAL_WOOD = "Wood"
+
 const producerPrns = [
     prnFixture(
         "PRN123",
         journeyPrnExternalId,
-        "Aluminium",
+        PRN_MATERIAL_ALUMINIUM,
         PRN_TONNAGE_125,
         "2026-06-15T10:30:00Z",
     ),
     prnFixture(
         "PRN124",
         "1f6b9a52-6a0e-4d53-9a4e-6c1f7c2d8e01",
-        "Plastic",
+        PRN_MATERIAL_PLASTIC,
         PRN_TONNAGE_40,
         "2026-06-10T09:00:00Z",
     ),
     prnFixture(
         "PRN125",
         "2a7c0b63-7b1f-4e64-8b5f-7d2a8d3e9f02",
-        "Plastic",
+        PRN_MATERIAL_PLASTIC,
         PRN_TONNAGE_310,
         "2026-05-20T11:15:00Z",
     ),
     prnFixture(
         "PRN126",
         "3b8d1c74-8c2a-4f75-9c6a-8e3b9e4fa003",
-        "Glass Other",
+        PRN_MATERIAL_GLASS_OTHER,
         PRN_TONNAGE_75,
         "2026-05-02T14:45:00Z",
     ),
     prnFixture(
         "PRN127",
         "4c9e2d85-9d3b-4a86-8d7b-9f4cae5ab104",
-        "Steel",
+        PRN_MATERIAL_STEEL,
         PRN_TONNAGE_510,
         "2026-04-18T08:20:00Z",
     ),
     prnFixture(
         "PRN128",
         "5daf3e96-ae4c-4b97-9e8c-a05dbf6bc205",
-        PAPER_BOARD,
+        PRN_MATERIAL_PAPER_BOARD,
         PRN_TONNAGE_15,
         "2026-03-30T16:05:00Z",
     ),
     prnFixture(
         "PRN129",
         "6eb04fa7-bf5d-4ca8-8f9d-b16ec07cd306",
-        "Glass Re-melt",
+        PRN_MATERIAL_GLASS_REMELT,
         PRN_TONNAGE_220,
         "2026-03-05T12:40:00Z",
     ),
     prnFixture(
         "PRN130",
         "7fc150b8-c06e-4db9-9a0e-c27fd18de407",
-        "Aluminium",
+        PRN_MATERIAL_ALUMINIUM,
         PRN_TONNAGE_90,
         "2026-02-12T10:10:00Z",
     ),
     prnFixture(
         "PRN132",
         "8ad261c9-d1a0-4e1a-8b1f-d38fe29fe508",
-        "Fibre",
+        PRN_MATERIAL_FIBRE,
         PRN_TONNAGE_35,
         "2026-04-02T13:00:00Z",
     ),
@@ -327,14 +335,14 @@ const prnMappings = [
 // Without sortBy the backend orders by issue date, newest first.
 const prnFilters = {
     "awaiting-all": () => true,
-    "awaiting-aluminium": (prn) => prn.materialName === "Aluminium",
-    "awaiting-glassother": (prn) => prn.materialName === "Glass Other",
-    "awaiting-glassremelt": (prn) => prn.materialName === "Glass Re-melt",
+    "awaiting-aluminium": (prn) => prn.materialName === PRN_MATERIAL_ALUMINIUM,
+    "awaiting-glassother": (prn) => prn.materialName === PRN_MATERIAL_GLASS_OTHER,
+    "awaiting-glassremelt": (prn) => prn.materialName === PRN_MATERIAL_GLASS_REMELT,
     "awaiting-paperfiber": (prn) =>
-        [PAPER_BOARD, "Fibre"].includes(prn.materialName),
-    "awaiting-plastic": (prn) => prn.materialName === "Plastic",
-    "awaiting-steel": (prn) => prn.materialName === "Steel",
-    "awaiting-wood": (prn) => prn.materialName === "Wood",
+        [PRN_MATERIAL_PAPER_BOARD, PRN_MATERIAL_FIBRE].includes(prn.materialName),
+    "awaiting-plastic": (prn) => prn.materialName === PRN_MATERIAL_PLASTIC,
+    "awaiting-steel": (prn) => prn.materialName === PRN_MATERIAL_STEEL,
+    "awaiting-wood": (prn) => prn.materialName === PRN_MATERIAL_WOOD,
 };
 
 const queryParam = (name, value) => ({
@@ -390,7 +398,7 @@ const compliancePrn = {
     ...prnFixture(
         "PRN456",
         "6a1e3c2b-7f4d-4e8a-9b5c-2d7f1a0e4c93",
-        "Aluminium",
+        PRN_MATERIAL_ALUMINIUM,
         PRN_TONNAGE_125,
         "2026-06-15T10:30:00Z",
     ),
@@ -411,28 +419,28 @@ const complianceAwaitingPrns = [
     compliancePrnFixture(
         "PRN459",
         "9b3d6e1a-4c2f-4d8b-a7e5-1f0c2b3a4d59",
-        PAPER_BOARD,
+        PRN_MATERIAL_PAPER_BOARD,
         PRN_TONNAGE_15,
         "2026-05-11T09:00:00Z",
     ),
     compliancePrnFixture(
         "PRN460",
         "a4c7e2f9-5d3b-4e1a-b8f6-2a1d3c4b5e60",
-        "Fibre",
+        PRN_MATERIAL_FIBRE,
         PRN_TONNAGE_35,
         "2026-04-22T11:30:00Z",
     ),
     compliancePrnFixture(
         "PRN461",
         "b5d8f3a0-6e4c-4f2b-89a7-3b2e4d5c6f61",
-        "Glass Other",
+        PRN_MATERIAL_GLASS_OTHER,
         PRN_TONNAGE_75,
         "2026-04-09T14:15:00Z",
     ),
     compliancePrnFixture(
         "PRN462",
         "c6e9a4b1-7f5d-4a3c-9ab8-4c3f5e6d7a62",
-        "Glass Re-melt",
+        PRN_MATERIAL_GLASS_REMELT,
         PRN_TONNAGE_220,
         "2026-03-18T08:45:00Z",
     ),
@@ -447,7 +455,7 @@ const acceptedProducerPrn = acceptedPrn(
     prnFixture(
         "PRN131",
         "0f2e14dd-6969-4311-90c5-e1fa89f9c85d",
-        PAPER_BOARD,
+        PRN_MATERIAL_PAPER_BOARD,
         PRN_TONNAGE_1,
         "2026-02-05T09:30:00Z",
     ),
@@ -457,7 +465,7 @@ const acceptedCompliancePrn = acceptedPrn({
     ...prnFixture(
         "PERN457",
         "45edaa0b-cb34-4aec-a66c-9e8230c5df22",
-        "Plastic",
+        PRN_MATERIAL_PLASTIC,
         PRN_TONNAGE_60,
         "2026-02-05T09:30:00Z",
     ),
@@ -545,10 +553,10 @@ const COMPLIANCE_JOURNEY_PRN_NUMBER = "PRN459";
 
 const obligationMaterial = (materialName) =>
     ({
-        [PAPER_BOARD]: "Paper",
+        [PRN_MATERIAL_PAPER_BOARD]: "Paper",
         Fibre: "Paper",
-        "Glass Other": "Glass",
-        "Glass Re-melt": "GlassRemelt",
+        PRN_MATERIAL_GLASS_OTHER: "Glass",
+        [PRN_MATERIAL_GLASS_REMELT]: "GlassRemelt",
     })[materialName] ?? materialName;
 
 const OBLIGATIONS_TO_MEET = {
