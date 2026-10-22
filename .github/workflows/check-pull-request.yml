@@ -12,19 +12,44 @@ on:
       - ready_for_review
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
+  dependency-review:
+    name: Dependency security review
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Reject newly introduced high or critical vulnerabilities
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          base-ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          head-ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fail-on-severity: high
+          fail-on-scopes: runtime, development, unknown
+          license-check: false
+          vulnerability-check: true
+          warn-only: false
+          comment-summary-in-pr: never
+          retry-on-snapshot-warnings: true
+          retry-on-snapshot-warnings-timeout: 300
+
   pr-validator:
     name: Run Pull Request Checks
+    needs: dependency-review
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
-      - name: Run journey-test Compose helper tests
-        run: node --test compose/journey-tests/generate-wiremock-mappings.test.mjs
+      - name: Run workflow and journey-test Compose helper tests
+        run: node --test .github/scripts/*.test.mjs compose/journey-tests/generate-wiremock-mappings.test.mjs
       - name: Test
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
@@ -32,16 +57,19 @@ jobs:
             10.0
       - name: Run unit tests
         run: |
+          dotnet restore -p:NuGetAudit=true -p:NuGetAuditMode=all
           dotnet build tests/Api.Tests/Api.Tests.csproj
           dotnet test --test-modules tests/Api.Tests/bin/Debug/net10.0/Api.Tests.dll --no-build
+      - name: Build integration tests without Notify credentials
+        run: |
+          docker compose up -d --wait
+          dotnet build tests/Api.IntegrationTests/Api.IntegrationTests.csproj
       - name: Run integration tests
         env:
           GOVUKNOTIFY_APIKEY: ${{ secrets.GOVUKNOTIFY_APIKEY }}
         run: |
           set -o pipefail
 
-          docker compose up -d --wait
-          dotnet build tests/Api.IntegrationTests/Api.IntegrationTests.csproj
           test_log="$RUNNER_TEMP/integration-tests.log"
 
           set +e
@@ -79,7 +107,12 @@ jobs:
           push: false
           tags: waste-obligations:latest
       - name: Check with Trivy
-        run: docker run -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.69.3@sha256:bcc376de8d77cfe086a917230e818dc9f8528e3c852f7b1aff648949b6258d1c image waste-obligations:latest --ignore-unfixed
+        run: |
+          docker save waste-obligations:latest -o "$RUNNER_TEMP/waste-obligations-image.tar"
+          docker run --rm \
+            -v "$RUNNER_TEMP/waste-obligations-image.tar:/scan/image.tar:ro" \
+            aquasec/trivy:0.69.3@sha256:bcc376de8d77cfe086a917230e818dc9f8528e3c852f7b1aff648949b6258d1c \
+            image --input /scan/image.tar --exit-code 1 --severity HIGH,CRITICAL
       - name: Check openapi with Vacuum
         run: make lint-openapi
       - name: Store openapi artifact
@@ -90,6 +123,7 @@ jobs:
 
   sonarcloud-scan:
     name: CDP SonarCloud Scan
+    needs: dependency-review
     permissions:
       contents: read
       pull-requests: read
@@ -99,6 +133,7 @@ jobs:
 
   journey-tests:
     name: Run journey tests
+    needs: dependency-review
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     permissions:
@@ -124,6 +159,7 @@ jobs:
           repository: DEFRA/waste-obligations-journey-tests
           ref: ${{ steps.journey-tests-ref.outputs.ref }}
           path: journey-tests-action
+          persist-credentials: false
 
       - name: Run journey profiles
         uses: ./journey-tests-action/run-journey-tests

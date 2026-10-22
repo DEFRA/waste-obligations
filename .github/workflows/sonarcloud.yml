@@ -28,6 +28,17 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22
+      - name: Run workflow policy tests with JavaScript coverage
+        run: |
+          node --test --experimental-test-coverage \
+            --test-reporter=spec --test-reporter-destination=stdout \
+            --test-reporter=lcov --test-reporter-destination=coverage.node.lcov \
+            .github/scripts/*.test.mjs
       - name: Set up .NET 10.0
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
@@ -63,7 +74,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Needed to get PR information, if any
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          ./.sonar/scanner/dotnet-sonarscanner begin /k:"DEFRA_waste-obligations" /o:"defra" /d:sonar.token="$SONAR_TOKEN" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.cs.vscoveragexml.reportsPaths=coverage*.xml /d:sonar.coverage.exclusions=compose/journey-tests/**
+          ./.sonar/scanner/dotnet-sonarscanner begin /k:"DEFRA_waste-obligations" /o:"defra" /d:sonar.token="$SONAR_TOKEN" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.cs.vscoveragexml.reportsPaths=coverage*.xml /d:sonar.javascript.lcov.reportPaths=coverage.node.lcov /d:sonar.coverage.exclusions=compose/journey-tests/**
           dotnet build --no-incremental
           dotnet test --test-modules tests/Api.Tests/bin/Debug/net10.0/Api.Tests.dll --no-build -- --coverage --coverage-output-format xml --coverage-output "$GITHUB_WORKSPACE/coverage.Api.Tests.xml"
           dotnet test --test-modules tests/Api.IntegrationTests/bin/Debug/net10.0/Api.IntegrationTests.dll --no-build -- --coverage --coverage-output-format xml --coverage-output "$GITHUB_WORKSPACE/coverage.Api.IntegrationTests.xml"

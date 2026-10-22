@@ -3,6 +3,8 @@ version: 2
 updates:
   - package-ecosystem: nuget
     directory: /
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 10
     schedule:
       interval: daily
@@ -109,6 +111,8 @@ updates:
 
   - package-ecosystem: github-actions
     directory: /
+    cooldown:
+      default-days: 7
     schedule:
       interval: weekly
       time: '10:30'
@@ -122,12 +126,16 @@ updates:
   # Keep Dockerfile and Compose digest pins receiving reviewed updates.
   - package-ecosystem: docker
     directory: /
+    cooldown:
+      default-days: 7
     schedule:
       interval: weekly
       time: '10:30'
       timezone: 'Europe/London'
 
   - package-ecosystem: docker-compose
+    cooldown:
+      default-days: 7
     directories:
       - /
       - /compose
