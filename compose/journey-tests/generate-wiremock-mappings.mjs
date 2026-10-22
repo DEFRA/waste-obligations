@@ -555,7 +555,7 @@ const obligationMaterial = (materialName) =>
     ({
         [PRN_MATERIAL_PAPER_BOARD]: "Paper",
         Fibre: "Paper",
-        PRN_MATERIAL_GLASS_OTHER: "Glass",
+        [PRN_MATERIAL_GLASS_OTHER]: "Glass",
         [PRN_MATERIAL_GLASS_REMELT]: "GlassRemelt",
     })[materialName] ?? materialName;
 
