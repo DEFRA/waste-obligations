@@ -480,7 +480,7 @@ const rejectedPrn = (prn) => ({ ...prn, prnStatus: "REJECTED" });
 
 const rejectedProducerPrn = rejectedPrn(
     prnFixture(
-        "PRN132",
+        "PRN133",
         "8ad261c9-d17f-4ec0-ab1f-d380e29ef518",
         "Steel",
         PRN_TONNAGE_40,
