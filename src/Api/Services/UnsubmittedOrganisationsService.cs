@@ -29,7 +29,7 @@ public class UnsubmittedOrganisationsService(
             .SingleOrDefaultAsync(cancellationToken);
         if (snapshot?.ActiveGeneration is not { } activeGeneration)
         {
-            logger.LogError("Unsubmitted organisation query has no active organisation generation");
+            logger.LogWarning("Unsubmitted organisation query has no active organisation generation");
 
             return EmptyResult();
         }

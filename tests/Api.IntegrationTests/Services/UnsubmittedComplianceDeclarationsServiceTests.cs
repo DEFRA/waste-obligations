@@ -608,7 +608,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task Search_WhenNoActiveGeneration_ShouldReturnAnEmptyPageAndLogAnError()
+    public async Task Search_WhenNoActiveGeneration_ShouldReturnAnEmptyPageAndLogAWarning()
     {
         var logger = new RecordingLogger<UnsubmittedOrganisationsService>();
         var subject = CreateSubject(logger);
@@ -629,7 +629,7 @@ public class UnsubmittedOrganisationsServiceTests : IntegrationTestBase
         logger
             .Entries.Should()
             .ContainSingle(x =>
-                x.Level == LogLevel.Error
+                x.Level == LogLevel.Warning
                 && x.Message == "Unsubmitted organisation query has no active organisation generation"
             );
     }
