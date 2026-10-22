@@ -131,6 +131,7 @@ jobs:
           journey-tests-ref: ${{ steps.journey-tests-ref.outputs.ref }}
           waste-obligations: ${{ github.event.pull_request.head.sha || github.sha }}
         env:
+          IS_CI: true
           EPR_USER_EMAIL: ${{ secrets.EPR_USER_EMAIL }}
           EPR_USER_PASSWORD: ${{ secrets.EPR_USER_PASSWORD }}
           EPR_CSO_USER_EMAIL: ${{ secrets.EPR_CSO_USER_EMAIL }}
