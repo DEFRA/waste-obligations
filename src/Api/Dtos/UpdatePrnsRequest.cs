@@ -28,7 +28,8 @@ public record UpdatePrnsRequest : IValidatableObject
     public int? ObligationYear { get; init; }
 
     [JsonIgnore]
-    internal IReadOnlyCollection<Guid> EffectivePrnIds => [.. PrnIds!.Select(Guid.Parse).Distinct()];
+    internal IReadOnlyCollection<Guid> EffectivePrnIds =>
+        [.. (PrnIds ?? throw new InvalidOperationException($"{nameof(PrnIds)} is only available after validation.")).Select(Guid.Parse).Distinct()];
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {

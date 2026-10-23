@@ -95,9 +95,9 @@ public static class Mappers
         Required(status, nameof(PrnData.PrnStatus)) switch
         {
             PrnCommonBackendStatus.AwaitingAcceptance => PrnStatus.AwaitingAcceptance,
-            "ACCEPTED" => PrnStatus.Accepted,
-            "REJECTED" => PrnStatus.Rejected,
-            "CANCELLED" or "CANCELED" => PrnStatus.Cancelled,
+            PrnCommonBackendStatus.Accepted => PrnStatus.Accepted,
+            PrnCommonBackendStatus.Rejected => PrnStatus.Rejected,
+            PrnCommonBackendStatus.Cancelled or PrnCommonBackendStatus.Canceled => PrnStatus.Cancelled,
             var value => throw Invalid(nameof(PrnData.PrnStatus), value),
         };
 

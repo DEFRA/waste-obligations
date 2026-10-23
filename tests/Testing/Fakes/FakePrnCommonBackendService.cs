@@ -126,7 +126,7 @@ public class FakePrnCommonBackendService : IPrnCommonBackendService
     )
     {
         if (ConcurrencyError)
-            throw new ConcurrencyException("The PRN status has already been updated.");
+            throw new ConcurrencyException(PrnStatusConflict.Message);
 
         if (Throws)
             throw new HttpRequestException();

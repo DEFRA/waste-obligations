@@ -103,7 +103,7 @@ public static class UpdatePrns
             return Results.NotFound();
 
         if (prns.Any(x => x!.PrnStatus != PrnCommonBackendStatus.AwaitingAcceptance))
-            throw new ConcurrencyException("One or more PRNs are no longer awaiting acceptance.");
+            throw new ConcurrencyException(PrnStatusConflict.Message);
 
         return null;
     }

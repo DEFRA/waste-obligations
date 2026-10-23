@@ -659,7 +659,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
         logger
             .Entries.Should()
             .Contain(x =>
-                x.Level == LogLevel.Information
+                x.Level == LogLevel.Warning
                 && x.Message
                     == $"PRN common backend found no matching PRN for organisation {organisationId:D} in a status update of 1 PRNs: {detail}"
             );
@@ -689,7 +689,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
         logger
             .Entries.Should()
             .Contain(x =>
-                x.Level == LogLevel.Information
+                x.Level == LogLevel.Warning
                 && x.Message.StartsWith(
                     $"PRN common backend found no matching PRN for organisation {organisationId:D}",
                     StringComparison.Ordinal

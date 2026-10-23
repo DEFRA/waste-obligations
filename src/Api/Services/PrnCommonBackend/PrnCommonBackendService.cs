@@ -176,7 +176,7 @@ public class PrnCommonBackendService(HttpClient httpClient, ILogger<PrnCommonBac
 
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
-            logger.LogInformation(
+            logger.LogWarning(
                 "PRN common backend found no matching PRN for organisation {OrganisationId} in a status update of {PrnCount} PRNs: {Detail}",
                 organisationId,
                 prnIds.Count,
@@ -188,7 +188,7 @@ public class PrnCommonBackendService(HttpClient httpClient, ILogger<PrnCommonBac
         {
             HttpStatusCode.OK => PrnStatusUpdateResult.Updated,
             HttpStatusCode.NotFound => PrnStatusUpdateResult.NotFound,
-            HttpStatusCode.Conflict => throw new ConcurrencyException("The PRN status has already been updated."),
+            HttpStatusCode.Conflict => throw new ConcurrencyException(PrnStatusConflict.Message),
             _ => EnsureSuccessAndReturnUpdated(response),
         };
     }
