@@ -569,8 +569,12 @@ prnMappings.push(
         compliancePrnSearchMapping(
             [],
             {
-                items: [compliancePrn, awaitingCompliancePern],
-                totalItems: 2,
+                items: [
+                    compliancePrn,
+                    awaitingCompliancePern,
+                    ...complianceAwaitingPrns.slice(1),
+                ],
+                totalItems: 6,
             },
             PRN_MAPPING_10,
         ),

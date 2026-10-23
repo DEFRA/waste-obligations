@@ -94,7 +94,7 @@ test("generates Account, Notify and PRN mappings from the supplied scenario", as
         },
     ]);
     const [csoPrn, csoPern] = csoPrnsMapping.Response.BodyAsJson.items;
-    assert.equal(csoPrnsMapping.Response.BodyAsJson.totalItems, 2);
+    assert.equal(csoPrnsMapping.Response.BodyAsJson.totalItems, 6);
     assert.equal(csoPrn.organisationId, complianceSchemeId);
     assert.equal(csoPrn.prnNumber, "PRN456");
     assert.equal(csoPrn.prnStatus, "AWAITINGACCEPTANCE");
@@ -260,6 +260,10 @@ test("generates accepted PRN mappings for the accepted confirmation view", async
         [
             ["PRN456", false, "AWAITINGACCEPTANCE"],
             ["PERN458", true, "AWAITINGACCEPTANCE"],
+            ["PRN459", false, "AWAITINGACCEPTANCE"],
+            ["PRN460", false, "AWAITINGACCEPTANCE"],
+            ["PRN461", false, "AWAITINGACCEPTANCE"],
+            ["PRN462", false, "AWAITINGACCEPTANCE"],
         ],
     );
     const awaitingPern = await readMapping(
