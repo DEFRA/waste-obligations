@@ -162,14 +162,36 @@ public class UpdatePrnsTests(ApiWebApplicationFactory factory, ITestOutputHelper
         await VerifyJson(response);
     }
 
-    [Fact]
-    public async Task WhenPrnIdIsNotHyphenated_ShouldBeBadRequestWithoutProxying()
+    [Theory]
+    [InlineData("N")]
+    [InlineData("B")]
+    [InlineData("P")]
+    public async Task WhenPrnIdIsNotInHyphenatedFormat_ShouldBeBadRequestWithoutProxying(string format)
     {
         await RequestShouldBeBadRequest(
-            UpdatePrnsRequestFixture.Accepted().With(x => x.PrnIds, [Guid.NewGuid().ToString("N")]).Create()
+            UpdatePrnsRequestFixture.Accepted().With(x => x.PrnIds, [Guid.NewGuid().ToString(format)]).Create()
         );
 
         PrnCommonBackendService.LastPrnStatusUpdates.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task WhenPrnIdsAtTheMaximum_ShouldUpdateEveryPrn()
+    {
+        var client = CreateClient(testUser: TestUser.WriteOnly);
+        List<string> prnIds =
+        [
+            .. Enumerable.Range(0, UpdatePrnsRequest.MaxPrnIds).Select(_ => Guid.NewGuid().ToString("D")),
+        ];
+
+        var response = await client.PatchAsJsonAsync(
+            Testing.Endpoints.Organisations.Prns.UpdateMany(FakeWasteOrganisationsService.OrganisationId),
+            UpdatePrnsRequestFixture.Accepted().With(x => x.PrnIds, prnIds).Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        PrnCommonBackendService.LastPrnStatusUpdates.Should().HaveCount(UpdatePrnsRequest.MaxPrnIds);
     }
 
     // The year is the caller's choice and is not checked against the PRNs'
