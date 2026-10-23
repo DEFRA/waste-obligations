@@ -3,19 +3,19 @@ import { join } from "node:path";
 import {
     complianceSchemeId,
     directProducerId,
-} from "./helpersjourney-config.mjs";
+} from "./helpers/journey-config.mjs";
 import {
     addScenarioSubmitter,
     complianceSchemePeople,
     directProducerPeople,
-} from "./helpersjourney-people.mjs";
+} from "./helpers/journey-people.mjs";
 import {
     exactPath,
     json,
     mapping,
-} from "./helpersmapping-helpers.mjs";
-import { prnMappings } from "./helpersprn-mappings.mjs";
-import { obligationMappings } from "./helpersobligation-mappings.mjs";
+} from "./helpers/mapping-helpers.mjs";
+import { prnMappings } from "./helpers/prn-mappings.mjs";
+import { obligationMappings } from "./helpers/obligation-mappings.mjs";
 
 const outputDirectory =
     process.env.JOURNEY_TEST_WIREMOCK_MAPPINGS_DIR || "/output";
