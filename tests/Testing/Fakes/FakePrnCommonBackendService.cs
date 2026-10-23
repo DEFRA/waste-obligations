@@ -107,8 +107,7 @@ public class FakePrnCommonBackendService : IPrnCommonBackendService
             [commonBackendPrnId],
             status,
             obligationYear: null,
-            expectedStatus: null,
-            conflictMessage: PrnStatusConflict.SinglePrn,
+            options: new PrnStatusUpdateOptions(null, PrnStatusConflict.SinglePrn),
             cancellationToken
         );
     }
@@ -119,13 +118,12 @@ public class FakePrnCommonBackendService : IPrnCommonBackendService
         IReadOnlyCollection<Guid> prnIds,
         string status,
         int? obligationYear,
-        string? expectedStatus,
-        string conflictMessage,
+        PrnStatusUpdateOptions options,
         CancellationToken cancellationToken
     )
     {
         if (ConcurrencyError)
-            throw new ConcurrencyException(conflictMessage);
+            throw new ConcurrencyException(options.ConflictMessage);
 
         if (Throws)
             throw new HttpRequestException();
@@ -137,7 +135,7 @@ public class FakePrnCommonBackendService : IPrnCommonBackendService
                 PrnId = x,
                 Status = status,
                 ObligationYear = obligationYear?.ToString(CultureInfo.InvariantCulture),
-                ExpectedStatus = expectedStatus,
+                ExpectedStatus = options.ExpectedStatus,
             }),
         ];
 

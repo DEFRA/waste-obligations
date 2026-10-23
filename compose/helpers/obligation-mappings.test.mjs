@@ -45,3 +45,38 @@ test("obligation mapping file names are unique", () => {
 
   assert.equal(new Set(names).size, names.length);
 });
+
+test("an obligation reports Met once accepted tonnage reaches its target, and NotMet below it", () => {
+  const calculation = obligationMappings.obligationsFor({
+    organisationId: "org-1",
+    listed: [],
+    accepted: [{ prnNumber: "P1", materialName: "Paper/board", tonnageValue: 500 }],
+    journeyPrnNumber: "none",
+    journeyAccepted: false,
+  });
+  const row = (materialName) => calculation.obligationData.find((item) => item.materialName === materialName);
+
+  assert.equal(row("Paper").status, "Met");
+  assert.equal(row("Paper").tonnageOutstanding, 0);
+  assert.equal(row("Plastic").status, "NotMet");
+  assert.equal(row("Plastic").tonnageOutstanding, 600);
+});
+
+test("obligationMaterial maps each PRN material to its obligation material and keeps unknown names", () => {
+  assert.equal(obligationMappings.obligationMaterial("Paper/board"), "Paper");
+  assert.equal(obligationMappings.obligationMaterial("Fibre"), "Paper");
+  assert.equal(obligationMappings.obligationMaterial("Glass Other"), "Glass");
+  assert.equal(obligationMappings.obligationMaterial("Glass Re-melt"), "GlassRemelt");
+  assert.equal(obligationMappings.obligationMaterial("Aluminium"), "Aluminium");
+});
+
+test("sumTonnage adds up only the PRNs whose obligation material matches", () => {
+  const prns = [
+    { materialName: "Paper/board", tonnageValue: 15 },
+    { materialName: "Fibre", tonnageValue: 35 },
+    { materialName: "Plastic", tonnageValue: 40 },
+  ];
+
+  assert.equal(obligationMappings.sumTonnage(prns, "Paper"), 50);
+  assert.equal(obligationMappings.sumTonnage(prns, "Wood"), 0);
+});

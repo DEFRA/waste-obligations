@@ -24,8 +24,7 @@ public interface IPrnCommonBackendService : IOrganisationObligationSource
         IReadOnlyCollection<Guid> prnIds,
         string status,
         int? obligationYear,
-        string? expectedStatus,
-        string conflictMessage,
+        PrnStatusUpdateOptions options,
         CancellationToken cancellationToken
     );
 }
