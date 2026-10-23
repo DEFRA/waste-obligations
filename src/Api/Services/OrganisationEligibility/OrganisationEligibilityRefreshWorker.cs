@@ -36,6 +36,13 @@ public class OrganisationEligibilityRefreshWorker(
             {
                 return;
             }
+            catch (OrganisationEligibilityRefreshConflictException exception)
+            {
+                logger.LogWarning(
+                    exception,
+                    "Organisation eligibility refresh conflicted with a concurrent update; will retry after the polling interval"
+                );
+            }
             catch (Exception exception)
             {
                 logger.LogError(exception, "Organisation eligibility refresh failed");

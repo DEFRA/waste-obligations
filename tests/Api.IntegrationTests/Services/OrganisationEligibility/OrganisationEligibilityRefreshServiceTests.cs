@@ -691,7 +691,7 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
         var act = async () => await subject.Refresh(TestContext.Current.CancellationToken);
 
         await act.Should()
-            .ThrowAsync<InvalidOperationException>()
+            .ThrowAsync<OrganisationEligibilityRefreshConflictException>()
             .WithMessage("The active organisation eligibility generation changed during refresh");
         snapshotInserted.Should().Be(1);
         var snapshot = await OrganisationEligibilitySnapshots
@@ -743,7 +743,7 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
         var act = async () => await subject.Refresh(TestContext.Current.CancellationToken);
 
         await act.Should()
-            .ThrowAsync<InvalidOperationException>()
+            .ThrowAsync<OrganisationEligibilityRefreshConflictException>()
             .WithMessage("The active organisation eligibility generation changed during refresh");
         snapshotReplaced.Should().Be(1);
         var snapshot = await OrganisationEligibilitySnapshots
@@ -789,7 +789,7 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
         var act = async () => await subject.Refresh(TestContext.Current.CancellationToken);
 
         await act.Should()
-            .ThrowAsync<InvalidOperationException>()
+            .ThrowAsync<OrganisationEligibilityRefreshConflictException>()
             .WithMessage("The active organisation eligibility generation changed during refresh");
         stateVersionUpdated.Should().Be(1);
         var snapshot = await OrganisationEligibilitySnapshots
@@ -836,7 +836,7 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
         var act = async () => await subject.Refresh(TestContext.Current.CancellationToken);
 
         await act.Should()
-            .ThrowAsync<InvalidOperationException>()
+            .ThrowAsync<OrganisationEligibilityRefreshConflictException>()
             .WithMessage("The active organisation eligibility generation changed during refresh");
         snapshotReplaced.Should().Be(1);
         var snapshot = await OrganisationEligibilitySnapshots
