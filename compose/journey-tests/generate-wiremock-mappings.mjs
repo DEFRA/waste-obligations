@@ -502,6 +502,14 @@ const awaitingCompliancePern = {
     isExport: true,
 };
 
+// Everything the CSO awaiting search returns, in the order the journeys rely on.
+// The obligation calculation counts the same PRNs, so both read this list.
+const complianceAwaitingSearchItems = [
+    compliancePrn,
+    awaitingCompliancePern,
+    ...complianceAwaitingPrns.slice(1),
+];
+
 const rejectedCompliancePrn = rejectedPrn({
     ...prnFixture(
         "PERN459",
@@ -569,12 +577,8 @@ prnMappings.push(
         compliancePrnSearchMapping(
             [],
             {
-                items: [
-                    compliancePrn,
-                    awaitingCompliancePern,
-                    ...complianceAwaitingPrns.slice(1),
-                ],
-                totalItems: 6,
+                items: complianceAwaitingSearchItems,
+                totalItems: complianceAwaitingSearchItems.length,
             },
             PRN_MAPPING_10,
         ),
@@ -737,7 +741,7 @@ const producerJourneyObligations = (journeyAccepted) =>
 const complianceJourneyObligations = (journeyAccepted) =>
     obligationsFor({
         organisationId: complianceSchemeId,
-        listed: complianceAwaitingPrns,
+        listed: complianceAwaitingSearchItems,
         accepted: [acceptedCompliancePrn],
         journeyPrnNumber: COMPLIANCE_JOURNEY_PRN_NUMBER,
         journeyAccepted,
