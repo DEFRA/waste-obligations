@@ -692,7 +692,10 @@ const obligationsFor = ({
 
 // The obligation calculation for one organisation, in one scenario state (no
 // state: the scenario's starting state).
+// WireMock matches the lowest Priority first. The state-specific calculation must
+// win over the starting-state one, or a read after the accept can match either.
 const obligationCalculationMapping = (scenario, organisationId, state, obligations) => ({
+    Priority: state ? PRN_MAPPING_1 : PRN_MAPPING_2,
     Scenario: scenario,
     ...(state ? { WhenStateIs: state } : {}),
     ...mapping(
@@ -792,24 +795,6 @@ prnMappings.push(
             complianceSchemeId,
             COMPLIANCE_ACCEPTED_STATE,
         ),
-    ],
-    // A later update (e.g. a retried accept) still succeeds, without changing
-    // the obligations again.
-    [
-        "journey-producer-prn-status-update-repeat.json",
-        {
-            Priority: PRN_MAPPING_10,
-            Request: {
-                Path: {
-                    Matchers: [
-                        { Name: "ExactMatcher", Pattern: "/api/v1/prn/status" },
-                    ],
-                },
-                Methods: ["POST"],
-                Headers: organisationHeader(directProducerId),
-            },
-            Response: { StatusCode: 200 },
-        },
     ],
 );
 

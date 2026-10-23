@@ -171,7 +171,7 @@ public class UpdatePrnsTests(ApiWebApplicationFactory factory, ITestOutputHelper
     public async Task WhenObligationYearGiven_ShouldSendItAsGivenForEveryPrn(int obligationYear)
     {
         var client = CreateClient(testUser: TestUser.WriteOnly);
-        var prnIds = AddAwaitingPrns(obligationYear: "2026", count: 2);
+        var prnIds = NewPrnIds(count: 2);
 
         var response = await client.PatchAsJsonAsync(
             Testing.Endpoints.Organisations.Prns.UpdateMany(FakeWasteOrganisationsService.OrganisationId),
@@ -195,7 +195,7 @@ public class UpdatePrnsTests(ApiWebApplicationFactory factory, ITestOutputHelper
     public async Task WhenObligationYearGivenAndAPrnIsNotFound_ShouldBeNotFound()
     {
         var client = CreateClient(testUser: TestUser.WriteOnly);
-        List<string> prnIds = [.. AddAwaitingPrns(obligationYear: "2026", count: 1), Guid.NewGuid().ToString("D")];
+        List<string> prnIds = [.. NewPrnIds(count: 1), Guid.NewGuid().ToString("D")];
         // The common backend answers 404 for the whole list when any PRN is missing.
         PrnCommonBackendService.StatusUpdateResult = PrnStatusUpdateResult.NotFound;
 
@@ -365,23 +365,8 @@ public class UpdatePrnsTests(ApiWebApplicationFactory factory, ITestOutputHelper
         return await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
     }
 
-    private List<string> AddAwaitingPrns(string obligationYear, int count)
-    {
-        List<string> prnIds = [];
-
-        for (var i = 0; i < count; i++)
-        {
-            var prn = PrnDataFixture
-                .Default()
-                .With(x => x.ExternalId, Guid.NewGuid())
-                .With(x => x.OrganisationId, FakeWasteOrganisationsService.OrganisationId)
-                .With(x => x.PrnStatus, PrnCommonBackendStatus.AwaitingAcceptance)
-                .With(x => x.ObligationYear, obligationYear)
-                .Create();
-            PrnCommonBackendService.Prns[prn.ExternalId] = prn;
-            prnIds.Add(prn.ExternalId.ToString("D"));
-        }
-
-        return prnIds;
-    }
+    // The bulk endpoint never reads PRNs: the awaiting-state check is made by the
+    // common backend through expectedStatus, so these tests only need IDs.
+    private static List<string> NewPrnIds(int count) =>
+        [.. Enumerable.Range(0, count).Select(_ => Guid.NewGuid().ToString("D"))];
 }
