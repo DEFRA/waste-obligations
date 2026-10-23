@@ -43,5 +43,4 @@ services:
       WASTE_OBLIGATION_SUBMITTER_EMAIL: ${WASTE_OBLIGATION_SUBMITTER_EMAIL:?WASTE_OBLIGATION_SUBMITTER_EMAIL must be set}
     volumes:
       - ${WASTE_OBLIGATIONS_SOURCE_DIR:?WASTE_OBLIGATIONS_SOURCE_DIR must identify a Waste Obligations checkout}/compose/journey-tests:/source/journey-tests:ro
-      - ${WASTE_OBLIGATIONS_SOURCE_DIR:?WASTE_OBLIGATIONS_SOURCE_DIR must identify a Waste Obligations checkout}/compose/helpers:/source/helpers:ro
       - ${CI_STACK_RUNTIME_DIR:?CI_STACK_RUNTIME_DIR must identify the generated CI stack directory}/wiremock:/output
