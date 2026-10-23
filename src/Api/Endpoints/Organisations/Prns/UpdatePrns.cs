@@ -44,18 +44,17 @@ public static class UpdatePrns
         if (organisation is null)
             return Results.NotFound();
 
+        // A year is recorded only on PRNs still awaiting acceptance. The common backend checks
+        // that in the same write, so no read is needed here.
+        var expectedStatus = request.ObligationYear is null ? null : PrnCommonBackendStatus.AwaitingAcceptance;
+
         var result = await prnCommonBackendService.UpdatePrnStatuses(
             organisationId,
             request.User.EffectiveId,
             request.EffectivePrnIds,
             request.Status.ToPrnCommonBackendStatus(),
             request.ObligationYear,
-            // A year is recorded only on PRNs still awaiting acceptance. The common backend checks
-            // that in the same write, so no read is needed here.
-            request.ObligationYear
-                is null
-                ? null
-                : PrnCommonBackendStatus.AwaitingAcceptance,
+            expectedStatus,
             PrnStatusConflict.Message,
             cancellationToken
         );

@@ -33,7 +33,7 @@ public class UpdatePrnsTests : IntegrationTestBase
             accessToken: OAuth2Extensions.AccessToken
         );
 
-        var prnIds = new[] { Guid.NewGuid(), Guid.NewGuid() };
+        Guid[] prnIds = [Guid.NewGuid(), Guid.NewGuid()];
         var client = CreateClient();
 
         var response = await client.PatchAsJsonAsync(
