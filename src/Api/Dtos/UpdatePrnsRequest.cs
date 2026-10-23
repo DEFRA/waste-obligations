@@ -29,7 +29,11 @@ public record UpdatePrnsRequest : IValidatableObject
 
     [JsonIgnore]
     internal IReadOnlyCollection<Guid> EffectivePrnIds =>
-        [.. (PrnIds ?? throw new InvalidOperationException($"{nameof(PrnIds)} is only available after validation.")).Select(Guid.Parse).Distinct()];
+        [
+            .. (PrnIds ?? throw new InvalidOperationException($"{nameof(PrnIds)} is only available after validation."))
+                .Select(Guid.Parse)
+                .Distinct(),
+        ];
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
