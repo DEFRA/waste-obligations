@@ -143,8 +143,7 @@ public class PrnCommonBackendService(HttpClient httpClient, ILogger<PrnCommonBac
             [commonBackendPrnId],
             status,
             obligationYear: null,
-            expectedStatus: null,
-            conflictMessage: PrnStatusConflict.SinglePrn,
+            options: new PrnStatusUpdateOptions(null, PrnStatusConflict.SinglePrn),
             cancellationToken
         );
     }
@@ -159,8 +158,7 @@ public class PrnCommonBackendService(HttpClient httpClient, ILogger<PrnCommonBac
         IReadOnlyCollection<Guid> prnIds,
         string status,
         int? obligationYear,
-        string? expectedStatus,
-        string conflictMessage,
+        PrnStatusUpdateOptions options,
         CancellationToken cancellationToken
     )
     {
@@ -173,7 +171,7 @@ public class PrnCommonBackendService(HttpClient httpClient, ILogger<PrnCommonBac
                 PrnId = x,
                 Status = status,
                 ObligationYear = commonBackendObligationYear,
-                ExpectedStatus = expectedStatus,
+                ExpectedStatus = options.ExpectedStatus,
             })
         );
 
@@ -193,7 +191,7 @@ public class PrnCommonBackendService(HttpClient httpClient, ILogger<PrnCommonBac
         {
             HttpStatusCode.OK => PrnStatusUpdateResult.Updated,
             HttpStatusCode.NotFound => PrnStatusUpdateResult.NotFound,
-            HttpStatusCode.Conflict => throw new ConcurrencyException(conflictMessage),
+            HttpStatusCode.Conflict => throw new ConcurrencyException(options.ConflictMessage),
             _ => EnsureSuccessAndReturnUpdated(response),
         };
     }

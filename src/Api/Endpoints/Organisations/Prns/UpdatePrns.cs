@@ -54,8 +54,7 @@ public static class UpdatePrns
             request.EffectivePrnIds,
             request.Status.ToPrnCommonBackendStatus(),
             request.ObligationYear,
-            expectedStatus,
-            PrnStatusConflict.Message,
+            new PrnStatusUpdateOptions(expectedStatus, PrnStatusConflict.Message),
             cancellationToken
         );
 

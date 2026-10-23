@@ -32,3 +32,23 @@ test("every PRN mapping file name is unique", () => {
 
   assert.equal(new Set(names).size, names.length);
 });
+
+test("the paper and fibre filter returns only the paper/board and fibre PRNs", () => {
+  const filtered = mappingNamed(prnMappings.prnMappings, "journey-producer-prns-filter-awaiting-paperfiber.json");
+
+  assert.deepEqual(filtered.Response.BodyAsJson.items.map((prn) => prn.prnNumber).sort(), ["PRN128", "PRN132"]);
+});
+
+test("the wood filter is empty because no wood PRN is awaiting", () => {
+  const filtered = mappingNamed(prnMappings.prnMappings, "journey-producer-prns-filter-awaiting-wood.json");
+
+  assert.equal(filtered.Response.BodyAsJson.totalItems, 0);
+});
+
+test("the tonnage sorts put the largest and smallest PRNs first", () => {
+  const descending = mappingNamed(prnMappings.prnMappings, "journey-producer-prns-sort-tonnage-desc.json");
+  const ascending = mappingNamed(prnMappings.prnMappings, "journey-producer-prns-sort-tonnage-asc.json");
+
+  assert.equal(descending.Response.BodyAsJson.items[0].prnNumber, "PRN127");
+  assert.equal(ascending.Response.BodyAsJson.items[0].prnNumber, "PRN128");
+});
