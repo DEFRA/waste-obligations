@@ -143,6 +143,7 @@ public class PrnCommonBackendService(HttpClient httpClient, ILogger<PrnCommonBac
             [commonBackendPrnId],
             status,
             obligationYear: null,
+            expectedStatus: null,
             cancellationToken
         );
     }
@@ -157,6 +158,7 @@ public class PrnCommonBackendService(HttpClient httpClient, ILogger<PrnCommonBac
         IReadOnlyCollection<Guid> prnIds,
         string status,
         int? obligationYear,
+        string? expectedStatus,
         CancellationToken cancellationToken
     )
     {
@@ -169,6 +171,7 @@ public class PrnCommonBackendService(HttpClient httpClient, ILogger<PrnCommonBac
                 PrnId = x,
                 Status = status,
                 ObligationYear = commonBackendObligationYear,
+                ExpectedStatus = expectedStatus,
             })
         );
 

@@ -112,6 +112,7 @@ public class FakePrnCommonBackendService : IPrnCommonBackendService
             [commonBackendPrnId],
             status,
             obligationYear: null,
+            expectedStatus: null,
             cancellationToken
         );
     }
@@ -122,6 +123,7 @@ public class FakePrnCommonBackendService : IPrnCommonBackendService
         IReadOnlyCollection<Guid> prnIds,
         string status,
         int? obligationYear,
+        string? expectedStatus,
         CancellationToken cancellationToken
     )
     {
@@ -138,6 +140,7 @@ public class FakePrnCommonBackendService : IPrnCommonBackendService
                 PrnId = x,
                 Status = status,
                 ObligationYear = obligationYear?.ToString(CultureInfo.InvariantCulture),
+                ExpectedStatus = expectedStatus,
             }),
         ];
 
