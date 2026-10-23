@@ -162,6 +162,16 @@ public class UpdatePrnsTests(ApiWebApplicationFactory factory, ITestOutputHelper
         await VerifyJson(response);
     }
 
+    [Fact]
+    public async Task WhenPrnIdIsNotHyphenated_ShouldBeBadRequestWithoutProxying()
+    {
+        await RequestShouldBeBadRequest(
+            UpdatePrnsRequestFixture.Accepted().With(x => x.PrnIds, [Guid.NewGuid().ToString("N")]).Create()
+        );
+
+        PrnCommonBackendService.LastPrnStatusUpdates.Should().BeNull();
+    }
+
     // The year is the caller's choice and is not checked against the PRNs'
     // own obligation years, so any year in range is sent as given.
     [Theory]

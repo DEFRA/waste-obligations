@@ -24,7 +24,15 @@ jobs:
         with:
           node-version: 22
       - name: Run journey-test Compose helper tests
-        run: node --test compose/journey-tests/generate-wiremock-mappings.test.mjs
+        run: >-
+          node --test
+          compose/journey-tests/generate-wiremock-mappings.test.mjs
+          compose/helpers/journey-config.test.mjs
+          compose/helpers/mapping-helpers.test.mjs
+          compose/helpers/journey-people.test.mjs
+          compose/helpers/journey-prns.test.mjs
+          compose/helpers/prn-mappings.test.mjs
+          compose/helpers/obligation-mappings.test.mjs
       - name: Test
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
