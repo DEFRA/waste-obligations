@@ -354,7 +354,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
                 TestContext.Current.CancellationToken
             );
 
-        await act.Should().ThrowAsync<ConcurrencyException>();
+        await act.Should().ThrowAsync<ConcurrencyException>().WithMessage("The PRN status has already been updated.");
     }
 
     [Fact]
@@ -593,7 +593,9 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
                 TestContext.Current.CancellationToken
             );
 
-        await act.Should().ThrowAsync<ConcurrencyException>();
+        await act.Should()
+            .ThrowAsync<ConcurrencyException>()
+            .WithMessage("One or more PRNs are not in the status this update requires. No PRNs were updated.");
     }
 
     [Fact]

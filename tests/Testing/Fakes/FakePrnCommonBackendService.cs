@@ -106,6 +106,9 @@ public class FakePrnCommonBackendService : IPrnCommonBackendService
             return Task.FromResult(PrnStatusUpdateResult.NotFound);
 
         // Mirrors the real service, where a single update is a list of one.
+        if (ConcurrencyError)
+            throw new ConcurrencyException(PrnStatusConflict.SinglePrn);
+
         return UpdatePrnStatuses(
             organisationId,
             userId,
