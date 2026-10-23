@@ -1,5 +1,4 @@
 using Defra.WasteObligations.Api.Authentication;
-using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.Api.Services.PrnCommonBackend;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
@@ -45,66 +44,21 @@ public static class UpdatePrns
         if (organisation is null)
             return Results.NotFound();
 
-        if (request.ObligationYear is not null)
-        {
-            var precondition = await CheckPrnsAreAwaitingAcceptance(
-                organisationId,
-                request.EffectivePrnIds,
-                prnCommonBackendService,
-                cancellationToken
-            );
-
-            if (precondition is not null)
-                return precondition;
-        }
-
         var result = await prnCommonBackendService.UpdatePrnStatuses(
             organisationId,
             request.User.EffectiveId,
             request.EffectivePrnIds,
             request.Status.ToPrnCommonBackendStatus(),
             request.ObligationYear,
+            // A year is recorded only on PRNs still awaiting acceptance. The common backend checks
+            // that in the same write, so no read is needed here.
+            request.ObligationYear
+                is null
+                ? null
+                : PrnCommonBackendStatus.AwaitingAcceptance,
             cancellationToken
         );
 
         return result.ToResult();
-    }
-
-    // The common backend re-applies an update to a PRN already in the requested
-    // status and records the year unconditionally, so a stale or replayed accept
-    // would move an already-counted PRN into another year. When a year is sent,
-    // every PRN must therefore still be awaiting acceptance. The year itself is
-    // the caller's choice (the frontend applies the acceptance-year rules) and is
-    // not checked against the PRNs. A small race remains between these reads and
-    // the update.
-    private static async Task<IResult?> CheckPrnsAreAwaitingAcceptance(
-        Guid organisationId,
-        IReadOnlyCollection<Guid> prnIds,
-        IPrnCommonBackendService prnCommonBackendService,
-        CancellationToken cancellationToken
-    )
-    {
-        List<PrnData?> prns = [];
-
-        // Reads are sent in small batches so a full selection does not open 100
-        // backend requests at once.
-        foreach (var batch in prnIds.Chunk(10))
-        {
-            prns.AddRange(
-                await Task.WhenAll(
-                    batch.Select(x =>
-                        prnCommonBackendService.ReadPrn(organisationId, x.ToString("D"), cancellationToken)
-                    )
-                )
-            );
-        }
-
-        if (prns.Any(x => x is null))
-            return Results.NotFound();
-
-        if (prns.Any(x => x!.PrnStatus != PrnCommonBackendStatus.AwaitingAcceptance))
-            throw new ConcurrencyException(PrnStatusConflict.Message);
-
-        return null;
     }
 }

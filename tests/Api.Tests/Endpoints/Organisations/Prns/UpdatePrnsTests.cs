@@ -187,35 +187,17 @@ public class UpdatePrnsTests(ApiWebApplicationFactory factory, ITestOutputHelper
         PrnCommonBackendService
             .LastPrnStatusUpdates.Should()
             .HaveCount(2)
-            .And.OnlyContain(x => x.ObligationYear == obligationYear.ToString(CultureInfo.InvariantCulture));
+            .And.OnlyContain(x => x.ObligationYear == obligationYear.ToString(CultureInfo.InvariantCulture))
+            .And.OnlyContain(x => x.ExpectedStatus == PrnCommonBackendStatus.AwaitingAcceptance);
     }
 
     [Fact]
-    public async Task WhenObligationYearGivenAndAPrnIsNoLongerAwaitingAcceptance_ShouldBeConflictWithoutUpdating()
-    {
-        var client = CreateClient(testUser: TestUser.WriteOnly);
-        var prnIds = AddAwaitingPrns(obligationYear: "2026", count: 2);
-        PrnCommonBackendService.Prns[Guid.Parse(prnIds[1])] = PrnCommonBackendService.Prns[Guid.Parse(prnIds[1])] with
-        {
-            PrnStatus = PrnCommonBackendStatus.Accepted,
-        };
-
-        var response = await client.PatchAsJsonAsync(
-            Testing.Endpoints.Organisations.Prns.UpdateMany(FakeWasteOrganisationsService.OrganisationId),
-            UpdatePrnsRequestFixture.Accepted().With(x => x.PrnIds, prnIds).With(x => x.ObligationYear, 2026).Create(),
-            TestContext.Current.CancellationToken
-        );
-
-        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
-        PrnCommonBackendService.LastPrnStatusUpdates.Should().BeNull();
-        await VerifyJson(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-    }
-
-    [Fact]
-    public async Task WhenObligationYearGivenAndAPrnIsNotFound_ShouldBeNotFoundWithoutUpdating()
+    public async Task WhenObligationYearGivenAndAPrnIsNotFound_ShouldBeNotFound()
     {
         var client = CreateClient(testUser: TestUser.WriteOnly);
         List<string> prnIds = [.. AddAwaitingPrns(obligationYear: "2026", count: 1), Guid.NewGuid().ToString("D")];
+        // The common backend answers 404 for the whole list when any PRN is missing.
+        PrnCommonBackendService.StatusUpdateResult = PrnStatusUpdateResult.NotFound;
 
         var response = await client.PatchAsJsonAsync(
             Testing.Endpoints.Organisations.Prns.UpdateMany(FakeWasteOrganisationsService.OrganisationId),
@@ -224,7 +206,6 @@ public class UpdatePrnsTests(ApiWebApplicationFactory factory, ITestOutputHelper
         );
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
-        PrnCommonBackendService.LastPrnStatusUpdates.Should().BeNull();
     }
 
     [Fact]
@@ -251,6 +232,7 @@ public class UpdatePrnsTests(ApiWebApplicationFactory factory, ITestOutputHelper
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         PrnCommonBackendService.LastPrnStatusUpdates.Should().OnlyContain(x => x.ObligationYear == null);
+        PrnCommonBackendService.LastPrnStatusUpdates.Should().OnlyContain(x => x.ExpectedStatus == null);
     }
 
     [Fact]

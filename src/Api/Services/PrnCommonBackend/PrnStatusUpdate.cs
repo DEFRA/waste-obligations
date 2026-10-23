@@ -13,4 +13,9 @@ public record PrnStatusUpdate
     [JsonPropertyName("obligationYear")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ObligationYear { get; init; }
+
+    // When set, the common backend applies the update only to a PRN still in this status.
+    [JsonPropertyName("expectedStatus")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ExpectedStatus { get; init; }
 }

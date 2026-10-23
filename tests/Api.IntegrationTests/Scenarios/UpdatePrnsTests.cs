@@ -9,7 +9,6 @@ using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Authentication;
 using Defra.WasteObligations.Testing.Extensions.WireMock;
 using Defra.WasteObligations.Testing.Fixtures.Dtos;
-using Defra.WasteObligations.Testing.Fixtures.PrnCommonBackend;
 
 namespace Defra.WasteObligations.Api.IntegrationTests.Scenarios;
 
@@ -35,22 +34,6 @@ public class UpdatePrnsTests : IntegrationTestBase
         );
 
         var prnIds = new[] { Guid.NewGuid(), Guid.NewGuid() };
-        foreach (var prnId in prnIds)
-        {
-            await WireMockContext.WireMockAdminApi.StubPrnCommonBackendPrnRequest(
-                prnId,
-                PrnDataFixture
-                    .Default()
-                    .With(x => x.ExternalId, prnId)
-                    .With(x => x.OrganisationId, organisationId)
-                    .With(x => x.PrnStatus, PrnCommonBackendStatus.AwaitingAcceptance)
-                    .With(x => x.ObligationYear, "2026")
-                    .Create(),
-                organisationId.ToString("D"),
-                OAuth2Extensions.AccessToken
-            );
-        }
-
         var client = CreateClient();
 
         var response = await client.PatchAsJsonAsync(
@@ -80,6 +63,7 @@ public class UpdatePrnsTests : IntegrationTestBase
                     PrnId = x,
                     Status = PrnCommonBackendStatus.Accepted,
                     ObligationYear = "2026",
+                    ExpectedStatus = PrnCommonBackendStatus.AwaitingAcceptance,
                 })
             );
     }
