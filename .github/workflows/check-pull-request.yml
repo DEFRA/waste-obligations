@@ -24,7 +24,8 @@ jobs:
         with:
           node-version: 22
       - name: Run journey-test Compose helper tests
-        run: node --test compose/journey-tests/generate-wiremock-mappings.test.mjs
+        run: >-
+          node --test 'compose/journey-tests/**/*.test.mjs'
       - name: Test
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
@@ -131,6 +132,7 @@ jobs:
           journey-tests-ref: ${{ steps.journey-tests-ref.outputs.ref }}
           waste-obligations: ${{ github.event.pull_request.head.sha || github.sha }}
         env:
+          IS_CI: true
           EPR_USER_EMAIL: ${{ secrets.EPR_USER_EMAIL }}
           EPR_USER_PASSWORD: ${{ secrets.EPR_USER_PASSWORD }}
           EPR_CSO_USER_EMAIL: ${{ secrets.EPR_CSO_USER_EMAIL }}
