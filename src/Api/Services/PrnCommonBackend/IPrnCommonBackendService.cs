@@ -25,6 +25,7 @@ public interface IPrnCommonBackendService : IOrganisationObligationSource
         string status,
         int? obligationYear,
         string? expectedStatus,
+        string conflictMessage,
         CancellationToken cancellationToken
     );
 }

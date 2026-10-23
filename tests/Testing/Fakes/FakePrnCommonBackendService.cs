@@ -101,9 +101,6 @@ public class FakePrnCommonBackendService : IPrnCommonBackendService
             return Task.FromResult(PrnStatusUpdateResult.NotFound);
 
         // Mirrors the real service, where a single update is a list of one.
-        if (ConcurrencyError)
-            throw new ConcurrencyException(PrnStatusConflict.SinglePrn);
-
         return UpdatePrnStatuses(
             organisationId,
             userId,
@@ -111,6 +108,7 @@ public class FakePrnCommonBackendService : IPrnCommonBackendService
             status,
             obligationYear: null,
             expectedStatus: null,
+            conflictMessage: PrnStatusConflict.SinglePrn,
             cancellationToken
         );
     }
@@ -122,11 +120,12 @@ public class FakePrnCommonBackendService : IPrnCommonBackendService
         string status,
         int? obligationYear,
         string? expectedStatus,
+        string conflictMessage,
         CancellationToken cancellationToken
     )
     {
         if (ConcurrencyError)
-            throw new ConcurrencyException(PrnStatusConflict.Message);
+            throw new ConcurrencyException(conflictMessage);
 
         if (Throws)
             throw new HttpRequestException();
