@@ -532,6 +532,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
             PRN_STATUS_ACCEPTED,
             obligationYear,
             expectedStatus: null,
+            conflictMessage: PrnStatusConflict.Message,
             TestContext.Current.CancellationToken
         );
 
@@ -633,6 +634,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
             PRN_STATUS_ACCEPTED,
             obligationYear: null,
             expectedStatus: null,
+            conflictMessage: PrnStatusConflict.Message,
             TestContext.Current.CancellationToken
         );
 
@@ -663,6 +665,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
             PRN_STATUS_ACCEPTED,
             obligationYear: null,
             expectedStatus: null,
+            conflictMessage: PrnStatusConflict.Message,
             TestContext.Current.CancellationToken
         );
 
@@ -699,6 +702,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
             PrnCommonBackendStatus.Accepted,
             obligationYear: null,
             expectedStatus: null,
+            conflictMessage: PrnStatusConflict.Message,
             TestContext.Current.CancellationToken
         );
 

@@ -137,23 +137,16 @@ public class PrnCommonBackendService(HttpClient httpClient, ILogger<PrnCommonBac
         if (!Guid.TryParse(prnId, out var commonBackendPrnId))
             return PrnStatusUpdateResult.NotFound;
 
-        try
-        {
-            return await UpdatePrnStatuses(
-                organisationId,
-                userId,
-                [commonBackendPrnId],
-                status,
-                obligationYear: null,
-                expectedStatus: null,
-                cancellationToken
-            );
-        }
-        catch (ConcurrencyException)
-        {
-            // Keep the single-PRN wording; the batch wording is for multi-PRN requests.
-            throw new ConcurrencyException(PrnStatusConflict.SinglePrn);
-        }
+        return await UpdatePrnStatuses(
+            organisationId,
+            userId,
+            [commonBackendPrnId],
+            status,
+            obligationYear: null,
+            expectedStatus: null,
+            conflictMessage: PrnStatusConflict.SinglePrn,
+            cancellationToken
+        );
     }
 
     // The PRN common backend applies the whole list in one transaction: a missing
@@ -167,6 +160,7 @@ public class PrnCommonBackendService(HttpClient httpClient, ILogger<PrnCommonBac
         string status,
         int? obligationYear,
         string? expectedStatus,
+        string conflictMessage,
         CancellationToken cancellationToken
     )
     {
@@ -199,7 +193,7 @@ public class PrnCommonBackendService(HttpClient httpClient, ILogger<PrnCommonBac
         {
             HttpStatusCode.OK => PrnStatusUpdateResult.Updated,
             HttpStatusCode.NotFound => PrnStatusUpdateResult.NotFound,
-            HttpStatusCode.Conflict => throw new ConcurrencyException(PrnStatusConflict.Message),
+            HttpStatusCode.Conflict => throw new ConcurrencyException(conflictMessage),
             _ => EnsureSuccessAndReturnUpdated(response),
         };
     }
