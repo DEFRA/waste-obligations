@@ -4,13 +4,13 @@ import "./test-support.mjs";
 import * as config from "./journey-config.mjs";
 import * as prns from "./journey-prns.mjs";
 
-test("the producer has nine awaiting PRNs for its own organisation, all with a 2026 obligation year", () => {
+test("the producer has nine awaiting PRNs for its own organisation, all with the current obligation year", () => {
   assert.equal(prns.producerPrns.length, 9);
   assert.equal(new Set(prns.producerPrns.map((prn) => prn.prnNumber)).size, 9);
   for (const prn of prns.producerPrns) {
     assert.equal(prn.organisationId, config.directProducerId);
     assert.equal(prn.prnStatus, "AWAITINGACCEPTANCE");
-    assert.equal(prn.obligationYear, "2026");
+    assert.equal(prn.obligationYear, config.obligationYear);
     assert.equal(prn.decemberWaste, false);
   }
 });

@@ -3,6 +3,7 @@
 import {
     complianceSchemeId,
     directProducerId,
+    obligationYear,
 } from "./journey-config.mjs";
 
 // Keep the Azure PRN common backend contract beside its consuming service.
@@ -18,7 +19,7 @@ export const PRN_TONNAGE_90 = 90;
 export const PRN_TONNAGE_1 = 1;
 export const PRN_TONNAGE_60 = 60;
 export const PRN_TONNAGE_35 = 35;
-export const PRN_OBLIGATION_YEAR = "2026";
+export const PRN_OBLIGATION_YEAR = obligationYear;
 
 // Several distinguishable PRNs let the journey assert rendered values, material
 // filtering and each sort order. Issue date, tonnage and material each give a
@@ -44,7 +45,7 @@ export const prnFixture = (
     decemberWaste: false,
     issuedByOrg: "Journey Reprocessors Ltd",
     accreditationNumber: "ACC123",
-    accreditationYear: "2026",
+    accreditationYear: PRN_OBLIGATION_YEAR,
     obligationYear: PRN_OBLIGATION_YEAR,
     createdOn: issueDate,
     lastUpdatedDate: issueDate,
