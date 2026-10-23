@@ -21,6 +21,9 @@ namespace Defra.WasteObligations.Api.Tests.Services.PrnCommonBackend;
 
 public class PrnCommonBackendServiceTests : WireMockTestBase
 {
+    private const string PRN_STATUS_ACCEPTED = "ACCEPTED";
+    private const string PRN_STATUS_REJECTED = "REJECTED";
+
     private const string TraceHeaderName = "x-cdp-request-id";
     private const string TraceId = "trace-id";
 
@@ -255,7 +258,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
         const string accessToken = "access_token";
         var organisationId = Guid.NewGuid();
         var userId = Guid.NewGuid();
-        var statusUpdate = new PrnStatusUpdate { PrnId = Guid.NewGuid(), Status = "ACCEPTED" };
+        var statusUpdate = new PrnStatusUpdate { PrnId = Guid.NewGuid(), Status = PRN_STATUS_ACCEPTED };
 
         WireMock.StubTokenRequest();
         WireMock.StubPrnCommonBackendPrnStatusUpdateRequest(
@@ -283,7 +286,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
         var subject = CreateSubject(Context.HttpClient, logger);
         var organisationId = Guid.NewGuid();
         var userId = Guid.NewGuid();
-        var statusUpdate = new PrnStatusUpdate { PrnId = Guid.NewGuid(), Status = "ACCEPTED" };
+        var statusUpdate = new PrnStatusUpdate { PrnId = Guid.NewGuid(), Status = PRN_STATUS_ACCEPTED };
         WireMock.StubPrnCommonBackendPrnStatusUpdateRequest(statusUpdate, organisationId, userId);
 
         await subject.UpdatePrnStatus(
@@ -310,7 +313,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
         var subject = CreateSubject(Context.HttpClient);
         var organisationId = Guid.NewGuid();
         var userId = Guid.NewGuid();
-        var statusUpdate = new PrnStatusUpdate { PrnId = Guid.NewGuid(), Status = "REJECTED" };
+        var statusUpdate = new PrnStatusUpdate { PrnId = Guid.NewGuid(), Status = PRN_STATUS_REJECTED };
 
         WireMock.StubPrnCommonBackendPrnStatusUpdateRequest(
             statusUpdate,
@@ -336,7 +339,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
         var subject = CreateSubject(Context.HttpClient);
         var organisationId = Guid.NewGuid();
         var userId = Guid.NewGuid();
-        var statusUpdate = new PrnStatusUpdate { PrnId = Guid.NewGuid(), Status = "REJECTED" };
+        var statusUpdate = new PrnStatusUpdate { PrnId = Guid.NewGuid(), Status = PRN_STATUS_REJECTED };
 
         WireMock.StubPrnCommonBackendPrnStatusUpdateRequest(
             statusUpdate,
@@ -363,7 +366,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
         var subject = CreateSubject(Context.HttpClient);
         var organisationId = Guid.NewGuid();
         var userId = Guid.NewGuid();
-        var statusUpdate = new PrnStatusUpdate { PrnId = Guid.NewGuid(), Status = "REJECTED" };
+        var statusUpdate = new PrnStatusUpdate { PrnId = Guid.NewGuid(), Status = PRN_STATUS_REJECTED };
 
         WireMock.StubPrnCommonBackendPrnStatusUpdateRequest(
             statusUpdate,
@@ -390,7 +393,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
         var subject = CreateSubject(Context.HttpClient);
         var organisationId = Guid.NewGuid();
         var userId = Guid.NewGuid();
-        var statusUpdate = new PrnStatusUpdate { PrnId = Guid.NewGuid(), Status = "REJECTED" };
+        var statusUpdate = new PrnStatusUpdate { PrnId = Guid.NewGuid(), Status = PRN_STATUS_REJECTED };
 
         WireMock.StubPrnCommonBackendPrnStatusUpdateRequest(
             statusUpdate,
@@ -419,7 +422,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
             Guid.NewGuid(),
             Guid.NewGuid(),
             "not-a-guid",
-            "ACCEPTED",
+            PRN_STATUS_ACCEPTED,
             TestContext.Current.CancellationToken
         );
 
@@ -503,29 +506,46 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
         ILogger<PrnCommonBackendService>? logger = null
     ) => new(httpClient, logger ?? NullLogger<PrnCommonBackendService>.Instance);
 
+    private static PrnStatusUpdate[] NewStatusUpdates(int count, string? obligationYear = null) =>
+        [
+            .. Enumerable
+                .Range(0, count)
+                .Select(_ => new PrnStatusUpdate
+                {
+                    PrnId = Guid.NewGuid(),
+                    Status = PRN_STATUS_ACCEPTED,
+                    ObligationYear = obligationYear,
+                }),
+        ];
+
+    private static Task<PrnStatusUpdateResult> UpdatePrnStatusesAsync(
+        PrnCommonBackendService subject,
+        Guid organisationId,
+        Guid userId,
+        IReadOnlyCollection<PrnStatusUpdate> statusUpdates,
+        int? obligationYear = null
+    ) =>
+        subject.UpdatePrnStatuses(
+            organisationId,
+            userId,
+            [.. statusUpdates.Select(x => x.PrnId)],
+            PRN_STATUS_ACCEPTED,
+            obligationYear,
+            expectedStatus: null,
+            TestContext.Current.CancellationToken
+        );
+
     [Fact]
     public async Task UpdatePrnStatuses_ShouldSendEveryStatusUpdateInOneRequest()
     {
         var subject = CreateSubject(Context.HttpClient);
         var organisationId = Guid.NewGuid();
         var userId = Guid.NewGuid();
-        PrnStatusUpdate[] statusUpdates =
-        [
-            new() { PrnId = Guid.NewGuid(), Status = "ACCEPTED" },
-            new() { PrnId = Guid.NewGuid(), Status = "ACCEPTED" },
-        ];
+        var statusUpdates = NewStatusUpdates(count: 2);
 
         WireMock.StubPrnCommonBackendPrnStatusUpdatesRequest(statusUpdates, organisationId, userId);
 
-        var result = await subject.UpdatePrnStatuses(
-            organisationId,
-            userId,
-            [.. statusUpdates.Select(x => x.PrnId)],
-            "ACCEPTED",
-            obligationYear: null,
-            expectedStatus: null,
-            TestContext.Current.CancellationToken
-        );
+        var result = await UpdatePrnStatusesAsync(subject, organisationId, userId, statusUpdates);
 
         result.Should().Be(PrnStatusUpdateResult.Updated);
         WireMock.LogEntries.Count(x => x.RequestMessage?.Path == "/api/v1/prn/status").Should().Be(1);
@@ -537,11 +557,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
         var subject = CreateSubject(Context.HttpClient);
         var organisationId = Guid.NewGuid();
         var userId = Guid.NewGuid();
-        PrnStatusUpdate[] statusUpdates =
-        [
-            new() { PrnId = Guid.NewGuid(), Status = "ACCEPTED" },
-            new() { PrnId = Guid.NewGuid(), Status = "ACCEPTED" },
-        ];
+        var statusUpdates = NewStatusUpdates(count: 2);
 
         WireMock.StubPrnCommonBackendPrnStatusUpdatesRequest(
             statusUpdates,
@@ -550,15 +566,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
             HttpStatusCode.NotFound
         );
 
-        var result = await subject.UpdatePrnStatuses(
-            organisationId,
-            userId,
-            [.. statusUpdates.Select(x => x.PrnId)],
-            "ACCEPTED",
-            obligationYear: null,
-            expectedStatus: null,
-            TestContext.Current.CancellationToken
-        );
+        var result = await UpdatePrnStatusesAsync(subject, organisationId, userId, statusUpdates);
 
         result.Should().Be(PrnStatusUpdateResult.NotFound);
     }
@@ -569,11 +577,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
         var subject = CreateSubject(Context.HttpClient);
         var organisationId = Guid.NewGuid();
         var userId = Guid.NewGuid();
-        PrnStatusUpdate[] statusUpdates =
-        [
-            new() { PrnId = Guid.NewGuid(), Status = "ACCEPTED" },
-            new() { PrnId = Guid.NewGuid(), Status = "ACCEPTED" },
-        ];
+        var statusUpdates = NewStatusUpdates(count: 2);
 
         WireMock.StubPrnCommonBackendPrnStatusUpdatesRequest(
             statusUpdates,
@@ -582,16 +586,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
             HttpStatusCode.Conflict
         );
 
-        var act = () =>
-            subject.UpdatePrnStatuses(
-                organisationId,
-                userId,
-                [.. statusUpdates.Select(x => x.PrnId)],
-                "ACCEPTED",
-                obligationYear: null,
-                expectedStatus: null,
-                TestContext.Current.CancellationToken
-            );
+        var act = () => UpdatePrnStatusesAsync(subject, organisationId, userId, statusUpdates);
 
         await act.Should()
             .ThrowAsync<ConcurrencyException>()
@@ -604,33 +599,11 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
         var subject = CreateSubject(Context.HttpClient);
         var organisationId = Guid.NewGuid();
         var userId = Guid.NewGuid();
-        PrnStatusUpdate[] statusUpdates =
-        [
-            new()
-            {
-                PrnId = Guid.NewGuid(),
-                Status = "ACCEPTED",
-                ObligationYear = "2026",
-            },
-            new()
-            {
-                PrnId = Guid.NewGuid(),
-                Status = "ACCEPTED",
-                ObligationYear = "2026",
-            },
-        ];
+        var statusUpdates = NewStatusUpdates(count: 2, obligationYear: "2026");
 
         WireMock.StubPrnCommonBackendPrnStatusUpdatesRequest(statusUpdates, organisationId, userId);
 
-        var result = await subject.UpdatePrnStatuses(
-            organisationId,
-            userId,
-            [.. statusUpdates.Select(x => x.PrnId)],
-            "ACCEPTED",
-            2026,
-            expectedStatus: null,
-            TestContext.Current.CancellationToken
-        );
+        var result = await UpdatePrnStatusesAsync(subject, organisationId, userId, statusUpdates, obligationYear: 2026);
 
         result.Should().Be(PrnStatusUpdateResult.Updated);
     }
@@ -642,7 +615,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
         var subject = CreateSubject(Context.HttpClient, logger);
         var organisationId = Guid.NewGuid();
         var userId = Guid.NewGuid();
-        var statusUpdate = new PrnStatusUpdate { PrnId = Guid.NewGuid(), Status = "ACCEPTED" };
+        var statusUpdate = new PrnStatusUpdate { PrnId = Guid.NewGuid(), Status = PRN_STATUS_ACCEPTED };
         var detail = $"{statusUpdate.PrnId:D} Prns doesn't exists in system";
 
         WireMock.StubPrnCommonBackendPrnStatusUpdatesRequest(
@@ -657,7 +630,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
             organisationId,
             userId,
             [statusUpdate.PrnId],
-            "ACCEPTED",
+            PRN_STATUS_ACCEPTED,
             obligationYear: null,
             expectedStatus: null,
             TestContext.Current.CancellationToken
@@ -687,7 +660,7 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
             organisationId,
             userId,
             [Guid.NewGuid()],
-            "ACCEPTED",
+            PRN_STATUS_ACCEPTED,
             obligationYear: null,
             expectedStatus: null,
             TestContext.Current.CancellationToken

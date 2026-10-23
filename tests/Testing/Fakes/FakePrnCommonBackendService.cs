@@ -60,8 +60,6 @@ public class FakePrnCommonBackendService : IPrnCommonBackendService
 
     public IReadOnlyList<PrnStatusUpdate>? LastPrnStatusUpdates { get; private set; }
 
-    // PRNs a test adds for this instance, read before the shared fixtures.
-    public Dictionary<Guid, PrnData> Prns { get; } = [];
     public PrnStatusUpdateResult StatusUpdateResult { get; set; } = PrnStatusUpdateResult.Updated;
     public bool ConcurrencyError { get; set; }
     public bool Throws { get; set; }
@@ -79,9 +77,6 @@ public class FakePrnCommonBackendService : IPrnCommonBackendService
 
     public Task<PrnData?> ReadPrn(Guid organisationId, string prnId, CancellationToken cancellationToken)
     {
-        if (Guid.TryParse(prnId, out var id) && Prns.TryGetValue(id, out var prn))
-            return Task.FromResult<PrnData?>(prn);
-
         return Task.FromResult(s_prns.GetValueOrDefault((organisationId, prnId)));
     }
 
