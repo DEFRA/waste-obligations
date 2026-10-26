@@ -11,7 +11,6 @@ public class ComplianceDeclarationIndividualMaterialCoverage : MongoMigration
 {
     private const string SchemaVersionField = "schemaVersion";
     private const string SourceSchemaVersion = "v1.3";
-    private const string TargetSchemaVersion = "v2.0";
     private const string ObligationsField = "obligations";
     private const string IndexName = "SchemaVersion";
     private const string VersionField = "version";
@@ -20,7 +19,13 @@ public class ComplianceDeclarationIndividualMaterialCoverage : MongoMigration
 
     public override string Name => "021 - ComplianceDeclaration individual material coverage";
 
-    public override async Task UpAsync(MigrationContext context)
+    public override Task UpAsync(MigrationContext context) => Recalculate(context, CalculateIndividualMaterials);
+
+    // Reapply the historical formula; arbitrary values previously stored by a caller are not retained.
+    public override Task DownAsync(MigrationContext context) =>
+        Recalculate(context, HistoricalObligationCoveragePercentageCalculator.CalculateFromBsonObligations);
+
+    private static async Task Recalculate(MigrationContext context, Func<BsonArray, decimal> calculate)
     {
         var collection = context.Database.GetCollection<BsonDocument>(nameof(ComplianceDeclaration));
         await collection.Indexes.CreateOneAsync(
@@ -39,9 +44,7 @@ public class ComplianceDeclarationIndividualMaterialCoverage : MongoMigration
             foreach (var document in cursor.Current)
             {
                 var obligations = document[ObligationsField].AsBsonArray;
-                var percentage = ObligationCoveragePercentageCalculator.CalculateIndividualMaterialsFromBsonObligations(
-                    obligations
-                );
+                var percentage = calculate(obligations);
                 var unchangedSnapshot =
                     filter
                     & Builders<BsonDocument>.Filter.Eq("_id", document["_id"])
@@ -51,9 +54,10 @@ public class ComplianceDeclarationIndividualMaterialCoverage : MongoMigration
                             ? Builders<BsonDocument>.Filter.Eq(VersionField, version)
                             : Builders<BsonDocument>.Filter.Exists(VersionField, false)
                     );
-                var update = Builders<BsonDocument>
-                    .Update.Set("obligationCoveragePercentage", new BsonDecimal128(percentage))
-                    .Set(SchemaVersionField, TargetSchemaVersion);
+                var update = Builders<BsonDocument>.Update.Set(
+                    "obligationCoveragePercentage",
+                    new BsonDecimal128(percentage)
+                );
                 var result = await collection.UpdateOneAsync(
                     unchangedSnapshot,
                     update,
@@ -61,7 +65,7 @@ public class ComplianceDeclarationIndividualMaterialCoverage : MongoMigration
                 );
                 if (result.MatchedCount != 1)
                     throw new InvalidOperationException(
-                        "A declaration changed during coverage migration; retry the migration from its remaining source-version documents."
+                        "A declaration changed during coverage migration; retry the migration to rescan the current snapshots."
                     );
             }
         }
@@ -69,8 +73,14 @@ public class ComplianceDeclarationIndividualMaterialCoverage : MongoMigration
         await collection.Indexes.DropOneAsync(IndexName, context.CancellationToken);
     }
 
-    public override Task DownAsync(MigrationContext context) =>
-        throw new NotSupportedException(
-            "Individual-material coverage cannot be reversed: the original stored percentage was not retained. Reverting application code does not reverse the data migration."
+    private static decimal CalculateIndividualMaterials(BsonArray obligations) =>
+        ObligationCoveragePercentageCalculator.CalculateFromMaterials(
+            obligations.Select(x =>
+            {
+                var document = x.AsBsonDocument;
+                var tonnages = document["tonnages"].AsBsonDocument;
+
+                return (tonnages["accepted"].ToInt32(), tonnages["obligated"].ToInt32(), document["status"].AsString);
+            })
         );
 }

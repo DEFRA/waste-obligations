@@ -25,8 +25,8 @@ public class JsonAnalyticsEventSerializerTests
 
     [Theory]
     [InlineData("v1.3", 90)]
-    [InlineData("v2.0", 50)]
-    public void Serialize_WhenCoverageSemanticsDiffer_ShouldRetainTheRecordedSchemaAndValue(
+    [InlineData("v1.3", 50)]
+    public void Serialize_WhenCoverageCalculationIsCorrected_ShouldRetainTheRecordedSchemaAndValue(
         string version,
         decimal percentage
     )

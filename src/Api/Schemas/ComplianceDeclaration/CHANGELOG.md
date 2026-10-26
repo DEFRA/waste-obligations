@@ -2,15 +2,7 @@
 
 This changelog records changes to the versioned JSON schemas embedded in the API. Schema files are immutable; use the entry for the matching version when interpreting a persisted declaration or analytics event.
 
-The current schema is [v2.0](compliance-declaration.v2.0.schema.json).
-
-## v2.0
-
-- Changes the meaning of optional numeric `obligationCoveragePercentage` from aggregate-tonnage coverage to the equally weighted average of individual material percentages. This is a breaking semantic change and therefore a major version; the field name, numeric representation and optionality are unchanged.
-- Exclude `NoDataYet` rows. Cap each participating row's `accepted / obligated × 100` at 100%; a zero-accepted, zero-obligated `Met` row contributes 100%, and other included zero-obligation rows contribute zero. Average without rounding individual rows, then round the result to a whole number with midpoint rounding away from zero. Empty and all-`NoDataYet` snapshots return zero. Separate glass and Fibre rows remain independent.
-- Mongo migration `021_ComplianceDeclarationIndividualMaterialCoverage` recalculates live v1.3 declarations from their embedded obligations and atomically advances each percentage and schema version. Earlier migrations first bring legacy declarations to v1.3. Status, year, obligations, audit entries, submission details and concurrency version are preserved; already-target and newer documents are untouched.
-- Historical audit events, their snapshots and dispatch state remain unchanged and all prior schemas stay embedded. No synthetic business events are generated. Rollback does not restore the old percentage; `DownAsync` explicitly refuses reversal because the original value was not retained.
-- Old hosts may still write old-formula declarations during rolling deployment or replace corrected data from stale reads. This accepted overlap has no special reconciliation or backfill beyond the migration; unsubmitted summaries update through normal refreshes.
+The current schema is [v1.3](compliance-declaration.v1.3.schema.json).
 
 ## v1.3
 

@@ -61,14 +61,14 @@
         "schemeOperatorName": null,
         "_id": "{Scrubbed}"
       },
-      "schemaVersion": "v2.0",
+      "schemaVersion": "v1.3",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "DateTime_1",
       "version": 1,
       "_id": "{Scrubbed}"
     },
-    "SchemaVersion": "v2.0"
+    "SchemaVersion": "v1.3"
   },
   {
     "EventId": "01HXYZ00000000000000000002",
@@ -132,7 +132,7 @@
         "schemeOperatorName": null,
         "_id": "{Scrubbed}"
       },
-      "schemaVersion": "v2.0",
+      "schemaVersion": "v1.3",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "DateTime_1",
@@ -190,13 +190,13 @@
         "schemeOperatorName": null,
         "_id": "{Scrubbed}"
       },
-      "schemaVersion": "v2.0",
+      "schemaVersion": "v1.3",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "DateTime_4",
       "version": 2,
       "_id": "{Scrubbed}"
     },
-    "SchemaVersion": "v2.0"
+    "SchemaVersion": "v1.3"
   }
 ]

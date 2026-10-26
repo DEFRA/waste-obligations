@@ -25,7 +25,6 @@ public static class AnalyticsEventVocabulary
         "compliance_declaration_v1.1",
         "compliance_declaration_v1.2",
         "compliance_declaration_v1.3",
-        "compliance_declaration_v2.0",
     ];
 
     public static string ToOperation(string operation) =>

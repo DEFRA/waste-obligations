@@ -69,5 +69,5 @@
     "obligationCoveragePercentage": 40
   },
   "after": null,
-  "schemaVersion": "compliance_declaration_v2.0"
+  "schemaVersion": "compliance_declaration_v1.3"
 }

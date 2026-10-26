@@ -15,13 +15,12 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
 {
     private const string CollectionName = "ComplianceDeclaration";
     private const string SourceVersion = "v1.3";
-    private const string TargetVersion = "v2.0";
 
     [Theory]
     [InlineData("Submitted", 2023)]
     [InlineData("Accepted", 2025)]
     [InlineData("Cancelled", 2026)]
-    public async Task Up_WhenEligible_ShouldCorrectOnlyPercentageAndSchemaAndLeaveAuditEventsUnchanged(
+    public async Task UpAndDown_WhenEligible_ShouldCorrectOnlyPercentageAndLeaveAuditEventsUnchanged(
         string status,
         int year
     )
@@ -30,8 +29,9 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
         var original = Declaration(SourceVersion);
         original["status"] = status;
         original["obligationYear"] = year;
-        var target = Declaration(TargetVersion);
-        var newer = Declaration("v3.0");
+        var target = Declaration(SourceVersion);
+        target["obligationCoveragePercentage"] = new BsonDecimal128(50m);
+        var newer = Declaration("v1.4");
         await collection.InsertManyAsync(
             [original, target, newer],
             cancellationToken: TestContext.Current.CancellationToken
@@ -66,11 +66,15 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
         await subject.UpAsync(Context());
 
         var expected = original.DeepClone().AsBsonDocument;
-        expected["schemaVersion"] = TargetVersion;
         expected["obligationCoveragePercentage"] = new BsonDecimal128(50m);
         (await Read(collection, original)).Should().Equal(expected);
         (await Read(collection, target)).Should().Equal(target);
         (await Read(collection, newer)).Should().Equal(newer);
+        (await Read(auditEvents, auditEvent)).Should().Equal(auditEvent);
+
+        await subject.DownAsync(Context());
+
+        (await Read(collection, original)).Should().Equal(original);
         (await Read(auditEvents, auditEvent)).Should().Equal(auditEvent);
     }
 
@@ -94,7 +98,7 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
         await new ComplianceDeclarationIndividualMaterialCoverage().UpAsync(Context());
 
         var result = await Read(collection, document);
-        result["schemaVersion"].AsString.Should().Be(TargetVersion);
+        result["schemaVersion"].AsString.Should().Be(SourceVersion);
         result["obligationCoveragePercentage"].AsDecimal128.Should().Be(new Decimal128(50m));
         result["obligations"].Should().Be(document["obligations"]);
         result["version"].Should().Be(document["version"]);
@@ -113,7 +117,7 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
         var action = () => subject.UpAsync(Context());
         await action.Should().ThrowAsync<KeyNotFoundException>();
 
-        (await Read(collection, first))["schemaVersion"].AsString.Should().Be(TargetVersion);
+        (await Read(collection, first))["obligationCoveragePercentage"].AsDecimal128.Should().Be(new Decimal128(50m));
         (await Read(collection, invalid))["schemaVersion"].AsString.Should().Be(SourceVersion);
         await collection.UpdateOneAsync(
             Builders<BsonDocument>.Filter.Eq("_id", invalid["_id"]),
@@ -124,7 +128,8 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
         await subject.UpAsync(Context());
 
         (await Read(collection, first))["obligationCoveragePercentage"].AsDecimal128.Should().Be(new Decimal128(50m));
-        (await Read(collection, invalid))["schemaVersion"].AsString.Should().Be(TargetVersion);
+        (await Read(collection, invalid))["schemaVersion"].AsString.Should().Be(SourceVersion);
+        (await Read(collection, invalid))["obligationCoveragePercentage"].AsDecimal128.Should().Be(new Decimal128(50m));
     }
 
     [Theory]
@@ -214,7 +219,6 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
         afterConflict.Should().Equal(expectedConflict);
         await subject.UpAsync(Context());
         var expected = afterConflict.DeepClone().AsBsonDocument;
-        expected["schemaVersion"] = TargetVersion;
         expected["obligationCoveragePercentage"] = new BsonDecimal128(changeObligations ? 0m : 50m);
         (await Read(collection, document)).Should().Equal(expected);
     }
@@ -238,25 +242,37 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
         await subject.UpAsync(Context());
 
         var expected = document.DeepClone().AsBsonDocument;
-        expected["schemaVersion"] = TargetVersion;
         expected["obligationCoveragePercentage"] = new BsonDecimal128(50m);
         (await Read(collection, document)).Should().Equal(expected);
     }
 
-    [Fact]
-    public async Task Down_ShouldRefuseToInventPreviousValuesAndLeaveDataUnchanged()
+    [Theory]
+    [InlineData(90, 90)]
+    [InlineData(200, 100)]
+    public async Task Down_AfterUp_ShouldRestoreHistoricalFormulaAndPreserveOtherData(
+        int accepted,
+        decimal expectedPercentage
+    )
     {
         var collection = GetMongoDatabase().GetCollection<BsonDocument>(CollectionName);
-        var document = Declaration(TargetVersion);
-        await collection.InsertOneAsync(document, cancellationToken: TestContext.Current.CancellationToken);
+        var document = Declaration(SourceVersion);
+        document["obligationCoveragePercentage"] = new BsonDecimal128(17m);
+        document["obligations"] = new BsonArray { Obligation(accepted, 90, "Met"), Obligation(0, 10, "NotMet") };
+        var newer = Declaration("v1.4");
+        await collection.InsertManyAsync([document, newer], cancellationToken: TestContext.Current.CancellationToken);
+        var subject = new ComplianceDeclarationIndividualMaterialCoverage();
 
-        var action = () => new ComplianceDeclarationIndividualMaterialCoverage().DownAsync(Context());
+        await subject.UpAsync(Context());
+        (await Read(collection, document))["obligationCoveragePercentage"]
+            .AsDecimal128.Should()
+            .Be(new Decimal128(50m));
+        await subject.DownAsync(Context());
+        await subject.DownAsync(Context());
 
-        await action
-            .Should()
-            .ThrowAsync<NotSupportedException>()
-            .WithMessage("*original stored percentage was not retained*");
-        (await Read(collection, document)).Should().Equal(document);
+        var expected = document.DeepClone().AsBsonDocument;
+        expected["obligationCoveragePercentage"] = new BsonDecimal128(expectedPercentage);
+        (await Read(collection, document)).Should().Equal(expected);
+        (await Read(collection, newer)).Should().Equal(newer);
     }
 
     private static MigrationContext Context() =>

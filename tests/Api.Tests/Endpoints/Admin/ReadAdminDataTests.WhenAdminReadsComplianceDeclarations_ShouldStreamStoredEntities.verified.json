@@ -1,7 +1,7 @@
 ﻿[
   {
     "id": "68bc00000000000000000004",
-    "schemaVersion": "v2.0",
+    "schemaVersion": "v1.3",
     "version": 1,
     "created": "DateTimeOffset_1",
     "updated": "DateTimeOffset_2",

@@ -61,14 +61,14 @@
         "schemeOperatorName": null,
         "_id": "{Scrubbed}"
       },
-      "schemaVersion": "v2.0",
+      "schemaVersion": "v1.3",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "{Scrubbed}",
       "version": 1,
       "_id": "{Scrubbed}"
     },
-    "SchemaVersion": "v2.0"
+    "SchemaVersion": "v1.3"
   },
   {
     "EventId": "01HXYZ00000000000000000002",
@@ -132,14 +132,14 @@
         "schemeOperatorName": null,
         "_id": "{Scrubbed}"
       },
-      "schemaVersion": "v2.0",
+      "schemaVersion": "v1.3",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "{Scrubbed}",
       "version": 1,
       "_id": "{Scrubbed}"
     },
-    "SchemaVersion": "v2.0"
+    "SchemaVersion": "v1.3"
   },
   {
     "EventId": "01HXYZ00000000000000000003",
@@ -203,7 +203,7 @@
         "schemeOperatorName": null,
         "_id": "{Scrubbed}"
       },
-      "schemaVersion": "v2.0",
+      "schemaVersion": "v1.3",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "{Scrubbed}",
@@ -261,14 +261,14 @@
         "schemeOperatorName": null,
         "_id": "{Scrubbed}"
       },
-      "schemaVersion": "v2.0",
+      "schemaVersion": "v1.3",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "{Scrubbed}",
       "version": 2,
       "_id": "{Scrubbed}"
     },
-    "SchemaVersion": "v2.0"
+    "SchemaVersion": "v1.3"
   },
   {
     "EventId": "01HXYZ00000000000000000004",
@@ -332,7 +332,7 @@
         "schemeOperatorName": null,
         "_id": "{Scrubbed}"
       },
-      "schemaVersion": "v2.0",
+      "schemaVersion": "v1.3",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "{Scrubbed}",
@@ -390,13 +390,13 @@
         "schemeOperatorName": null,
         "_id": "{Scrubbed}"
       },
-      "schemaVersion": "v2.0",
+      "schemaVersion": "v1.3",
       "status": "Submitted",
       "submitterName": "Submitter Name",
       "updated": "{Scrubbed}",
       "version": 2,
       "_id": "{Scrubbed}"
     },
-    "SchemaVersion": "v2.0"
+    "SchemaVersion": "v1.3"
   }
 ]
