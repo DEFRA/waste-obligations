@@ -2,6 +2,7 @@ using AdaskoTheBeAsT.MongoDbMigrations.Abstractions;
 using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
+using Defra.WasteObligations.Api.Data.Corrections;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Data.Migrations;
 using Defra.WasteObligations.Api.Dtos;
@@ -9,6 +10,7 @@ using Defra.WasteObligations.AuditEvents.Data;
 using Defra.WasteObligations.AuditEvents.Entities;
 using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
@@ -72,9 +74,30 @@ public class MongoMigrationServiceTests : IntegrationTestBase
     {
         var database = GetMongoDatabase();
         var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
+        var correction = Substitute.For<IApplicationDataCorrection>();
+        correction.Id.Returns("migration-service-index-ordering-test");
+        correction
+            .Apply(Arg.Any<CancellationToken>())
+            .Returns(async _ =>
+            {
+                var indexes = await (
+                    await AuditEvents.Indexes.ListAsync(TestContext.Current.CancellationToken)
+                ).ToListAsync(TestContext.Current.CancellationToken);
+                indexes.Should().Contain(x => x.GetValue("name") == AuditEventAdminReadIndexName);
+            });
+        await using var services = CorrectionServices(correction);
+        var checkpoints = database.GetCollection<BsonDocument>("_application_data_corrections");
+        await checkpoints.DeleteOneAsync(
+            Builders<BsonDocument>.Filter.Eq("_id", correction.Id),
+            TestContext.Current.CancellationToken
+        );
         var subject = new MongoMigrationService(
             new MongoMigrationLeaseService(database, TimeProvider.System),
-            new MongoMigrationRunner(database, Substitute.For<ILogger<MongoMigrationRunner>>()),
+            new MongoMigrationRunner(
+                database,
+                Substitute.For<ILogger<MongoMigrationRunner>>(),
+                services.GetRequiredService<IServiceScopeFactory>()
+            ),
             Options.Create(new MongoMigrationOptions()),
             TimeProvider.System,
             Substitute.For<ILogger<MongoMigrationService>>()
@@ -83,6 +106,7 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         await database.DropCollectionAsync("_migrations_lease", TestContext.Current.CancellationToken);
         await new ComplianceDeclarationIndexes().DownAsync(context);
         await new AuditEventIndexesMigration().DownAsync(context);
+        await new AuditEventAdminReadIndex().DownAsync(context);
         await new OrganisationObligationSummaryIndexes().DownAsync(context);
         await new OrganisationObligationSummaryPollingStatusIndex().DownAsync(context);
         await new OrganisationObligationSummaryHistoricalBackfillIndex().DownAsync(context);
@@ -184,6 +208,19 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             delay: TimeSpan.FromMilliseconds(50)
         );
 
+        await WaitForAsync(
+            async () =>
+            {
+                var checkpoint = await checkpoints
+                    .Find(Builders<BsonDocument>.Filter.Eq("_id", correction.Id))
+                    .SingleOrDefaultAsync(TestContext.Current.CancellationToken);
+                checkpoint.Should().NotBeNull();
+            },
+            timeout: 10,
+            delay: TimeSpan.FromMilliseconds(50)
+        );
+        await correction.Received(1).Apply(Arg.Any<CancellationToken>());
+
         var complianceDeclarationIndexes = await (
             await ComplianceDeclarations.Indexes.ListAsync(TestContext.Current.CancellationToken)
         ).ToListAsync(TestContext.Current.CancellationToken);
@@ -254,7 +291,9 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         var database = GetMongoDatabase();
         var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
         var logger = new RecordingLogger<MongoMigrationRunner>();
-        var subject = new MongoMigrationRunner(database, logger);
+        var scopeFactory = Substitute.For<IServiceScopeFactory>();
+        var subject = new MongoMigrationRunner(database, logger, scopeFactory);
+        await using var services = CorrectionServices();
         await database.DropCollectionAsync("_migrations", TestContext.Current.CancellationToken);
         await new AuditEventIndexesMigration().DownAsync(context);
         await AuditEvents.InsertManyAsync(
@@ -267,6 +306,7 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             var act = () => subject.Run(TestContext.Current.CancellationToken);
 
             await act.Should().ThrowAsync<InvalidOperationException>();
+            scopeFactory.DidNotReceive().CreateScope();
             logger
                 .Entries.Should()
                 .Contain(x =>
@@ -281,8 +321,23 @@ public class MongoMigrationServiceTests : IntegrationTestBase
                 TestContext.Current.CancellationToken
             );
 
-            await subject.Run(TestContext.Current.CancellationToken);
+            await new MongoMigrationRunner(database, logger, services.GetRequiredService<IServiceScopeFactory>()).Run(
+                TestContext.Current.CancellationToken
+            );
         }
+    }
+
+    private static ServiceProvider CorrectionServices(IApplicationDataCorrection? correction = null)
+    {
+        var services = new ServiceCollection()
+            .AddSingleton(GetMongoApplicationDatabase())
+            .AddSingleton(TimeProvider.System)
+            .AddSingleton(Substitute.For<ILogger<ApplicationDataCorrectionRunner>>())
+            .AddScoped<ApplicationDataCorrectionRunner>();
+        if (correction is not null)
+            services.AddSingleton(correction);
+
+        return services.BuildServiceProvider();
     }
 
     [Fact]

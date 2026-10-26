@@ -48,7 +48,7 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
             cancellationToken: TestContext.Current.CancellationToken
         );
         var historical = AuditEventFixture
-            .ComplianceDeclaration()
+            .ComplianceDeclaration(sequence: 100)
             .With(x => x.EntityId, original["_id"].AsObjectId.ToString())
             .With(x => x.Before, original.DeepClone().AsBsonDocument)
             .With(x => x.After, original.DeepClone().AsBsonDocument)
@@ -69,6 +69,10 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
             .ToBsonDocument();
         var rawEvents = GetMongoDatabase().GetCollection<BsonDocument>(nameof(AuditEvent));
         await rawEvents.InsertOneAsync(historical, cancellationToken: TestContext.Current.CancellationToken);
+        await AuditEventCounters.InsertOneAsync(
+            new AuditEventCounter { Id = "audit_event", Sequence = 100 },
+            cancellationToken: TestContext.Current.CancellationToken
+        );
         var subject = CreateSubject();
 
         await subject.Apply(TestContext.Current.CancellationToken);
@@ -84,6 +88,7 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
             .ToListAsync(TestContext.Current.CancellationToken);
         events.Should().HaveCount(2);
         var auditEvent = events.Single(x => x.EventId != historical["_id"].AsString);
+        auditEvent.Sequence.Should().Be(101);
         auditEvent.Entity.Should().Be("compliance_declaration");
         auditEvent.Operation.Should().Be("update");
         auditEvent.EventType.Should().Be("submission.amended");
