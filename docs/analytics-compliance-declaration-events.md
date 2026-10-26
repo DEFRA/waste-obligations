@@ -88,7 +88,7 @@ New declarations use raw schema version `v1.3`, published as `compliance_declara
 
 This calculation correction retains schema v1.3. After schema migrations succeed, the one-time application correction runs under the startup migration lease. Each changed declaration and its `submission.amended` outbox event commit in one transaction. The correction increments `version`, updates `updated`, and records the actual stored `before` and `after` snapshots with actor `service:waste-obligations`. It preserves business audit entries and historical audit events. Already-correct values and other schema versions are untouched. The existing analytics processor publishes the new events when processing is enabled; disabling publication does not prevent their capture.
 
-The private `_application_data_corrections` checkpoint is written only after the correction completes. Interrupted runs resume without duplicating committed updates or events. Normal refreshes update unsubmitted coverage. Old hosts can still write the old formula during rolling deployment; no recurring reconciliation is added. Code rollback alone does not restore stored percentages. Explicit application-correction reversal restores the historical aggregate formula through the same audited transaction path, rather than rewriting history.
+The private `_application_data_corrections` checkpoint is written only after the correction completes. Interrupted runs resume without duplicating committed updates or events. Normal refreshes update unsubmitted coverage. Old hosts can still write the old formula during rolling deployment; no recurring reconciliation is added. Code rollback does not restore stored percentages; no operational reversal is provided.
 
 ## Created event
 

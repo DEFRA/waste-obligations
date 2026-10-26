@@ -2,7 +2,7 @@ using MongoDB.Bson;
 
 namespace Defra.WasteObligations.Api.Data.Migrations;
 
-// Retains the aggregate-tonnage formula for historical migrations and explicit audited restoration of corrected coverage.
+// Retains the aggregate-tonnage formula for historical migrations.
 public static class HistoricalObligationCoveragePercentageCalculator
 {
     private const int DecimalPlaces = 0;

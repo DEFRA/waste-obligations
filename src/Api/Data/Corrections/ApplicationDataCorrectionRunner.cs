@@ -3,7 +3,7 @@ using MongoDB.Driver;
 
 namespace Defra.WasteObligations.Api.Data.Corrections;
 
-// Callers of Run and Revert must hold the Mongo migration lease. Startup runs corrections after schema migrations.
+// Runs under the Mongo migration lease, after schema migrations have completed.
 public class ApplicationDataCorrectionRunner(
     IMongoDatabase database,
     IEnumerable<IApplicationDataCorrection> corrections,
@@ -33,15 +33,5 @@ public class ApplicationDataCorrectionRunner(
             );
             logger.LogInformation("Application data correction {CorrectionId} completed.", correction.Id);
         }
-    }
-
-    // Explicit rollback records compensating events before allowing the correction to be applied again.
-    public async Task Revert(string id, CancellationToken cancellationToken)
-    {
-        var correction = corrections.Single(x => x.Id == id);
-        await correction.Revert(cancellationToken);
-        var collection = database.GetCollection<BsonDocument>(CollectionName);
-        await collection.DeleteOneAsync(Builders<BsonDocument>.Filter.Eq("_id", id), cancellationToken);
-        logger.LogInformation("Application data correction {CorrectionId} reverted.", id);
     }
 }

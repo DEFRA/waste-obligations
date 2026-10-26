@@ -1,5 +1,4 @@
 using Defra.WasteObligations.Api.Data.Entities;
-using Defra.WasteObligations.Api.Data.Migrations;
 using Defra.WasteObligations.AuditEvents;
 using MongoDB.Bson;
 using MongoDB.Driver;
@@ -23,16 +22,7 @@ public class ComplianceDeclarationCoverageCorrection(
 
     public string Id => "compliance-declaration-individual-material-coverage";
 
-    public Task Apply(CancellationToken cancellationToken) => RecalculateAll(Calculate, cancellationToken);
-
-    // Historical restoration is an explicit audited compensation, not a schema migration rollback.
-    public Task Revert(CancellationToken cancellationToken) =>
-        RecalculateAll(
-            HistoricalObligationCoveragePercentageCalculator.CalculateFromBsonObligations,
-            cancellationToken
-        );
-
-    private async Task RecalculateAll(Func<BsonArray, decimal> calculate, CancellationToken cancellationToken)
+    public async Task Apply(CancellationToken cancellationToken)
     {
         var collection = database.GetCollection<BsonDocument>(nameof(ComplianceDeclaration));
         await collection.Indexes.CreateOneAsync(
@@ -51,7 +41,7 @@ public class ComplianceDeclarationCoverageCorrection(
         {
             foreach (var document in cursor.Current)
             {
-                await Recalculate(collection, document["_id"], calculate, cancellationToken);
+                await Recalculate(collection, document["_id"], cancellationToken);
             }
         }
 
@@ -61,7 +51,6 @@ public class ComplianceDeclarationCoverageCorrection(
     private Task<bool> Recalculate(
         IMongoCollection<BsonDocument> collection,
         BsonValue id,
-        Func<BsonArray, decimal> calculate,
         CancellationToken cancellationToken
     ) =>
         dbContext.ExecuteTransaction(
@@ -77,7 +66,7 @@ public class ComplianceDeclarationCoverageCorrection(
                 }
 
                 var obligations = before[ObligationsField].AsBsonArray;
-                var percentage = calculate(obligations);
+                var percentage = Calculate(obligations);
                 if (
                     before.TryGetValue(CoverageField, out var coverage)
                     && !coverage.IsBsonNull

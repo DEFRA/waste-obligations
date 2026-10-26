@@ -149,7 +149,7 @@ The current embedded schema is [v1.3](../src/Api/Schemas/ComplianceDeclaration/c
 
 New submissions and ordinary unsubmitted refreshes share this calculation. After earlier schema migrations advance legacy documents to v1.3, the application correction runs under the same startup lease. A guarded transaction changes each affected declaration's percentage, increments its concurrency version, updates its timestamp, and records a `submission.amended` audit event with service attribution and actual stored snapshots. Obligations, business audit entries, status, year and submission details remain unchanged. Historical audit events and dispatch state are preserved; the new outbox records follow the existing analytics dispatch path even if publication is enabled later.
 
-The correction completion marker in `_application_data_corrections` prevents repeated startup scans. A failed run can resume: values already corrected generate no duplicate events. Old hosts can still write the old formula during rollout; this accepted overlap has no recurring reconciliation. Code rollback does not restore percentages. The application correction runner's explicit reversal recalculates the historical aggregate formula and captures compensating audit events; it does not recover arbitrary previous values or erase the original events.
+The correction completion marker in `_application_data_corrections` prevents repeated startup scans. A failed run can resume: values already corrected generate no duplicate events. Old hosts can still write the old formula during rollout; this accepted overlap has no recurring reconciliation. Code rollback does not restore stored percentages; no operational reversal is provided.
 
 ## Analytics event dispatch
 
