@@ -50,7 +50,6 @@ public class ComplianceDeclarationCoverageCorrection(
                 catch (Exception exception) when (exception is not OperationCanceledException)
                 {
                     logger.LogError(
-                        exception,
                         "Application data correction {CorrectionId} failed for compliance declaration {ComplianceDeclarationId}.",
                         Id,
                         document["_id"]

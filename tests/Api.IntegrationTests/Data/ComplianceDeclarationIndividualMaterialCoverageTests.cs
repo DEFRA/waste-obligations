@@ -177,7 +177,7 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
             .Entries.Should()
             .ContainSingle(x =>
                 x.Level == LogLevel.Error
-                && x.Exception is KeyNotFoundException
+                && x.Exception == null
                 && x.Message.Contains(invalid["_id"].AsObjectId.ToString(), StringComparison.Ordinal)
             );
 
