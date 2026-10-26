@@ -68,10 +68,10 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
         var expected = original.DeepClone().AsBsonDocument;
         expected["schemaVersion"] = TargetVersion;
         expected["obligationCoveragePercentage"] = new BsonDecimal128(50m);
-        (await Read(collection, original)).Should().Be(expected);
-        (await Read(collection, target)).Should().Be(target);
-        (await Read(collection, newer)).Should().Be(newer);
-        (await Read(auditEvents, auditEvent)).Should().Be(auditEvent);
+        (await Read(collection, original)).Should().Equal(expected);
+        (await Read(collection, target)).Should().Equal(target);
+        (await Read(collection, newer)).Should().Equal(newer);
+        (await Read(auditEvents, auditEvent)).Should().Equal(auditEvent);
     }
 
     [Theory]
@@ -94,7 +94,7 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
         await new ComplianceDeclarationIndividualMaterialCoverage().UpAsync(Context());
 
         var result = await Read(collection, document);
-        result["schemaVersion"].Should().Be(TargetVersion);
+        result["schemaVersion"].AsString.Should().Be(TargetVersion);
         result["obligationCoveragePercentage"].AsDecimal128.Should().Be(new Decimal128(50m));
         result["obligations"].Should().Be(document["obligations"]);
         result["version"].Should().Be(document["version"]);
@@ -113,8 +113,8 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
         var action = () => subject.UpAsync(Context());
         await action.Should().ThrowAsync<KeyNotFoundException>();
 
-        (await Read(collection, first))["schemaVersion"].Should().Be(TargetVersion);
-        (await Read(collection, invalid))["schemaVersion"].Should().Be(SourceVersion);
+        (await Read(collection, first))["schemaVersion"].AsString.Should().Be(TargetVersion);
+        (await Read(collection, invalid))["schemaVersion"].AsString.Should().Be(SourceVersion);
         await collection.UpdateOneAsync(
             Builders<BsonDocument>.Filter.Eq("_id", invalid["_id"]),
             Builders<BsonDocument>.Update.Set("obligations", first["obligations"]),
@@ -124,7 +124,7 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
         await subject.UpAsync(Context());
 
         (await Read(collection, first))["obligationCoveragePercentage"].AsDecimal128.Should().Be(new Decimal128(50m));
-        (await Read(collection, invalid))["schemaVersion"].Should().Be(TargetVersion);
+        (await Read(collection, invalid))["schemaVersion"].AsString.Should().Be(TargetVersion);
     }
 
     [Theory]
@@ -211,12 +211,12 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
             };
         else
             expectedConflict["version"] = 8;
-        afterConflict.Should().Be(expectedConflict);
+        afterConflict.Should().Equal(expectedConflict);
         await subject.UpAsync(Context());
         var expected = afterConflict.DeepClone().AsBsonDocument;
         expected["schemaVersion"] = TargetVersion;
         expected["obligationCoveragePercentage"] = new BsonDecimal128(changeObligations ? 0m : 50m);
-        (await Read(collection, document)).Should().Be(expected);
+        (await Read(collection, document)).Should().Equal(expected);
     }
 
     [Fact]
@@ -240,7 +240,7 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
         var expected = document.DeepClone().AsBsonDocument;
         expected["schemaVersion"] = TargetVersion;
         expected["obligationCoveragePercentage"] = new BsonDecimal128(50m);
-        (await Read(collection, document)).Should().Be(expected);
+        (await Read(collection, document)).Should().Equal(expected);
     }
 
     [Fact]
@@ -256,10 +256,10 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
             .Should()
             .ThrowAsync<NotSupportedException>()
             .WithMessage("*original stored percentage was not retained*");
-        (await Read(collection, document)).Should().Be(document);
+        (await Read(collection, document)).Should().Equal(document);
     }
 
-    private MigrationContext Context() =>
+    private static MigrationContext Context() =>
         new(GetMongoApplicationDatabase(), null!, TestContext.Current.CancellationToken);
 
     private static async Task<BsonDocument> Read(IMongoCollection<BsonDocument> collection, BsonDocument document)
