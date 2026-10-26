@@ -20,7 +20,6 @@ public class ComplianceDeclarationService(
     IUnsubmittedEligibilityVisibilityService unsubmittedEligibilityVisibilityService
 ) : IComplianceDeclarationService
 {
-    private const string SystemActor = "service:waste-obligations";
     private const string ComplianceDeclarationEntity = "compliance_declaration";
 
     public async Task<ComplianceDeclaration> Create(
@@ -152,7 +151,7 @@ public class ComplianceDeclarationService(
                 await auditEventService.RecordEvent(
                     transactionSession,
                     new AuditEventRequest(
-                        SystemActor,
+                        AuditActors.Service,
                         ComplianceDeclarationEntity,
                         AuditEventOperation.Delete,
                         "submission.removed",
@@ -415,5 +414,5 @@ public class ComplianceDeclarationService(
     ) => direction is ComplianceDeclarationSortDirection.Ascending ? descending : ascending;
 
     private static string GetActor(ComplianceDeclaration complianceDeclaration) =>
-        complianceDeclaration.Audit.LastOrDefault()?.User is { } user ? $"user:{user.Id}" : SystemActor;
+        complianceDeclaration.Audit.LastOrDefault()?.User is { } user ? $"user:{user.Id}" : AuditActors.Service;
 }

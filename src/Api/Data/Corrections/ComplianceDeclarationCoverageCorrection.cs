@@ -1,4 +1,5 @@
 using Defra.WasteObligations.Api.Data.Entities;
+using Defra.WasteObligations.Api.Utils.Logging;
 using Defra.WasteObligations.AuditEvents;
 using MongoDB.Bson;
 using MongoDB.Driver;
@@ -9,7 +10,8 @@ public class ComplianceDeclarationCoverageCorrection(
     IMongoDatabase database,
     IDbContext dbContext,
     IAuditEventService auditEventService,
-    TimeProvider timeProvider
+    TimeProvider timeProvider,
+    ILogger<ComplianceDeclarationCoverageCorrection> logger
 ) : IApplicationDataCorrection
 {
     private const string SchemaVersionField = "schemaVersion";
@@ -41,7 +43,20 @@ public class ComplianceDeclarationCoverageCorrection(
         {
             foreach (var document in cursor.Current)
             {
-                await Recalculate(collection, document["_id"], cancellationToken);
+                try
+                {
+                    await Recalculate(collection, document["_id"], cancellationToken);
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                    logger.LogError(
+                        exception,
+                        "Application data correction {CorrectionId} failed for compliance declaration {ComplianceDeclarationId}.",
+                        Id,
+                        document["_id"]
+                    );
+                    throw;
+                }
             }
         }
 
@@ -108,7 +123,7 @@ public class ComplianceDeclarationCoverageCorrection(
                 await auditEventService.RecordEvent(
                     session,
                     new AuditEventRequest(
-                        "service:waste-obligations",
+                        AuditActors.Service,
                         "compliance_declaration",
                         AuditEventOperation.Update,
                         "submission.amended",

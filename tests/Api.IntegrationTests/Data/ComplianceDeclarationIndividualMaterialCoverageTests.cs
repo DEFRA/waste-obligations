@@ -10,6 +10,7 @@ using Defra.WasteObligations.AuditEvents;
 using Defra.WasteObligations.AuditEvents.Analytics;
 using Defra.WasteObligations.AuditEvents.Data;
 using Defra.WasteObligations.AuditEvents.Entities;
+using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -155,7 +156,8 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
         var invalid = Declaration(SourceVersion);
         invalid["obligations"] = new BsonArray { new BsonDocument() };
         await collection.InsertManyAsync([first, invalid], cancellationToken: TestContext.Current.CancellationToken);
-        var correction = CreateSubject();
+        var logger = new RecordingLogger<ComplianceDeclarationCoverageCorrection>();
+        var correction = CreateSubject(logger: logger);
         var checkpoints = GetMongoDatabase().GetCollection<BsonDocument>(CheckpointsCollectionName);
         await checkpoints.DeleteOneAsync(
             Builders<BsonDocument>.Filter.Eq("_id", correction.Id),
@@ -170,6 +172,14 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
 
         var action = () => subject.Run(TestContext.Current.CancellationToken);
         await action.Should().ThrowAsync<KeyNotFoundException>();
+
+        logger
+            .Entries.Should()
+            .ContainSingle(x =>
+                x.Level == LogLevel.Error
+                && x.Exception is KeyNotFoundException
+                && x.Message.Contains(invalid["_id"].AsObjectId.ToString(), StringComparison.Ordinal)
+            );
 
         (await Read(collection, first)).Should().Equal(Corrected(first));
         (await Read(collection, invalid)).Should().Equal(invalid);
@@ -366,7 +376,8 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
                 timeProvider,
                 new UlidEventIdGenerator()
             ),
-            timeProvider
+            timeProvider,
+            Substitute.For<ILogger<ComplianceDeclarationCoverageCorrection>>()
         );
 
         await subject.Apply(TestContext.Current.CancellationToken);
@@ -383,7 +394,10 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
         auditEvent.After.Should().Equal(expected);
     }
 
-    private static ComplianceDeclarationCoverageCorrection CreateSubject(IAuditEventService? auditEventService = null)
+    private static ComplianceDeclarationCoverageCorrection CreateSubject(
+        IAuditEventService? auditEventService = null,
+        ILogger<ComplianceDeclarationCoverageCorrection>? logger = null
+    )
     {
         var database = GetMongoApplicationDatabase();
         var timeProvider = new FakeTimeProvider(s_correctedAt);
@@ -398,7 +412,8 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
             context,
             auditEventService
                 ?? new AuditEventService(new AuditEventDbContext(database), timeProvider, new UlidEventIdGenerator()),
-            timeProvider
+            timeProvider,
+            logger ?? Substitute.For<ILogger<ComplianceDeclarationCoverageCorrection>>()
         );
     }
 
