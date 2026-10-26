@@ -169,11 +169,9 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
         );
 
         var action = () => subject.Run(TestContext.Current.CancellationToken);
-        await action
-            .Should()
-            .ThrowAsync<InvalidOperationException>()
-            .WithMessage($"*{invalid["_id"].AsObjectId}*")
-            .WithInnerException<KeyNotFoundException>();
+        (await action.Should().ThrowAsync<InvalidOperationException>().WithMessage($"*{invalid["_id"].AsObjectId}*"))
+            .Which.InnerException.Should()
+            .BeOfType<KeyNotFoundException>();
 
         (await Read(collection, first)).Should().Equal(Corrected(first));
         (await Read(collection, invalid)).Should().Equal(invalid);
@@ -225,12 +223,11 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
             .Returns(Task.FromException(new InvalidOperationException("Audit storage unavailable")));
         var action = () => CreateSubject(failingEvents).Apply(TestContext.Current.CancellationToken);
 
-        await action
-            .Should()
-            .ThrowAsync<InvalidOperationException>()
-            .WithMessage($"*{original["_id"].AsObjectId}*")
-            .WithInnerException<InvalidOperationException>()
-            .WithMessage("Audit storage unavailable");
+        (await action.Should().ThrowAsync<InvalidOperationException>().WithMessage($"*{original["_id"].AsObjectId}*"))
+            .Which.InnerException.Should()
+            .BeOfType<InvalidOperationException>()
+            .Which.Message.Should()
+            .Be("Audit storage unavailable");
 
         (await Read(collection, original)).Should().Equal(original);
         (
