@@ -1,3 +1,4 @@
+using System.Globalization;
 using AutoFixture;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Dtos;
@@ -57,7 +58,8 @@ public class FakePrnCommonBackendService : IPrnCommonBackendService
         },
     };
 
-    public PrnStatusUpdate? LastPrnStatusUpdate { get; private set; }
+    public IReadOnlyList<PrnStatusUpdate>? LastPrnStatusUpdates { get; private set; }
+
     public PrnStatusUpdateResult StatusUpdateResult { get; set; } = PrnStatusUpdateResult.Updated;
     public bool ConcurrencyError { get; set; }
     public bool Throws { get; set; }
@@ -95,16 +97,47 @@ public class FakePrnCommonBackendService : IPrnCommonBackendService
         CancellationToken cancellationToken
     )
     {
+        if (!Guid.TryParse(prnId, out var commonBackendPrnId))
+            return Task.FromResult(PrnStatusUpdateResult.NotFound);
+
+        // Mirrors the real service, where a single update is a list of one.
+        return UpdatePrnStatuses(
+            organisationId,
+            userId,
+            [commonBackendPrnId],
+            status,
+            obligationYear: null,
+            options: new PrnStatusUpdateOptions(null, PrnStatusConflict.SinglePrn),
+            cancellationToken
+        );
+    }
+
+    public Task<PrnStatusUpdateResult> UpdatePrnStatuses(
+        Guid organisationId,
+        Guid userId,
+        IReadOnlyCollection<Guid> prnIds,
+        string status,
+        int? obligationYear,
+        PrnStatusUpdateOptions options,
+        CancellationToken cancellationToken
+    )
+    {
         if (ConcurrencyError)
-            throw new ConcurrencyException("The PRN status has already been updated.");
+            throw new ConcurrencyException(options.ConflictMessage);
 
         if (Throws)
             throw new HttpRequestException();
 
-        if (!Guid.TryParse(prnId, out var commonBackendPrnId))
-            return Task.FromResult(PrnStatusUpdateResult.NotFound);
-
-        LastPrnStatusUpdate = new PrnStatusUpdate { PrnId = commonBackendPrnId, Status = status };
+        LastPrnStatusUpdates =
+        [
+            .. prnIds.Select(x => new PrnStatusUpdate
+            {
+                PrnId = x,
+                Status = status,
+                ObligationYear = obligationYear?.ToString(CultureInfo.InvariantCulture),
+                ExpectedStatus = options.ExpectedStatus,
+            }),
+        ];
 
         return Task.FromResult(StatusUpdateResult);
     }

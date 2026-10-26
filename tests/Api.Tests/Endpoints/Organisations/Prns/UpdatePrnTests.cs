@@ -40,8 +40,8 @@ public class UpdatePrnTests(ApiWebApplicationFactory factory, ITestOutputHelper 
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         PrnCommonBackendService
-            .LastPrnStatusUpdate.Should()
-            .BeEquivalentTo(new PrnStatusUpdate { PrnId = prnId, Status = "ACCEPTED" });
+            .LastPrnStatusUpdates.Should()
+            .BeEquivalentTo([new PrnStatusUpdate { PrnId = prnId, Status = PrnCommonBackendStatus.Accepted }]);
     }
 
     [Fact]
@@ -61,8 +61,8 @@ public class UpdatePrnTests(ApiWebApplicationFactory factory, ITestOutputHelper 
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         PrnCommonBackendService
-            .LastPrnStatusUpdate.Should()
-            .BeEquivalentTo(new PrnStatusUpdate { PrnId = prnId, Status = "REJECTED" });
+            .LastPrnStatusUpdates.Should()
+            .BeEquivalentTo([new PrnStatusUpdate { PrnId = prnId, Status = PrnCommonBackendStatus.Rejected }]);
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public class UpdatePrnTests(ApiWebApplicationFactory factory, ITestOutputHelper 
         );
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        PrnCommonBackendService.LastPrnStatusUpdate.Should().BeNull();
+        PrnCommonBackendService.LastPrnStatusUpdates.Should().BeNull();
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public class UpdatePrnTests(ApiWebApplicationFactory factory, ITestOutputHelper 
     {
         var response = await RequestShouldBeBadRequest(new { User = UserFixture.Regulator().Create() });
 
-        PrnCommonBackendService.LastPrnStatusUpdate.Should().BeNull();
+        PrnCommonBackendService.LastPrnStatusUpdates.Should().BeNull();
         await VerifyJson(response);
     }
 
@@ -99,7 +99,7 @@ public class UpdatePrnTests(ApiWebApplicationFactory factory, ITestOutputHelper 
             new { Status = "Cancelled", User = UserFixture.Regulator().Create() }
         );
 
-        PrnCommonBackendService.LastPrnStatusUpdate.Should().BeNull();
+        PrnCommonBackendService.LastPrnStatusUpdates.Should().BeNull();
         await VerifyJson(response);
     }
 
@@ -118,7 +118,7 @@ public class UpdatePrnTests(ApiWebApplicationFactory factory, ITestOutputHelper 
         );
 
         response.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
-        PrnCommonBackendService.LastPrnStatusUpdate.Should().BeNull();
+        PrnCommonBackendService.LastPrnStatusUpdates.Should().BeNull();
     }
 
     [Fact]
@@ -131,7 +131,7 @@ public class UpdatePrnTests(ApiWebApplicationFactory factory, ITestOutputHelper 
                 .Create()
         );
 
-        PrnCommonBackendService.LastPrnStatusUpdate.Should().BeNull();
+        PrnCommonBackendService.LastPrnStatusUpdates.Should().BeNull();
         await VerifyJson(response);
     }
 
@@ -147,7 +147,7 @@ public class UpdatePrnTests(ApiWebApplicationFactory factory, ITestOutputHelper 
         );
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
-        PrnCommonBackendService.LastPrnStatusUpdate.Should().BeNull();
+        PrnCommonBackendService.LastPrnStatusUpdates.Should().BeNull();
     }
 
     [Fact]
@@ -184,7 +184,7 @@ public class UpdatePrnTests(ApiWebApplicationFactory factory, ITestOutputHelper 
         );
 
         response.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
-        PrnCommonBackendService.LastPrnStatusUpdate.Should().NotBeNull();
+        PrnCommonBackendService.LastPrnStatusUpdates.Should().NotBeNull();
     }
 
     [Fact]
