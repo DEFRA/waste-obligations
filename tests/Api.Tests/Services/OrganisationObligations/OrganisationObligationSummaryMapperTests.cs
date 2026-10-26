@@ -12,6 +12,26 @@ public class OrganisationObligationSummaryMapperTests
     private const int ObligationYear = 2026;
 
     [Fact]
+    public void Map_WhenTonnagesDifferAndNoDataYetIsPresent_ShouldWeightMaterialsEquallyAndRetainTotals()
+    {
+        var result = OrganisationObligationSummaryMapper.Map(
+            ObligationFixture.OrganisationId,
+            ObligationYear,
+            [
+                CreateObligation("Glass", 90, 90, ObligationStatus.Met),
+                CreateObligation("Plastic", 0, 10, ObligationStatus.NotMet),
+                CreateObligation("Paper", 20, 200, ObligationStatus.NoDataYet),
+            ]
+        );
+
+        result.ObligationCoveragePercentage.Should().Be(50);
+        result.ObligationCount.Should().Be(3);
+        result.TotalAcceptedTonnage.Should().Be(110);
+        result.TotalObligatedTonnage.Should().Be(300);
+        result.RecyclingObligationsMet.Should().BeFalse();
+    }
+
+    [Fact]
     public void Map_WhenNoObligationsAreReturned_ShouldCreateAnEmptySuccessfulSummary()
     {
         var result = OrganisationObligationSummaryMapper.Map(ObligationFixture.OrganisationId, ObligationYear, []);

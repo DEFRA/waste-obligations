@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using Defra.WasteObligations.Api.Data.Corrections;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Conventions;
@@ -31,12 +32,27 @@ public static class ServiceCollectionExtensions
             )
             .ValidateOnStart();
 
+        services
+            .AddOptions<ApplicationDataCorrectionOptions>()
+            .BindConfiguration(ApplicationDataCorrectionOptions.SectionName)
+            .ValidateDataAnnotations()
+            .Validate(
+                x => x.LeaseRenewalIntervalSeconds * 2 <= x.LeaseDurationSeconds,
+                "Application data correction lease renewal interval must be no more than half its duration"
+            )
+            .ValidateOnStart();
+
         if (validateConfigOnly)
             return services;
 
         services.AddSingleton<IMongoMigrationLeaseService, MongoMigrationLeaseService>();
         services.AddSingleton<IMongoMigrationRunner, MongoMigrationRunner>();
+        services.AddSingleton<MongoMigrationCompletion>();
         services.AddHostedService<MongoMigrationService>();
+        services.AddSingleton<IApplicationDataCorrectionLeaseService, ApplicationDataCorrectionLeaseService>();
+        services.AddScoped<IApplicationDataCorrection, ComplianceDeclarationCoverageCorrection>();
+        services.AddScoped<IApplicationDataCorrectionRunner, ApplicationDataCorrectionRunner>();
+        services.AddHostedService<ApplicationDataCorrectionWorker>();
         services.AddScoped<IDbContext, MongoDbContext>();
         services.AddSingleton(sp =>
         {

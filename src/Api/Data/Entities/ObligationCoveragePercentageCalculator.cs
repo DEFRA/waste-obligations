@@ -1,51 +1,32 @@
-using MongoDB.Bson;
-
 namespace Defra.WasteObligations.Api.Data.Entities;
 
 public static class ObligationCoveragePercentageCalculator
 {
     private const int DecimalPlaces = 0;
     private const decimal MaxPercentage = 100m;
-    private const string TonnagesField = "tonnages";
-    private const string AcceptedField = "accepted";
-    private const string ObligatedField = "obligated";
 
     public static decimal CalculateFromObligations(IEnumerable<Obligation> obligations)
     {
-        var obligationsArray = obligations as Obligation[] ?? obligations.ToArray();
-        var totalAccepted = obligationsArray.Sum(o => o.Tonnages.Accepted);
-        var totalObligated = obligationsArray.Sum(o => o.Tonnages.Obligated);
-
-        return Calculate(totalAccepted, totalObligated);
+        return CalculateFromMaterials(obligations.Select(x => (x.Tonnages.Accepted, x.Tonnages.Obligated, x.Status)));
     }
 
-    public static decimal CalculateFromBsonObligations(BsonArray obligations)
+    public static decimal CalculateFromMaterials(IEnumerable<(int Accepted, int Obligated, string Status)> materials)
     {
-        var totalAccepted = 0;
-        var totalObligated = 0;
+        var percentages = materials
+            .Where(x => x.Status != Dtos.ObligationStatus.NoDataYet)
+            .Select(x =>
+            {
+                if (x.Obligated > 0)
+                {
+                    return Math.Min((decimal)x.Accepted / x.Obligated * MaxPercentage, MaxPercentage);
+                }
 
-        foreach (var obligation in obligations)
-        {
-            var tonnages = obligation.AsBsonDocument[TonnagesField].AsBsonDocument;
-            var accepted = tonnages[AcceptedField].ToInt32();
-            var obligated = tonnages[ObligatedField].ToInt32();
-            totalAccepted += accepted;
-            totalObligated += obligated;
-        }
+                return x.Accepted == 0 && x.Status == Dtos.ObligationStatus.Met ? MaxPercentage : 0m;
+            })
+            .ToArray();
 
-        return Calculate(totalAccepted, totalObligated);
-    }
-
-    public static decimal Calculate(int totalAccepted, int totalObligated)
-    {
-        if (totalObligated == 0)
-        {
-            return 0m;
-        }
-
-        var percentage = (decimal)totalAccepted / totalObligated * 100m;
-        var cappedPercentage = Math.Min(percentage, MaxPercentage);
-
-        return Math.Round(cappedPercentage, DecimalPlaces, MidpointRounding.AwayFromZero);
+        return percentages.Length == 0
+            ? 0m
+            : Math.Round(percentages.Average(), DecimalPlaces, MidpointRounding.AwayFromZero);
     }
 }
