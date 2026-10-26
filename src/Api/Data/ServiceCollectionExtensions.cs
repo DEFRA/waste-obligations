@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using Defra.WasteObligations.Api.Data.Corrections;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Conventions;
@@ -36,6 +37,8 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<IMongoMigrationLeaseService, MongoMigrationLeaseService>();
         services.AddSingleton<IMongoMigrationRunner, MongoMigrationRunner>();
+        services.AddScoped<ApplicationDataCorrectionRunner>();
+        services.AddScoped<IApplicationDataCorrection, ComplianceDeclarationCoverageCorrection>();
         services.AddHostedService<MongoMigrationService>();
         services.AddScoped<IDbContext, MongoDbContext>();
         services.AddSingleton(sp =>
