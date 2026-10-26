@@ -127,12 +127,12 @@ public class ComplianceDeclarationTests
     [Fact]
     public void Submit_WhenMaterialTonnagesDiffer_ShouldAgreeWithTheUnsubmittedSummaryForTheSameRows()
     {
-        var rows = new[]
-        {
-            (Material: "Glass", Accepted: 90, Obligated: 90, Status: "Met"),
-            (Material: "Plastic", Accepted: 0, Obligated: 10, Status: "NotMet"),
-            (Material: "Paper", Accepted: 20, Obligated: 200, Status: "NoDataYet"),
-        };
+        (string Material, int Accepted, int Obligated, string Status)[] rows =
+        [
+            ("Glass", 90, 90, "Met"),
+            ("Plastic", 0, 10, "NotMet"),
+            ("Paper", 20, 200, "NoDataYet"),
+        ];
         var draft = CreateDraft() with
         {
             Obligations = rows.Select(x =>

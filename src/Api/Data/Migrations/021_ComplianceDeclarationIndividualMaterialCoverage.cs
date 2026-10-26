@@ -14,6 +14,7 @@ public class ComplianceDeclarationIndividualMaterialCoverage : MongoMigration
     private const string TargetSchemaVersion = "v2.0";
     private const string ObligationsField = "obligations";
     private const string IndexName = "SchemaVersion";
+    private const string VersionField = "version";
 
     public override MigrationVersion Version => new(1, 0, 20);
 
@@ -46,9 +47,9 @@ public class ComplianceDeclarationIndividualMaterialCoverage : MongoMigration
                     & Builders<BsonDocument>.Filter.Eq("_id", document["_id"])
                     & Builders<BsonDocument>.Filter.Eq(ObligationsField, obligations)
                     & (
-                        document.TryGetValue("version", out var version)
-                            ? Builders<BsonDocument>.Filter.Eq("version", version)
-                            : Builders<BsonDocument>.Filter.Exists("version", false)
+                        document.TryGetValue(VersionField, out var version)
+                            ? Builders<BsonDocument>.Filter.Eq(VersionField, version)
+                            : Builders<BsonDocument>.Filter.Exists(VersionField, false)
                     );
                 var update = Builders<BsonDocument>
                     .Update.Set("obligationCoveragePercentage", new BsonDecimal128(percentage))

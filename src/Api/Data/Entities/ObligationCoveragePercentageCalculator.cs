@@ -20,10 +20,14 @@ public static class ObligationCoveragePercentageCalculator
         var percentages = materials
             .Where(x => x.Status != Dtos.ObligationStatus.NoDataYet)
             .Select(x =>
-                x.Obligated > 0 ? Math.Min((decimal)x.Accepted / x.Obligated * MaxPercentage, MaxPercentage)
-                : x.Accepted == 0 && x.Status == Dtos.ObligationStatus.Met ? MaxPercentage
-                : 0m
-            )
+            {
+                if (x.Obligated > 0)
+                {
+                    return Math.Min((decimal)x.Accepted / x.Obligated * MaxPercentage, MaxPercentage);
+                }
+
+                return x.Accepted == 0 && x.Status == Dtos.ObligationStatus.Met ? MaxPercentage : 0m;
+            })
             .ToArray();
 
         return percentages.Length == 0
