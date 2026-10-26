@@ -34,13 +34,14 @@ public class JsonAnalyticsEventSerializerTests
         var document = ComplianceDeclarationDocument(ComplianceDeclarationStatus.Submitted);
         document["schemaVersion"] = version;
         document["obligationCoveragePercentage"] = new BsonDecimal128(percentage);
-        var analyticsEvent = AnalyticsEventFixture
+        var auditEvent = AuditEventFixture
             .ComplianceDeclaration("01JZ8RXBMTY2K15SJB3PCFN3D0", 122)
             .With(x => x.After, document)
-            .With(x => x.SchemaVersion, $"compliance_declaration_{version}")
+            .With(x => x.SchemaVersion, version)
+            .With(x => x.Actor, "service:waste-obligations")
             .Create();
 
-        using var result = JsonDocument.Parse(CreateSubject().Serialize(analyticsEvent));
+        using var result = JsonDocument.Parse(CreateSubject().Serialize(auditEvent.ToAnalyticsEvent()));
 
         result.RootElement.GetProperty("schemaVersion").GetString().Should().Be($"compliance_declaration_{version}");
         result

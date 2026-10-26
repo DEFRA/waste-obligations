@@ -169,13 +169,13 @@ public class AnalyticsEventMappersTests
         var auditEvent = AuditEventFixture
             .ComplianceDeclaration()
             .With(x => x.Actor, "service:waste-obligations")
-            .With(x => x.SchemaVersion, "v2.0")
+            .With(x => x.SchemaVersion, "v99.0")
             .Create();
 
         var act = () => auditEvent.ToAnalyticsEvent();
 
         act.Should()
             .Throw<InvalidOperationException>()
-            .WithMessage("Unregistered analytics schema version 'compliance_declaration_v2.0'.");
+            .WithMessage("Unregistered analytics schema version 'compliance_declaration_v99.0'.");
     }
 }
