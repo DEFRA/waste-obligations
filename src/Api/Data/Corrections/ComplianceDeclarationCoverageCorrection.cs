@@ -10,8 +10,7 @@ public class ComplianceDeclarationCoverageCorrection(
     IMongoDatabase database,
     IDbContext dbContext,
     IAuditEventService auditEventService,
-    TimeProvider timeProvider,
-    ILogger<ComplianceDeclarationCoverageCorrection> logger
+    TimeProvider timeProvider
 ) : IApplicationDataCorrection
 {
     private const string SchemaVersionField = "schemaVersion";
@@ -49,12 +48,10 @@ public class ComplianceDeclarationCoverageCorrection(
                 }
                 catch (Exception exception) when (exception is not OperationCanceledException)
                 {
-                    logger.LogError(
-                        "Application data correction {CorrectionId} failed for compliance declaration {ComplianceDeclarationId}.",
-                        Id,
-                        document["_id"]
+                    throw new InvalidOperationException(
+                        $"Application data correction '{Id}' failed for compliance declaration '{document["_id"]}'.",
+                        exception
                     );
-                    throw;
                 }
             }
         }
