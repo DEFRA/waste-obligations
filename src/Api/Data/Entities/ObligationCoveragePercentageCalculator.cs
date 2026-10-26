@@ -12,13 +12,43 @@ public static class ObligationCoveragePercentageCalculator
 
     public static decimal CalculateFromObligations(IEnumerable<Obligation> obligations)
     {
-        var obligationsArray = obligations as Obligation[] ?? obligations.ToArray();
-        var totalAccepted = obligationsArray.Sum(o => o.Tonnages.Accepted);
-        var totalObligated = obligationsArray.Sum(o => o.Tonnages.Obligated);
-
-        return Calculate(totalAccepted, totalObligated);
+        return CalculateFromMaterials(obligations.Select(x => (x.Tonnages.Accepted, x.Tonnages.Obligated, x.Status)));
     }
 
+    public static decimal CalculateFromMaterials(IEnumerable<(int Accepted, int Obligated, string Status)> materials)
+    {
+        var percentages = materials
+            .Where(x => x.Status != Dtos.ObligationStatus.NoDataYet)
+            .Select(x =>
+                x.Obligated > 0 ? Math.Min((decimal)x.Accepted / x.Obligated * MaxPercentage, MaxPercentage)
+                : x.Accepted == 0 && x.Status == Dtos.ObligationStatus.Met ? MaxPercentage
+                : 0m
+            )
+            .ToArray();
+
+        return percentages.Length == 0
+            ? 0m
+            : Math.Round(percentages.Average(), DecimalPlaces, MidpointRounding.AwayFromZero);
+    }
+
+    public static decimal CalculateIndividualMaterialsFromBsonObligations(BsonArray obligations)
+    {
+        return CalculateFromMaterials(
+            obligations.Select(x =>
+            {
+                var document = x.AsBsonDocument;
+                var tonnages = document[TonnagesField].AsBsonDocument;
+
+                return (
+                    tonnages[AcceptedField].ToInt32(),
+                    tonnages[ObligatedField].ToInt32(),
+                    document["status"].AsString
+                );
+            })
+        );
+    }
+
+    // Migrations 004 and 005 retain the historical aggregate-tonnage calculation.
     public static decimal CalculateFromBsonObligations(BsonArray obligations)
     {
         var totalAccepted = 0;

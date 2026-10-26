@@ -31,17 +31,29 @@
       "tonnages": {
         "material": 100,
         "awaitingAcceptance": 10,
-        "accepted": 2,
+        "accepted": 90,
         "outstanding": 20,
-        "obligated": 5
+        "obligated": 90
       },
-      "status": "NoDataYet"
+      "status": "Met"
+    },
+    {
+      "material": "Glass",
+      "recyclingTarget": 0.75,
+      "tonnages": {
+        "material": 100,
+        "awaitingAcceptance": 10,
+        "accepted": 0,
+        "outstanding": 20,
+        "obligated": 10
+      },
+      "status": "NotMet"
     }
   ],
   "obligationStatus": "NotMet",
   "submitterName": "Submitter Name",
   "isRegulation43Compliant": true,
-  "obligationCoveragePercentage": 40,
+  "obligationCoveragePercentage": 50,
   "audit": [
     {
       "user": {

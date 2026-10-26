@@ -5,6 +5,14 @@ namespace Defra.WasteObligations.Api.Tests.Schemas;
 
 public class EmbeddedEntityJsonSchemaProviderTests
 {
+    [Theory]
+    [InlineData("v2.0")]
+    [InlineData("compliance_declaration_v2.0")]
+    public void Get_WhenCurrentSchemaIsRequested_ShouldLoadSchema(string version)
+    {
+        new EmbeddedEntityJsonSchemaProvider().Get("compliance_declaration", version).Should().NotBeNull();
+    }
+
     [Fact]
     public void Get_WhenSchemaCannotBeFound_ShouldThrow()
     {

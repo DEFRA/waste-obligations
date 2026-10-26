@@ -4,7 +4,7 @@ The analytics topic receives generic analytics event envelopes. Each envelope id
 
 Compliance declaration create, update, and delete operations are captured internally in the same transaction as the declaration change. The analytics processor reads undispatched changes, serialises them as analytics events, and publishes them to the analytics SNS topic configured by `AnalyticsAuditEventProcessor:TopicArn`.
 
-The nested compliance declaration payload is serialised using the embedded [compliance declaration schema](../src/Api/Schemas/ComplianceDeclaration/compliance-declaration.v1.3.schema.json). Its version history is recorded in the [compliance declaration schema changelog](../src/Api/Schemas/ComplianceDeclaration/CHANGELOG.md). For compliance declarations, the analytics message `schemaVersion` is currently `compliance_declaration_v1.3`.
+The nested compliance declaration payload is serialised using the embedded [compliance declaration schema](../src/Api/Schemas/ComplianceDeclaration/compliance-declaration.v2.0.schema.json). Its version history is recorded in the [compliance declaration schema changelog](../src/Api/Schemas/ComplianceDeclaration/CHANGELOG.md). For compliance declarations, the analytics message `schemaVersion` is currently `compliance_declaration_v2.0`.
 
 ## Message transport
 
@@ -81,6 +81,14 @@ The current compliance declaration event types are:
 | `submission.created` | `create` | Compliance declaration was created. |
 | `submission.amended` | `update` | Compliance declaration was updated. |
 | `submission.removed` | `delete` | Compliance declaration was deleted. |
+
+## Obligation coverage and schema compatibility
+
+New declarations use raw schema version `v2.0`, published as `compliance_declaration_v2.0`. The optional numeric `obligationCoveragePercentage` now means the equally weighted average of individual material percentages, rather than aggregate-tonnage coverage. Exclude `NoDataYet` rows; cap each included `accepted / obligated × 100` at 100%. A zero-accepted, zero-obligated `Met` row contributes 100%, while other included zero-obligation rows contribute zero. Keep individual percentages unrounded and round only the final average to a whole number, with midpoint rounding away from zero. Empty and all-`NoDataYet` snapshots return zero. Each separately supplied material, including glass variants and Fibre, contributes independently. For example, 90/90 and 0/10 give 50%; adding a 10/10 row gives 67%. The example payloads below contain only `NoDataYet` rows and therefore show zero coverage.
+
+This semantic change requires a major schema version even though field names, numeric representation and optionality remain unchanged. Migration `021_ComplianceDeclarationIndividualMaterialCoverage` corrects live v1.3 declarations from their stored obligation snapshots and atomically updates only their percentage and schema version. It preserves status, year, audit entries, submission data and concurrency version, and skips target and newer versions. Prior migrations first advance legacy declarations to v1.3. Historical audit events retain their snapshots, recorded versions and dispatch states; all earlier embedded schemas remain available for publication, and the correction emits no synthetic business events.
+
+Normal refreshes update unsubmitted coverage. During rolling deployment an old host can still write the old formula or overwrite a corrected declaration from a stale read; no additional reconciliation is provided. Code rollback does not reverse stored percentages, and the migration refuses `DownAsync` because the original percentages were not retained.
 
 ## Created event
 
@@ -159,9 +167,9 @@ The `before` value is `null`. The `after` value is the created compliance declar
       }
     ],
     "isRegulation43Compliant": true,
-    "obligationCoveragePercentage": 40
+    "obligationCoveragePercentage": 0
   },
-  "schemaVersion": "compliance_declaration_v1.3"
+  "schemaVersion": "compliance_declaration_v2.0"
 }
 ```
 
@@ -241,7 +249,7 @@ The `before` value is the declaration state before the update. The `after` value
       }
     ],
     "isRegulation43Compliant": true,
-    "obligationCoveragePercentage": 40
+    "obligationCoveragePercentage": 0
   },
   "after": {
     "id": "65f1f6570bb08052a8a27b01",
@@ -308,8 +316,8 @@ The `before` value is the declaration state before the update. The `after` value
       }
     ],
     "isRegulation43Compliant": true,
-    "obligationCoveragePercentage": 40
+    "obligationCoveragePercentage": 0
   },
-  "schemaVersion": "compliance_declaration_v1.3"
+  "schemaVersion": "compliance_declaration_v2.0"
 }
 ```

@@ -8,7 +8,7 @@ namespace Defra.WasteObligations.Api.Data.Entities;
 [BsonIgnoreExtraElements]
 public record ComplianceDeclaration
 {
-    public const string SchemaVersionValue = "v1.3";
+    public const string SchemaVersionValue = "v2.0";
 
     public ObjectId Id { get; init; }
     public string SchemaVersion { get; private init; } = SchemaVersionValue;

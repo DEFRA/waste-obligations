@@ -23,6 +23,34 @@ public class JsonAnalyticsEventSerializerTests
         Api.Data.ServiceCollectionExtensions.RegisterConventions();
     }
 
+    [Theory]
+    [InlineData("v1.3", 90)]
+    [InlineData("v2.0", 50)]
+    public void Serialize_WhenCoverageSemanticsDiffer_ShouldRetainTheRecordedSchemaAndValue(
+        string version,
+        decimal percentage
+    )
+    {
+        var document = ComplianceDeclarationDocument(ComplianceDeclarationStatus.Submitted);
+        document["schemaVersion"] = version;
+        document["obligationCoveragePercentage"] = new BsonDecimal128(percentage);
+        var analyticsEvent = AnalyticsEventFixture
+            .ComplianceDeclaration("01JZ8RXBMTY2K15SJB3PCFN3D0", 122)
+            .With(x => x.After, document)
+            .With(x => x.SchemaVersion, $"compliance_declaration_{version}")
+            .Create();
+
+        using var result = JsonDocument.Parse(CreateSubject().Serialize(analyticsEvent));
+
+        result.RootElement.GetProperty("schemaVersion").GetString().Should().Be($"compliance_declaration_{version}");
+        result
+            .RootElement.GetProperty("after")
+            .GetProperty("obligationCoveragePercentage")
+            .GetDecimal()
+            .Should()
+            .Be(percentage);
+    }
+
     [Fact]
     public async Task Serialize_WhenInsertWithAfter_ShouldSerializeAsJson()
     {

@@ -45,6 +45,36 @@ public class CreateComplianceDeclarationTests : EndpointTestBase
             Testing.Endpoints.Organisations.ComplianceDeclarations.Create(FakeWasteOrganisationsService.OrganisationId),
             CreateComplianceDeclarationRequestFixture
                 .DirectProducer(FakeWasteOrganisationsService.OrganisationId)
+                .With(
+                    x => x.Obligations,
+                    [
+                        ObligationFixture
+                            .Default()
+                            .With(x => x.Status, ObligationStatus.Met)
+                            .With(
+                                x => x.Tonnages,
+                                ObligationTonnagesFixture
+                                    .Default()
+                                    .With(x => x.Accepted, 90)
+                                    .With(x => x.Obligated, 90)
+                                    .Create()
+                            )
+                            .Create(),
+                        ObligationFixture
+                            .Default()
+                            .With(x => x.Material, Material.Glass)
+                            .With(x => x.Status, ObligationStatus.NotMet)
+                            .With(
+                                x => x.Tonnages,
+                                ObligationTonnagesFixture
+                                    .Default()
+                                    .With(x => x.Accepted, 0)
+                                    .With(x => x.Obligated, 10)
+                                    .Create()
+                            )
+                            .Create(),
+                    ]
+                )
                 .Create(),
             TestContext.Current.CancellationToken
         );
