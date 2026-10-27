@@ -1,4 +1,4 @@
-namespace Defra.WasteObligations.Api.Data.Corrections;
+namespace Defra.WasteObligations.Api.Data;
 
 public interface IApplicationDataCorrection
 {

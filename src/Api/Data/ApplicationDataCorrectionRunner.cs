@@ -2,7 +2,7 @@ using Defra.WasteObligations.Api.Services;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 
-namespace Defra.WasteObligations.Api.Data.Corrections;
+namespace Defra.WasteObligations.Api.Data;
 
 // The worker owns the correction lease. A failed correction must not advance completion history.
 public class ApplicationDataCorrectionRunner(

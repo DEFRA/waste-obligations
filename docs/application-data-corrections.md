@@ -2,6 +2,12 @@
 
 Use schema migrations for persisted shape changes and schema-version backfills. Use application data corrections when existing entities need application-level updates that analytics consumers must observe.
 
+## Layout and ordering
+
+The runtime types, options, completion record and contracts live directly in `src/Api/Data`. `src/Api/Data/Corrections` contains only concrete application data corrections. Name those files `NNN_Description.cs`, matching the migration convention, and match the numeric prefix to the correction's explicit `Version`.
+
+The runner still orders by `Version`; filenames make that order visible in the repository and do not replace runtime ordering or validation.
+
 ## Execution
 
 `ApplicationDataCorrectionWorker` waits for successful schema migrations, then acquires its own renewable lease in `_application_data_correction_lease`. Neither worker blocks API startup or readiness. The coverage correction is registered as version 1.
@@ -26,7 +32,7 @@ Worker tests cover migration gating, lease renewal, cancellation and timeout dra
 
 ## Obligation coverage correction
 
-`ComplianceDeclarationCoverageCorrection` scans compatible declarations in bounded `_id` pages using primary reads, so replication lag cannot make the pass miss migrated documents and record a false completion. It calculates the proposed percentage and calls the shared service only when the numeric value differs. Unchanged declarations create no update, version increment or audit event. Null percentages becoming numeric values are changes.
+`001_ComplianceDeclarationCoverageCorrection.cs` declares version 1 and scans compatible declarations in bounded `_id` pages using primary reads, so replication lag cannot make the pass miss migrated documents and record a false completion. It calculates the proposed percentage and calls the shared service only when the numeric value differs. Unchanged declarations create no update, version increment or audit event. Null percentages becoming numeric values are changes.
 
 The active calculation averages exact, individually capped material percentages and rounds the final average to a whole number away from zero. `NoDataYet` rows do not participate. A `Met` row with both accepted and obligated tonnage zero contributes 100%, as required by MO-661 AC2. Positive accepted tonnage with zero obligation retains the existing implementation's 0% treatment pending a separate business clarification.
 

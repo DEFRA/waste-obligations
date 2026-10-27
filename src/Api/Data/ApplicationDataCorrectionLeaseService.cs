@@ -1,7 +1,7 @@
 using Defra.WasteObligations.Api.Services;
 using MongoDB.Driver;
 
-namespace Defra.WasteObligations.Api.Data.Corrections;
+namespace Defra.WasteObligations.Api.Data;
 
 public class ApplicationDataCorrectionLeaseService(IMongoDatabase database, TimeProvider timeProvider)
     : IApplicationDataCorrectionLeaseService
