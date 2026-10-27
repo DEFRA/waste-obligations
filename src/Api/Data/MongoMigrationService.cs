@@ -84,6 +84,11 @@ public class MongoMigrationService(
         {
             // Host shutdown while waiting for ownership or another attempt.
         }
+        finally
+        {
+            if (!stoppingToken.IsCancellationRequested)
+                completion.Fail(new InvalidOperationException("Mongo migrations did not complete on this host."));
+        }
     }
 
     private async Task<bool> TryAcquireLease(TimeSpan leaseDuration, CancellationToken stoppingToken)

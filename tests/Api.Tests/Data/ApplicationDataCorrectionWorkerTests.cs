@@ -364,18 +364,137 @@ public class ApplicationDataCorrectionWorkerTests
         subject.ExecuteTask!.IsCompletedSuccessfully.Should().BeTrue();
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Execute_WhenAttemptsFail_ShouldStopAtLimit(bool acquisitionFails)
+    {
+        var migrations = new MongoMigrationCompletion();
+        migrations.Complete();
+        var failure = new InvalidOperationException("Permanent failure");
+        var lease = Substitute.For<IApplicationDataCorrectionLeaseService>();
+        lease
+            .TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(_ => acquisitionFails ? Task.FromException<bool>(failure) : Task.FromResult(true));
+        var runner = Substitute.For<IApplicationDataCorrectionRunner>();
+        runner.Run(Arg.Any<CancellationToken>()).Returns(Task.FromException(failure));
+        using var services = new ServiceCollection().AddSingleton(runner).BuildServiceProvider();
+        var logger = new RecordingLogger<ApplicationDataCorrectionWorker>();
+        using var subject = CreateSubject(
+            migrations,
+            services,
+            lease,
+            TimeProvider.System,
+            logger,
+            new ApplicationDataCorrectionOptions { MaximumAttempts = 2, RetryDelaySeconds = 1 }
+        );
+        await subject.StartAsync(TestContext.Current.CancellationToken);
+        await subject.ExecuteTask!.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await lease.Received(2).TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
+        await runner.Received(acquisitionFails ? 0 : 2).Run(Arg.Any<CancellationToken>());
+        logger.Messages.Should().ContainSingle(x => x.Contains("No further attempts"));
+    }
+
+    [Fact]
+    public async Task Execute_WhenLeaseIsContended_ShouldPreserveAttemptForSuccessfulRun()
+    {
+        var migrations = new MongoMigrationCompletion();
+        migrations.Complete();
+        var lease = Substitute.For<IApplicationDataCorrectionLeaseService>();
+        lease.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(false, true);
+        var runner = Substitute.For<IApplicationDataCorrectionRunner>();
+        using var services = new ServiceCollection().AddSingleton(runner).BuildServiceProvider();
+        using var subject = CreateSubject(
+            migrations,
+            services,
+            lease,
+            TimeProvider.System,
+            options: new ApplicationDataCorrectionOptions { MaximumAttempts = 1, RetryDelaySeconds = 1 }
+        );
+        await subject.StartAsync(TestContext.Current.CancellationToken);
+        await subject.ExecuteTask!.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await runner.Received(1).Run(Arg.Any<CancellationToken>());
+        await lease.Received(1).Release(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Execute_WhenMigrationsFail_ShouldLogBlockedAndNeverAcquireLease()
+    {
+        var migrations = new MongoMigrationCompletion();
+        var failure = new InvalidOperationException("Migrations exhausted attempts");
+        migrations.Fail(failure);
+        var lease = Substitute.For<IApplicationDataCorrectionLeaseService>();
+        using var services = new ServiceCollection().BuildServiceProvider();
+        var logger = new RecordingLogger<ApplicationDataCorrectionWorker>();
+        using var subject = CreateSubject(migrations, services, lease, TimeProvider.System, logger);
+        await subject.StartAsync(TestContext.Current.CancellationToken);
+        await subject.ExecuteTask!.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await lease.DidNotReceive().TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
+        logger.Entries.Should().ContainSingle(x => x.Level == LogLevel.Warning && x.Exception == failure);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Execute_WhenLeaseCancelsWork_ShouldKeepSuccessfulReturnAndAvoidDuplicateError(
+        bool finishesSuccessfully
+    )
+    {
+        var migrations = new MongoMigrationCompletion();
+        migrations.Complete();
+        var lease = Substitute.For<IApplicationDataCorrectionLeaseService>();
+        lease.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
+        lease.TryRenew(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(false);
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var runner = Substitute.For<IApplicationDataCorrectionRunner>();
+        runner
+            .Run(Arg.Any<CancellationToken>())
+            .Returns(async x =>
+            {
+                started.TrySetResult();
+                try
+                {
+                    await Task.Delay(Timeout.InfiniteTimeSpan, x.Arg<CancellationToken>());
+                }
+                catch (OperationCanceledException) when (finishesSuccessfully)
+                {
+                    // Simulate a runner that acknowledges success as cancellation arrives.
+                }
+            });
+        using var services = new ServiceCollection().AddSingleton(runner).BuildServiceProvider();
+        var time = new FakeTimeProvider();
+        var logger = new RecordingLogger<ApplicationDataCorrectionWorker>();
+        using var subject = CreateSubject(
+            migrations,
+            services,
+            lease,
+            time,
+            logger,
+            new ApplicationDataCorrectionOptions { MaximumAttempts = 1 }
+        );
+        await subject.StartAsync(TestContext.Current.CancellationToken);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        time.Advance(TimeSpan.FromSeconds(15));
+        await subject.ExecuteTask!.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await runner.Received(1).Run(Arg.Any<CancellationToken>());
+        await lease.Received(1).Release(Arg.Any<CancellationToken>());
+        logger.Messages.Should().NotContain("Application data corrections failed.");
+        logger.Entries.Count(x => x.Level == LogLevel.Error).Should().Be(finishesSuccessfully ? 1 : 2);
+    }
+
     private static ApplicationDataCorrectionWorker CreateSubject(
         MongoMigrationCompletion migrations,
         IServiceProvider services,
         IApplicationDataCorrectionLeaseService lease,
         TimeProvider time,
-        ILogger<ApplicationDataCorrectionWorker>? logger = null
+        ILogger<ApplicationDataCorrectionWorker>? logger = null,
+        ApplicationDataCorrectionOptions? options = null
     ) =>
         new(
             migrations,
             services.GetRequiredService<IServiceScopeFactory>(),
             lease,
-            Options.Create(new ApplicationDataCorrectionOptions()),
+            Options.Create(options ?? new ApplicationDataCorrectionOptions()),
             time,
             logger ?? Substitute.For<ILogger<ApplicationDataCorrectionWorker>>()
         );

@@ -21,6 +21,9 @@ public record ApplicationDataCorrectionOptions
     [Range(1, 3600)]
     public int RetryDelaySeconds { get; init; } = 30;
 
+    [Range(1, 10)]
+    public int MaximumAttempts { get; init; } = 3;
+
     [Range(1, 1000)]
     public int BatchSize { get; init; } = 100;
 }

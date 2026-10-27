@@ -6,5 +6,7 @@ public class MongoMigrationCompletion
 
     public void Complete() => _completed.TrySetResult();
 
+    public void Fail(Exception exception) => _completed.TrySetException(exception);
+
     public Task Wait(CancellationToken cancellationToken) => _completed.Task.WaitAsync(cancellationToken);
 }

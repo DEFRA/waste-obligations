@@ -16,7 +16,10 @@ public class ApplicationDataCorrectionWorker(
     {
         try
         {
-            await migrations.Wait(stoppingToken);
+            if (!await WaitForMigrations(stoppingToken))
+                return;
+
+            var attempts = 0;
             while (!stoppingToken.IsCancellationRequested)
             {
                 try
@@ -24,9 +27,10 @@ public class ApplicationDataCorrectionWorker(
                     var duration = TimeSpan.FromSeconds(options.Value.LeaseDurationSeconds);
                     if (await TryAcquireLease(duration, stoppingToken))
                     {
-                        await Run(duration, stoppingToken);
+                        if (await Run(duration, stoppingToken))
+                            return;
 
-                        return;
+                        attempts++;
                     }
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -35,7 +39,17 @@ public class ApplicationDataCorrectionWorker(
                 }
                 catch (Exception exception)
                 {
+                    attempts++;
                     logger.LogError(exception, "Application data corrections failed.");
+                }
+                if (attempts >= options.Value.MaximumAttempts)
+                {
+                    logger.LogError(
+                        "Application data corrections did not complete after {AttemptCount} attempt(s). No further attempts will be made by this host.",
+                        attempts
+                    );
+
+                    return;
                 }
                 await Task.Delay(TimeSpan.FromSeconds(options.Value.RetryDelaySeconds), timeProvider, stoppingToken);
             }
@@ -43,6 +57,29 @@ public class ApplicationDataCorrectionWorker(
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
             // Host shutdown while waiting for migrations or another correction lease.
+        }
+    }
+
+    private async Task<bool> WaitForMigrations(CancellationToken stoppingToken)
+    {
+        try
+        {
+            await migrations.Wait(stoppingToken);
+
+            return true;
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(
+                exception,
+                "Application data corrections are blocked because Mongo migrations failed on this host."
+            );
+
+            return false;
         }
     }
 
@@ -91,7 +128,7 @@ public class ApplicationDataCorrectionWorker(
         }
     }
 
-    private async Task Run(TimeSpan duration, CancellationToken stoppingToken)
+    private async Task<bool> Run(TimeSpan duration, CancellationToken stoppingToken)
     {
         using var work = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
         using var renewal = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
@@ -101,7 +138,18 @@ public class ApplicationDataCorrectionWorker(
             work.Token.ThrowIfCancellationRequested();
             await using var scope = scopeFactory.CreateAsyncScope();
             await scope.ServiceProvider.GetRequiredService<IApplicationDataCorrectionRunner>().Run(work.Token);
-            work.Token.ThrowIfCancellationRequested();
+
+            return true;
+        }
+        catch (OperationCanceledException exception)
+            when (work.IsCancellationRequested && !stoppingToken.IsCancellationRequested)
+        {
+            logger.LogInformation(
+                exception,
+                "Application data correction ownership was lost. Reacquiring a lease before another attempt."
+            );
+
+            return false;
         }
         finally
         {
