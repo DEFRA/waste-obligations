@@ -63,7 +63,7 @@ public class ApplicationDataCorrectionWorker(
         {
             try
             {
-                if (await TryAcquireLease(duration, stoppingToken, LogStall))
+                if (await TryAcquireLease(duration, LogStall, stoppingToken))
                     return;
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -113,7 +113,7 @@ public class ApplicationDataCorrectionWorker(
         }
     }
 
-    private async Task<bool> TryAcquireLease(TimeSpan duration, CancellationToken stoppingToken, Action logStall)
+    private async Task<bool> TryAcquireLease(TimeSpan duration, Action logStall, CancellationToken stoppingToken)
     {
         var acquiredLease = false;
         try
