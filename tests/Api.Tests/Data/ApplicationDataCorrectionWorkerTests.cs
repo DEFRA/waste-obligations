@@ -235,6 +235,135 @@ public class ApplicationDataCorrectionWorkerTests
         logger.Entries.Should().Contain(x => x.Level == LogLevel.Error && x.Exception == failure);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Execute_WhenReleaseFailsAfterSuccessfulWork_ShouldWarnWithoutRerunning(bool timesOut)
+    {
+        var migrations = new MongoMigrationCompletion();
+        migrations.Complete();
+        var lease = Substitute.For<IApplicationDataCorrectionLeaseService>();
+        lease.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
+        var releasing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var failure = new InvalidOperationException("Release failed");
+        lease
+            .Release(Arg.Any<CancellationToken>())
+            .Returns(x =>
+            {
+                releasing.TrySetResult();
+
+                return timesOut
+                    ? Task.Delay(Timeout.InfiniteTimeSpan, x.Arg<CancellationToken>())
+                    : Task.FromException(failure);
+            });
+        var runner = Substitute.For<IApplicationDataCorrectionRunner>();
+        using var services = new ServiceCollection().AddSingleton(runner).BuildServiceProvider();
+        var time = new FakeTimeProvider();
+        var logger = new RecordingLogger<ApplicationDataCorrectionWorker>();
+        using var subject = CreateSubject(migrations, services, lease, time, logger);
+
+        await subject.StartAsync(TestContext.Current.CancellationToken);
+        await releasing.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        if (timesOut)
+            time.Advance(TimeSpan.FromSeconds(10));
+        await subject.ExecuteTask!.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        await runner.Received(1).Run(Arg.Any<CancellationToken>());
+        await lease.Received(1).TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
+        await lease.Received(1).Release(Arg.Any<CancellationToken>());
+        logger.Entries.Should().NotContain(x => x.Level == LogLevel.Error);
+        if (timesOut)
+            logger.Entries.Should().Contain(x => x.Level == LogLevel.Warning && x.Exception is TimeoutException);
+        else
+            logger.Entries.Should().Contain(x => x.Level == LogLevel.Warning && x.Exception == failure);
+    }
+
+    [Fact]
+    public async Task Execute_WhenCleanupCallbackFailsAfterSuccessfulWork_ShouldReleaseAndReportWithoutRerunning()
+    {
+        var migrations = new MongoMigrationCompletion();
+        migrations.Complete();
+        var lease = Substitute.For<IApplicationDataCorrectionLeaseService>();
+        lease.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
+        var failure = new InvalidOperationException("Correction cleanup callback failed");
+        var runner = Substitute.For<IApplicationDataCorrectionRunner>();
+        runner
+            .Run(Arg.Any<CancellationToken>())
+            .Returns(x =>
+            {
+                x.Arg<CancellationToken>().Register(() => throw failure);
+
+                return Task.CompletedTask;
+            });
+        using var services = new ServiceCollection().AddSingleton(runner).BuildServiceProvider();
+        var logger = new RecordingLogger<ApplicationDataCorrectionWorker>();
+        using var subject = CreateSubject(migrations, services, lease, TimeProvider.System, logger);
+
+        await subject.StartAsync(TestContext.Current.CancellationToken);
+        await subject.ExecuteTask!.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        await runner.Received(1).Run(Arg.Any<CancellationToken>());
+        await lease.Received(1).Release(Arg.Any<CancellationToken>());
+        logger
+            .Entries.Single(x => x.Level == LogLevel.Error)
+            .Exception.Should()
+            .BeOfType<AggregateException>()
+            .Which.Flatten()
+            .InnerExceptions.Should()
+            .ContainSingle()
+            .Which.Should()
+            .BeSameAs(failure);
+    }
+
+    [Fact]
+    public async Task Execute_WhenHostStopsDuringWork_ShouldDrainAndReleaseWithoutAnError()
+    {
+        var migrations = new MongoMigrationCompletion();
+        migrations.Complete();
+        var lease = Substitute.For<IApplicationDataCorrectionLeaseService>();
+        lease.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releasedAfterStop = false;
+        var runner = Substitute.For<IApplicationDataCorrectionRunner>();
+        runner
+            .Run(Arg.Any<CancellationToken>())
+            .Returns(async x =>
+            {
+                started.TrySetResult();
+                try
+                {
+                    await Task.Delay(Timeout.InfiniteTimeSpan, x.Arg<CancellationToken>());
+                }
+                finally
+                {
+                    stopped.TrySetResult();
+                }
+            });
+        lease
+            .Release(Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                releasedAfterStop = stopped.Task.IsCompleted;
+
+                return Task.CompletedTask;
+            });
+        using var services = new ServiceCollection().AddSingleton(runner).BuildServiceProvider();
+        var logger = new RecordingLogger<ApplicationDataCorrectionWorker>();
+        using var subject = CreateSubject(migrations, services, lease, TimeProvider.System, logger);
+        await subject.StartAsync(TestContext.Current.CancellationToken);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        await subject
+            .StopAsync(TestContext.Current.CancellationToken)
+            .WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        await lease.Received(1).Release(Arg.Any<CancellationToken>());
+        releasedAfterStop.Should().BeTrue();
+        logger.Entries.Should().NotContain(x => x.Level == LogLevel.Error);
+        subject.ExecuteTask!.IsCompletedSuccessfully.Should().BeTrue();
+    }
+
     private static ApplicationDataCorrectionWorker CreateSubject(
         MongoMigrationCompletion migrations,
         IServiceProvider services,
