@@ -22,16 +22,13 @@ public class ApplicationDataCorrectionWorker(
             var attempts = 0;
             while (!stoppingToken.IsCancellationRequested)
             {
+                var duration = TimeSpan.FromSeconds(options.Value.LeaseDurationSeconds);
+                await AcquireLease(duration, stoppingToken);
+                attempts++;
                 try
                 {
-                    var duration = TimeSpan.FromSeconds(options.Value.LeaseDurationSeconds);
-                    if (await TryAcquireLease(duration, stoppingToken))
-                    {
-                        if (await Run(duration, stoppingToken))
-                            return;
-
-                        attempts++;
-                    }
+                    if (await Run(duration, stoppingToken))
+                        return;
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {
@@ -39,7 +36,6 @@ public class ApplicationDataCorrectionWorker(
                 }
                 catch (Exception exception)
                 {
-                    attempts++;
                     logger.LogError(exception, "Application data corrections failed.");
                 }
                 if (attempts >= options.Value.MaximumAttempts)
@@ -57,6 +53,40 @@ public class ApplicationDataCorrectionWorker(
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
             // Host shutdown while waiting for migrations or another correction lease.
+        }
+    }
+
+    private async Task AcquireLease(TimeSpan duration, CancellationToken stoppingToken)
+    {
+        var failureLogged = false;
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                if (await TryAcquireLease(duration, stoppingToken, LogStall))
+                    return;
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                if (!failureLogged)
+                    logger.LogError(exception, "Application data correction lease acquisition failed. Retrying.");
+                failureLogged = true;
+            }
+            await Task.Delay(TimeSpan.FromSeconds(options.Value.RetryDelaySeconds), timeProvider, stoppingToken);
+        }
+        stoppingToken.ThrowIfCancellationRequested();
+
+        void LogStall()
+        {
+            if (!failureLogged)
+                logger.LogError(
+                    "Application data correction lease acquisition stalled. Cancellation was requested; waiting for the call to stop."
+                );
+            failureLogged = true;
         }
     }
 
@@ -83,7 +113,7 @@ public class ApplicationDataCorrectionWorker(
         }
     }
 
-    private async Task<bool> TryAcquireLease(TimeSpan duration, CancellationToken stoppingToken)
+    private async Task<bool> TryAcquireLease(TimeSpan duration, CancellationToken stoppingToken, Action logStall)
     {
         var acquiredLease = false;
         try
@@ -103,9 +133,7 @@ public class ApplicationDataCorrectionWorker(
                             "Application data correction lease acquisition cancellation is still draining."
                         );
                     else
-                        logger.LogError(
-                            "Application data correction lease acquisition stalled. Cancellation was requested; waiting for the call to stop."
-                        );
+                        logStall();
                 },
                 stoppingToken,
                 timeProvider,
