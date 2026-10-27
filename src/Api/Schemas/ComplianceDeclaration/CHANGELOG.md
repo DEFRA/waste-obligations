@@ -6,7 +6,7 @@ The current schema is [v1.3](compliance-declaration.v1.3.schema.json).
 
 ## Calculation correction, 2026-10-27 (MO-661)
 
-- Corrected the implementation of the existing percentage-met metric: average each participating material's accepted/obligated percentage, capped per material at 100%, then round the exact average to a whole number away from zero. Ignore `NoDataYet`; count a zero-accepted, zero-obligated `Met` material as 100%.
+- Corrected the implementation of the existing percentage-met metric: average each participating material's accepted/obligated percentage, capped per material at 100%, then round the exact average to a whole number away from zero. Ignore `NoDataYet`; count a zero-obligated `Met` material as 100%.
 - Retained v1.3 because this is a calculation bug fix to the same intended business metric, with no change to its meaning, numeric representation or payload shape. The aggregate formula documented below describes the historical implementation used by migrations 004 and 005.
 - The deployment containing MO-661 is the calculation cutover. Existing declarations whose percentage changes are updated through the application service with a version increment and a new audited event. Published schemas and historical audit snapshots remain unchanged.
 

@@ -96,9 +96,9 @@ public class ObligationCoveragePercentageCalculatorTests
     [Theory]
     [InlineData(0, ObligationStatus.Met, 50)]
     [InlineData(0, ObligationStatus.NotMet, 0)]
-    [InlineData(1, ObligationStatus.Met, 0)]
+    [InlineData(1, ObligationStatus.Met, 50)]
     [InlineData(0, ObligationStatus.NoDataYet, 0)]
-    public void CalculateFromObligations_WhenObligationIsZero_ShouldApplyOnlyTheLowTonnageMetException(
+    public void CalculateFromObligations_WhenObligationIsZero_ShouldUseMetStatusRegardlessOfAcceptedTonnage(
         int accepted,
         string status,
         decimal expected

@@ -27,7 +27,7 @@ public static class ObligationCoveragePercentageCalculator
             }
             else
             {
-                numerator = material.Accepted == 0 && material.Status == Dtos.ObligationStatus.Met ? MaxPercentage : 0;
+                numerator = material.Status == Dtos.ObligationStatus.Met ? MaxPercentage : 0;
                 denominator = 1;
             }
 
