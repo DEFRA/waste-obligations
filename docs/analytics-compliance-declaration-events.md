@@ -66,7 +66,7 @@ All analytics events use this generic envelope:
 
 ## Controlled vocabulary
 
-The publisher validates the current compliance declaration entity, envelope operation, event type, actor prefix, deletion reason, and schema version before serialising a message. The supported operations are `create`, `update`, and `delete`; actor prefixes are `service`, `user`, `system`, and `integration`; and the supported declaration event types are `submission.created`, `submission.amended`, and `submission.removed`. Create and update events use the responsible audit user as `user:<UUID>`; the system-driven delete flow retains `service:waste-obligations`.
+The publisher validates the current compliance declaration entity, envelope operation, event type, actor prefix, deletion reason, and schema version before serialising a message. The supported operations are `create`, `update`, and `delete`; actor prefixes are `service`, `user`, `system`, and `integration`; and the supported declaration event types are `submission.created`, `submission.amended`, and `submission.removed`. Request-driven create and update events use the responsible audit user as `user:<UUID>`; system-driven corrections and deletes use `service:waste-obligations`.
 
 The only current deletion reason is `elevated_system_allowed_removal`. This replaces the legacy free-text value `elevated system allowed removal`, which remains normalised for undispatched historical outbox events. The governed list maintained with the shared event schema must include `elevated_system_allowed_removal` before additional deletion paths are introduced.
 
@@ -81,6 +81,14 @@ The current compliance declaration event types are:
 | `submission.created` | `create` | Compliance declaration was created. |
 | `submission.amended` | `update` | Compliance declaration was updated. |
 | `submission.removed` | `delete` | Compliance declaration was deleted. |
+
+## Obligation coverage and schema compatibility
+
+New declarations use raw schema version `v1.3`, published as `compliance_declaration_v1.3`. The corrected optional numeric `obligationCoveragePercentage` represents the equally weighted average of individual material percentages, rather than aggregate-tonnage coverage. Exclude `NoDataYet` rows; cap each included `accepted / obligated × 100` at 100%. A zero-accepted, zero-obligated `Met` row contributes 100%, while other included zero-obligation rows contribute zero. Keep individual percentages unrounded and round only the final average to a whole number, with midpoint rounding away from zero. Empty and all-`NoDataYet` snapshots return zero. Each separately supplied material, including glass variants and Fibre, contributes independently. For example, 90/90 and 0/10 give 50%; adding a 10/10 row gives 67%. The example payloads below contain only `NoDataYet` rows and therefore show zero coverage.
+
+This calculation correction retains schema v1.3. After schema migrations succeed, the one-time application correction runs in a separate background worker under its own renewable `_application_data_correction_lease` lease. Each changed declaration and its `submission.amended` outbox event commit in one transaction. The correction increments `version`, updates `updated`, and records the `before` and `after` snapshots from the shared service update flow with actor `service:waste-obligations`. It preserves business audit entries and historical audit events. Already-correct values and other schema versions are untouched. The existing analytics processor publishes the new events when processing is enabled; disabling publication does not prevent their capture.
+
+The private `_application_data_corrections` checkpoint is written only after the correction completes. Interrupted runs restart their indexed, bounded scan without duplicating committed updates or events. Normal refreshes update unsubmitted coverage. Old hosts can still write the old formula during rolling deployment; no recurring reconciliation is added. Code rollback does not restore stored percentages; no operational reversal is provided.
 
 ## Created event
 
@@ -159,7 +167,7 @@ The `before` value is `null`. The `after` value is the created compliance declar
       }
     ],
     "isRegulation43Compliant": true,
-    "obligationCoveragePercentage": 40
+    "obligationCoveragePercentage": 0
   },
   "schemaVersion": "compliance_declaration_v1.3"
 }
@@ -241,7 +249,7 @@ The `before` value is the declaration state before the update. The `after` value
       }
     ],
     "isRegulation43Compliant": true,
-    "obligationCoveragePercentage": 40
+    "obligationCoveragePercentage": 0
   },
   "after": {
     "id": "65f1f6570bb08052a8a27b01",
@@ -308,8 +316,10 @@ The `before` value is the declaration state before the update. The `after` value
       }
     ],
     "isRegulation43Compliant": true,
-    "obligationCoveragePercentage": 40
+    "obligationCoveragePercentage": 0
   },
   "schemaVersion": "compliance_declaration_v1.3"
 }
 ```
+
+Correction execution and service update conventions are documented in [Application data corrections](application-data-corrections.md).

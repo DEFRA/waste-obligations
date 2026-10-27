@@ -3,7 +3,6 @@ using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
-using MongoDB.Bson;
 using Obligation = Defra.WasteObligations.Api.Data.Entities.Obligation;
 
 namespace Defra.WasteObligations.Api.Tests.Data.Entities;
@@ -11,33 +10,13 @@ namespace Defra.WasteObligations.Api.Tests.Data.Entities;
 public class ObligationCoveragePercentageCalculatorTests
 {
     [Fact]
-    public void Calculate_WhenTotalObligatedIsZero_ShouldReturnZero()
-    {
-        ObligationCoveragePercentageCalculator.Calculate(10, 0).Should().Be(0m);
-    }
-
-    [Theory]
-    [InlineData(850, 925, 92)]
-    [InlineData(500, 500, 100)]
-    [InlineData(1150, 925, 100)]
-    [InlineData(107, 200, 54)]
-    [InlineData(0, 925, 0)]
-    public void Calculate_WhenJiraAcceptanceCriteriaExamplesProvided_ShouldReturnExpectedWholeNumber(
-        int accepted,
-        int obligated,
-        decimal expected
-    )
-    {
-        ObligationCoveragePercentageCalculator.Calculate(accepted, obligated).Should().Be(expected);
-    }
-
-    [Fact]
-    public void CalculateFromObligations_WhenAcceptedExceedsObligatedOnOneMaterial_ShouldCapAtOneHundred()
+    public void CalculateFromObligations_WhenAcceptedExceedsObligatedOnOneMaterial_ShouldCapEachMaterial()
     {
         var obligations = new Obligation[]
         {
             ObligationFixture
                 .Default()
+                .With(x => x.Status, ObligationStatus.NotMet)
                 .With(
                     x => x.Tonnages,
                     ObligationTonnagesFixture.Default().With(t => t.Accepted, 100).With(t => t.Obligated, 50).Create()
@@ -45,6 +24,7 @@ public class ObligationCoveragePercentageCalculatorTests
                 .Create(),
             ObligationFixture
                 .Default()
+                .With(x => x.Status, ObligationStatus.NotMet)
                 .With(x => x.Material, Material.Glass)
                 .With(
                     x => x.Tonnages,
@@ -53,7 +33,7 @@ public class ObligationCoveragePercentageCalculatorTests
                 .Create(),
         };
 
-        ObligationCoveragePercentageCalculator.CalculateFromObligations(obligations).Should().Be(100m);
+        ObligationCoveragePercentageCalculator.CalculateFromObligations(obligations).Should().Be(50m);
     }
 
     [Fact]
@@ -63,6 +43,7 @@ public class ObligationCoveragePercentageCalculatorTests
         {
             ObligationFixture
                 .Default()
+                .With(x => x.Status, ObligationStatus.NotMet)
                 .With(
                     x => x.Tonnages,
                     ObligationTonnagesFixture.Default().With(t => t.Accepted, 2).With(t => t.Obligated, 5).Create()
@@ -73,41 +54,121 @@ public class ObligationCoveragePercentageCalculatorTests
         ObligationCoveragePercentageCalculator.CalculateFromObligations(obligations).Should().Be(40m);
     }
 
-    [Fact]
-    public void CalculateFromBsonObligations_WhenJiraAcceptanceCriteriaExamplesProvided_ShouldReturnExpectedWholeNumber()
+    [Theory]
+    [InlineData(90, 90, 0, 10, 50)]
+    [InlineData(1, 6, 1, 3, 25)]
+    [InlineData(1, 8, 1, 10, 11)]
+    [InlineData(107, 200, 107, 200, 54)]
+    public void CalculateFromObligations_WhenMaterialsHaveDifferentWeights_ShouldAverageBeforeRounding(
+        int firstAccepted,
+        int firstObligated,
+        int secondAccepted,
+        int secondObligated,
+        decimal expected
+    )
     {
-        var obligations = new BsonArray { CreateBsonObligation(accepted: 850, obligated: 925) };
+        Obligation[] obligations =
+        [
+            CreateObligation(firstAccepted, firstObligated),
+            CreateObligation(secondAccepted, secondObligated),
+        ];
 
-        ObligationCoveragePercentageCalculator.CalculateFromBsonObligations(obligations).Should().Be(92m);
+        ObligationCoveragePercentageCalculator.CalculateFromObligations(obligations).Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData(4, 25)]
+    [InlineData(5, 20)]
+    [InlineData(6, 17)]
+    public void CalculateFromObligations_WhenNoDataYetIsPresent_ShouldCountOnlyParticipatingRows(
+        int count,
+        decimal expected
+    )
+    {
+        var obligations = Enumerable
+            .Range(0, count)
+            .Select(x => CreateObligation(x == 0 ? 10 : 0, 10))
+            .Append(CreateObligation(0, 100, ObligationStatus.NoDataYet));
+
+        ObligationCoveragePercentageCalculator.CalculateFromObligations(obligations).Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData(0, ObligationStatus.Met, 50)]
+    [InlineData(0, ObligationStatus.NotMet, 0)]
+    [InlineData(1, ObligationStatus.Met, 0)]
+    [InlineData(0, ObligationStatus.NoDataYet, 0)]
+    public void CalculateFromObligations_WhenObligationIsZero_ShouldApplyOnlyTheLowTonnageMetException(
+        int accepted,
+        string status,
+        decimal expected
+    )
+    {
+        Obligation[] obligations = [CreateObligation(accepted, 0, status), CreateObligation(0, 10)];
+
+        ObligationCoveragePercentageCalculator.CalculateFromObligations(obligations).Should().Be(expected);
     }
 
     [Fact]
-    public void CalculateFromBsonObligations_WhenAcceptedExceedsObligatedOnOneMaterial_ShouldCapAtOneHundred()
+    public void CalculateFromObligations_WhenNoRowsParticipate_ShouldReturnZero()
     {
-        var obligations = new BsonArray
-        {
-            CreateBsonObligation(accepted: 100, obligated: 50),
-            CreateBsonObligation(accepted: 0, obligated: 50),
-        };
-
-        ObligationCoveragePercentageCalculator.CalculateFromBsonObligations(obligations).Should().Be(100m);
+        ObligationCoveragePercentageCalculator.CalculateFromObligations([]).Should().Be(0);
+        ObligationCoveragePercentageCalculator
+            .CalculateFromObligations([CreateObligation(0, 0, ObligationStatus.NoDataYet)])
+            .Should()
+            .Be(0);
     }
 
-    private static BsonDocument CreateBsonObligation(int accepted, int obligated) =>
-        new()
-        {
-            ["material"] = Material.Plastic,
-            ["recyclingTarget"] = 0.75m,
-            ["status"] = ObligationStatus.NoDataYet,
-            ["tonnages"] = new BsonDocument
+    [Theory]
+    [InlineData(false, 67)]
+    [InlineData(true, 50)]
+    public void CalculateFromObligations_WhenGlassPaperAndFibreAreSeparate_ShouldKeepEveryRowIndependent(
+        bool includeFibre,
+        decimal expected
+    )
+    {
+        List<Obligation> obligations =
+        [
+            CreateObligation(90, 90) with
             {
-                ["material"] = 100,
-                ["awaitingAcceptance"] = 10,
-                ["accepted"] = accepted,
-                ["outstanding"] = 20,
-                ["obligated"] = obligated,
+                Material = "GlassRemelt",
             },
-        };
+            CreateObligation(0, 10) with
+            {
+                Material = "GlassOther",
+            },
+            CreateObligation(10, 10) with
+            {
+                Material = "Paper",
+            },
+        ];
+        if (includeFibre)
+            obligations.Add(CreateObligation(0, 10) with { Material = "Fibre" });
+
+        ObligationCoveragePercentageCalculator.CalculateFromObligations(obligations).Should().Be(expected);
+    }
+
+    [Fact]
+    public void CalculateFromObligations_WhenExactAverageIsHalfAPercent_ShouldRoundUpWithoutDecimalDrift()
+    {
+        var obligations = Enumerable.Range(0, 5).Select(x => CreateObligation(1, 300)).Append(CreateObligation(4, 300));
+
+        ObligationCoveragePercentageCalculator.CalculateFromObligations(obligations).Should().Be(1m);
+    }
+
+    private static Obligation CreateObligation(int accepted, int obligated, string status = ObligationStatus.NotMet) =>
+        ObligationFixture
+            .Default()
+            .With(x => x.Status, status)
+            .With(
+                x => x.Tonnages,
+                ObligationTonnagesFixture
+                    .Default()
+                    .With(x => x.Accepted, accepted)
+                    .With(x => x.Obligated, obligated)
+                    .Create()
+            )
+            .Create();
 
     [Theory]
     [InlineData(1, 200, 1)]
@@ -119,7 +180,10 @@ public class ObligationCoveragePercentageCalculatorTests
         decimal expected
     )
     {
-        ObligationCoveragePercentageCalculator.Calculate(accepted, obligated).Should().Be(expected);
+        ObligationCoveragePercentageCalculator
+            .CalculateFromObligations([CreateObligation(accepted, obligated)])
+            .Should()
+            .Be(expected);
     }
 
     [Theory]
@@ -132,7 +196,10 @@ public class ObligationCoveragePercentageCalculatorTests
         decimal expected
     )
     {
-        ObligationCoveragePercentageCalculator.Calculate(accepted, obligated).Should().Be(expected);
+        ObligationCoveragePercentageCalculator
+            .CalculateFromObligations([CreateObligation(accepted, obligated)])
+            .Should()
+            .Be(expected);
     }
 
     [Theory]
@@ -145,6 +212,9 @@ public class ObligationCoveragePercentageCalculatorTests
         decimal expected
     )
     {
-        ObligationCoveragePercentageCalculator.Calculate(accepted, obligated).Should().Be(expected);
+        ObligationCoveragePercentageCalculator
+            .CalculateFromObligations([CreateObligation(accepted, obligated)])
+            .Should()
+            .Be(expected);
     }
 }

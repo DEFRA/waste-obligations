@@ -58,6 +58,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<MongoMigrationCompletion>();
         services.AddHostedService<MongoMigrationService>();
         services.AddSingleton<IApplicationDataCorrectionLeaseService, ApplicationDataCorrectionLeaseService>();
+        services.AddScoped<IApplicationDataCorrection, ComplianceDeclarationCoverageCorrection>();
         services.AddScoped<IApplicationDataCorrectionRunner, ApplicationDataCorrectionRunner>();
         services.AddHostedService<ApplicationDataCorrectionWorker>();
         services.AddScoped<IDbContext, MongoDbContext>();

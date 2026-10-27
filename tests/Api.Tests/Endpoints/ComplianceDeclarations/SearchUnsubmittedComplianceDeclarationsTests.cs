@@ -1,10 +1,13 @@
 using System.Net;
+using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.Api.Extensions;
 using Defra.WasteObligations.Api.Services;
+using Defra.WasteObligations.Api.Services.OrganisationObligations;
 using Defra.WasteObligations.Testing;
+using Defra.WasteObligations.Testing.Fixtures.PrnCommonBackend;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using EntityRegistrationType = Defra.WasteObligations.Api.Data.Entities.RegistrationType;
@@ -28,6 +31,24 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
     public async Task WhenValid_ShouldMapRequestAndReturnUnsubmittedDeclarations()
     {
         var organisationId = Guid.Parse("c961459a-324c-4400-bb22-afae8c8a9827");
+        var metrics = OrganisationObligationSummaryMapper.Map(
+            organisationId,
+            2026,
+            [
+                ObligationFixture
+                    .Default()
+                    .With(x => x.TonnageAccepted, 90)
+                    .With(x => x.ObligationToMeet, (int?)90)
+                    .With(x => x.Status, ObligationStatus.Met)
+                    .Create(),
+                ObligationFixture
+                    .Default()
+                    .With(x => x.TonnageAccepted, 0)
+                    .With(x => x.ObligationToMeet, (int?)10)
+                    .With(x => x.Status, ObligationStatus.NotMet)
+                    .Create(),
+            ]
+        );
         UnsubmittedOrganisationsService
             .Search(
                 SearchQuery(
@@ -65,8 +86,8 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
                             BusinessCountry = "GB-WLS",
                             Name = "Alpha Packaging",
                             ReferenceNumber = "100001",
-                            RecyclingObligationsMet = true,
-                            ObligationCoveragePercentage = 80,
+                            RecyclingObligationsMet = metrics.RecyclingObligationsMet,
+                            ObligationCoveragePercentage = metrics.ObligationCoveragePercentage,
                         },
                     ],
                     Total = 6,
