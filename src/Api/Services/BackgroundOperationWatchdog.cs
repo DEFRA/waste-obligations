@@ -13,6 +13,7 @@ public static class BackgroundOperationWatchdog
             async token =>
             {
                 await operation(token);
+
                 return true;
             },
             timeout,
@@ -21,10 +22,33 @@ public static class BackgroundOperationWatchdog
             timeProvider
         );
 
-    public static async Task<T> Run<T>(
+    public static Task<T> Run<T>(
         Func<CancellationToken, Task<T>> operation,
         TimeSpan timeout,
         Action timedOut,
+        CancellationToken cancellationToken,
+        TimeProvider? timeProvider = null,
+        bool rejectLateResult = false
+    ) =>
+        Run(
+            operation,
+            timeout,
+            () =>
+            {
+                timedOut();
+
+                return Task.CompletedTask;
+            },
+            cancellationToken,
+            timeProvider,
+            rejectLateResult
+        );
+
+    // Callback failures are preserved after the original operation drains, including asynchronous cancellation failures.
+    public static async Task<T> Run<T>(
+        Func<CancellationToken, Task<T>> operation,
+        TimeSpan timeout,
+        Func<Task> timedOut,
         CancellationToken cancellationToken,
         TimeProvider? timeProvider = null,
         bool rejectLateResult = false
@@ -43,7 +67,7 @@ public static class BackgroundOperationWatchdog
             {
                 try
                 {
-                    timedOut();
+                    await timedOut();
                 }
                 catch (Exception exception)
                 {
@@ -89,7 +113,7 @@ public static class BackgroundOperationWatchdog
                 );
             if (elapsed && rejectLateResult)
                 throw new TimeoutException(
-                    "A lease acquisition completed after its cancellation threshold; ownership must be reacquired before work starts."
+                    "The operation completed after its cancellation threshold; its result cannot be used."
                 );
 
             return result;

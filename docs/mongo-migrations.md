@@ -14,7 +14,7 @@ The migration worker is deliberately separate from request readiness. Mongo migr
 | `MongoMigrations:AttemptTimeoutSeconds` | 5 minutes | Threshold for logging a stalled attempt and requesting cancellation; execution can take longer to stop. |
 | `MongoMigrations:RetryDelaySeconds` | 30 seconds | Delay before rerunning a cancelled or failed engine. |
 | `MongoMigrations:LeaseAcquisitionAlertThresholdSeconds` | 5 minutes | Wait before logging an error that the migration lease remains unavailable; retries continue. |
-| `MongoMigrations:MaximumAttempts` | 3 | Limits retries by one host and therefore limits repeated error logs. |
+| `MongoMigrations:MaximumAttempts` | 3 | Limits engine attempts by one host, including attempts after reacquiring a lease. |
 
 The renewal interval must be no more than half the lease duration. The renewal interval plus its operation timeout must also be less than the lease duration. These checks leave time to request cancellation before ownership expires; they cannot force a stalled client or server operation to terminate.
 
@@ -33,7 +33,7 @@ Each retry creates a new `AdaskoTheBeAsT.MongoDbMigrations` engine and reruns th
 
 On graceful ECS shutdown, the worker requests cancellation and waits for migration and renewal work to finish before releasing ownership. The subsequent release call has an independent ten-second watchdog. This is not a ten-second bound on the whole shutdown, and cancellation cannot force an uncooperative call to stop. If ECS terminates the process, renewal stops and the lease becomes eligible for takeover after its remaining TTL, normally at most 60 seconds; Mongo connectivity and acquisition time can delay actual recovery.
 
-No metrics are emitted for this worker. Errors are logged for the first acquisition failure, lease wait beyond the configured alert threshold, a timeout, renewal loss, and final attempt exhaustion. Configure the existing error-log alerting to notify the on-call team for those error messages without alerting for normal lease contention.
+No metrics are emitted for this worker. Errors are logged for the first acquisition failure, lease wait beyond the configured alert threshold, an active-operation timeout, renewal loss, engine failures (including failures raised while draining), and final attempt exhaustion. A deadline reached after shutdown or cleanup cancellation has already been requested is logged as a warning that cancellation is still draining. Configure the existing error-log alerting to notify the on-call team for those error messages without alerting for normal lease contention.
 
 ## September 2026 deployment incident
 
@@ -68,3 +68,11 @@ Acquisition, renewal and release calls have their own watchdogs. A stalled renew
 The Mongo driver can fail connection and server-selection operations on its own timeouts, but those do not bound every socket read. Existing request-path Mongo settings are unchanged.
 
 The watchdog deadline remains active while cancellation is draining, including during lease-renewal cleanup. Failures in timeout reporting or cancellation callbacks are retained, but never permit the original operation to be abandoned before it ends.
+
+## Recovery and cleanup
+
+An overdue renewal still cancels the migration work. A late successful renewal does not prove ownership is safe: Mongo computes expiry from the request start, so the response can arrive after that expiry. The host waits for both the engine and renewal to stop, attempts owner-filtered release, then acquires a fresh lease and creates new cancellation sources before retrying. `MaximumAttempts` applies across those acquisitions and does not reset each time.
+
+A late successful acquisition is also released after its command drains, including during shutdown. Failed releases fall back to normal lease expiry. Cleanup attempts every step in order even if a cancellation callback or a completed renewal task faults; failures are retained and logged after release is attempted.
+
+The watchdog awaits asynchronous timeout callbacks. It preserves both operation and callback failures instead of hiding them behind successful results. Cancellation caused by its deadline is reported as a timeout; caller cancellation remains cancellation. Callback failures can produce aggregate errors. All paths drain the original operation before returning or throwing.
