@@ -14,6 +14,39 @@ public class ApplicationDataCorrectionTests : IntegrationTestBase
     private static readonly DateTimeOffset s_correctedAt = new(2026, 10, 26, 16, 0, 0, TimeSpan.Zero);
 
     [Fact]
+    public async Task Run_WhenCompletedVersionDiffers_ShouldRejectWithoutApplyingOrChangingHistory()
+    {
+        const string correctionId = "version-mismatch-test";
+        var history = GetMongoDatabase().GetCollection<ApplicationDataCorrectionCompletion>(CheckpointsCollectionName);
+        await history.DeleteOneAsync(x => x.Id == correctionId, TestContext.Current.CancellationToken);
+        var completed = new ApplicationDataCorrectionCompletion
+        {
+            Id = correctionId,
+            Version = 1,
+            CompletedAt = s_correctedAt.UtcDateTime,
+        };
+        await history.InsertOneAsync(completed, cancellationToken: TestContext.Current.CancellationToken);
+        var correction = Substitute.For<IApplicationDataCorrection>();
+        correction.Id.Returns(correctionId);
+        correction.Version.Returns(2);
+        var runner = new ApplicationDataCorrectionRunner(
+            GetMongoApplicationDatabase(),
+            [correction],
+            TimeProvider.System,
+            Substitute.For<ILogger<ApplicationDataCorrectionRunner>>(),
+            Options.Create(new ApplicationDataCorrectionOptions())
+        );
+
+        var action = () => runner.Run(TestContext.Current.CancellationToken);
+
+        await action.Should().ThrowAsync<InvalidOperationException>().WithMessage("*different version*");
+        await correction.DidNotReceive().Apply(Arg.Any<CancellationToken>());
+        (await history.Find(x => x.Id == correctionId).SingleAsync(TestContext.Current.CancellationToken))
+            .Should()
+            .BeEquivalentTo(completed);
+    }
+
+    [Fact]
     public async Task Run_ShouldUseExplicitVersionsAndSkipCompletedCorrections()
     {
         var database = GetMongoApplicationDatabase();
