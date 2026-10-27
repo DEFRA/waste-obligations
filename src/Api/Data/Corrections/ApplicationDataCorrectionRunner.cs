@@ -1,3 +1,5 @@
+using Defra.WasteObligations.Api.Services;
+using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 
 namespace Defra.WasteObligations.Api.Data.Corrections;
@@ -7,7 +9,8 @@ public class ApplicationDataCorrectionRunner(
     IMongoDatabase database,
     IEnumerable<IApplicationDataCorrection> corrections,
     TimeProvider timeProvider,
-    ILogger<ApplicationDataCorrectionRunner> logger
+    ILogger<ApplicationDataCorrectionRunner> logger,
+    IOptions<ApplicationDataCorrectionOptions> options
 ) : IApplicationDataCorrectionRunner
 {
     public async Task Run(CancellationToken cancellationToken)
@@ -25,7 +28,17 @@ public class ApplicationDataCorrectionRunner(
         var collection = database.GetCollection<ApplicationDataCorrectionCompletion>("_application_data_corrections");
         foreach (var correction in ordered)
         {
-            var completed = await collection.Find(x => x.Id == correction.Id).SingleOrDefaultAsync(cancellationToken);
+            var completed = await BackgroundOperationWatchdog.Run(
+                token => collection.Find(x => x.Id == correction.Id).SingleOrDefaultAsync(token),
+                TimeSpan.FromSeconds(options.Value.OperationTimeoutSeconds),
+                () =>
+                    logger.LogError(
+                        "Completion read stalled for correction {CorrectionId}. Cancellation was requested; waiting for the read to stop.",
+                        correction.Id
+                    ),
+                cancellationToken,
+                timeProvider
+            );
             if (completed is not null)
             {
                 if (completed.Version != correction.Version)
@@ -43,14 +56,25 @@ public class ApplicationDataCorrectionRunner(
             );
             await correction.Apply(cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
-            await collection.InsertOneAsync(
-                new ApplicationDataCorrectionCompletion
-                {
-                    Id = correction.Id,
-                    Version = correction.Version,
-                    CompletedAt = timeProvider.GetUtcNowWithoutMicroseconds(),
-                },
-                cancellationToken: cancellationToken
+            await BackgroundOperationWatchdog.Run(
+                token =>
+                    collection.InsertOneAsync(
+                        new ApplicationDataCorrectionCompletion
+                        {
+                            Id = correction.Id,
+                            Version = correction.Version,
+                            CompletedAt = timeProvider.GetUtcNowWithoutMicroseconds(),
+                        },
+                        cancellationToken: token
+                    ),
+                TimeSpan.FromSeconds(options.Value.OperationTimeoutSeconds),
+                () =>
+                    logger.LogError(
+                        "Completion write stalled for correction {CorrectionId}. Cancellation was requested; waiting for the write to stop.",
+                        correction.Id
+                    ),
+                cancellationToken,
+                timeProvider
             );
             logger.LogInformation("Application data correction {CorrectionId} completed.", correction.Id);
         }

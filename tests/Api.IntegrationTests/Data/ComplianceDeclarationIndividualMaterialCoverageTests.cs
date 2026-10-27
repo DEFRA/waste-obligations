@@ -145,7 +145,8 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
             GetMongoApplicationDatabase(),
             [correction],
             new FakeTimeProvider(s_correctedAt),
-            Substitute.For<ILogger<ApplicationDataCorrectionRunner>>()
+            Substitute.For<ILogger<ApplicationDataCorrectionRunner>>(),
+            Options.Create(new ApplicationDataCorrectionOptions())
         );
 
         var action = () => runner.Run(TestContext.Current.CancellationToken);
@@ -252,7 +253,8 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
             database,
             [second, first],
             new FakeTimeProvider(s_correctedAt),
-            Substitute.For<ILogger<ApplicationDataCorrectionRunner>>()
+            Substitute.For<ILogger<ApplicationDataCorrectionRunner>>(),
+            Options.Create(new ApplicationDataCorrectionOptions())
         );
 
         await runner.Run(TestContext.Current.CancellationToken);
@@ -418,7 +420,8 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
         return new ComplianceDeclarationCoverageCorrection(
             contextOverride ?? context,
             service,
-            Options.Create(new ApplicationDataCorrectionOptions { BatchSize = 1 })
+            Options.Create(new ApplicationDataCorrectionOptions { BatchSize = 1 }),
+            Substitute.For<ILogger<ComplianceDeclarationCoverageCorrection>>()
         );
     }
 

@@ -1,6 +1,7 @@
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data.Corrections;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 using NSubstitute;
 
@@ -23,7 +24,8 @@ public class ApplicationDataCorrectionRunnerTests
             Substitute.For<IMongoDatabase>(),
             [first, second],
             TimeProvider.System,
-            Substitute.For<ILogger<ApplicationDataCorrectionRunner>>()
+            Substitute.For<ILogger<ApplicationDataCorrectionRunner>>(),
+            Options.Create(new ApplicationDataCorrectionOptions())
         );
 
         var action = () => subject.Run(TestContext.Current.CancellationToken);

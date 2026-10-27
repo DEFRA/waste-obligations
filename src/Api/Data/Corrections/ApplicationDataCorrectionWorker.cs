@@ -1,3 +1,4 @@
+using Defra.WasteObligations.Api.Services;
 using Microsoft.Extensions.Options;
 
 namespace Defra.WasteObligations.Api.Data.Corrections;
@@ -21,7 +22,19 @@ public class ApplicationDataCorrectionWorker(
                 try
                 {
                     var duration = TimeSpan.FromSeconds(options.Value.LeaseDurationSeconds);
-                    if (await lease.TryAcquire(duration, stoppingToken))
+                    if (
+                        await BackgroundOperationWatchdog.Run(
+                            token => lease.TryAcquire(duration, token),
+                            TimeSpan.FromSeconds(options.Value.LeaseOperationTimeoutSeconds),
+                            () =>
+                                logger.LogError(
+                                    "Application data correction lease acquisition stalled. Cancellation was requested; waiting for the call to stop."
+                                ),
+                            stoppingToken,
+                            timeProvider,
+                            rejectLateResult: true
+                        )
+                    )
                     {
                         await Run(duration, stoppingToken);
 
@@ -55,6 +68,7 @@ public class ApplicationDataCorrectionWorker(
         var renew = Renew(duration, work, renewal.Token);
         try
         {
+            work.Token.ThrowIfCancellationRequested();
             await using var scope = scopeFactory.CreateAsyncScope();
             await scope.ServiceProvider.GetRequiredService<IApplicationDataCorrectionRunner>().Run(work.Token);
             work.Token.ThrowIfCancellationRequested();
@@ -63,8 +77,16 @@ public class ApplicationDataCorrectionWorker(
         {
             await renewal.CancelAsync();
             await renew;
-            using var release = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            await lease.Release(release.Token);
+            await BackgroundOperationWatchdog.Run(
+                lease.Release,
+                TimeSpan.FromSeconds(options.Value.LeaseOperationTimeoutSeconds),
+                () =>
+                    logger.LogWarning(
+                        "Application data correction lease release stalled. Cancellation was requested; waiting for the call to stop."
+                    ),
+                CancellationToken.None,
+                timeProvider
+            );
         }
     }
 
@@ -78,7 +100,21 @@ public class ApplicationDataCorrectionWorker(
         {
             while (await timer.WaitForNextTickAsync(cancellationToken))
             {
-                if (await lease.TryRenew(duration, cancellationToken))
+                if (
+                    await BackgroundOperationWatchdog.Run(
+                        token => lease.TryRenew(duration, token),
+                        TimeSpan.FromSeconds(options.Value.LeaseOperationTimeoutSeconds),
+                        () =>
+                        {
+                            logger.LogError(
+                                "Application data correction lease renewal stalled. Cancelling correction work and waiting for the renewal call to stop."
+                            );
+                            work.Cancel();
+                        },
+                        cancellationToken,
+                        timeProvider
+                    )
+                )
                     continue;
 
                 logger.LogError("Application data correction lease was lost; cancelling correction work.");
@@ -90,6 +126,10 @@ public class ApplicationDataCorrectionWorker(
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             // The owner stopped the renewal loop after correction processing finished.
+        }
+        catch (TimeoutException) when (work.IsCancellationRequested)
+        {
+            // The watchdog already reported this stalled renewal and cancelled the work.
         }
         catch (Exception exception)
         {

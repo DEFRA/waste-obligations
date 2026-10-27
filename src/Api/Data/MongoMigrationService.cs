@@ -1,3 +1,4 @@
+using Defra.WasteObligations.Api.Services;
 using Microsoft.Extensions.Options;
 
 namespace Defra.WasteObligations.Api.Data;
@@ -31,7 +32,17 @@ public class MongoMigrationService(
 
                 try
                 {
-                    acquired = await leaseService.TryAcquire(leaseDuration, stoppingToken);
+                    acquired = await BackgroundOperationWatchdog.Run(
+                        token => leaseService.TryAcquire(leaseDuration, token),
+                        TimeSpan.FromSeconds(options.Value.LeaseOperationTimeoutSeconds),
+                        () =>
+                            logger.LogError(
+                                "Mongo migration lease acquisition stalled. Cancellation was requested; waiting for the call to stop."
+                            ),
+                        stoppingToken,
+                        timeProvider,
+                        rejectLateResult: true
+                    );
                 }
                 catch (Exception exception) when (exception is not OperationCanceledException)
                 {
@@ -168,57 +179,38 @@ public class MongoMigrationService(
         CancellationToken stoppingToken
     )
     {
-        using var attemptCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(
-            migrationCancellationToken
-        );
-        using var timeoutCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
-        var migrationTask = migrationRunner.Run(attemptCancellationTokenSource.Token);
-        var timeout = TimeSpan.FromSeconds(options.Value.AttemptTimeoutSeconds);
-        var timeoutTask = Task.Delay(timeout, timeoutCancellationTokenSource.Token);
-        var completedTask = await Task.WhenAny(migrationTask, timeoutTask);
-        await timeoutCancellationTokenSource.CancelAsync();
-
-        if (completedTask != migrationTask)
-        {
-            if (stoppingToken.IsCancellationRequested || migrationCancellationToken.IsCancellationRequested)
-                return (await WaitForMigrationAttempt(migrationTask, attemptCancellationTokenSource.Token)).Completed;
-
-            logger.LogError(
-                "Mongo migration attempt {Attempt} exceeded its {AttemptTimeout} limit. Cancellation was requested; the exclusive lease will be retained until the migration engine stops.",
-                attempt,
-                timeout
-            );
-            await attemptCancellationTokenSource.CancelAsync();
-
-            return (await WaitForMigrationAttempt(migrationTask, attemptCancellationTokenSource.Token)).Completed;
-        }
-
-        var result = await WaitForMigrationAttempt(migrationTask, attemptCancellationTokenSource.Token);
-
-        if (result.Exception is not null)
-            logger.LogError(result.Exception, "Mongo migration attempt {Attempt} failed.", attempt);
-
-        return result.Completed;
-    }
-
-    private static async Task<(bool Completed, Exception? Exception)> WaitForMigrationAttempt(
-        Task migrationTask,
-        CancellationToken cancellationToken
-    )
-    {
+        var timedOut = false;
         try
         {
-            await migrationTask;
+            await BackgroundOperationWatchdog.Run(
+                migrationRunner.Run,
+                TimeSpan.FromSeconds(options.Value.AttemptTimeoutSeconds),
+                () =>
+                {
+                    timedOut = true;
+                    logger.LogError(
+                        "Mongo migration attempt {Attempt} exceeded its {AttemptTimeout} limit. Cancellation was requested; the exclusive lease will be retained until the migration engine stops.",
+                        attempt,
+                        TimeSpan.FromSeconds(options.Value.AttemptTimeoutSeconds)
+                    );
+                },
+                migrationCancellationToken,
+                timeProvider
+            );
 
-            return (true, null);
+            return true;
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException)
+            when (stoppingToken.IsCancellationRequested || migrationCancellationToken.IsCancellationRequested)
         {
-            return (false, null);
+            return false;
         }
         catch (Exception exception)
         {
-            return (false, exception);
+            if (!timedOut)
+                logger.LogError(exception, "Mongo migration attempt {Attempt} failed.", attempt);
+
+            return false;
         }
     }
 
@@ -228,13 +220,30 @@ public class MongoMigrationService(
         CancellationToken renewalCancellationToken
     )
     {
-        using var renewalTimer = new PeriodicTimer(TimeSpan.FromSeconds(options.Value.LeaseRenewalIntervalSeconds));
+        using var renewalTimer = new PeriodicTimer(
+            TimeSpan.FromSeconds(options.Value.LeaseRenewalIntervalSeconds),
+            timeProvider
+        );
 
         try
         {
             while (await renewalTimer.WaitForNextTickAsync(renewalCancellationToken))
             {
-                if (await leaseService.TryRenew(leaseDuration, renewalCancellationToken))
+                if (
+                    await BackgroundOperationWatchdog.Run(
+                        token => leaseService.TryRenew(leaseDuration, token),
+                        TimeSpan.FromSeconds(options.Value.LeaseOperationTimeoutSeconds),
+                        () =>
+                        {
+                            logger.LogError(
+                                "Mongo migration lease renewal stalled. Cancelling migration work and waiting for the renewal call to stop."
+                            );
+                            migrationCancellationTokenSource.Cancel();
+                        },
+                        renewalCancellationToken,
+                        timeProvider
+                    )
+                )
                     continue;
 
                 logger.LogError("Mongo migration lease was not renewed. Cancelling the migration engine.");
@@ -246,6 +255,10 @@ public class MongoMigrationService(
         {
             // Expected when migration processing stops.
         }
+        catch (TimeoutException) when (migrationCancellationTokenSource.IsCancellationRequested)
+        {
+            // The watchdog already reported this stalled renewal and cancelled the work.
+        }
         catch (Exception exception)
         {
             logger.LogError(exception, "Mongo migration lease renewal failed. Cancelling the migration engine.");
@@ -256,11 +269,18 @@ public class MongoMigrationService(
 
     private async Task ReleaseLease()
     {
-        using var releaseCancellationTokenSource = new CancellationTokenSource(LeaseReleaseTimeout);
-
         try
         {
-            await leaseService.Release(releaseCancellationTokenSource.Token);
+            await BackgroundOperationWatchdog.Run(
+                leaseService.Release,
+                LeaseReleaseTimeout,
+                () =>
+                    logger.LogWarning(
+                        "Mongo migration lease release stalled. Cancellation was requested; waiting for the call to stop."
+                    ),
+                CancellationToken.None,
+                timeProvider
+            );
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {

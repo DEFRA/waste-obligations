@@ -10,7 +10,8 @@ namespace Defra.WasteObligations.Api.Data.Corrections;
 public class ComplianceDeclarationCoverageCorrection(
     IDbContext dbContext,
     IComplianceDeclarationService declarations,
-    IOptions<ApplicationDataCorrectionOptions> options
+    IOptions<ApplicationDataCorrectionOptions> options,
+    ILogger<ComplianceDeclarationCoverageCorrection> logger
 ) : IApplicationDataCorrection
 {
     public int Version => 1;
@@ -21,17 +22,27 @@ public class ComplianceDeclarationCoverageCorrection(
         var lastId = ObjectId.Empty;
         while (true)
         {
-            var batch = await dbContext
-                .ComplianceDeclarations.Find(
-                    Builders<ComplianceDeclaration>.Filter.Gt(x => x.Id, lastId)
-                        & Builders<ComplianceDeclaration>.Filter.Eq(
-                            x => x.SchemaVersion,
-                            ComplianceDeclaration.SchemaVersionValue
+            var batch = await BackgroundOperationWatchdog.Run(
+                token =>
+                    dbContext
+                        .ComplianceDeclarations.Find(
+                            Builders<ComplianceDeclaration>.Filter.Gt(x => x.Id, lastId)
+                                & Builders<ComplianceDeclaration>.Filter.Eq(
+                                    x => x.SchemaVersion,
+                                    ComplianceDeclaration.SchemaVersionValue
+                                )
                         )
-                )
-                .SortBy(x => x.Id)
-                .Limit(options.Value.BatchSize)
-                .ToListAsync(cancellationToken);
+                        .SortBy(x => x.Id)
+                        .Limit(options.Value.BatchSize)
+                        .ToListAsync(token),
+                TimeSpan.FromSeconds(options.Value.OperationTimeoutSeconds),
+                () =>
+                    logger.LogError(
+                        "Coverage correction batch read stalled after {LastDeclarationId}. Cancellation was requested; waiting for the read to stop.",
+                        lastId
+                    ),
+                cancellationToken
+            );
             if (batch.Count == 0)
             {
                 return;
@@ -46,14 +57,24 @@ public class ComplianceDeclarationCoverageCorrection(
                     );
                     if (current.ObligationCoveragePercentage != percentage)
                     {
-                        await declarations.Update(
-                            current,
-                            current with
-                            {
-                                ObligationCoveragePercentage = percentage,
-                            },
-                            cancellationToken,
-                            actor: AuditActors.Service
+                        await BackgroundOperationWatchdog.Run(
+                            token =>
+                                declarations.Update(
+                                    current,
+                                    current with
+                                    {
+                                        ObligationCoveragePercentage = percentage,
+                                    },
+                                    token,
+                                    actor: AuditActors.Service
+                                ),
+                            TimeSpan.FromSeconds(options.Value.OperationTimeoutSeconds),
+                            () =>
+                                logger.LogError(
+                                    "Coverage correction update stalled for declaration {DeclarationId}. Cancellation was requested; waiting for the update to stop.",
+                                    current.Id
+                                ),
+                            cancellationToken
                         );
                     }
                 }

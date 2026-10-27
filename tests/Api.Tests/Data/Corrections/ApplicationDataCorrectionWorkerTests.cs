@@ -100,6 +100,99 @@ public class ApplicationDataCorrectionWorkerTests
         await runner.Received(1).Run(Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task Execute_WhenRenewalHangs_ShouldCancelOwnedWorkAndDrainBeforeReleasing()
+    {
+        var migrations = new MongoMigrationCompletion();
+        migrations.Complete();
+        var lease = Substitute.For<IApplicationDataCorrectionLeaseService>();
+        lease.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
+        var renewalStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var renewal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        lease
+            .TryRenew(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                renewalStarted.TrySetResult();
+
+                return renewal.Task;
+            });
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var released = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        lease
+            .Release(Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                released.TrySetResult();
+                return Task.CompletedTask;
+            });
+        var runner = Substitute.For<IApplicationDataCorrectionRunner>();
+        runner
+            .Run(Arg.Any<CancellationToken>())
+            .Returns(async x =>
+            {
+                started.TrySetResult();
+                try
+                {
+                    await Task.Delay(Timeout.InfiniteTimeSpan, x.Arg<CancellationToken>());
+                }
+                finally
+                {
+                    stopped.TrySetResult();
+                }
+            });
+        using var services = new ServiceCollection().AddSingleton(runner).BuildServiceProvider();
+        var time = new FakeTimeProvider();
+        using var subject = CreateSubject(migrations, services, lease, time);
+        await subject.StartAsync(TestContext.Current.CancellationToken);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        time.Advance(TimeSpan.FromSeconds(15));
+        await renewalStarted.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        time.Advance(TimeSpan.FromSeconds(10));
+        await stopped.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await lease.DidNotReceive().Release(Arg.Any<CancellationToken>());
+        subject.ExecuteTask!.IsCompleted.Should().BeFalse();
+
+        renewal.SetResult(false);
+        await released.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await subject.StopAsync(TestContext.Current.CancellationToken);
+        await runner.Received(1).Run(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Execute_WhenAcquisitionHangsThenSucceedsLate_ShouldNotStartCorrectionWork()
+    {
+        var migrations = new MongoMigrationCompletion();
+        migrations.Complete();
+        var lease = Substitute.For<IApplicationDataCorrectionLeaseService>();
+        var acquisitionStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var acquired = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        lease
+            .TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(x =>
+            {
+                x.Arg<CancellationToken>().Register(() => cancelled.TrySetResult());
+                acquisitionStarted.TrySetResult();
+
+                return acquired.Task;
+            });
+        var runner = Substitute.For<IApplicationDataCorrectionRunner>();
+        using var services = new ServiceCollection().AddSingleton(runner).BuildServiceProvider();
+        var time = new FakeTimeProvider();
+        using var subject = CreateSubject(migrations, services, lease, time);
+        await subject.StartAsync(TestContext.Current.CancellationToken);
+        await acquisitionStarted.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        time.Advance(TimeSpan.FromSeconds(10));
+        await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        acquired.SetResult(true);
+        await subject.StopAsync(TestContext.Current.CancellationToken);
+
+        await runner.DidNotReceive().Run(Arg.Any<CancellationToken>());
+        await lease.DidNotReceive().Release(Arg.Any<CancellationToken>());
+    }
+
     private static ApplicationDataCorrectionWorker CreateSubject(
         MongoMigrationCompletion migrations,
         IServiceProvider services,
