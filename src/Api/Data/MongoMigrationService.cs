@@ -8,7 +8,8 @@ public class MongoMigrationService(
     IMongoMigrationRunner migrationRunner,
     IOptions<MongoMigrationOptions> options,
     TimeProvider timeProvider,
-    ILogger<MongoMigrationService> logger
+    ILogger<MongoMigrationService> logger,
+    MongoMigrationCompletion completion
 ) : BackgroundService
 {
     private static readonly TimeSpan LeaseRetryDelay = TimeSpan.FromSeconds(5);
@@ -127,6 +128,8 @@ public class MongoMigrationService(
             {
                 if (await RunMigrationAttempt(attempt, migrationCancellationTokenSource.Token, stoppingToken))
                 {
+                    completion.Complete();
+
                     return;
                 }
 
