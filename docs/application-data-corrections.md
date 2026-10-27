@@ -32,7 +32,7 @@ Typed replacement does not preserve fields unknown to the model. Use schema migr
 
 Worker tests cover migration gating, lease renewal, cancellation and timeout draining. Runner unit and Mongo integration tests cover explicit ordering, completion, independent lease ownership and primary completion reads. Integration queries are checked by the existing profiler.
 
-Failed lease acquisitions and failed or lease-cancelled passes share a per-host retry limit, configured by `ApplicationDataCorrections:MaximumAttempts` (default 3). Normal lease contention does not consume an attempt. After the limit, the worker logs an error and stops; API readiness is unchanged. A successful pass has no total duration limit.
+Failed or lease-cancelled passes share a per-host retry limit, configured by `ApplicationDataCorrections:MaximumAttempts` (default 3). Lease acquisition failures and normal contention do not consume an attempt. Acquisition retries continue until ownership is acquired or the host stops; only the first acquisition failure is logged for each acquisition cycle. After the limit, the worker logs an error and stops; API readiness is unchanged. A successful pass has no total duration limit.
 
 If local migrations finish unsuccessfully, the correction worker logs that it is blocked and stops without acquiring a lease. It keeps the local migration gate because another host may run a different migration assembly. Another healthy host can run corrections under the shared correction lease.
 

@@ -364,18 +364,14 @@ public class ApplicationDataCorrectionWorkerTests
         subject.ExecuteTask!.IsCompletedSuccessfully.Should().BeTrue();
     }
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task Execute_WhenAttemptsFail_ShouldStopAtLimit(bool acquisitionFails)
+    [Fact]
+    public async Task Execute_WhenRunsFail_ShouldStopAtLimit()
     {
         var migrations = new MongoMigrationCompletion();
         migrations.Complete();
         var failure = new InvalidOperationException("Permanent failure");
         var lease = Substitute.For<IApplicationDataCorrectionLeaseService>();
-        lease
-            .TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
-            .Returns(_ => acquisitionFails ? Task.FromException<bool>(failure) : Task.FromResult(true));
+        lease.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
         var runner = Substitute.For<IApplicationDataCorrectionRunner>();
         runner.Run(Arg.Any<CancellationToken>()).Returns(Task.FromException(failure));
         using var services = new ServiceCollection().AddSingleton(runner).BuildServiceProvider();
@@ -391,8 +387,65 @@ public class ApplicationDataCorrectionWorkerTests
         await subject.StartAsync(TestContext.Current.CancellationToken);
         await subject.ExecuteTask!.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
         await lease.Received(2).TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
-        await runner.Received(acquisitionFails ? 0 : 2).Run(Arg.Any<CancellationToken>());
+        await runner.Received(2).Run(Arg.Any<CancellationToken>());
         logger.Messages.Should().ContainSingle(x => x.Contains("No further attempts"));
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    public async Task Execute_WhenAcquisitionRecovers_ShouldPreserveRunBudgetAndLogOnlyFirstFailure(
+        bool runFails,
+        bool acquisitionStalls
+    )
+    {
+        var migrations = new MongoMigrationCompletion();
+        migrations.Complete();
+        var failure = new InvalidOperationException("Mongo unavailable");
+        var lease = Substitute.For<IApplicationDataCorrectionLeaseService>();
+        var acquisitions = 0;
+        lease
+            .TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(async x =>
+            {
+                if (++acquisitions > 4)
+                    return true;
+                if (acquisitionStalls)
+                    await Task.Delay(Timeout.InfiniteTimeSpan, x.Arg<CancellationToken>());
+
+                throw failure;
+            });
+        var runner = Substitute.For<IApplicationDataCorrectionRunner>();
+        runner
+            .Run(Arg.Any<CancellationToken>())
+            .Returns(
+                runFails ? Task.FromException(new InvalidOperationException("Correction failed")) : Task.CompletedTask
+            );
+        using var services = new ServiceCollection().AddSingleton(runner).BuildServiceProvider();
+        var logger = new RecordingLogger<ApplicationDataCorrectionWorker>();
+        using var subject = CreateSubject(
+            migrations,
+            services,
+            lease,
+            TimeProvider.System,
+            logger,
+            new ApplicationDataCorrectionOptions
+            {
+                MaximumAttempts = 1,
+                RetryDelaySeconds = 1,
+                LeaseOperationTimeoutSeconds = 1,
+            }
+        );
+        await subject.StartAsync(TestContext.Current.CancellationToken);
+        await subject.ExecuteTask!.WaitAsync(TimeSpan.FromSeconds(15), TestContext.Current.CancellationToken);
+        await lease.Received(5).TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
+        await runner.Received(1).Run(Arg.Any<CancellationToken>());
+        await lease.Received(1).Release(Arg.Any<CancellationToken>());
+        logger
+            .Entries.Should()
+            .ContainSingle(x => x.Level == LogLevel.Error && x.Message.Contains("lease acquisition"));
+        logger.Messages.Count(x => x.Contains("No further attempts")).Should().Be(runFails ? 1 : 0);
     }
 
     [Fact]
