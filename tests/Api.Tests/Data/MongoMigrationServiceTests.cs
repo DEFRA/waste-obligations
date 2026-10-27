@@ -375,6 +375,44 @@ public class MongoMigrationServiceTests
         logger.Messages.Should().Contain("Mongo migration lease could not be released. It will expire automatically.");
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Execute_ShouldSignalCorrectionsOnlyAfterSuccessfulMigrations(bool succeeds)
+    {
+        var completion = new MongoMigrationCompletion();
+        var completed = completion.Wait(TestContext.Current.CancellationToken);
+        var lease = Substitute.For<IMongoMigrationLeaseService>();
+        lease.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
+        lease.TryRenew(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
+        var runner = Substitute.For<IMongoMigrationRunner>();
+        runner
+            .Run(Arg.Any<CancellationToken>())
+            .Returns(
+                succeeds
+                    ? Task.CompletedTask
+                    : Task.FromException(new InvalidOperationException("Schema migration failed"))
+            );
+        using var subject = new MongoMigrationService(
+            lease,
+            runner,
+            Options.Create(new MongoMigrationOptions { MaximumAttempts = 1 }),
+            TimeProvider.System,
+            Substitute.For<ILogger<MongoMigrationService>>(),
+            completion
+        );
+
+        await subject.StartAsync(TestContext.Current.CancellationToken);
+        await subject.ExecuteTask!.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        if (succeeds)
+            await completed.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        else
+            await Assert.ThrowsAsync<InvalidOperationException>(() => completed);
+
+        completed.IsCompletedSuccessfully.Should().Be(succeeds);
+    }
+
     [Fact]
     public async Task Execute_WhenRenewalHangs_ShouldCancelMigrationsAndDrainBeforeReleasing()
     {
@@ -707,6 +745,35 @@ public class MongoMigrationServiceTests
             );
     }
 
+    [Fact]
+    public async Task Execute_WhenHostStopsWaitingForLease_ShouldLeaveMigrationCompletionPending()
+    {
+        var completion = new MongoMigrationCompletion();
+        var lease = Substitute.For<IMongoMigrationLeaseService>();
+        var acquiring = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        lease
+            .TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(async x =>
+            {
+                acquiring.TrySetResult();
+                await Task.Delay(Timeout.InfiniteTimeSpan, x.Arg<CancellationToken>());
+
+                return false;
+            });
+        using var subject = new MongoMigrationService(
+            lease,
+            Substitute.For<IMongoMigrationRunner>(),
+            Options.Create(new MongoMigrationOptions()),
+            TimeProvider.System,
+            Substitute.For<ILogger<MongoMigrationService>>(),
+            completion
+        );
+        await subject.StartAsync(TestContext.Current.CancellationToken);
+        await acquiring.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await subject.StopAsync(TestContext.Current.CancellationToken);
+        completion.Wait(TestContext.Current.CancellationToken).IsCompleted.Should().BeFalse();
+    }
+
     private sealed class RetryAwareTimeProvider(TimeSpan retryDelay) : TimeProvider
     {
         private readonly FakeTimeProvider _clock = new();
@@ -762,7 +829,15 @@ public class MongoMigrationServiceTests
         IOptions<MongoMigrationOptions> options,
         TimeProvider timeProvider,
         ILogger<MongoMigrationService> logger
-    ) : MongoMigrationService(leaseService, migrationRunner, options, timeProvider, logger)
+    )
+        : MongoMigrationService(
+            leaseService,
+            migrationRunner,
+            options,
+            timeProvider,
+            logger,
+            new MongoMigrationCompletion()
+        )
     {
         public Task Execute(CancellationToken stoppingToken) => ExecuteAsync(stoppingToken);
     }

@@ -32,7 +32,8 @@ public interface IComplianceDeclarationService
     Task<ComplianceDeclaration> Update(
         ComplianceDeclaration current,
         ComplianceDeclaration updated,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        string? actor = null
     );
 
     Task<ComplianceDeclaration> UpdateStatus(

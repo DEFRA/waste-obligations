@@ -8,7 +8,8 @@ public class MongoMigrationService(
     IMongoMigrationRunner migrationRunner,
     IOptions<MongoMigrationOptions> options,
     TimeProvider timeProvider,
-    ILogger<MongoMigrationService> logger
+    ILogger<MongoMigrationService> logger,
+    MongoMigrationCompletion completion
 ) : BackgroundService
 {
     private static readonly TimeSpan LeaseRetryDelay = TimeSpan.FromSeconds(5);
@@ -82,6 +83,11 @@ public class MongoMigrationService(
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
             // Host shutdown while waiting for ownership or another attempt.
+        }
+        finally
+        {
+            if (!stoppingToken.IsCancellationRequested)
+                completion.Fail(new InvalidOperationException("Mongo migrations did not complete on this host."));
         }
     }
 
@@ -187,7 +193,11 @@ public class MongoMigrationService(
             {
                 attempts++;
                 if (await RunMigrationAttempt(attempts, migrationCancellationTokenSource.Token, stoppingToken))
+                {
+                    completion.Complete();
+
                     return (true, attempts);
+                }
                 if (migrationCancellationTokenSource.IsCancellationRequested)
                     return (false, attempts);
                 if (attempts < options.Value.MaximumAttempts)
