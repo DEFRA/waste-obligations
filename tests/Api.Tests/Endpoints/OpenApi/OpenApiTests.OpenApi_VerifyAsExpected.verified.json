@@ -452,6 +452,21 @@
             }
           },
           {
+            "name": "acceptableIntoYear",
+            "in": "query",
+            "description": "Only PRNs that can be accepted into this year at the current date. Only supported together with status=AwaitingAcceptance",
+            "schema": {
+              "maximum": 2050,
+              "minimum": 2023,
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
             "name": "page",
             "in": "query",
             "description": "Page number (1-based), defaults to 1 if not specified",
