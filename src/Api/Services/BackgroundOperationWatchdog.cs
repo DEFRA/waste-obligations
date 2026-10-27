@@ -33,13 +33,12 @@ public static class BackgroundOperationWatchdog
         cancellationToken.ThrowIfCancellationRequested();
         using var work = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         using var timer = new CancellationTokenSource();
-        var elapsed = false;
         Exception? notificationFailure = null;
         try
         {
             var deadline = Task.Delay(timeout, timeProvider ?? TimeProvider.System, timer.Token);
             var task = operation(work.Token);
-            elapsed = await Task.WhenAny(task, deadline) != task;
+            var elapsed = await Task.WhenAny(task, deadline) != task;
             if (elapsed)
             {
                 try
@@ -76,6 +75,13 @@ public static class BackgroundOperationWatchdog
                     exception
                 );
             }
+            catch (OperationCanceledException exception) when (elapsed && !cancellationToken.IsCancellationRequested)
+            {
+                throw new TimeoutException(
+                    $"Background operation exceeded its {timeout} cancellation threshold.",
+                    exception
+                );
+            }
             if (notificationFailure is not null)
                 throw new InvalidOperationException(
                     "Timeout notification failed; the original operation has now finished.",
@@ -87,13 +93,6 @@ public static class BackgroundOperationWatchdog
                 );
 
             return result;
-        }
-        catch (OperationCanceledException exception) when (elapsed && !cancellationToken.IsCancellationRequested)
-        {
-            throw new TimeoutException(
-                $"Background operation exceeded its {timeout} cancellation threshold.",
-                exception
-            );
         }
         finally
         {
