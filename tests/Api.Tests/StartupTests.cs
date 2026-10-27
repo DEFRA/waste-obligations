@@ -75,7 +75,8 @@ public class StartupTests(ApiWebApplicationFactory factory) : IClassFixture<ApiW
                         }
                     ),
                     TimeProvider.System,
-                    logger
+                    logger,
+                    new MongoMigrationCompletion()
                 ));
             });
         });

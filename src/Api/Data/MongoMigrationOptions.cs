@@ -12,6 +12,9 @@ public record MongoMigrationOptions
     [Range(1, 1800)]
     public int LeaseRenewalIntervalSeconds { get; init; } = 15;
 
+    [Range(1, 60)]
+    public int LeaseOperationTimeoutSeconds { get; init; } = 10;
+
     [Range(1, 86400)]
     public int AttemptTimeoutSeconds { get; init; } = 300;
 

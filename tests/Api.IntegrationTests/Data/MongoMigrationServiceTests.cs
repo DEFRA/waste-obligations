@@ -70,6 +70,8 @@ public class MongoMigrationServiceTests : IntegrationTestBase
     [Fact]
     public async Task Start_WhenMigrationLeaseIsHeld_ShouldNotBlockAndCreateIndex()
     {
+        var completion = new MongoMigrationCompletion();
+        var completed = completion.Wait(TestContext.Current.CancellationToken);
         var database = GetMongoDatabase();
         var context = new MigrationContext(database, null!, TestContext.Current.CancellationToken);
         var subject = new MongoMigrationService(
@@ -77,7 +79,8 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             new MongoMigrationRunner(database, Substitute.For<ILogger<MongoMigrationRunner>>()),
             Options.Create(new MongoMigrationOptions()),
             TimeProvider.System,
-            Substitute.For<ILogger<MongoMigrationService>>()
+            Substitute.For<ILogger<MongoMigrationService>>(),
+            completion
         );
         await database.DropCollectionAsync("_migrations", TestContext.Current.CancellationToken);
         await database.DropCollectionAsync("_migrations_lease", TestContext.Current.CancellationToken);
@@ -104,6 +107,7 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             .StartAsync(TestContext.Current.CancellationToken)
             .WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
+        completed.IsCompleted.Should().BeFalse();
         await migrationLease.DeleteOneAsync(x => x.Id == "mongo-migrations", TestContext.Current.CancellationToken);
 
         await WaitForAsync(
@@ -245,6 +249,7 @@ public class MongoMigrationServiceTests : IntegrationTestBase
                 )
             );
 
+        await completed.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
         await subject.StopAsync(TestContext.Current.CancellationToken);
     }
 
