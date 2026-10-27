@@ -30,4 +30,27 @@ public class ServiceCollectionExtensionsTests
 
         action.Should().Throw<OptionsValidationException>();
     }
+
+    [Theory]
+    [InlineData(MongoMigrationOptions.SectionName)]
+    public void AddDbContext_WhenLeaseOperationCanOutlastRenewalSlack_ShouldFailValidation(string section)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    [$"{section}:LeaseDurationSeconds"] = "30",
+                    [$"{section}:LeaseRenewalIntervalSeconds"] = "15",
+                    [$"{section}:LeaseOperationTimeoutSeconds"] = "15",
+                }
+            )
+            .Build();
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(configuration);
+        services.AddDbContext(configuration, validateConfigOnly: true);
+        using var provider = services.BuildServiceProvider();
+        Action action = () => _ = provider.GetRequiredService<IOptions<MongoMigrationOptions>>().Value;
+
+        action.Should().Throw<OptionsValidationException>();
+    }
 }

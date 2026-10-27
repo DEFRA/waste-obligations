@@ -226,7 +226,16 @@ public class MongoMigrationServiceTests
         var subject = CreateSubject(leaseService, migrationRunner, timeProvider: timeProvider);
         var execution = subject.Execute(TestContext.Current.CancellationToken);
 
-        timeProvider.Advance(TimeSpan.FromSeconds(5));
+        await AsyncWaiter.WaitForAsync(
+            async () =>
+            {
+                timeProvider.Advance(TimeSpan.FromSeconds(5));
+                await Task.Yield();
+                execution.IsCompleted.Should().BeTrue();
+            },
+            50,
+            TimeSpan.FromMilliseconds(10)
+        );
         await execution;
 
         await leaseService.Received(2).TryAcquire(TimeSpan.FromSeconds(2), Arg.Any<CancellationToken>());
@@ -355,6 +364,60 @@ public class MongoMigrationServiceTests
                 "Mongo migrations did not complete after 1 attempt(s). No further attempts will be made by this host."
             );
         logger.Messages.Should().Contain("Mongo migration lease could not be released. It will expire automatically.");
+    }
+
+    [Fact]
+    public async Task Execute_WhenRenewalHangs_ShouldCancelMigrationsAndDrainBeforeReleasing()
+    {
+        var lease = Substitute.For<IMongoMigrationLeaseService>();
+        lease.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
+        var renewalStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var renewal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        lease
+            .TryRenew(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                renewalStarted.TrySetResult();
+
+                return renewal.Task;
+            });
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var runner = Substitute.For<IMongoMigrationRunner>();
+        runner
+            .Run(Arg.Any<CancellationToken>())
+            .Returns(async x =>
+            {
+                started.TrySetResult();
+                try
+                {
+                    await Task.Delay(Timeout.InfiniteTimeSpan, x.Arg<CancellationToken>());
+                }
+                finally
+                {
+                    stopped.TrySetResult();
+                }
+            });
+        var time = new FakeTimeProvider();
+        var subject = CreateSubject(
+            lease,
+            runner,
+            new MongoMigrationOptions { MaximumAttempts = 1 },
+            timeProvider: time
+        );
+        var execution = subject.Execute(TestContext.Current.CancellationToken);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        time.Advance(TimeSpan.FromSeconds(15));
+        await renewalStarted.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        time.Advance(TimeSpan.FromSeconds(10));
+        await stopped.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await lease.DidNotReceive().Release(Arg.Any<CancellationToken>());
+        execution.IsCompleted.Should().BeFalse();
+
+        renewal.SetResult(false);
+        await execution.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await runner.Received(1).Run(Arg.Any<CancellationToken>());
+        await lease.Received(1).Release(Arg.Any<CancellationToken>());
     }
 
     private static TestableMongoMigrationService CreateSubject(
