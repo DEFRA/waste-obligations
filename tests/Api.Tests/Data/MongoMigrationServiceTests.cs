@@ -407,6 +407,8 @@ public class MongoMigrationServiceTests
 
         if (succeeds)
             await completed.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        else
+            await Assert.ThrowsAsync<InvalidOperationException>(() => completed);
 
         completed.IsCompletedSuccessfully.Should().Be(succeeds);
     }
@@ -741,6 +743,35 @@ public class MongoMigrationServiceTests
                 x.Exception != null
                 && x.Exception.ToString().Contains("Migration cancellation callback failed", StringComparison.Ordinal)
             );
+    }
+
+    [Fact]
+    public async Task Execute_WhenHostStopsWaitingForLease_ShouldLeaveMigrationCompletionPending()
+    {
+        var completion = new MongoMigrationCompletion();
+        var lease = Substitute.For<IMongoMigrationLeaseService>();
+        var acquiring = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        lease
+            .TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(async x =>
+            {
+                acquiring.TrySetResult();
+                await Task.Delay(Timeout.InfiniteTimeSpan, x.Arg<CancellationToken>());
+
+                return false;
+            });
+        using var subject = new MongoMigrationService(
+            lease,
+            Substitute.For<IMongoMigrationRunner>(),
+            Options.Create(new MongoMigrationOptions()),
+            TimeProvider.System,
+            Substitute.For<ILogger<MongoMigrationService>>(),
+            completion
+        );
+        await subject.StartAsync(TestContext.Current.CancellationToken);
+        await acquiring.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await subject.StopAsync(TestContext.Current.CancellationToken);
+        completion.Wait(TestContext.Current.CancellationToken).IsCompleted.Should().BeFalse();
     }
 
     private sealed class RetryAwareTimeProvider(TimeSpan retryDelay) : TimeProvider
