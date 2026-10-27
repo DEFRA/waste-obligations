@@ -1,5 +1,6 @@
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
+using Defra.WasteObligations.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -53,8 +54,10 @@ public class ApplicationDataCorrectionWorkerTests
         await runner.Received(1).Run(Arg.Any<CancellationToken>());
     }
 
-    [Fact]
-    public async Task Execute_WhenLeaseIsLost_ShouldCancelWorkBeforeReleasingLease()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Execute_WhenLeaseIsLost_ShouldCancelWorkBeforeReleasingLease(bool throwingCallback)
     {
         var migrations = new MongoMigrationCompletion();
         migrations.Complete();
@@ -78,6 +81,11 @@ public class ApplicationDataCorrectionWorkerTests
             .Run(Arg.Any<CancellationToken>())
             .Returns(async x =>
             {
+                var token = x.Arg<CancellationToken>();
+                if (throwingCallback)
+                    token.Register(() =>
+                        throw new InvalidOperationException("Correction cancellation callback failed")
+                    );
                 started.TrySetResult();
                 try
                 {
@@ -189,14 +197,50 @@ public class ApplicationDataCorrectionWorkerTests
         await subject.StopAsync(TestContext.Current.CancellationToken);
 
         await runner.DidNotReceive().Run(Arg.Any<CancellationToken>());
-        await lease.DidNotReceive().Release(Arg.Any<CancellationToken>());
+        await lease.Received(1).Release(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Execute_WhenRunnerFailsDuringShutdown_ShouldReleaseAndLogTheOriginalError()
+    {
+        var migrations = new MongoMigrationCompletion();
+        migrations.Complete();
+        var lease = Substitute.For<IApplicationDataCorrectionLeaseService>();
+        lease.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var work = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var runner = Substitute.For<IApplicationDataCorrectionRunner>();
+        runner
+            .Run(Arg.Any<CancellationToken>())
+            .Returns(x =>
+            {
+                x.Arg<CancellationToken>().Register(() => cancelled.TrySetResult());
+                started.TrySetResult();
+
+                return work.Task;
+            });
+        using var services = new ServiceCollection().AddSingleton(runner).BuildServiceProvider();
+        var logger = new RecordingLogger<ApplicationDataCorrectionWorker>();
+        using var subject = CreateSubject(migrations, services, lease, TimeProvider.System, logger);
+        await subject.StartAsync(TestContext.Current.CancellationToken);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        var stopping = subject.StopAsync(TestContext.Current.CancellationToken);
+        await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        var failure = new InvalidOperationException("Correction failed while stopping");
+        work.SetException(failure);
+        await stopping.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        await lease.Received(1).Release(Arg.Any<CancellationToken>());
+        logger.Entries.Should().Contain(x => x.Level == LogLevel.Error && x.Exception == failure);
     }
 
     private static ApplicationDataCorrectionWorker CreateSubject(
         MongoMigrationCompletion migrations,
         IServiceProvider services,
         IApplicationDataCorrectionLeaseService lease,
-        TimeProvider time
+        TimeProvider time,
+        ILogger<ApplicationDataCorrectionWorker>? logger = null
     ) =>
         new(
             migrations,
@@ -204,6 +248,6 @@ public class ApplicationDataCorrectionWorkerTests
             lease,
             Options.Create(new ApplicationDataCorrectionOptions()),
             time,
-            Substitute.For<ILogger<ApplicationDataCorrectionWorker>>()
+            logger ?? Substitute.For<ILogger<ApplicationDataCorrectionWorker>>()
         );
 }

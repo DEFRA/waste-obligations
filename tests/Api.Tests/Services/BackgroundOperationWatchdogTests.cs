@@ -7,6 +7,35 @@ namespace Defra.WasteObligations.Api.Tests.Services;
 public class BackgroundOperationWatchdogTests
 {
     [Fact]
+    public async Task Run_WhenAsynchronousTimeoutNotificationFails_ShouldDrainBeforeReportingTheFailure()
+    {
+        var time = new FakeTimeProvider();
+        var operation = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var notification = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var notified = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var execution = BackgroundOperationWatchdog.Run(
+            _ => operation.Task,
+            TimeSpan.FromSeconds(1),
+            () =>
+            {
+                notified.TrySetResult();
+
+                return notification.Task;
+            },
+            TestContext.Current.CancellationToken,
+            time
+        );
+        time.Advance(TimeSpan.FromSeconds(1));
+        await notified.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        execution.IsCompleted.Should().BeFalse();
+        notification.SetException(new InvalidOperationException("Async cancellation callback failed"));
+        operation.SetResult(42);
+
+        var action = () => execution;
+        (await action.Should().ThrowAsync<InvalidOperationException>()).Which.InnerException.Should().NotBeNull();
+    }
+
+    [Fact]
     public async Task Run_WhenCancellationIsIgnored_ShouldReportTimeoutAndWaitForActualCompletion()
     {
         var time = new FakeTimeProvider();

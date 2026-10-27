@@ -22,19 +22,7 @@ public class ApplicationDataCorrectionWorker(
                 try
                 {
                     var duration = TimeSpan.FromSeconds(options.Value.LeaseDurationSeconds);
-                    if (
-                        await BackgroundOperationWatchdog.Run(
-                            token => lease.TryAcquire(duration, token),
-                            TimeSpan.FromSeconds(options.Value.LeaseOperationTimeoutSeconds),
-                            () =>
-                                logger.LogError(
-                                    "Application data correction lease acquisition stalled. Cancellation was requested; waiting for the call to stop."
-                                ),
-                            stoppingToken,
-                            timeProvider,
-                            rejectLateResult: true
-                        )
-                    )
+                    if (await TryAcquireLease(duration, stoppingToken))
                     {
                         await Run(duration, stoppingToken);
 
@@ -47,10 +35,7 @@ public class ApplicationDataCorrectionWorker(
                 }
                 catch (Exception exception)
                 {
-                    logger.LogError(
-                        exception,
-                        "Application data corrections failed; retrying independently of schema migrations."
-                    );
+                    logger.LogError(exception, "Application data corrections failed.");
                 }
                 await Task.Delay(TimeSpan.FromSeconds(options.Value.RetryDelaySeconds), timeProvider, stoppingToken);
             }
@@ -58,6 +43,51 @@ public class ApplicationDataCorrectionWorker(
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
             // Host shutdown while waiting for migrations or another correction lease.
+        }
+    }
+
+    private async Task<bool> TryAcquireLease(TimeSpan duration, CancellationToken stoppingToken)
+    {
+        var acquiredLease = false;
+        try
+        {
+            return await BackgroundOperationWatchdog.Run(
+                async token =>
+                {
+                    acquiredLease = await lease.TryAcquire(duration, token);
+
+                    return acquiredLease;
+                },
+                TimeSpan.FromSeconds(options.Value.LeaseOperationTimeoutSeconds),
+                () =>
+                {
+                    if (stoppingToken.IsCancellationRequested)
+                        logger.LogWarning(
+                            "Application data correction lease acquisition cancellation is still draining."
+                        );
+                    else
+                        logger.LogError(
+                            "Application data correction lease acquisition stalled. Cancellation was requested; waiting for the call to stop."
+                        );
+                },
+                stoppingToken,
+                timeProvider,
+                rejectLateResult: true
+            );
+        }
+        catch (Exception exception)
+        {
+            if (acquiredLease)
+                await Release();
+            if (!stoppingToken.IsCancellationRequested)
+                throw;
+            if (exception is not OperationCanceledException)
+                logger.LogWarning(
+                    exception,
+                    "Application data correction lease acquisition ended while cancellation was draining."
+                );
+
+            return false;
         }
     }
 
@@ -75,8 +105,24 @@ public class ApplicationDataCorrectionWorker(
         }
         finally
         {
-            await renewal.CancelAsync();
-            await renew;
+            try
+            {
+                await BackgroundOperationCleanup.Run(work.CancelAsync, renewal.CancelAsync, () => renew, Release);
+            }
+            catch (AggregateException exception)
+            {
+                logger.LogError(
+                    exception,
+                    "Application data correction cleanup failed after draining; lease release was attempted."
+                );
+            }
+        }
+    }
+
+    private async Task Release()
+    {
+        try
+        {
             await BackgroundOperationWatchdog.Run(
                 lease.Release,
                 TimeSpan.FromSeconds(options.Value.LeaseOperationTimeoutSeconds),
@@ -86,6 +132,20 @@ public class ApplicationDataCorrectionWorker(
                     ),
                 CancellationToken.None,
                 timeProvider
+            );
+        }
+        catch (TimeoutException exception)
+        {
+            logger.LogWarning(
+                exception,
+                "Application data correction lease release timed out. It will expire automatically."
+            );
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(
+                exception,
+                "Application data correction lease could not be released. It will expire automatically."
             );
         }
     }
@@ -104,12 +164,17 @@ public class ApplicationDataCorrectionWorker(
                     await BackgroundOperationWatchdog.Run(
                         token => lease.TryRenew(duration, token),
                         TimeSpan.FromSeconds(options.Value.LeaseOperationTimeoutSeconds),
-                        () =>
+                        async () =>
                         {
-                            logger.LogError(
-                                "Application data correction lease renewal stalled. Cancelling correction work and waiting for the renewal call to stop."
-                            );
-                            work.Cancel();
+                            if (cancellationToken.IsCancellationRequested)
+                                logger.LogWarning(
+                                    "Application data correction lease renewal cancellation is still draining."
+                                );
+                            else
+                                logger.LogError(
+                                    "Application data correction lease renewal stalled. Cancelling correction work and waiting for the renewal call to stop."
+                                );
+                            await work.CancelAsync();
                         },
                         cancellationToken,
                         timeProvider
@@ -125,7 +190,7 @@ public class ApplicationDataCorrectionWorker(
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            // The owner stopped the renewal loop after correction processing finished.
+            // The owner stopped renewal after correction processing finished.
         }
         catch (TimeoutException) when (work.IsCancellationRequested)
         {
