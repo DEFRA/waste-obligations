@@ -23,52 +23,19 @@ public class MongoMigrationService(
             var failedLeaseAcquisitions = 0;
             var leaseAcquisitionStartedAt = timeProvider.GetUtcNow();
             var leaseAcquisitionAlertLogged = false;
-            while (!stoppingToken.IsCancellationRequested && attempts < options.Value.MaximumAttempts)
+            while (attempts < options.Value.MaximumAttempts)
             {
+                stoppingToken.ThrowIfCancellationRequested();
                 var leaseDuration = TimeSpan.FromSeconds(options.Value.LeaseDurationSeconds);
-                var acquiredLease = false;
                 bool acquired;
                 try
                 {
-                    acquired = await BackgroundOperationWatchdog.Run(
-                        async token =>
-                        {
-                            acquiredLease = await leaseService.TryAcquire(leaseDuration, token);
-
-                            return acquiredLease;
-                        },
-                        TimeSpan.FromSeconds(options.Value.LeaseOperationTimeoutSeconds),
-                        () =>
-                        {
-                            if (stoppingToken.IsCancellationRequested)
-                                logger.LogWarning("Mongo migration lease acquisition cancellation is still draining.");
-                            else
-                                logger.LogError(
-                                    "Mongo migration lease acquisition stalled. Cancellation was requested; waiting for the call to stop."
-                                );
-                        },
-                        stoppingToken,
-                        timeProvider,
-                        rejectLateResult: true
-                    );
+                    acquired = await TryAcquireLease(leaseDuration, stoppingToken);
                 }
                 catch (Exception exception)
                 {
-                    // The watchdog has drained acquisition before cleanup can release ownership.
-                    if (acquiredLease)
-                        await ReleaseLease();
-                    if (stoppingToken.IsCancellationRequested)
-                    {
-                        if (exception is not OperationCanceledException and not TimeoutException)
-                            logger.LogError(
-                                exception,
-                                "Mongo migration lease acquisition failed while the host was stopping."
-                            );
-
+                    if (!CanRetryAcquisition(exception, failedLeaseAcquisitions, stoppingToken))
                         return;
-                    }
-                    if (failedLeaseAcquisitions == 0)
-                        logger.LogError(exception, "Mongo migration lease acquisition failed. Retrying.");
                     failedLeaseAcquisitions++;
                     leaseAcquisitionAlertLogged = await WaitForLeaseRetry(
                         leaseAcquisitionStartedAt,
@@ -89,10 +56,14 @@ public class MongoMigrationService(
 
                 var result = await RunMigrationsWithLease(leaseDuration, attempts, stoppingToken);
                 attempts = result.Attempts;
-                if (result.Completed || stoppingToken.IsCancellationRequested)
+                if (result.Completed)
                     return;
+                stoppingToken.ThrowIfCancellationRequested();
                 if (attempts < options.Value.MaximumAttempts)
                 {
+                    failedLeaseAcquisitions = 0;
+                    leaseAcquisitionStartedAt = timeProvider.GetUtcNow();
+                    leaseAcquisitionAlertLogged = false;
                     logger.LogWarning(
                         "Mongo migration lease processing stopped. Reacquiring ownership before another attempt."
                     );
@@ -103,16 +74,67 @@ public class MongoMigrationService(
                     );
                 }
             }
-            if (!stoppingToken.IsCancellationRequested)
-                logger.LogError(
-                    "Mongo migrations did not complete after {AttemptCount} attempt(s). No further attempts will be made by this host.",
-                    options.Value.MaximumAttempts
-                );
+            logger.LogError(
+                "Mongo migrations did not complete after {AttemptCount} attempt(s). No further attempts will be made by this host.",
+                options.Value.MaximumAttempts
+            );
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
             // Host shutdown while waiting for ownership or another attempt.
         }
+    }
+
+    private async Task<bool> TryAcquireLease(TimeSpan leaseDuration, CancellationToken stoppingToken)
+    {
+        var acquiredLease = false;
+        try
+        {
+            return await BackgroundOperationWatchdog.Run(
+                async token =>
+                {
+                    acquiredLease = await leaseService.TryAcquire(leaseDuration, token);
+
+                    return acquiredLease;
+                },
+                TimeSpan.FromSeconds(options.Value.LeaseOperationTimeoutSeconds),
+                () =>
+                {
+                    if (stoppingToken.IsCancellationRequested)
+                        logger.LogWarning("Mongo migration lease acquisition cancellation is still draining.");
+                    else
+                        logger.LogError(
+                            "Mongo migration lease acquisition stalled. Cancellation was requested; waiting for the call to stop."
+                        );
+                },
+                stoppingToken,
+                timeProvider,
+                rejectLateResult: true
+            );
+        }
+        catch
+        {
+            // The watchdog has drained acquisition before cleanup can release ownership.
+            if (acquiredLease)
+                await ReleaseLease();
+
+            throw;
+        }
+    }
+
+    private bool CanRetryAcquisition(Exception exception, int failedLeaseAcquisitions, CancellationToken stoppingToken)
+    {
+        if (stoppingToken.IsCancellationRequested)
+        {
+            if (exception is not OperationCanceledException and not TimeoutException)
+                logger.LogError(exception, "Mongo migration lease acquisition failed while the host was stopping.");
+
+            return false;
+        }
+        if (failedLeaseAcquisitions == 0)
+            logger.LogError(exception, "Mongo migration lease acquisition failed. Retrying.");
+
+        return true;
     }
 
     private bool LogLeaseAcquisitionAlertIfRequired(DateTimeOffset leaseAcquisitionStartedAt)
@@ -137,6 +159,7 @@ public class MongoMigrationService(
         CancellationToken stoppingToken
     )
     {
+        stoppingToken.ThrowIfCancellationRequested();
         if (!leaseAcquisitionAlertLogged)
             leaseAcquisitionAlertLogged = LogLeaseAcquisitionAlertIfRequired(leaseAcquisitionStartedAt);
 

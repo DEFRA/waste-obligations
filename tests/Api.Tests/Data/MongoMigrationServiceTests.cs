@@ -250,17 +250,9 @@ public class MongoMigrationServiceTests
     public async Task Execute_WhenMigrationLeaseIsUnavailablePastAlertThreshold_ShouldLogAnError()
     {
         using var stopping = new CancellationTokenSource();
-        var timeProvider = new FakeTimeProvider();
+        var timeProvider = new RetryAwareTimeProvider(TimeSpan.FromSeconds(5));
         var leaseService = Substitute.For<IMongoMigrationLeaseService>();
-        leaseService
-            .TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
-            .Returns(_ =>
-            {
-                timeProvider.Advance(TimeSpan.FromSeconds(300));
-                stopping.Cancel();
-
-                return Task.FromResult(false);
-            });
+        leaseService.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(false);
         var migrationRunner = Substitute.For<IMongoMigrationRunner>();
         var logger = new RecordingLogger<MongoMigrationService>();
         var subject = CreateSubject(
@@ -280,7 +272,21 @@ public class MongoMigrationServiceTests
         );
 
         var execution = subject.Execute(stopping.Token);
-        await execution;
+        await timeProvider.RetryScheduled.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        timeProvider.Advance(TimeSpan.FromSeconds(300));
+        await AsyncWaiter.WaitForAsync(
+            () =>
+            {
+                logger
+                    .Messages.Should()
+                    .Contain(x => x.Contains("Mongo migration lease has not been acquired after 00:05:00"));
+
+                return Task.CompletedTask;
+            },
+            5
+        );
+        await stopping.CancelAsync();
+        await execution.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
 
         logger
             .Entries.Should()
