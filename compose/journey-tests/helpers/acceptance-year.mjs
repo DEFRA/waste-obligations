@@ -18,9 +18,16 @@ export const acceptanceYears = (prn, now = new Date()) => {
     if (!Number.isInteger(prnYear) || prnYear > thisComplianceYear) {
         return [];
     }
-    if (!prn.decemberWaste) {
-        return prnYear === thisComplianceYear ? [prnYear] : [];
-    }
+
+    return prn.decemberWaste
+        ? decemberWasteYears(prnYear, thisComplianceYear, now)
+        : standardYears(prnYear, thisComplianceYear);
+};
+
+const standardYears = (prnYear, thisComplianceYear) =>
+    prnYear === thisComplianceYear ? [prnYear] : [];
+
+const decemberWasteYears = (prnYear, thisComplianceYear, now) => {
     if (
         prnYear === DECEMBER_WASTE_NO_CHOICE_YEAR &&
         thisComplianceYear <= DECEMBER_WASTE_NO_CHOICE_UNTIL_YEAR
