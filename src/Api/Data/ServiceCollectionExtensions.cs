@@ -29,6 +29,10 @@ public static class ServiceCollectionExtensions
                 options => options.LeaseRenewalIntervalSeconds * 2 <= options.LeaseDurationSeconds,
                 "Mongo migration lease renewal interval must be no more than half the lease duration"
             )
+            .Validate(
+                x => x.LeaseRenewalIntervalSeconds + x.LeaseOperationTimeoutSeconds < x.LeaseDurationSeconds,
+                "Mongo migration lease operation timeout must leave time for renewal before lease expiry"
+            )
             .ValidateOnStart();
 
         if (validateConfigOnly)
