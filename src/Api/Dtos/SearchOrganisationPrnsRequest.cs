@@ -27,6 +27,13 @@ public record SearchOrganisationPrnsRequest : IValidatableObject
     [EnumValue<OrganisationPrnMaterial>(ErrorMessage = "Invalid PRN material")]
     public string? Material { get; init; }
 
+    [Description(
+        "Only PRNs that can be accepted into this year at the current date. Only supported together with status=AwaitingAcceptance"
+    )]
+    [FromQuery(Name = "acceptableIntoYear")]
+    [Range(ObligationYear.Minimum, ObligationYear.Maximum)]
+    public int? AcceptableIntoYear { get; init; }
+
     [Description("Page number (1-based), defaults to 1 if not specified")]
     [FromQuery(Name = "page")]
     [Minimum(1)]
@@ -53,6 +60,14 @@ public record SearchOrganisationPrnsRequest : IValidatableObject
             yield return new ValidationResult(
                 "material filtering is only supported together with status=AwaitingAcceptance",
                 [nameof(Material)]
+            );
+        }
+
+        if (AcceptableIntoYear is not null && ParsedStatus() != OrganisationPrnStatus.AwaitingAcceptance)
+        {
+            yield return new ValidationResult(
+                "acceptableIntoYear filtering is only supported together with status=AwaitingAcceptance",
+                [nameof(AcceptableIntoYear)]
             );
         }
     }
