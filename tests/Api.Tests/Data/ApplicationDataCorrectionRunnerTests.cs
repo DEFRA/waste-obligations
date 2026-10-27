@@ -1,11 +1,11 @@
 using AwesomeAssertions;
-using Defra.WasteObligations.Api.Data.Corrections;
+using Defra.WasteObligations.Api.Data;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 using NSubstitute;
 
-namespace Defra.WasteObligations.Api.Tests.Data.Corrections;
+namespace Defra.WasteObligations.Api.Tests.Data;
 
 public class ApplicationDataCorrectionRunnerTests
 {

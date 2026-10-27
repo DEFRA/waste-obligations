@@ -1,7 +1,7 @@
 using Defra.WasteObligations.Api.Services;
 using Microsoft.Extensions.Options;
 
-namespace Defra.WasteObligations.Api.Data.Corrections;
+namespace Defra.WasteObligations.Api.Data;
 
 public class ApplicationDataCorrectionWorker(
     MongoMigrationCompletion migrations,

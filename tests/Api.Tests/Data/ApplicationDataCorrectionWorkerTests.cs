@@ -1,13 +1,12 @@
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
-using Defra.WasteObligations.Api.Data.Corrections;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 
-namespace Defra.WasteObligations.Api.Tests.Data.Corrections;
+namespace Defra.WasteObligations.Api.Tests.Data;
 
 public class ApplicationDataCorrectionWorkerTests
 {

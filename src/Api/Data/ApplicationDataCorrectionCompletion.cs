@@ -1,6 +1,6 @@
 using MongoDB.Bson.Serialization.Attributes;
 
-namespace Defra.WasteObligations.Api.Data.Corrections;
+namespace Defra.WasteObligations.Api.Data;
 
 [BsonIgnoreExtraElements]
 public record ApplicationDataCorrectionCompletion

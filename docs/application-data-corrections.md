@@ -2,6 +2,12 @@
 
 Use schema migrations for persisted shape changes and schema-version backfills. Use application data corrections when existing entities need application-level updates that analytics consumers must observe.
 
+## Layout and ordering
+
+The runtime types, options, completion record and contracts live directly in `src/Api/Data`. `src/Api/Data/Corrections` contains only concrete application data corrections. Name those files `NNN_Description.cs`, matching the migration convention, and match the numeric prefix to the correction's explicit `Version`.
+
+The runner still orders by `Version`; filenames make that order visible in the repository and do not replace runtime ordering or validation.
+
 ## Execution
 
 `ApplicationDataCorrectionWorker` waits for successful schema migrations, then acquires its own renewable lease in `_application_data_correction_lease`. Neither worker blocks API startup or readiness. The framework has no registered domain correction in this slice.
