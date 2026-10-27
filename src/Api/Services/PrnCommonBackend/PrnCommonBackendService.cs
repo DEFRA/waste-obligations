@@ -82,6 +82,7 @@ public class PrnCommonBackendService(HttpClient httpClient, ILogger<PrnCommonBac
                 ["search"] = search.Search,
                 ["filterBy"] = search.FilterBy,
                 ["sortBy"] = search.SortBy,
+                ["acceptableIntoYear"] = search.AcceptableIntoYear?.ToString(CultureInfo.InvariantCulture),
             }
         );
         var request = CreateOrganisationRequest(HttpMethod.Get, path, organisationId);

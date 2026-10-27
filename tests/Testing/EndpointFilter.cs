@@ -20,6 +20,8 @@ public class EndpointFilter
 
     public static EndpointFilter Material(string material) => new($"material={material}");
 
+    public static EndpointFilter AcceptableIntoYear(int year) => new($"acceptableIntoYear={year}");
+
     public static EndpointFilter RegistrationType(RegistrationType[] registrationType) =>
         RegistrationType(string.Join(",", registrationType.Select(x => x.ToJsonValue())));
 
