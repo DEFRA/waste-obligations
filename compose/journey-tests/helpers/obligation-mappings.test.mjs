@@ -20,8 +20,8 @@ test("the compliance awaiting count includes PERN458 before the accept and drops
   const after = mappingNamed(obligationMappings.obligationMappings, "journey-compliance-scheme-obligations-accepted.json");
   const aluminium = (mapping) => mapping.Response.BodyAsJson.obligationData.find((row) => row.materialName === "Aluminium");
 
-  assert.equal(before.Response.BodyAsJson.numberOfPrnsAwaitingAcceptance, 6);
-  assert.equal(after.Response.BodyAsJson.numberOfPrnsAwaitingAcceptance, 5);
+  assert.equal(before.Response.BodyAsJson.numberOfPrnsAwaitingAcceptance, 8);
+  assert.equal(after.Response.BodyAsJson.numberOfPrnsAwaitingAcceptance, 7);
   assert.equal(aluminium(before).tonnageAwaitingAcceptance, 140);
   assert.equal(aluminium(after).tonnageAwaitingAcceptance, 140);
 });
