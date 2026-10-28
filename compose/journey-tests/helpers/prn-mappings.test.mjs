@@ -8,7 +8,7 @@ import * as prnMappings from "./prn-mappings.mjs";
 test("the producer search mapping lists every awaiting PRN and sorts newest first by default", () => {
   const search = mappingNamed(prnMappings.prnMappings, "journey-producer-prns.json");
 
-  assert.equal(search.Response.BodyAsJson.totalItems, 9);
+  assert.equal(search.Response.BodyAsJson.totalItems, 11);
   assert.equal(search.Response.BodyAsJson.items[0].prnNumber, "PRN123");
 });
 
@@ -21,10 +21,10 @@ test("the aluminium filter returns only the aluminium PRNs", () => {
   );
 });
 
-test("the compliance search mapping lists all six awaiting PRNs", () => {
+test("the compliance search mapping lists all eight awaiting PRNs", () => {
   const search = mappingNamed(prnMappings.prnMappings, "journey-compliance-scheme-prns.json");
 
-  assert.equal(search.Response.BodyAsJson.totalItems, 6);
+  assert.equal(search.Response.BodyAsJson.totalItems, 8);
 });
 
 test("every PRN mapping file name is unique", () => {
@@ -84,7 +84,7 @@ test("single-item pages return the nth newest note and the full total", () => {
     pageSize: "1",
     page: "1",
   });
-  assert.equal(first.Response.BodyAsJson.totalItems, 9);
+  assert.equal(first.Response.BodyAsJson.totalItems, 11);
   assert.deepEqual(first.Response.BodyAsJson.items.map((prn) => prn.prnNumber), ["PRN123"]);
   assert.equal(second.Response.BodyAsJson.items.length, 1);
   assert.notEqual(second.Response.BodyAsJson.items[0].prnNumber, "PRN123");
@@ -94,7 +94,7 @@ test("a page past the end has no items but keeps the total, and ranks below the 
   const past = mappingNamed(prnMappings.prnMappings, `journey-producer-prns-year-${journeyYear}-size-1-past-end.json`);
   const exact = mappingNamed(prnMappings.prnMappings, `journey-producer-prns-year-${journeyYear}-size-1-page-1.json`);
 
-  assert.deepEqual(past.Response.BodyAsJson, { items: [], totalItems: 9 });
+  assert.deepEqual(past.Response.BodyAsJson, { items: [], totalItems: 11 });
   assert.deepEqual(paramsOf(past), {
     acceptableIntoYear: String(journeyYear),
     filterBy: "awaiting-all",
@@ -107,11 +107,11 @@ test("the compliance scheme gets the same year and paging mappings for its own n
   const next = mappingNamed(prnMappings.prnMappings, `journey-compliance-scheme-prns-year-${journeyYear + 1}.json`);
   const last = mappingNamed(
     prnMappings.prnMappings,
-    `journey-compliance-scheme-prns-year-${journeyYear}-size-1-page-6.json`,
+    `journey-compliance-scheme-prns-year-${journeyYear}-size-1-page-8.json`,
   );
 
   assert.deepEqual(next.Response.BodyAsJson, { items: [], totalItems: 0 });
-  assert.equal(last.Response.BodyAsJson.totalItems, 6);
+  assert.equal(last.Response.BodyAsJson.totalItems, 8);
   assert.equal(last.Response.BodyAsJson.items.length, 1);
   assert.equal(last.Request.Headers[0].Matchers[0].Pattern, "5165d0cb-fb61-4fd4-8b5e-75fa0e99a323");
 });
