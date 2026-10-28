@@ -136,12 +136,12 @@ const producerStandardPrns = [
 // journeys do not assert on. Numbers match the local seed in waste-obligations-journey-tests/data/prns.data.js.
 const PRN_PREVIOUS_OBLIGATION_YEAR = String(Number(PRN_OBLIGATION_YEAR) - 1);
 
-export const decemberWastePrn = (prnNumber, externalId, obligationYear, issueDate) => ({
+export const decemberWastePrn = (prnNumber, externalId, noteObligationYear, issueDate) => ({
     ...prnFixture(prnNumber, externalId, "Steel", 100, issueDate),
     issuerNotes: "Journey December waste fixture",
     decemberWaste: true,
-    accreditationYear: obligationYear,
-    obligationYear,
+    accreditationYear: noteObligationYear,
+    obligationYear: noteObligationYear,
 });
 
 export const producerDecemberWastePrns = [
