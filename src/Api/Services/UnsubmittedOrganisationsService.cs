@@ -92,6 +92,11 @@ public class UnsubmittedOrganisationsService(
             var pattern = new BsonRegularExpression(Regex.Escape(query.Search.Trim()), "i");
             eligible &= Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Or(
                 Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Regex(x => x.Name, pattern),
+                Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Regex(x => x.TradingName, pattern),
+                Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Regex(
+                    x => x.SchemeOperatorName,
+                    pattern
+                ),
                 Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Regex(
                     x => x.ReferenceNumber,
                     pattern
