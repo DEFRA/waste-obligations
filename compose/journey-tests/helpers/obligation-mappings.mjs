@@ -145,7 +145,7 @@ export const obligationCalculationMapping = (scenario, organisationId, state, ob
 // towards the obligation year, in any order: one update per PRN, each naming
 // "ACCEPTED" and the year, and every PRN's id among them.
 export const acceptsExactly = (prns) => {
-    const update = `\\{(?=[^{}]*"status":"ACCEPTED")(?=[^{}]*"obligationYear":"${PRN_OBLIGATION_YEAR}")[^{}]*\\}`;
+    const update = String.raw`\{(?=[^{}]*"status":"ACCEPTED")(?=[^{}]*"obligationYear":"${PRN_OBLIGATION_YEAR}")[^{}]*\}`;
     const ids = prns
         .map((prn) => `(?=.*"prnId":"${prn.externalId}")`)
         .join("");
@@ -153,7 +153,7 @@ export const acceptsExactly = (prns) => {
     return {
         Matcher: {
             Name: "RegexMatcher",
-            Pattern: `^${ids}\\[${update}(?:,${update}){${prns.length - 1}}\\]$`,
+            Pattern: String.raw`^${ids}\[${update}(?:,${update}){${prns.length - 1}}\]$`,
         },
     };
 };
