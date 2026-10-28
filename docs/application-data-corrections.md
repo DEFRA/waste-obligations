@@ -10,7 +10,7 @@ The runner still orders by `Version`; filenames make that order visible in the r
 
 ## Execution
 
-`ApplicationDataCorrectionWorker` waits for successful schema migrations, then acquires its own renewable lease in `_application_data_correction_lease`. Neither worker blocks API startup or readiness. The framework has no registered domain correction in this slice.
+`ApplicationDataCorrectionWorker` waits for successful schema migrations, then acquires its own renewable lease in `_application_data_correction_lease`. Neither worker blocks API startup or readiness. The coverage correction is registered as version 1.
 
 Corrections declare a stable ID and positive integer version. The runner sorts by version and rejects duplicate IDs or versions. It writes a completion record to `_application_data_corrections` only after a successful pass. Completion reads use the primary so replication lag cannot invalidate coordination. Add new corrections with increasing versions; do not change a completed correction's identity or transformation.
 
@@ -31,6 +31,20 @@ Typed replacement does not preserve fields unknown to the model. Use schema migr
 ## Verification
 
 Worker tests cover migration gating, lease renewal, cancellation and timeout draining. Runner unit and Mongo integration tests cover explicit ordering, completion, independent lease ownership and primary completion reads. Integration queries are checked by the existing profiler.
+
+## Obligation coverage correction
+
+`001_ComplianceDeclarationCoverageCorrection.cs` declares version 1 and scans compatible declarations in bounded `_id` pages using primary reads, so replication lag cannot make the pass miss migrated documents and record a false completion. It calculates the proposed percentage and calls the shared service only when the numeric value differs. Unchanged declarations create no update, version increment or audit event. Null percentages becoming numeric values are changes.
+
+The active calculation averages exact, individually capped material percentages and rounds the final average to a whole number away from zero. `NoDataYet` rows do not participate. A `Met` row with zero obligated tonnage contributes 100% regardless of accepted tonnage. For example, Glass with zero obligation and `Met` status plus Plastic with zero accepted out of 10 obligated remains at 50% overall when Glass accepted tonnage increases from zero to one. This includes the low-tonnage case required by MO-661 AC2 and the confirmed treatment of positive accepted tonnage.
+
+This fixes the implementation of the existing percentage-met metric rather than changing its intended meaning, type or persisted representation. Schema v1.3 is retained. The historical aggregate calculator remains with migrations 004 and 005; published schemas and historical audit events are unchanged. The deployment containing this correction is the calculation cutover, while retained historical events continue to describe their original values.
+
+Each changed declaration and its `submission.amended` audit event commit together through the service, with a version increment, updated timestamp and explicit service actor. The correction preserves business audit entries and does not fabricate a user. Changing `Updated` also changes ordering for consumers sorting by that field.
+
+An interrupted scan restarts from the beginning and skips already-correct values. Old hosts can still write the old formula during a rolling deployment; recurring reconciliation is outside this correction. Code rollback does not reverse committed corrections or emitted events. Historical unsubmitted summaries are not backfilled by this declaration correction; normal summary refreshes use the active calculator.
+
+Mongo integration tests cover changed and unchanged declarations, service attribution, audit rollback, concurrency, primary reads, retry idempotency and compatible-schema filtering. The historical-event comparison excludes mutable dispatch state while protecting the original event content.
 
 Failed or lease-cancelled passes share a per-host retry limit, configured by `ApplicationDataCorrections:MaximumAttempts` (default 3). Lease acquisition failures and normal contention do not consume an attempt. Acquisition retries continue until ownership is acquired or the host stops; only the first acquisition failure is logged for each acquisition cycle. After the limit, the worker logs an error and stops; API readiness is unchanged. A successful pass has no total duration limit.
 
