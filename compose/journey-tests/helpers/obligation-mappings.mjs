@@ -10,35 +10,50 @@ import {
     PRN_MATERIAL_PAPER_BOARD,
     PRN_OBLIGATION_YEAR,
     acceptedCompliancePrn,
+    acceptedPrn,
     acceptedProducerPrn,
     complianceAwaitingSearchItems,
     producerPrns,
 } from "./journey-prns.mjs";
 import {
+    PRN_MAPPING_0,
     PRN_MAPPING_1,
     PRN_MAPPING_2,
     exactPath,
     mapping,
     organisationHeader,
+    queryParam,
 } from "./mapping-helpers.mjs";
+import {
+    acceptedFilter,
+    compliancePrnSearchMapping,
+    prnSearchMapping,
+    searchPrns,
+} from "./prn-mappings.mjs";
 
 export const obligationMappings = [];
 
-// The accept-and-obligations journey accepts the producer's one paper/board
-// PRN (PRN128). Its status update moves the scenario into the state in which
-// the obligation calculation counts that PRN as accepted, so Paper's accepted
-// tonnage rises by its tonnage. Before any accept, the calculation reports
-// every listed PRN as awaiting acceptance. The status-update stub matches any
-// status POST from the producer organisation and does not read the request
-// body, so it does not check which PRN is named. Any status update for this
-// organisation therefore moves the scenario, and PRN128 is counted as accepted
-// whichever PRN the journey actually accepts.
+// The multi-select accept journey (MO-471) accepts several of an
+// organisation's PRNs in one status update: paper/board and fibre (one
+// confirmation tile) and both glass materials for the producer; paper/board,
+// fibre, glass other and an aluminium PERN for the compliance scheme. Only an
+// update naming exactly these notes, each accepted towards the obligation year,
+// moves the scenario into JOURNEY_ACCEPTED_STATE. In that state the obligation
+// calculation counts them as accepted, and the awaiting and accepted searches
+// move them from one list to the other.
 export const BULK_ACCEPT_SCENARIO = "journey-producer-bulk-accept";
+export const COMPLIANCE_ACCEPT_SCENARIO = "journey-compliance-scheme-prn-accept";
+export const JOURNEY_ACCEPTED_STATE = "JourneyPrnsAccepted";
+export const PRODUCER_JOURNEY_PRN_NUMBERS = ["PRN128", "PRN132", "PRN126", "PRN129"];
+export const COMPLIANCE_JOURNEY_PRN_NUMBERS = ["PRN459", "PRN460", "PRN461", "PERN458"];
+
+// Any other status update for the organisation (the single paper/board accept
+// of earlier journey versions) moves the scenario into the state in which only
+// PRN128 (PRN459 for the compliance scheme) counts as accepted. It does not
+// read the request body. Remove it once no journey branch in use accepts a
+// single PRN.
 export const BULK_ACCEPTED_STATE = "PaperPrnAccepted";
 export const JOURNEY_ACCEPTED_PRN_NUMBER = "PRN128";
-// The compliance scheme's accept journey, on its own scenario: it accepts its
-// paper/board PRN (PRN459), which is its only one in the fixture.
-export const COMPLIANCE_ACCEPT_SCENARIO = "journey-compliance-scheme-prn-accept";
 export const COMPLIANCE_ACCEPTED_STATE = "PaperPrnAccepted";
 export const COMPLIANCE_JOURNEY_PRN_NUMBER = "PRN459";
 
@@ -67,17 +82,15 @@ export const sumTonnage = (prns, material) =>
         .reduce((total, prn) => total + prn.tonnageValue, 0);
 
 // An organisation's obligation calculation: `listed` are its awaiting PRNs and
-// `accepted` its already accepted ones. When `journeyAccepted`, the journey's
-// PRN (`journeyPrnNumber`) counts as accepted rather than awaiting.
+// `accepted` its already accepted ones. The listed PRNs named in
+// `journeyPrnNumbers` count as accepted rather than awaiting.
 export const obligationsFor = ({
     organisationId,
     listed,
     accepted: alreadyAccepted,
-    journeyPrnNumber,
-    journeyAccepted,
+    journeyPrnNumbers = [],
 }) => {
-    const isAccepted = (prn) =>
-        journeyAccepted && prn.prnNumber === journeyPrnNumber;
+    const isAccepted = (prn) => journeyPrnNumbers.includes(prn.prnNumber);
     const awaiting = listed.filter((prn) => !isAccepted(prn));
     const accepted = [...alreadyAccepted, ...listed.filter(isAccepted)];
 
@@ -111,10 +124,12 @@ export const obligationsFor = ({
 // state: the scenario's starting state).
 // WireMock matches the lowest Priority first. The state-specific calculation must
 // win over the starting-state one, or a read after the accept can match either.
+// WireMock.Net ends a scenario's state when a mapping in it matches without
+// setting the next one, so a state-specific read sets its own state again.
 export const obligationCalculationMapping = (scenario, organisationId, state, obligations) => ({
     Priority: state ? PRN_MAPPING_1 : PRN_MAPPING_2,
     Scenario: scenario,
-    ...(state ? { WhenStateIs: state } : {}),
+    ...(state ? { WhenStateIs: state, SetStateTo: state } : {}),
     ...mapping(
         {
             ...exactPath(
@@ -126,10 +141,28 @@ export const obligationCalculationMapping = (scenario, organisationId, state, ob
     ),
 });
 
+// A request body matcher for a status update that accepts exactly `prns`
+// towards the obligation year, in any order: one update per PRN, each naming
+// "ACCEPTED" and the year, and every PRN's id among them.
+export const acceptsExactly = (prns) => {
+    const update = String.raw`\{(?=[^{}]*"status":"ACCEPTED")(?=[^{}]*"obligationYear":"${PRN_OBLIGATION_YEAR}")[^{}]*\}`;
+    const ids = prns
+        .map((prn) => `(?=.*"prnId":"${prn.externalId}")`)
+        .join("");
+
+    return {
+        Matcher: {
+            Name: "RegexMatcher",
+            Pattern: String.raw`^${ids}\[${update}(?:,${update}){${prns.length - 1}}\]$`,
+        },
+    };
+};
+
 // The status update for one organisation's accept, moving its scenario to
-// `state`.
-export const statusUpdateMapping = (scenario, organisationId, state) => ({
-    Priority: PRN_MAPPING_1,
+// `state`. With `body`, only an update matching it does so, and it wins over
+// the organisation's catch-all update.
+export const statusUpdateMapping = (scenario, organisationId, state, body) => ({
+    Priority: body ? PRN_MAPPING_1 : PRN_MAPPING_2,
     Scenario: scenario,
     SetStateTo: state,
     Request: {
@@ -138,27 +171,64 @@ export const statusUpdateMapping = (scenario, organisationId, state) => ({
         },
         Methods: ["POST"],
         Headers: organisationHeader(organisationId),
+        ...(body ? { Body: body } : {}),
     },
     Response: { StatusCode: 200 },
 });
 
-export const producerJourneyObligations = (journeyAccepted) =>
+// A read that applies only once `scenario` is in `state`, and keeps it there
+// (see obligationCalculationMapping).
+export const inState = (scenario, state, value) => ({
+    Scenario: scenario,
+    WhenStateIs: state,
+    SetStateTo: state,
+    ...value,
+});
+
+const prnsNumbered = (prns, numbers) =>
+    numbers.map((number) => prns.find((prn) => prn.prnNumber === number));
+const notIn = (numbers) => (prn) => !numbers.includes(prn.prnNumber);
+
+export const producerJourneyPrns = prnsNumbered(
+    producerPrns,
+    PRODUCER_JOURNEY_PRN_NUMBERS,
+);
+export const complianceJourneyPrns = prnsNumbered(
+    complianceAwaitingSearchItems,
+    COMPLIANCE_JOURNEY_PRN_NUMBERS,
+);
+
+export const producerJourneyObligations = (journeyPrnNumbers) =>
     obligationsFor({
         organisationId: directProducerId,
         listed: producerPrns,
         accepted: [acceptedProducerPrn],
-        journeyPrnNumber: JOURNEY_ACCEPTED_PRN_NUMBER,
-        journeyAccepted,
+        journeyPrnNumbers,
     });
 
-export const complianceJourneyObligations = (journeyAccepted) =>
+export const complianceJourneyObligations = (journeyPrnNumbers) =>
     obligationsFor({
         organisationId: complianceSchemeId,
         listed: complianceAwaitingSearchItems,
         accepted: [acceptedCompliancePrn],
-        journeyPrnNumber: COMPLIANCE_JOURNEY_PRN_NUMBER,
-        journeyAccepted,
+        journeyPrnNumbers,
     });
+
+// The searches once the journey's PRNs are accepted: the awaiting search
+// (every sort, and the journey's API read without one) leaves them out, and
+// the accepted search adds them.
+const producerAwaitingAfterAccept = searchPrns(
+    notIn(PRODUCER_JOURNEY_PRN_NUMBERS),
+);
+const complianceAwaitingAfterAccept = complianceAwaitingSearchItems.filter(
+    notIn(COMPLIANCE_JOURNEY_PRN_NUMBERS),
+);
+const awaitingFilter = [queryParam("filterBy", "awaiting-all")];
+const acceptedSearch = (alreadyAccepted, journeyPrns) => {
+    const items = [alreadyAccepted, ...journeyPrns.map(acceptedPrn)];
+
+    return { items, totalItems: items.length };
+};
 
 obligationMappings.push(
     [
@@ -167,7 +237,7 @@ obligationMappings.push(
             BULK_ACCEPT_SCENARIO,
             directProducerId,
             undefined,
-            producerJourneyObligations(false),
+            producerJourneyObligations([]),
         ),
     ],
     [
@@ -176,7 +246,16 @@ obligationMappings.push(
             BULK_ACCEPT_SCENARIO,
             directProducerId,
             BULK_ACCEPTED_STATE,
-            producerJourneyObligations(true),
+            producerJourneyObligations([JOURNEY_ACCEPTED_PRN_NUMBER]),
+        ),
+    ],
+    [
+        "journey-producer-obligations-journey-accepted.json",
+        obligationCalculationMapping(
+            BULK_ACCEPT_SCENARIO,
+            directProducerId,
+            JOURNEY_ACCEPTED_STATE,
+            producerJourneyObligations(PRODUCER_JOURNEY_PRN_NUMBERS),
         ),
     ],
     [
@@ -188,12 +267,45 @@ obligationMappings.push(
         ),
     ],
     [
+        "journey-producer-prn-status-update-journey.json",
+        statusUpdateMapping(
+            BULK_ACCEPT_SCENARIO,
+            directProducerId,
+            JOURNEY_ACCEPTED_STATE,
+            acceptsExactly(producerJourneyPrns),
+        ),
+    ],
+    [
+        "journey-producer-prns-journey-accepted-awaiting.json",
+        inState(
+            BULK_ACCEPT_SCENARIO,
+            JOURNEY_ACCEPTED_STATE,
+            prnSearchMapping(
+                awaitingFilter,
+                producerAwaitingAfterAccept,
+                PRN_MAPPING_0,
+            ),
+        ),
+    ],
+    [
+        "journey-producer-prns-journey-accepted-accepted.json",
+        inState(
+            BULK_ACCEPT_SCENARIO,
+            JOURNEY_ACCEPTED_STATE,
+            prnSearchMapping(
+                acceptedFilter,
+                acceptedSearch(acceptedProducerPrn, producerJourneyPrns),
+                PRN_MAPPING_0,
+            ),
+        ),
+    ],
+    [
         "journey-compliance-scheme-obligations.json",
         obligationCalculationMapping(
             COMPLIANCE_ACCEPT_SCENARIO,
             complianceSchemeId,
             undefined,
-            complianceJourneyObligations(false),
+            complianceJourneyObligations([]),
         ),
     ],
     [
@@ -202,7 +314,16 @@ obligationMappings.push(
             COMPLIANCE_ACCEPT_SCENARIO,
             complianceSchemeId,
             COMPLIANCE_ACCEPTED_STATE,
-            complianceJourneyObligations(true),
+            complianceJourneyObligations([COMPLIANCE_JOURNEY_PRN_NUMBER]),
+        ),
+    ],
+    [
+        "journey-compliance-scheme-obligations-journey-accepted.json",
+        obligationCalculationMapping(
+            COMPLIANCE_ACCEPT_SCENARIO,
+            complianceSchemeId,
+            JOURNEY_ACCEPTED_STATE,
+            complianceJourneyObligations(COMPLIANCE_JOURNEY_PRN_NUMBERS),
         ),
     ],
     [
@@ -211,6 +332,42 @@ obligationMappings.push(
             COMPLIANCE_ACCEPT_SCENARIO,
             complianceSchemeId,
             COMPLIANCE_ACCEPTED_STATE,
+        ),
+    ],
+    [
+        "journey-compliance-scheme-prn-status-update-journey.json",
+        statusUpdateMapping(
+            COMPLIANCE_ACCEPT_SCENARIO,
+            complianceSchemeId,
+            JOURNEY_ACCEPTED_STATE,
+            acceptsExactly(complianceJourneyPrns),
+        ),
+    ],
+    [
+        "journey-compliance-scheme-prns-journey-accepted-awaiting.json",
+        inState(
+            COMPLIANCE_ACCEPT_SCENARIO,
+            JOURNEY_ACCEPTED_STATE,
+            compliancePrnSearchMapping(
+                awaitingFilter,
+                {
+                    items: complianceAwaitingAfterAccept,
+                    totalItems: complianceAwaitingAfterAccept.length,
+                },
+                PRN_MAPPING_0,
+            ),
+        ),
+    ],
+    [
+        "journey-compliance-scheme-prns-journey-accepted-accepted.json",
+        inState(
+            COMPLIANCE_ACCEPT_SCENARIO,
+            JOURNEY_ACCEPTED_STATE,
+            compliancePrnSearchMapping(
+                acceptedFilter,
+                acceptedSearch(acceptedCompliancePrn, complianceJourneyPrns),
+                PRN_MAPPING_0,
+            ),
         ),
     ],
 );
