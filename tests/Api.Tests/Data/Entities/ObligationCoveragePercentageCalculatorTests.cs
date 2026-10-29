@@ -10,6 +10,55 @@ namespace Defra.WasteObligations.Api.Tests.Data.Entities;
 public class ObligationCoveragePercentageCalculatorTests
 {
     [Fact]
+    public void CalculateFromObligations_WhenIncompleteAverageRoundsTo100_ShouldReturn99()
+    {
+        Obligation[] obligations =
+        [
+            CreateObligation(50, 50, ObligationStatus.Met),
+            CreateObligation(0, 0, ObligationStatus.NoDataYet),
+            CreateObligation(100, 100, ObligationStatus.Met),
+            CreateObligation(0, 0, ObligationStatus.Met),
+            CreateObligation(199, 200),
+            CreateObligation(152, 152, ObligationStatus.Met),
+            CreateObligation(100, 100, ObligationStatus.Met),
+        ];
+
+        ObligationCoveragePercentageCalculator.CalculateFromObligations(obligations).Should().Be(99m);
+    }
+
+    [Theory]
+    [InlineData(199, 200, ObligationStatus.NotMet, 99)]
+    [InlineData(200, 200, ObligationStatus.NotMet, 99)]
+    [InlineData(201, 200, ObligationStatus.NotMet, 99)]
+    [InlineData(200, 200, ObligationStatus.Met, 100)]
+    [InlineData(107, 200, ObligationStatus.NotMet, 54)]
+    public void CalculateFromObligations_WhenStatusAndRoundingAffectCompletion(
+        int accepted,
+        int obligated,
+        string status,
+        decimal expected
+    )
+    {
+        ObligationCoveragePercentageCalculator
+            .CalculateFromObligations([CreateObligation(accepted, obligated, status)])
+            .Should()
+            .Be(expected);
+    }
+
+    [Fact]
+    public void CalculateFromObligations_WhenAllParticipatingMaterialsAreMet_ShouldReturn100()
+    {
+        Obligation[] obligations =
+        [
+            CreateObligation(0, 0, ObligationStatus.Met),
+            CreateObligation(50, 50, ObligationStatus.Met),
+            CreateObligation(0, 0, ObligationStatus.NoDataYet),
+        ];
+
+        ObligationCoveragePercentageCalculator.CalculateFromObligations(obligations).Should().Be(100m);
+    }
+
+    [Fact]
     public void CalculateFromObligations_WhenAcceptedExceedsObligatedOnOneMaterial_ShouldCapEachMaterial()
     {
         var obligations = new Obligation[]

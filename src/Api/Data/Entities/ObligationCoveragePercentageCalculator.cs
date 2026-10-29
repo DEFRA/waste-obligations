@@ -16,8 +16,10 @@ public static class ObligationCoveragePercentageCalculator
         var totalNumerator = BigInteger.Zero;
         var totalDenominator = BigInteger.One;
         var count = 0;
+        var anyNotMet = false;
         foreach (var material in materials.Where(x => x.Status != Dtos.ObligationStatus.NoDataYet))
         {
+            anyNotMet |= material.Status == Dtos.ObligationStatus.NotMet;
             BigInteger numerator;
             int denominator;
             if (material.Obligated > 0)
@@ -47,6 +49,6 @@ public static class ObligationCoveragePercentageCalculator
         if (BigInteger.Abs(remainder) * 2 >= averageDenominator)
             rounded += totalNumerator.Sign;
 
-        return (decimal)rounded;
+        return (decimal)(anyNotMet ? BigInteger.Min(rounded, MaxPercentage - 1) : rounded);
     }
 }
