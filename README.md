@@ -158,6 +158,8 @@ execute at a time, with renewal every 20 seconds and a one-minute expiry. The la
 started occurrence is stored separately, so another host cannot repeat it after
 completion. Failed attempts are logged and consumed; the next occurrence can run.
 Missed occurrences while a host is stopped are not replayed.
+An occurrence can also be skipped if the lease holder fails before claiming it and
+the other hosts have already failed to acquire the lease.
 
 Jobs must honour cancellation. Shutdown or lease loss cancels the job; the worker
 waits for it to finish before releasing its lease or attempting another run.

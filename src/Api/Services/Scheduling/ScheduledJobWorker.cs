@@ -16,6 +16,9 @@ public sealed class ScheduledJobWorker(
     ILogger<ScheduledJobWorker> logger
 ) : BackgroundService
 {
+    private const int DuplicateKeyErrorCode = 11000;
+    private static readonly TimeSpan s_maximumWait = TimeSpan.FromDays(1);
+
     private readonly TimeSpan _leaseDuration = TimeSpan.FromMinutes(1);
 
     private readonly BackgroundWorkerLeaseService _lease = new(database, timeProvider, "_scheduled_job_leases", name);
@@ -36,11 +39,7 @@ public sealed class ScheduledJobWorker(
                 var delay = scheduledAt - timeProvider.GetUtcNow().UtcDateTime;
                 while (delay > TimeSpan.Zero)
                 {
-                    await Task.Delay(
-                        delay < TimeSpan.FromDays(1) ? delay : TimeSpan.FromDays(1),
-                        timeProvider,
-                        stoppingToken
-                    );
+                    await Task.Delay(delay < s_maximumWait ? delay : s_maximumWait, timeProvider, stoppingToken);
                     delay = scheduledAt - timeProvider.GetUtcNow().UtcDateTime;
                 }
 
@@ -110,7 +109,7 @@ public sealed class ScheduledJobWorker(
 
             return true;
         }
-        catch (MongoCommandException exception) when (exception.Code == 11000)
+        catch (MongoCommandException exception) when (exception.Code == DuplicateKeyErrorCode)
         {
             return false;
         }
