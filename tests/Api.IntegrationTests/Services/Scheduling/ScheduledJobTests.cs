@@ -5,9 +5,11 @@ using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.ObligationCalculations;
 using Defra.WasteObligations.Api.Services.Scheduling;
+using Defra.WasteObligations.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using MongoDB.Bson;
@@ -266,10 +268,95 @@ public class ScheduledJobTests : IntegrationTestBase
         await worker.StopAsync(TestContext.Current.CancellationToken);
     }
 
+    [Fact]
+    public async Task FailedJob_WhenCancellationCleanupAlsoFails_ShouldReportBothErrorsAndReleaseLease()
+    {
+        await Reset();
+        var jobFailure = new InvalidOperationException("Job execution failed");
+        var cleanupFailure = new InvalidOperationException("Cancellation cleanup failed");
+        var control = new JobControl
+        {
+            Run = token =>
+            {
+                token.Register(() => throw cleanupFailure);
+
+                return Task.FromException(jobFailure);
+            },
+        };
+        var time = new SchedulerTimeProvider(_clock);
+        var logger = new RecordingLogger<ScheduledJobWorker>();
+        await using var host = CreateHost(time, control, logger: logger);
+        var worker = host.GetRequiredService<IHostedService>();
+        await worker.StartAsync(TestContext.Current.CancellationToken);
+        await time.WaitForTimer(TimeSpan.FromMinutes(1));
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        await time.WaitForTimer(TimeSpan.FromDays(1));
+
+        var reported = logger.Entries.Single(x => x.Exception is AggregateException);
+        ((AggregateException)reported.Exception!)
+            .Flatten()
+            .InnerExceptions.Should()
+            .Contain(jobFailure)
+            .And.Contain(cleanupFailure);
+        (await ReadLease()).Contains("owner").Should().BeFalse();
+        await worker.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task Schedule_WhenStateHasAdditionalFields_ShouldRunAndPreserveThem()
+    {
+        await Reset();
+        await GetMongoDatabase()
+            .GetCollection<BsonDocument>(StateCollection)
+            .InsertOneAsync(
+                new BsonDocument
+                {
+                    { "_id", JobName },
+                    { "lastStartedAt", _clock.GetUtcNow().AddDays(-1).UtcDateTime },
+                    { "futureField", "preserved" },
+                },
+                cancellationToken: TestContext.Current.CancellationToken
+            );
+        var control = new JobControl();
+        var time = new SchedulerTimeProvider(_clock);
+        await using var host = CreateHost(time, control);
+        var worker = host.GetRequiredService<IHostedService>();
+        await worker.StartAsync(TestContext.Current.CancellationToken);
+        await time.WaitForTimer(TimeSpan.FromMinutes(1));
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        await time.WaitForTimer(TimeSpan.FromDays(1));
+
+        control.Count.Should().Be(1);
+        var state = await GetMongoDatabase()
+            .GetCollection<BsonDocument>(StateCollection)
+            .Find(new BsonDocument("_id", JobName))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        state["futureField"].AsString.Should().Be("preserved");
+        await worker.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task Schedule_WhenThereIsNoFutureOccurrence_ShouldLogWhyItStopped()
+    {
+        var logger = new RecordingLogger<ScheduledJobWorker>();
+        var control = new JobControl();
+        await using var host = CreateHost(new SchedulerTimeProvider(_clock), control, "0 0 30 2 *", logger);
+        var worker = (BackgroundService)host.GetRequiredService<IHostedService>();
+        await worker.StartAsync(TestContext.Current.CancellationToken);
+        await worker.ExecuteTask!.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        logger
+            .Entries.Should()
+            .ContainSingle(x => x.Level == LogLevel.Warning && x.Message.Contains("no future cron occurrence"));
+        control.Count.Should().Be(0);
+        await worker.StopAsync(TestContext.Current.CancellationToken);
+    }
+
     private static ServiceProvider CreateHost(
         SchedulerTimeProvider time,
         JobControl control,
-        string cron = "0 1 * * *"
+        string cron = "0 1 * * *",
+        ILogger<ScheduledJobWorker>? logger = null
     ) =>
         new ServiceCollection()
             .AddLogging()
@@ -284,7 +371,7 @@ public class ScheduledJobTests : IntegrationTestBase
                 provider.GetRequiredService<IServiceScopeFactory>(),
                 provider.GetRequiredService<IMongoDatabase>(),
                 time,
-                NullLogger<ScheduledJobWorker>.Instance
+                logger ?? NullLogger<ScheduledJobWorker>.Instance
             ))
             .BuildServiceProvider();
 

@@ -1,3 +1,4 @@
+using System.Runtime.ExceptionServices;
 using Cronos;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -32,7 +33,11 @@ public sealed class ScheduledJobWorker(
         {
             var next = schedule.GetNextOccurrence(timeProvider.GetUtcNow().UtcDateTime);
             if (next is not { } scheduledAt)
+            {
+                logger.LogWarning("Scheduled job {JobName} has no future cron occurrence", name);
+
                 return;
+            }
 
             try
             {
@@ -64,20 +69,26 @@ public sealed class ScheduledJobWorker(
         using var work = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
         using var renewal = new CancellationTokenSource();
         var renewalTask = RenewLease(work, renewal.Token);
+        Exception? processingFailure = null;
 
         try
         {
-            if (!await TryStart(scheduledAt, work.Token))
-                return;
-
-            work.Token.ThrowIfCancellationRequested();
-            logger.LogInformation("Scheduled job {JobName} started for {ScheduledAt}", name, scheduledAt);
-            await using var scope = scopeFactory.CreateAsyncScope();
-            var job = (IScheduledJob)scope.ServiceProvider.GetRequiredService(jobType);
-            await job.Run(work.Token);
-            logger.LogInformation("Scheduled job {JobName} finished for {ScheduledAt}", name, scheduledAt);
+            if (await TryStart(scheduledAt, work.Token))
+            {
+                work.Token.ThrowIfCancellationRequested();
+                logger.LogInformation("Scheduled job {JobName} started for {ScheduledAt}", name, scheduledAt);
+                await using var scope = scopeFactory.CreateAsyncScope();
+                var job = (IScheduledJob)scope.ServiceProvider.GetRequiredService(jobType);
+                await job.Run(work.Token);
+                logger.LogInformation("Scheduled job {JobName} finished for {ScheduledAt}", name, scheduledAt);
+            }
         }
-        finally
+        catch (Exception exception)
+        {
+            processingFailure = exception;
+        }
+
+        try
         {
             await BackgroundOperationCleanup.Run(
                 work.CancelAsync,
@@ -86,6 +97,13 @@ public sealed class ScheduledJobWorker(
                 () => _lease.Release(CancellationToken.None)
             );
         }
+        catch (Exception exception) when (processingFailure is not null)
+        {
+            throw new AggregateException("Scheduled job execution and cleanup failed.", processingFailure, exception);
+        }
+
+        if (processingFailure is not null)
+            ExceptionDispatchInfo.Capture(processingFailure).Throw();
     }
 
     private async Task<bool> TryStart(DateTime scheduledAt, CancellationToken cancellationToken)

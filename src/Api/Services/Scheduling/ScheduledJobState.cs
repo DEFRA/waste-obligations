@@ -2,6 +2,7 @@ using MongoDB.Bson.Serialization.Attributes;
 
 namespace Defra.WasteObligations.Api.Services.Scheduling;
 
+[BsonIgnoreExtraElements]
 internal sealed record ScheduledJobState
 {
     [BsonId]
