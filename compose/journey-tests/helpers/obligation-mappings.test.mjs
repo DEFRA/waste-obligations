@@ -162,7 +162,7 @@ test("in the journey state the searches move the journey's PRNs from awaiting to
     assert.ok(!numbers(awaiting).includes(number), number);
     assert.ok(numbers(accepted).includes(number), number);
   }
-  assert.deepEqual(numbers(awaiting), ["PRN456", "PRN462"]);
+  assert.deepEqual(numbers(awaiting), ["PRN456", "PRN462", "PRN872", "PRN873"]);
   assert.equal(numbers(accepted)[0], "PERN457");
   assert.ok(accepted.Response.BodyAsJson.items.every((prn) => prn.prnStatus === "ACCEPTED"));
 });
