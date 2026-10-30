@@ -175,6 +175,12 @@ submitter instructions do not block one another. Migration 021 adds a partial un
 index to enforce this across hosts. Migration ordering is managed outside instruction
 creation; no existing documents or analytics schemas are changed.
 
+When no matching pending or running instruction exists, creation always inserts a new
+document with a new ID; completed and failed instructions are retained as history.
+Migration 022 adds a partial TTL index that removes completed and failed instructions
+365 days after their creation timestamp. Pending and running instructions never expire.
+MongoDB performs TTL cleanup periodically, so deletion is not immediate at the cutoff.
+
 The shared instruction service accepts an explicit year and optional submitter ID
 for future manual requests. This slice only creates instructions: it does not process
 them or expose a management endpoint. Instructions remain pending and prevent matching
