@@ -7,4 +7,5 @@ public record PrnSearchRequest
     public string? Search { get; init; }
     public string? FilterBy { get; init; }
     public string? SortBy { get; init; }
+    public int? AcceptableIntoYear { get; init; }
 }

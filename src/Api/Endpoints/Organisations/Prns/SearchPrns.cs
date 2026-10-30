@@ -45,6 +45,7 @@ public static class SearchPrns
                 Search = request.Search,
                 FilterBy = ToFilterBy(request.ParsedStatus(), request.ParsedMaterial()),
                 SortBy = ToSortBy(request.ParsedSort()),
+                AcceptableIntoYear = request.AcceptableIntoYear,
             },
             cancellationToken
         );

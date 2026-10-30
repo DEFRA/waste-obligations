@@ -182,6 +182,9 @@ public static class PrnCommonBackendExtensions
         if (search.FilterBy is not null)
             request = request.WithParam("filterBy", search.FilterBy);
 
+        if (search.AcceptableIntoYear is { } acceptableIntoYear)
+            request = request.WithParam("acceptableIntoYear", acceptableIntoYear.ToString());
+
         if (organisationId is not null)
             request = request.WithHeader("X-EPR-ORGANISATION", organisationId);
 
@@ -219,6 +222,9 @@ public static class PrnCommonBackendExtensions
 
         if (search.FilterBy is not null)
             parameters.Add(ExactParam("filterBy", search.FilterBy));
+
+        if (search.AcceptableIntoYear is { } acceptableIntoYear)
+            parameters.Add(ExactParam("acceptableIntoYear", acceptableIntoYear.ToString()));
 
         builder.Given(x =>
             x.WithRequest(r =>

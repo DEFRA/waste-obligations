@@ -487,6 +487,42 @@ public class PrnCommonBackendServiceTests : WireMockTestBase
     }
 
     [Fact]
+    public async Task SearchPrns_WhenAcceptableIntoYearIsSpecified_ShouldSendIt()
+    {
+        var subject = CreateSubject(Context.HttpClient);
+        var search = new PrnSearchRequest
+        {
+            Page = 1,
+            PageSize = 20,
+            FilterBy = "awaiting-all",
+            AcceptableIntoYear = 2027,
+        };
+
+        WireMock.StubPrnCommonBackendPrnSearchRequest(search, new PrnSearchResponse());
+
+        await subject.SearchPrns(Guid.NewGuid(), search, TestContext.Current.CancellationToken);
+
+        var request = WireMock.LogEntries.Single(x => x.RequestMessage?.Path == "/api/v1/prn/search").RequestMessage;
+        request.Should().NotBeNull();
+        request.RawQuery.Should().Contain("acceptableIntoYear=2027");
+    }
+
+    [Fact]
+    public async Task SearchPrns_WhenAcceptableIntoYearIsNotSpecified_ShouldNotSendIt()
+    {
+        var subject = CreateSubject(Context.HttpClient);
+        var search = new PrnSearchRequest { Page = 1, PageSize = 20 };
+
+        WireMock.StubPrnCommonBackendPrnSearchRequest(search);
+
+        await subject.SearchPrns(Guid.NewGuid(), search, TestContext.Current.CancellationToken);
+
+        var request = WireMock.LogEntries.Single(x => x.RequestMessage?.Path == "/api/v1/prn/search").RequestMessage;
+        request.Should().NotBeNull();
+        request.RawQuery.Should().NotContain("acceptableIntoYear");
+    }
+
+    [Fact]
     public async Task SearchPrns_WhenPrnCommonBackendReturnsNull_ShouldThrow()
     {
         var subject = CreateSubject(Context.HttpClient);
