@@ -66,6 +66,7 @@ try
     builder.Services.AddWasteOrganisationsService();
     builder.Services.AddOrganisationEligibility(!integrationTest && !openApiBuild);
     builder.Services.AddOrganisationObligationHydration(!integrationTest && !openApiBuild);
+    builder.Services.AddObligationCalculationProcessing(!integrationTest && !openApiBuild);
     if (!integrationTest && !openApiBuild)
         builder.Services.AddScheduledJobs(builder.Configuration.GetSection("ScheduledJobs"));
 

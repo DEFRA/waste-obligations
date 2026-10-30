@@ -149,10 +149,10 @@ The obligation calculation job is disabled in `appsettings.json`. Set
 `ScheduledJobs__ObligationCalculation__Enabled=true` to enable it at host startup.
 Its default schedule is `0 1 * * *` (01:00 UTC); override it with
 `ScheduledJobs__ObligationCalculation__Cron`. The job creates a pending Mongo instruction for all submitters in the current obligation year.
-January uses the previous year; the year changes on 1 February. Calculation processing
-and result storage are left for later commits. These environment values
+January uses the previous year; the year changes on 1 February. Actual calculation
+rules and result storage are left for later commits. These environment values
 must be set on the API container in the target environment. No deployed configuration
-or journey settings change is needed while the job remains disabled.
+or journey settings change is needed while scheduling and processing remain disabled.
 
 Each host waits for the next occurrence. A per-job Mongo lease allows one host to
 execute at a time, with renewal every 20 seconds and a one-minute expiry. The last
@@ -194,11 +194,26 @@ Migration 022 adds a partial TTL index that removes completed and failed instruc
 MongoDB performs TTL cleanup periodically, so deletion is not immediate at the cutoff.
 
 The shared instruction service accepts an explicit year and optional submitter ID
-for future manual requests. This slice only creates instructions: it does not process
-them or expose a management endpoint. Instructions remain pending and prevent matching
-new instructions until processing is implemented, so leave the job disabled in deployed
-environments for now. The scheduler lease protects instruction creation; it does not
-represent the lifetime of the calculation instruction.
+for future manual requests. Set `ObligationCalculationProcessing__Enabled=true` to
+start the placeholder processor independently of cron scheduling. It defaults to off;
+`ObligationCalculationProcessing__PollIntervalSeconds` controls the idle/error wait
+(default ten seconds). Each host processes one instruction at a time and immediately
+checks again after completing work.
+
+The placeholder atomically selects the oldest pending instruction and marks it
+completed, then logs its ID, year and optional submitter ID with an explicit message
+that no calculation was performed. Migration 023 adds `Status_CreatedAt_Id` for the
+pending selection and ordering; apply it before enabling processing. Concurrent hosts
+cannot complete the same instruction, and a completed scope can accept a fresh one.
+A crash before the update leaves the instruction pending; a crash after it leaves it
+completed. No `Running` claim or processing lease is needed for this status-only
+placeholder, and existing running/failed/completed instructions are left untouched.
+
+Real calculation work will require a separate claim, recoverable processing ownership
+and completion after successful execution. No calculation, result persistence or
+management endpoint is implemented here. The scheduler lease still protects instruction
+creation rather than calculation execution. Keep both features disabled in deployed
+environments until placeholder completion is explicitly wanted.
 
 ## System health checks
 

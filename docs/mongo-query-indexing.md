@@ -73,6 +73,7 @@ retention is additionally exercised through MongoDB's real TTL monitor.
 | `_scheduled_job_leases` | Job `_id`, with owner or expiry conditions for acquisition, renewal and release | `_id_` |
 | `_scheduled_job_state` | Job `_id` and `lastStartedAt` earlier than the scheduled occurrence | `_id_` |
 | `_obligation_calculation_instructions` | Obligation year, nullable submitter ID, and status in `Pending`/`Running`; atomic create-or-return | `Active_ObligationYear_SubmitterId`, a unique partial index created by migration 021 |
+| `_obligation_calculation_instructions` | Oldest `Pending` instruction by `createdAt`, `_id`; atomic transition to `Completed` | `Status_CreatedAt_Id`, created by migration 023 |
 | `_obligation_calculation_instructions` | MongoDB TTL cleanup of `Completed`/`Failed` instructions 365 days after `createdAt` | `CreatedAt_Terminal_Retention`, a partial TTL index created by migration 022 |
 
 The instruction query includes the active-status predicate required for MongoDB to
@@ -84,8 +85,9 @@ The TTL index excludes active instructions entirely.
 Instruction creation assumes migrations have been applied before a producer is
 enabled; the service does not coordinate migration completion. These `$in` partial
 filters require MongoDB 6.0 or later. Local Compose uses MongoDB 7.0; the deployed
-server version must be confirmed before enabling the job. No processing-selection
-index is added until the deferred processor has an actual query shape to verify.
+server version must be confirmed before enabling the job. The placeholder processor
+uses migration 023 to select and complete pending instructions in one atomic update;
+its queries are profiled in real MongoDB integration tests.
 
 ## How to add coverage
 
