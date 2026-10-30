@@ -27,7 +27,14 @@ public class ObligationCalculationInstructionRetentionIndex : MongoMigration
                     ExpireAfter = TimeSpan.FromDays(365),
                     PartialFilterExpression = new BsonDocument(
                         "status",
-                        new BsonDocument("$in", new BsonArray { "Completed", "Failed" })
+                        new BsonDocument(
+                            "$in",
+                            new BsonArray
+                            {
+                                nameof(ObligationCalculationInstructionStatus.Completed),
+                                nameof(ObligationCalculationInstructionStatus.Failed),
+                            }
+                        )
                     ),
                 }
             ),

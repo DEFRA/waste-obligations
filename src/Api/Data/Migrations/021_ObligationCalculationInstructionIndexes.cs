@@ -27,7 +27,14 @@ public class ObligationCalculationInstructionIndexes : MongoMigration
                     Unique = true,
                     PartialFilterExpression = new BsonDocument(
                         "status",
-                        new BsonDocument("$in", new BsonArray { "Pending", "Running" })
+                        new BsonDocument(
+                            "$in",
+                            new BsonArray
+                            {
+                                nameof(ObligationCalculationInstructionStatus.Pending),
+                                nameof(ObligationCalculationInstructionStatus.Running),
+                            }
+                        )
                     ),
                 }
             ),
