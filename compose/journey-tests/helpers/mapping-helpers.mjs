@@ -24,8 +24,9 @@ export const organisationHeader = (organisationId) => [
 ];
 
 // A scenario state's search answer must beat every query-specific search
-// mapping, the most specific of which has priority 1.
-export const PRN_MAPPING_0 = 0;
+// mapping, the most specific of which has a negative priority (the year and
+// paging stubs).
+export const PRN_MAPPING_0 = -10;
 export const PRN_MAPPING_1 = 1;
 export const PRN_MAPPING_2 = 2;
 export const PRN_MAPPING_3 = 3;
