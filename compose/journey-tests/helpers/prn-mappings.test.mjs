@@ -60,8 +60,27 @@ const paramsOf = (mapping) =>
 
 const priorityOf = (list, name) => mappingNamed(list, name).Priority;
 
+// The year stubs follow the date, so the tests that describe them pin it: June of the journey year is outside the
+// December waste window, and 15 December of the journey year is inside it.
+const outsideWindow = new Date(Date.UTC(journeyYear, 5, 15, 12));
+const insideWindow = new Date(Date.UTC(journeyYear, 11, 15, 12));
+const yearMappingsAt = (now) => ({
+  producer: prnMappings.yearMappings({
+    prefix: "journey-producer-prns",
+    searchMapping: prnMappings.prnSearchMapping,
+    items: prnMappings.searchPrns().items,
+    now,
+  }),
+  compliance: prnMappings.yearMappings({
+    prefix: "journey-compliance-scheme-prns",
+    searchMapping: prnMappings.compliancePrnSearchMapping,
+    items: prns.complianceAwaitingSearchItems,
+    now,
+  }),
+});
+
 test("a year no note can be accepted into answers with an empty list whatever the filter, sort or page", () => {
-  const next = mappingNamed(prnMappings.prnMappings, `journey-producer-prns-year-${journeyYear + 1}.json`);
+  const next = mappingNamed(yearMappingsAt(outsideWindow).producer, `journey-producer-prns-year-${journeyYear + 1}.json`);
 
   assert.deepEqual(next.Response.BodyAsJson, { items: [], totalItems: 0 });
   assert.deepEqual(paramsOf(next), { acceptableIntoYear: String(journeyYear + 1) });
@@ -103,10 +122,23 @@ test("a page past the end has no items but keeps the total, and ranks below the 
   assert.ok(exact.Priority < past.Priority);
 });
 
+test("inside the December waste window the next year lists the journey year's December waste notes", () => {
+  const { producer, compliance } = yearMappingsAt(insideWindow);
+  const numbers = (mapping) => mapping.Response.BodyAsJson.items.map((prn) => prn.prnNumber);
+  const producerNext = mappingNamed(producer, `journey-producer-prns-year-${journeyYear + 1}.json`);
+  const complianceNext = mappingNamed(compliance, `journey-compliance-scheme-prns-year-${journeyYear + 1}.json`);
+
+  assert.deepEqual(numbers(producerNext), ["PRN870"]);
+  assert.equal(producerNext.Response.BodyAsJson.totalItems, 1);
+  assert.deepEqual(numbers(complianceNext), ["PRN872"]);
+  assert.equal(complianceNext.Response.BodyAsJson.totalItems, 1);
+});
+
 test("the compliance scheme gets the same year and paging mappings for its own notes", () => {
-  const next = mappingNamed(prnMappings.prnMappings, `journey-compliance-scheme-prns-year-${journeyYear + 1}.json`);
+  const { compliance } = yearMappingsAt(outsideWindow);
+  const next = mappingNamed(compliance, `journey-compliance-scheme-prns-year-${journeyYear + 1}.json`);
   const last = mappingNamed(
-    prnMappings.prnMappings,
+    compliance,
     `journey-compliance-scheme-prns-year-${journeyYear}-size-1-page-8.json`,
   );
 
