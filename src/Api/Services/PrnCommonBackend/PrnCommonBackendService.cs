@@ -131,6 +131,7 @@ public class PrnCommonBackendService(HttpClient httpClient, ILogger<PrnCommonBac
         Guid userId,
         string prnId,
         string status,
+        int? obligationYear,
         CancellationToken cancellationToken
     )
     {
@@ -142,7 +143,7 @@ public class PrnCommonBackendService(HttpClient httpClient, ILogger<PrnCommonBac
             userId,
             [commonBackendPrnId],
             status,
-            obligationYear: null,
+            obligationYear,
             options: new PrnStatusUpdateOptions(null, PrnStatusConflict.SinglePrn),
             cancellationToken
         );

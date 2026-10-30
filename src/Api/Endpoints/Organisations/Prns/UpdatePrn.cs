@@ -43,6 +43,7 @@ public static class UpdatePrn
             request.User.EffectiveId,
             prnId,
             request.Status.ToPrnCommonBackendStatus(),
+            request.Status == UpdatePrnStatus.Accepted ? request.ObligationYear : null,
             cancellationToken
         );
 
