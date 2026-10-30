@@ -12,6 +12,45 @@ namespace Defra.WasteObligations.Api.IntegrationTests.Data;
 public class ObligationCalculationInstructionIndexesTests : IntegrationTestBase
 {
     [Fact]
+    public async Task ProcessingMigration_ShouldCreateOrderedWorkIndexAndSupportRepeatedUpAndDown()
+    {
+        var subject = new ObligationCalculationInstructionProcessingIndex();
+        var context = new MigrationContext(GetMongoDatabase(), null!, TestContext.Current.CancellationToken);
+        const string indexName = "Status_CreatedAt_Id";
+
+        try
+        {
+            await subject.UpAsync(context);
+            await subject.UpAsync(context);
+            var indexes = await (
+                await ObligationCalculationInstructions.Indexes.ListAsync(TestContext.Current.CancellationToken)
+            ).ToListAsync(TestContext.Current.CancellationToken);
+            indexes
+                .Single(x => x["name"] == indexName)["key"]
+                .Should()
+                .Be(
+                    new BsonDocument
+                    {
+                        { "status", 1 },
+                        { "createdAt", 1 },
+                        { "_id", 1 },
+                    }
+                );
+
+            await subject.DownAsync(context);
+            await subject.DownAsync(context);
+            indexes = await (
+                await ObligationCalculationInstructions.Indexes.ListAsync(TestContext.Current.CancellationToken)
+            ).ToListAsync(TestContext.Current.CancellationToken);
+            indexes.Should().NotContain(x => x["name"] == indexName);
+        }
+        finally
+        {
+            await subject.UpAsync(context);
+        }
+    }
+
+    [Fact]
     public async Task RetentionMigration_ShouldCreatePartialTtlIndexAndSupportRepeatedUpAndDown()
     {
         var subject = new ObligationCalculationInstructionRetentionIndex();
