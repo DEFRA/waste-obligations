@@ -132,6 +132,40 @@ See [dependabot.yml](.github/dependabot.yml) for group configuration.
   - Build Docker image and publish to CDP
   - Sonar
 
+## Scheduled jobs
+
+Implement `IScheduledJob.Run(CancellationToken)` in `src/Api/ScheduledJobs/<Name>Job.cs`,
+using the namespace `Defra.WasteObligations.Api.ScheduledJobs`. The configuration
+entry name selects the implementation by convention: `ObligationCalculation` loads
+`Defra.WasteObligations.Api.ScheduledJobs.ObligationCalculationJob` from the API assembly.
+`Program.cs` registers all configured jobs with
+`builder.Services.AddScheduledJobs(builder.Configuration.GetSection("ScheduledJobs"))`.
+Each entry accepts `Enabled` (default `false`) and `Cron` (a five-field UTC expression,
+required when enabled). Disabled jobs register no worker and do not access MongoDB.
+An enabled job with a missing implementation or invalid schedule prevents startup.
+
+The obligation calculation placeholder is disabled in `appsettings.json`. Set
+`ScheduledJobs__ObligationCalculation__Enabled=true` to enable it at host startup.
+Its default schedule is `0 1 * * *` (01:00 UTC); override it with
+`ScheduledJobs__ObligationCalculation__Cron`. The job currently logs its execution;
+calculation and result storage are left for later commits. These environment values
+must be set on the API container in the target environment. No deployed configuration
+or journey settings change is needed while the placeholder remains disabled.
+
+Each host waits for the next occurrence. A per-job Mongo lease allows one host to
+execute at a time, with renewal every 20 seconds and a one-minute expiry. The last
+started occurrence is stored separately, so another host cannot repeat it after
+completion. Failed attempts are logged and consumed; the next occurrence can run.
+Missed occurrences while a host is stopped are not replayed.
+
+Jobs must honour cancellation. Shutdown or lease loss cancels the job; the worker
+waits for it to finish before releasing its lease or attempting another run.
+Renewal continues while shutdown drains the job. An expired lease permits recovery
+after a crash, but cannot guarantee zero overlap during a host pause or network
+partition. Keep job names stable across hosts and deployments: the name identifies
+both the lease and occurrence history in the private `_scheduled_job_leases` and
+`_scheduled_job_state` collections.
+
 ## System health checks
 
 The [.NET health-check CLI](tools/healthcheck/README.md) checks configurable services and their dependencies. Configure service addresses in `tools/healthcheck/appsettings.json` and credentials in the Git-ignored `tools/healthcheck/.env` file.

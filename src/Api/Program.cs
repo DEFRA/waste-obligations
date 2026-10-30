@@ -15,6 +15,7 @@ using Defra.WasteObligations.Api.Services.GovukNotify;
 using Defra.WasteObligations.Api.Services.OrganisationEligibility;
 using Defra.WasteObligations.Api.Services.OrganisationObligations;
 using Defra.WasteObligations.Api.Services.PrnCommonBackend;
+using Defra.WasteObligations.Api.Services.Scheduling;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
 using Defra.WasteObligations.Api.Utils;
 using Defra.WasteObligations.Api.Utils.ErrorHandling;
@@ -64,6 +65,9 @@ try
     builder.Services.AddWasteOrganisationsService();
     builder.Services.AddOrganisationEligibility(!integrationTest && !openApiBuild);
     builder.Services.AddOrganisationObligationHydration(!integrationTest && !openApiBuild);
+    if (!integrationTest && !openApiBuild)
+        builder.Services.AddScheduledJobs(builder.Configuration.GetSection("ScheduledJobs"));
+
     builder.Services.AddGovukNotify();
     builder.Services.AddAuditEvents(builder.Configuration, !integrationTest && !openApiBuild);
     builder.Services.AddConsumers(builder.Configuration, !integrationTest && !openApiBuild);
