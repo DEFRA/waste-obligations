@@ -4,11 +4,8 @@ using MongoDB.Driver;
 
 namespace Defra.WasteObligations.Api.Services.ObligationCalculations;
 
-public class ObligationCalculationInstructionService(
-    IMongoDatabase database,
-    TimeProvider timeProvider,
-    MongoMigrationCompletion migrations
-) : IObligationCalculationInstructionService
+public class ObligationCalculationInstructionService(IMongoDatabase database, TimeProvider timeProvider)
+    : IObligationCalculationInstructionService
 {
     private const int DuplicateKeyErrorCode = 11000;
 
@@ -21,7 +18,6 @@ public class ObligationCalculationInstructionService(
         CancellationToken cancellationToken
     )
     {
-        await migrations.Wait(cancellationToken);
         var instruction = new ObligationCalculationInstruction
         {
             ObligationYear = obligationYear,

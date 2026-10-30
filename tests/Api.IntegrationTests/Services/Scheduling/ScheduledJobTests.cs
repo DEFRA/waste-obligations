@@ -1,7 +1,6 @@
 using System.Threading.Channels;
 using AwesomeAssertions;
 using Cronos;
-using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.ObligationCalculations;
@@ -36,8 +35,6 @@ public class ScheduledJobTests : IntegrationTestBase
         await Reset();
         _clock.SetUtcNow(new DateTimeOffset(year, month, day, 0, 59, 0, TimeSpan.Zero));
         var time = new SchedulerTimeProvider(_clock);
-        var migrations = new MongoMigrationCompletion();
-        migrations.Complete();
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(
                 new Dictionary<string, string?>
@@ -51,7 +48,6 @@ public class ScheduledJobTests : IntegrationTestBase
             .AddLogging()
             .AddSingleton(GetMongoApplicationDatabase())
             .AddSingleton<TimeProvider>(time)
-            .AddSingleton(migrations)
             .AddSingleton<ICurrentObligationYearProvider, CurrentObligationYearProvider>()
             .AddTransient<IObligationCalculationInstructionService, ObligationCalculationInstructionService>()
             .AddScheduledJobs(configuration)

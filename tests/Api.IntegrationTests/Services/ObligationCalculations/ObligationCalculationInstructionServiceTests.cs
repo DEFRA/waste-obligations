@@ -1,6 +1,5 @@
 using AutoFixture;
 using AwesomeAssertions;
-using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.ObligationCalculations;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
@@ -167,36 +166,6 @@ public class ObligationCalculationInstructionServiceTests : IntegrationTestBase
             .Be(2);
     }
 
-    [Fact]
-    public async Task Create_ShouldWaitForMigrationCompletionBeforeWriting()
-    {
-        var migrations = new MongoMigrationCompletion();
-        var subject = new ObligationCalculationInstructionService(
-            GetMongoApplicationDatabase(),
-            _timeProvider,
-            migrations
-        );
-
-        var creation = subject.Create(2026, null, TestContext.Current.CancellationToken);
-
-        creation.IsCompleted.Should().BeFalse();
-        (
-            await ObligationCalculationInstructions.CountDocumentsAsync(
-                FilterDefinition<ObligationCalculationInstruction>.Empty,
-                cancellationToken: TestContext.Current.CancellationToken
-            )
-        )
-            .Should()
-            .Be(0);
-        migrations.Complete();
-        (await creation).Status.Should().Be(ObligationCalculationInstructionStatus.Pending);
-    }
-
-    private ObligationCalculationInstructionService CreateSubject()
-    {
-        var migrations = new MongoMigrationCompletion();
-        migrations.Complete();
-
-        return new ObligationCalculationInstructionService(GetMongoApplicationDatabase(), _timeProvider, migrations);
-    }
+    private ObligationCalculationInstructionService CreateSubject() =>
+        new(GetMongoApplicationDatabase(), _timeProvider);
 }

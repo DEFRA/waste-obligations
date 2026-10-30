@@ -172,8 +172,8 @@ with an ID, obligation year, nullable submitter GUID, status and creation timest
 A null submitter means all submitters for the year. Creation returns the existing
 pending or running instruction for the same year and submitter; whole-year and
 submitter instructions do not block one another. Migration 021 adds a partial unique
-index to enforce this across hosts. Creation waits for startup migrations before
-writing, and no existing documents or analytics schemas are changed.
+index to enforce this across hosts. Migration ordering is managed outside instruction
+creation; no existing documents or analytics schemas are changed.
 
 The shared instruction service accepts an explicit year and optional submitter ID
 for future manual requests. This slice only creates instructions: it does not process
