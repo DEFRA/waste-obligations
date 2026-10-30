@@ -62,6 +62,31 @@ This is the source inventory as at the introduction of the profiler. A row marke
 | Audit event insert | `AuditEvent` | insert | no predicate; profile for observability only |
 | Schema migrations 003–005 | `ComplianceDeclaration` | `schemaVersion`, or missing schema version; per-document `_id` updates | **reviewed exception** — one-off migration scans have no schema-version index; profile them in migration integration tests and reassess if collection size makes deployment duration unsafe |
 
+## Scheduled work index inventory
+
+The scheduler and calculation-instruction paths add the following operations to the
+historical inventory above. Integration tests profile their application queries;
+retention is additionally exercised through MongoDB's real TTL monitor.
+
+| Collection | Predicate / operation | Index |
+| --- | --- | --- |
+| `_scheduled_job_leases` | Job `_id`, with owner or expiry conditions for acquisition, renewal and release | `_id_` |
+| `_scheduled_job_state` | Job `_id` and `lastStartedAt` earlier than the scheduled occurrence | `_id_` |
+| `_obligation_calculation_instructions` | Obligation year, nullable submitter ID, and status in `Pending`/`Running`; atomic create-or-return | `Active_ObligationYear_SubmitterId`, a unique partial index created by migration 021 |
+| `_obligation_calculation_instructions` | MongoDB TTL cleanup of `Completed`/`Failed` instructions 365 days after `createdAt` | `CreatedAt_Terminal_Retention`, a partial TTL index created by migration 022 |
+
+The instruction query includes the active-status predicate required for MongoDB to
+use the partial unique index. A null submitter selects whole-year work independently
+of submitter-specific instructions. A fresh instruction is inserted once no active
+match exists; terminal history does not participate in the uniqueness constraint.
+The TTL index excludes active instructions entirely.
+
+Instruction creation assumes migrations have been applied before a producer is
+enabled; the service does not coordinate migration completion. These `$in` partial
+filters require MongoDB 6.0 or later. Local Compose uses MongoDB 7.0; the deployed
+server version must be confirmed before enabling the job. No processing-selection
+index is added until the deferred processor has an actual query shape to verify.
+
 ## How to add coverage
 
 Add one focused integration scenario for each query shape, rather than one broad test that hides a failing plan. For dynamic search and sort endpoints, use a theory over every documented combination. A direct service test must derive from `IntegrationTestBase` and construct its real `MongoDbContext` from `GetMongoApplicationDatabase()`; the base class then profiles it automatically. Keep setup and assertions on `GetMongoDatabase()`, whose fixture application name is excluded. Docker Compose API scenarios are deliberately excluded because their `waste-obligations-api` operations never enter the profile collection. A standalone direct-Mongo test that cannot derive from the base class must start `MongoQueryProfiler` with the application client name and call `AssertIndexesUsed` itself.

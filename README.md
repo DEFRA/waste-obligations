@@ -142,7 +142,8 @@ entry name selects the implementation by convention: `ObligationCalculation` loa
 `builder.Services.AddScheduledJobs(builder.Configuration.GetSection("ScheduledJobs"))`.
 Each entry accepts `Enabled` (default `false`) and `Cron` (a five-field UTC expression,
 required when enabled). Disabled jobs register no worker and do not access MongoDB.
-An enabled job with a missing implementation or invalid schedule prevents startup.
+An enabled job with a missing implementation or invalid cron syntax prevents startup.
+A valid expression with no future occurrence logs a warning and stops that worker.
 
 The obligation calculation job is disabled in `appsettings.json`. Set
 `ScheduledJobs__ObligationCalculation__Enabled=true` to enable it at host startup.
@@ -163,7 +164,12 @@ the other hosts have already failed to acquire the lease.
 
 Jobs must honour cancellation. Shutdown or lease loss cancels the job; the worker
 waits for it to finish before releasing its lease or attempting another run.
-Renewal continues while shutdown drains the job. An expired lease permits recovery
+Renewal continues while shutdown drains the job. Lease calls request cancellation
+after ten seconds and drain before the worker moves on; a late successful acquisition
+is released without running the job. A stalled renewal cancels the job, and release
+failures are logged so the lease can expire naturally. These are cooperative
+cancellation deadlines, not permission to abandon an in-flight Mongo operation.
+An expired lease permits recovery
 after a crash, but cannot guarantee zero overlap during a host pause or network
 partition. Keep job names stable across hosts and deployments: the name identifies
 both the lease and occurrence history in the private `_scheduled_job_leases` and
@@ -174,8 +180,12 @@ with an ID, obligation year, nullable submitter GUID, status and creation timest
 A null submitter means all submitters for the year. Creation returns the existing
 pending or running instruction for the same year and submitter; whole-year and
 submitter instructions do not block one another. Migration 021 adds a partial unique
-index to enforce this across hosts. Migration ordering is managed outside instruction
-creation; no existing documents or analytics schemas are changed.
+index to enforce this across hosts. Instruction creation assumes that index already
+exists and does not wait for migrations. Apply the migrations before enabling the
+job or adding another producer. The target MongoDB deployment must support `$in`
+in partial index filters (MongoDB 6.0 or later); confirm its version before enabling.
+No existing documents or analytics schemas are changed. Creation is limited to five
+attempts in total; only duplicate-key collisions are retried.
 
 When no matching pending or running instruction exists, creation always inserts a new
 document with a new ID; completed and failed instructions are retained as history.
