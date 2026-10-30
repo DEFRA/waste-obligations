@@ -13,16 +13,17 @@ public sealed class ScheduledJobWorker(
     Type jobType,
     IServiceScopeFactory scopeFactory,
     IMongoDatabase database,
+    IScheduledJobLeaseService leaseService,
     TimeProvider timeProvider,
     ILogger<ScheduledJobWorker> logger
 ) : BackgroundService
 {
     private const int DuplicateKeyErrorCode = 11000;
     private static readonly TimeSpan s_maximumWait = TimeSpan.FromDays(1);
+    private static readonly TimeSpan s_leaseOperationTimeout = TimeSpan.FromSeconds(10);
 
     private readonly TimeSpan _leaseDuration = TimeSpan.FromMinutes(1);
 
-    private readonly BackgroundWorkerLeaseService _lease = new(database, timeProvider, "_scheduled_job_leases", name);
     private readonly IMongoCollection<ScheduledJobState> _states = database.GetCollection<ScheduledJobState>(
         "_scheduled_job_state"
     );
@@ -63,13 +64,14 @@ public sealed class ScheduledJobWorker(
 
     private async Task Run(DateTime scheduledAt, CancellationToken stoppingToken)
     {
-        if (!await _lease.TryAcquire(_leaseDuration, stoppingToken))
+        if (!await TryAcquireLease(stoppingToken))
             return;
 
         using var work = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
         using var renewal = new CancellationTokenSource();
         var renewalTask = RenewLease(work, renewal.Token);
         Exception? processingFailure = null;
+        AsyncServiceScope? scope = null;
 
         try
         {
@@ -77,8 +79,8 @@ public sealed class ScheduledJobWorker(
             {
                 work.Token.ThrowIfCancellationRequested();
                 logger.LogInformation("Scheduled job {JobName} started for {ScheduledAt}", name, scheduledAt);
-                await using var scope = scopeFactory.CreateAsyncScope();
-                var job = (IScheduledJob)scope.ServiceProvider.GetRequiredService(jobType);
+                scope = scopeFactory.CreateAsyncScope();
+                var job = (IScheduledJob)scope.Value.ServiceProvider.GetRequiredService(jobType);
                 await job.Run(work.Token);
                 logger.LogInformation("Scheduled job {JobName} finished for {ScheduledAt}", name, scheduledAt);
             }
@@ -91,10 +93,11 @@ public sealed class ScheduledJobWorker(
         try
         {
             await BackgroundOperationCleanup.Run(
+                () => scope is { } createdScope ? createdScope.DisposeAsync().AsTask() : Task.CompletedTask,
                 work.CancelAsync,
                 renewal.CancelAsync,
                 () => renewalTask,
-                () => _lease.Release(CancellationToken.None)
+                ReleaseLease
             );
         }
         catch (Exception exception) when (processingFailure is not null)
@@ -141,7 +144,23 @@ public sealed class ScheduledJobWorker(
         {
             while (await timer.WaitForNextTickAsync(cancellationToken))
             {
-                if (await _lease.TryRenew(_leaseDuration, cancellationToken))
+                if (
+                    await BackgroundOperationWatchdog.Run(
+                        token => leaseService.TryRenew(_leaseDuration, token),
+                        s_leaseOperationTimeout,
+                        async () =>
+                        {
+                            logger.LogError(
+                                "Scheduled job {JobName} lease renewal stalled; cancelling work and draining the call",
+                                name
+                            );
+                            await work.CancelAsync();
+                        },
+                        cancellationToken,
+                        timeProvider,
+                        rejectLateResult: true
+                    )
+                )
                     continue;
 
                 logger.LogError("Scheduled job {JobName} lost its lease", name);
@@ -154,10 +173,73 @@ public sealed class ScheduledJobWorker(
         {
             // Renewal stops after the job has finished.
         }
+        catch (TimeoutException) when (work.IsCancellationRequested)
+        {
+            // The watchdog already cancelled the job and reported the stalled renewal.
+        }
         catch (Exception exception)
         {
             logger.LogError(exception, "Scheduled job {JobName} lease renewal failed", name);
             await work.CancelAsync();
+        }
+    }
+
+    private async Task<bool> TryAcquireLease(CancellationToken cancellationToken)
+    {
+        var acquired = false;
+        try
+        {
+            return await BackgroundOperationWatchdog.Run(
+                async token =>
+                {
+                    acquired = await leaseService.TryAcquire(_leaseDuration, token);
+                    token.ThrowIfCancellationRequested();
+
+                    return acquired;
+                },
+                s_leaseOperationTimeout,
+                () =>
+                    logger.LogWarning(
+                        "Scheduled job {JobName} lease acquisition stalled; cancelling and draining the call",
+                        name
+                    ),
+                cancellationToken,
+                timeProvider,
+                rejectLateResult: true
+            );
+        }
+        catch
+        {
+            if (acquired)
+                await ReleaseLease();
+
+            throw;
+        }
+    }
+
+    private async Task ReleaseLease()
+    {
+        try
+        {
+            await BackgroundOperationWatchdog.Run(
+                leaseService.Release,
+                s_leaseOperationTimeout,
+                () =>
+                    logger.LogWarning(
+                        "Scheduled job {JobName} lease release stalled; cancelling and draining the call",
+                        name
+                    ),
+                CancellationToken.None,
+                timeProvider
+            );
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(
+                exception,
+                "Scheduled job {JobName} lease could not be released; it will expire automatically",
+                name
+            );
         }
     }
 }

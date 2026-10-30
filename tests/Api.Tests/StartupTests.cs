@@ -1,17 +1,37 @@
 using System.Net;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
+using Defra.WasteObligations.Api.ScheduledJobs;
 using Defra.WasteObligations.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using MongoDB.Driver;
 using NSubstitute;
 
 namespace Defra.WasteObligations.Api.Tests;
 
 public class StartupTests(ApiWebApplicationFactory factory) : IClassFixture<ApiWebApplicationFactory>
 {
+    [Fact]
+    public void ScheduledJob_ShouldResolveThroughApplicationRegistrations()
+    {
+        using var application = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                services.AddSingleton(Substitute.For<IMongoDatabase>());
+                services.AddScoped<ObligationCalculationJob>();
+            })
+        );
+        using var client = application.CreateClient();
+        using var scope = application.Services.CreateScope();
+
+        var resolve = () => scope.ServiceProvider.GetRequiredService<ObligationCalculationJob>();
+
+        resolve.Should().NotThrow();
+    }
+
     [Fact]
     public void WhenFaultOnStartup_ShouldThrow()
     {

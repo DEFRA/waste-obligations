@@ -8,6 +8,7 @@ public class ObligationCalculationInstructionService(IMongoDatabase database, Ti
     : IObligationCalculationInstructionService
 {
     private const int DuplicateKeyErrorCode = 11000;
+    private const int MaximumCreationAttempts = 5;
 
     private readonly IMongoCollection<ObligationCalculationInstruction> _instructions =
         database.GetCollection<ObligationCalculationInstruction>(ObligationCalculationInstruction.CollectionName);
@@ -39,8 +40,10 @@ public class ObligationCalculationInstructionService(IMongoDatabase database, Ti
             .SetOnInsert(x => x.Status, instruction.Status)
             .SetOnInsert(x => x.CreatedAt, instruction.CreatedAt);
 
+        var attempt = 0;
         while (true)
         {
+            attempt++;
             try
             {
                 return await _instructions.FindOneAndUpdateAsync(
@@ -54,10 +57,8 @@ public class ObligationCalculationInstructionService(IMongoDatabase database, Ti
                     cancellationToken
                 );
             }
-            catch (Exception exception)
-                when (exception is MongoCommandException { Code: DuplicateKeyErrorCode }
-                    || exception is MongoWriteException { WriteError.Code: DuplicateKeyErrorCode }
-                )
+            catch (MongoCommandException exception)
+                when (exception.Code == DuplicateKeyErrorCode && attempt < MaximumCreationAttempts)
             {
                 // Another host inserted first. Retry to return its active instruction.
             }

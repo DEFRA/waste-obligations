@@ -38,6 +38,11 @@ public static class ServiceCollectionExtensions
                 jobType,
                 provider.GetRequiredService<IServiceScopeFactory>(),
                 provider.GetRequiredService<IMongoDatabase>(),
+                new ScheduledJobLeaseService(
+                    provider.GetRequiredService<IMongoDatabase>(),
+                    provider.GetRequiredService<TimeProvider>(),
+                    job.Key
+                ),
                 provider.GetRequiredService<TimeProvider>(),
                 provider.GetRequiredService<ILogger<ScheduledJobWorker>>()
             ));

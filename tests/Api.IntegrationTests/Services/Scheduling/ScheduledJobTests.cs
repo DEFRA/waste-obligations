@@ -14,6 +14,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using MongoDB.Bson;
 using MongoDB.Driver;
+using NSubstitute;
 
 namespace Defra.WasteObligations.Api.IntegrationTests.Services.Scheduling;
 
@@ -268,8 +269,10 @@ public class ScheduledJobTests : IntegrationTestBase
         await worker.StopAsync(TestContext.Current.CancellationToken);
     }
 
-    [Fact]
-    public async Task FailedJob_WhenCancellationCleanupAlsoFails_ShouldReportBothErrorsAndReleaseLease()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FailedJob_WhenCleanupAlsoFails_ShouldReportBothErrorsAndReleaseLease(bool scopeDisposalFails)
     {
         await Reset();
         var jobFailure = new InvalidOperationException("Job execution failed");
@@ -278,10 +281,12 @@ public class ScheduledJobTests : IntegrationTestBase
         {
             Run = token =>
             {
-                token.Register(() => throw cleanupFailure);
+                if (!scopeDisposalFails)
+                    token.Register(() => throw cleanupFailure);
 
                 return Task.FromException(jobFailure);
             },
+            Dispose = () => scopeDisposalFails ? Task.FromException(cleanupFailure) : Task.CompletedTask,
         };
         var time = new SchedulerTimeProvider(_clock);
         var logger = new RecordingLogger<ScheduledJobWorker>();
@@ -352,11 +357,137 @@ public class ScheduledJobTests : IntegrationTestBase
         await worker.StopAsync(TestContext.Current.CancellationToken);
     }
 
+    [Fact]
+    public async Task StalledAcquisition_WhenItEventuallySucceeds_ShouldReleaseWithoutRunningJob()
+    {
+        var lease = Substitute.For<IScheduledJobLeaseService>();
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var acquired = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        lease
+            .TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                call.Arg<CancellationToken>().Register(() => cancelled.TrySetResult());
+                started.TrySetResult();
+
+                return acquired.Task;
+            });
+        var control = new JobControl();
+        var time = new SchedulerTimeProvider(_clock);
+        await using var host = CreateHost(time, control, "* * * * *", leaseService: lease);
+        var worker = host.GetRequiredService<IHostedService>();
+        await worker.StartAsync(TestContext.Current.CancellationToken);
+        await time.WaitForTimer(TimeSpan.FromMinutes(1));
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        _clock.Advance(TimeSpan.FromSeconds(11));
+        await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        acquired.SetResult(true);
+        await time.WaitForTimer(TimeSpan.FromSeconds(49));
+
+        control.Count.Should().Be(0);
+        await lease.Received(1).Release(Arg.Any<CancellationToken>());
+        await worker.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task StalledRenewal_ShouldCancelJobAndDrainBothBeforeReleasingLease()
+    {
+        await Reset();
+        var lease = Substitute.For<IScheduledJobLeaseService>();
+        lease.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
+        var renewalStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var renewed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        lease
+            .TryRenew(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                renewalStarted.TrySetResult();
+
+                return renewed.Task;
+            });
+        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var control = new JobControl
+        {
+            Run = token =>
+            {
+                token.Register(() => cancelled.TrySetResult());
+
+                return finished.Task;
+            },
+        };
+        var time = new SchedulerTimeProvider(_clock);
+        await using var host = CreateHost(time, control, "* * * * *", leaseService: lease);
+        var worker = host.GetRequiredService<IHostedService>();
+        await worker.StartAsync(TestContext.Current.CancellationToken);
+        await time.WaitForTimer(TimeSpan.FromMinutes(1));
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        await WaitForAsync(() =>
+        {
+            control.Count.Should().Be(1);
+            return Task.CompletedTask;
+        });
+        _clock.Advance(TimeSpan.FromSeconds(20));
+        await renewalStarted.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        _clock.Advance(TimeSpan.FromSeconds(11));
+        await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await lease.DidNotReceive().Release(Arg.Any<CancellationToken>());
+
+        finished.SetResult();
+        await lease.DidNotReceive().Release(Arg.Any<CancellationToken>());
+        renewed.SetResult(true);
+        await time.WaitForTimer(TimeSpan.FromSeconds(29));
+
+        await lease.Received(1).Release(Arg.Any<CancellationToken>());
+        control.Count.Should().Be(1);
+        await worker.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task StalledRelease_ShouldRequestCancellationAndAllowWorkerToFinish()
+    {
+        await Reset();
+        var lease = Substitute.For<IScheduledJobLeaseService>();
+        lease.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
+        var releaseStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        lease
+            .Release(Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var token = call.Arg<CancellationToken>();
+                token.Register(() => cancelled.TrySetResult());
+                releaseStarted.TrySetResult();
+
+                return Task.Delay(Timeout.InfiniteTimeSpan, token);
+            });
+        var time = new SchedulerTimeProvider(_clock);
+        var control = new JobControl();
+        var logger = new RecordingLogger<ScheduledJobWorker>();
+        await using var host = CreateHost(time, control, "* * * * *", logger, lease);
+        var worker = host.GetRequiredService<IHostedService>();
+        await worker.StartAsync(TestContext.Current.CancellationToken);
+        await time.WaitForTimer(TimeSpan.FromMinutes(1));
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        await releaseStarted.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        _clock.Advance(TimeSpan.FromSeconds(11));
+        await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await time.WaitForTimer(TimeSpan.FromSeconds(49));
+
+        control.Count.Should().Be(1);
+        logger.Messages.Should().Contain(x => x.Contains("lease could not be released"));
+        await worker.StopAsync(TestContext.Current.CancellationToken);
+    }
+
     private static ServiceProvider CreateHost(
         SchedulerTimeProvider time,
         JobControl control,
         string cron = "0 1 * * *",
-        ILogger<ScheduledJobWorker>? logger = null
+        ILogger<ScheduledJobWorker>? logger = null,
+        IScheduledJobLeaseService? leaseService = null
     ) =>
         new ServiceCollection()
             .AddLogging()
@@ -370,6 +501,8 @@ public class ScheduledJobTests : IntegrationTestBase
                 typeof(TestJob),
                 provider.GetRequiredService<IServiceScopeFactory>(),
                 provider.GetRequiredService<IMongoDatabase>(),
+                leaseService
+                    ?? new ScheduledJobLeaseService(provider.GetRequiredService<IMongoDatabase>(), time, JobName),
                 time,
                 logger ?? NullLogger<ScheduledJobWorker>.Instance
             ))
@@ -391,10 +524,13 @@ public class ScheduledJobTests : IntegrationTestBase
     {
         public int Count;
         public Func<CancellationToken, Task> Run { get; init; } = _ => Task.CompletedTask;
+        public Func<Task> Dispose { get; init; } = () => Task.CompletedTask;
     }
 
-    private sealed class TestJob(JobControl control) : IScheduledJob
+    private sealed class TestJob(JobControl control) : IScheduledJob, IAsyncDisposable
     {
+        public ValueTask DisposeAsync() => new(control.Dispose());
+
         public Task Run(CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref control.Count);
