@@ -1,13 +1,14 @@
 using System.Threading.Channels;
 using AwesomeAssertions;
 using Cronos;
-using Defra.WasteObligations.Api.ScheduledJobs;
+using Defra.WasteObligations.Api.Data;
+using Defra.WasteObligations.Api.Data.Entities;
+using Defra.WasteObligations.Api.Services;
+using Defra.WasteObligations.Api.Services.ObligationCalculations;
 using Defra.WasteObligations.Api.Services.Scheduling;
-using Defra.WasteObligations.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using MongoDB.Bson;
@@ -22,12 +23,21 @@ public class ScheduledJobTests : IntegrationTestBase
     private const string StateCollection = "_scheduled_job_state";
     private readonly FakeTimeProvider _clock = new(new DateTimeOffset(2026, 10, 30, 0, 59, 0, TimeSpan.Zero));
 
-    [Fact]
-    public async Task ConfiguredJob_ShouldRunImplementationSelectedByName()
+    [Theory]
+    [InlineData(2027, 1, 31, 2026)]
+    [InlineData(2027, 2, 1, 2027)]
+    public async Task ConfiguredJob_ShouldCreateInstructionForCurrentObligationYear(
+        int year,
+        int month,
+        int day,
+        int expectedYear
+    )
     {
         await Reset();
+        _clock.SetUtcNow(new DateTimeOffset(year, month, day, 0, 59, 0, TimeSpan.Zero));
         var time = new SchedulerTimeProvider(_clock);
-        var logger = new RecordingLogger<ObligationCalculationJob>();
+        var migrations = new MongoMigrationCompletion();
+        migrations.Complete();
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(
                 new Dictionary<string, string?>
@@ -41,7 +51,9 @@ public class ScheduledJobTests : IntegrationTestBase
             .AddLogging()
             .AddSingleton(GetMongoApplicationDatabase())
             .AddSingleton<TimeProvider>(time)
-            .AddSingleton<ILogger<ObligationCalculationJob>>(logger)
+            .AddSingleton(migrations)
+            .AddSingleton<ICurrentObligationYearProvider, CurrentObligationYearProvider>()
+            .AddTransient<IObligationCalculationInstructionService, ObligationCalculationInstructionService>()
             .AddScheduledJobs(configuration)
             .BuildServiceProvider();
         var worker = host.GetRequiredService<IHostedService>();
@@ -51,9 +63,11 @@ public class ScheduledJobTests : IntegrationTestBase
         _clock.Advance(TimeSpan.FromMinutes(1));
         await time.WaitForTimer(TimeSpan.FromDays(1));
 
-        logger
-            .Messages.Should()
-            .Contain("Obligation calculation placeholder executed; calculation is not yet implemented");
+        var instruction = await ObligationCalculationInstructions
+            .Find(x => x.ObligationYear == expectedYear)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        instruction.SubmitterId.Should().BeNull();
+        instruction.Status.Should().Be(ObligationCalculationInstructionStatus.Pending);
         await worker.StopAsync(TestContext.Current.CancellationToken);
     }
 

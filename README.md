@@ -144,13 +144,14 @@ Each entry accepts `Enabled` (default `false`) and `Cron` (a five-field UTC expr
 required when enabled). Disabled jobs register no worker and do not access MongoDB.
 An enabled job with a missing implementation or invalid schedule prevents startup.
 
-The obligation calculation placeholder is disabled in `appsettings.json`. Set
+The obligation calculation job is disabled in `appsettings.json`. Set
 `ScheduledJobs__ObligationCalculation__Enabled=true` to enable it at host startup.
 Its default schedule is `0 1 * * *` (01:00 UTC); override it with
-`ScheduledJobs__ObligationCalculation__Cron`. The job currently logs its execution;
-calculation and result storage are left for later commits. These environment values
+`ScheduledJobs__ObligationCalculation__Cron`. The job creates a pending Mongo instruction for all submitters in the current obligation year.
+January uses the previous year; the year changes on 1 February. Calculation processing
+and result storage are left for later commits. These environment values
 must be set on the API container in the target environment. No deployed configuration
-or journey settings change is needed while the placeholder remains disabled.
+or journey settings change is needed while the job remains disabled.
 
 Each host waits for the next occurrence. A per-job Mongo lease allows one host to
 execute at a time, with renewal every 20 seconds and a one-minute expiry. The last
@@ -165,6 +166,21 @@ after a crash, but cannot guarantee zero overlap during a host pause or network
 partition. Keep job names stable across hosts and deployments: the name identifies
 both the lease and occurrence history in the private `_scheduled_job_leases` and
 `_scheduled_job_state` collections.
+
+Obligation calculation instructions are stored in `_obligation_calculation_instructions`
+with an ID, obligation year, nullable submitter GUID, status and creation timestamp.
+A null submitter means all submitters for the year. Creation returns the existing
+pending or running instruction for the same year and submitter; whole-year and
+submitter instructions do not block one another. Migration 021 adds a partial unique
+index to enforce this across hosts. Creation waits for startup migrations before
+writing, and no existing documents or analytics schemas are changed.
+
+The shared instruction service accepts an explicit year and optional submitter ID
+for future manual requests. This slice only creates instructions: it does not process
+them or expose a management endpoint. Instructions remain pending and prevent matching
+new instructions until processing is implemented, so leave the job disabled in deployed
+environments for now. The scheduler lease protects instruction creation; it does not
+represent the lifetime of the calculation instruction.
 
 ## System health checks
 

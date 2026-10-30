@@ -12,6 +12,7 @@ using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.AccountBackend;
 using Defra.WasteObligations.Api.Services.Admin;
 using Defra.WasteObligations.Api.Services.GovukNotify;
+using Defra.WasteObligations.Api.Services.ObligationCalculations;
 using Defra.WasteObligations.Api.Services.OrganisationEligibility;
 using Defra.WasteObligations.Api.Services.OrganisationObligations;
 using Defra.WasteObligations.Api.Services.PrnCommonBackend;
@@ -75,6 +76,7 @@ try
     builder.Services.AddTransient<IComplianceDeclarationService, ComplianceDeclarationService>();
     builder.Services.AddScoped<IAdminDataService, AdminDataService>();
     builder.Services.AddSingleton<ICurrentObligationYearProvider, CurrentObligationYearProvider>();
+    builder.Services.AddTransient<IObligationCalculationInstructionService, ObligationCalculationInstructionService>();
     builder.Services.AddTransient<IUnsubmittedEligibilityVisibilityService, UnsubmittedEligibilityVisibilityService>();
     builder.Services.AddTransient<IUnsubmittedOrganisationsService, UnsubmittedOrganisationsService>();
     builder.Services.AddTransient<IUnsubmittedPollingStatusService, UnsubmittedPollingStatusService>();
