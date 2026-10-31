@@ -12,12 +12,15 @@ namespace Defra.WasteObligations.Api.IntegrationTests.Data;
 public class ObligationCalculationInstructionIndexesTests : IntegrationTestBase
 {
     [Fact]
-    public async Task ProcessingMigration_ShouldCreateOrderedWorkIndexAndSupportRepeatedUpAndDown()
+    public async Task Migration_ShouldCreateAllJobIndexesAndSupportRepeatedUpAndDown()
     {
-        var subject = new ObligationCalculationInstructionProcessingIndex();
+        var subject = new ObligationCalculationInstructionIndexes();
         var context = new MigrationContext(GetMongoDatabase(), null!, TestContext.Current.CancellationToken);
-        const string indexName = "Status_CreatedAt_Id";
-
+        const string activeIndex = "Active_ObligationYear_SubmitterId";
+        const string retentionIndex = "CreatedAt_Terminal_Retention";
+        const string workIndex = "Status_CreatedAt_Id";
+        const string leaseRetentionIndex = "ExpiresAt_ProcessingLeaseRetention";
+        var leases = GetMongoDatabase().GetCollection<BsonDocument>("_scheduled_job_processing_leases");
         try
         {
             await subject.UpAsync(context);
@@ -25,8 +28,20 @@ public class ObligationCalculationInstructionIndexesTests : IntegrationTestBase
             var indexes = await (
                 await ObligationCalculationInstructions.Indexes.ListAsync(TestContext.Current.CancellationToken)
             ).ToListAsync(TestContext.Current.CancellationToken);
+            var active = indexes.Single(x => x["name"] == activeIndex);
+            active["key"].Should().Be(new BsonDocument { { "obligationYear", 1 }, { "submitterId", 1 } });
+            active["unique"].AsBoolean.Should().BeTrue();
+            active["partialFilterExpression"]
+                .Should()
+                .Be(new BsonDocument("status", new BsonDocument("$in", new BsonArray { "Pending", "Running" })));
+            var retention = indexes.Single(x => x["name"] == retentionIndex);
+            retention["key"].Should().Be(new BsonDocument("createdAt", 1));
+            retention["expireAfterSeconds"].ToInt64().Should().Be(31536000);
+            retention["partialFilterExpression"]
+                .Should()
+                .Be(new BsonDocument("status", new BsonDocument("$in", new BsonArray { "Completed", "Failed" })));
             indexes
-                .Single(x => x["name"] == indexName)["key"]
+                .Single(x => x["name"] == workIndex)["key"]
                 .Should()
                 .Be(
                     new BsonDocument
@@ -36,49 +51,25 @@ public class ObligationCalculationInstructionIndexesTests : IntegrationTestBase
                         { "_id", 1 },
                     }
                 );
-
-            await subject.DownAsync(context);
-            await subject.DownAsync(context);
-            indexes = await (
-                await ObligationCalculationInstructions.Indexes.ListAsync(TestContext.Current.CancellationToken)
+            var leaseIndexes = await (
+                await leases.Indexes.ListAsync(TestContext.Current.CancellationToken)
             ).ToListAsync(TestContext.Current.CancellationToken);
-            indexes.Should().NotContain(x => x["name"] == indexName);
-        }
-        finally
-        {
-            await subject.UpAsync(context);
-        }
-    }
-
-    [Fact]
-    public async Task RetentionMigration_ShouldCreatePartialTtlIndexAndSupportRepeatedUpAndDown()
-    {
-        var subject = new ObligationCalculationInstructionRetentionIndex();
-        var context = new MigrationContext(GetMongoDatabase(), null!, TestContext.Current.CancellationToken);
-        const string indexName = "CreatedAt_Terminal_Retention";
-
-        try
-        {
-            await subject.UpAsync(context);
-            await subject.UpAsync(context);
-
-            var indexes = await (
-                await ObligationCalculationInstructions.Indexes.ListAsync(TestContext.Current.CancellationToken)
-            ).ToListAsync(TestContext.Current.CancellationToken);
-            var index = indexes.Single(x => x["name"] == indexName);
-            index["key"].Should().Be(new BsonDocument("createdAt", 1));
-            index["expireAfterSeconds"].ToInt64().Should().Be(31536000);
-            index["partialFilterExpression"]
+            leaseIndexes
+                .Single(x => x["name"] == leaseRetentionIndex)["expireAfterSeconds"]
+                .ToInt64()
                 .Should()
-                .Be(new BsonDocument("status", new BsonDocument("$in", new BsonArray { "Completed", "Failed" })));
+                .Be(31536000);
 
             await subject.DownAsync(context);
             await subject.DownAsync(context);
-
             indexes = await (
                 await ObligationCalculationInstructions.Indexes.ListAsync(TestContext.Current.CancellationToken)
             ).ToListAsync(TestContext.Current.CancellationToken);
-            indexes.Should().NotContain(x => x["name"] == indexName);
+            indexes.Should().OnlyContain(x => x["name"] == "_id_");
+            leaseIndexes = await (await leases.Indexes.ListAsync(TestContext.Current.CancellationToken)).ToListAsync(
+                TestContext.Current.CancellationToken
+            );
+            leaseIndexes.Should().OnlyContain(x => x["name"] == "_id_");
         }
         finally
         {
@@ -131,41 +122,5 @@ public class ObligationCalculationInstructionIndexesTests : IntegrationTestBase
             },
             timeout: 90
         );
-    }
-
-    [Fact]
-    public async Task Migration_ShouldCreateActiveScopeUniqueIndexAndSupportRepeatedUpAndDown()
-    {
-        var subject = new ObligationCalculationInstructionIndexes();
-        var context = new MigrationContext(GetMongoDatabase(), null!, TestContext.Current.CancellationToken);
-        const string indexName = "Active_ObligationYear_SubmitterId";
-
-        try
-        {
-            await subject.UpAsync(context);
-            await subject.UpAsync(context);
-
-            var indexes = await (
-                await ObligationCalculationInstructions.Indexes.ListAsync(TestContext.Current.CancellationToken)
-            ).ToListAsync(TestContext.Current.CancellationToken);
-            var index = indexes.Single(x => x["name"] == indexName);
-            index["key"].Should().Be(new BsonDocument { { "obligationYear", 1 }, { "submitterId", 1 } });
-            index["unique"].AsBoolean.Should().BeTrue();
-            index["partialFilterExpression"]
-                .Should()
-                .Be(new BsonDocument("status", new BsonDocument("$in", new BsonArray { "Pending", "Running" })));
-
-            await subject.DownAsync(context);
-            await subject.DownAsync(context);
-
-            indexes = await (
-                await ObligationCalculationInstructions.Indexes.ListAsync(TestContext.Current.CancellationToken)
-            ).ToListAsync(TestContext.Current.CancellationToken);
-            indexes.Should().NotContain(x => x["name"] == indexName);
-        }
-        finally
-        {
-            await subject.UpAsync(context);
-        }
     }
 }
