@@ -66,9 +66,10 @@ try
     builder.Services.AddWasteOrganisationsService();
     builder.Services.AddOrganisationEligibility(!integrationTest && !openApiBuild);
     builder.Services.AddOrganisationObligationHydration(!integrationTest && !openApiBuild);
-    builder.Services.AddObligationCalculationProcessing(!integrationTest && !openApiBuild);
-    if (!integrationTest && !openApiBuild)
-        builder.Services.AddScheduledJobs(builder.Configuration.GetSection("ScheduledJobs"));
+    builder.Services.AddScheduledJobs(
+        builder.Configuration.GetSection("ScheduledJobs"),
+        !integrationTest && !openApiBuild
+    );
 
     builder.Services.AddGovukNotify();
     builder.Services.AddAuditEvents(builder.Configuration, !integrationTest && !openApiBuild);

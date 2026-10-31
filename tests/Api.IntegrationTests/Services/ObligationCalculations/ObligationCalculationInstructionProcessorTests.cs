@@ -1,22 +1,28 @@
+using System.Collections.Concurrent;
 using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data.Entities;
+using Defra.WasteObligations.Api.ScheduledJobs;
 using Defra.WasteObligations.Api.Services.ObligationCalculations;
+using Defra.WasteObligations.Api.Services.Scheduling;
 using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Time.Testing;
+using MongoDB.Bson;
 using MongoDB.Driver;
+using NSubstitute;
 
 namespace Defra.WasteObligations.Api.IntegrationTests.Services.ObligationCalculations;
 
 public class ObligationCalculationInstructionProcessorTests : IntegrationTestBase
 {
+    private const string JobName = "ObligationCalculation";
+
     [Fact]
-    public async Task ProcessNext_ShouldCompleteOldestPendingInstructionAndLogCompletion()
+    public async Task WorkSource_ShouldSelectOldestWorkAndCompleteOnlyAfterProcessing()
     {
         var newer = ObligationCalculationInstructionFixture.Default().With(x => x.SubmitterId, Guid.NewGuid()).Create();
         var older = ObligationCalculationInstructionFixture
@@ -32,12 +38,19 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
             [newer, terminal, older],
             cancellationToken: TestContext.Current.CancellationToken
         );
-        var logger = new RecordingLogger<ObligationCalculationInstructionProcessor>();
-        var processor = new ObligationCalculationInstructionProcessor(GetMongoApplicationDatabase(), logger);
+        var source = new ObligationCalculationWorkSource(GetMongoApplicationDatabase());
+        var logger = new RecordingLogger<ObligationCalculationProcessor>();
+        var processor = new ObligationCalculationProcessor(logger);
 
-        var processed = await processor.ProcessNext(TestContext.Current.CancellationToken);
+        var work = await source.GetNext([], TestContext.Current.CancellationToken);
+        work.Should().NotBeNull();
+        work.Payload.Id.Should().Be(older.Id);
+        (await Read(older)).Status.Should().Be(ObligationCalculationInstructionStatus.Pending);
+        (await source.TryStart(work, TestContext.Current.CancellationToken)).Should().BeTrue();
+        await processor.Process(work.Payload, TestContext.Current.CancellationToken);
+        (await Read(older)).Status.Should().Be(ObligationCalculationInstructionStatus.Running);
+        await source.Complete(work, TestContext.Current.CancellationToken);
 
-        processed.Should().BeTrue();
         (await Read(older))
             .Should()
             .BeEquivalentTo(older with { Status = ObligationCalculationInstructionStatus.Completed });
@@ -45,40 +58,30 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
         (await Read(terminal)).Should().BeEquivalentTo(terminal);
         logger
             .Entries.Should()
-            .ContainSingle(x =>
-                x.Level == LogLevel.Information
-                && x.Message.Contains("completed")
-                && x.Message.Contains("no calculation performed")
-            );
+            .ContainSingle(x => x.Level == LogLevel.Information && x.Message.Contains("no calculation performed"));
+        (await source.TryStart(work, TestContext.Current.CancellationToken)).Should().BeFalse();
     }
 
     [Theory]
-    [InlineData(ObligationCalculationInstructionStatus.Running)]
     [InlineData(ObligationCalculationInstructionStatus.Completed)]
     [InlineData(ObligationCalculationInstructionStatus.Failed)]
-    public async Task ProcessNext_WhenNoPendingInstructionExists_ShouldLeaveOtherStatesUnchanged(
-        ObligationCalculationInstructionStatus status
-    )
+    public async Task WorkSource_ShouldIgnoreTerminalInstructions(ObligationCalculationInstructionStatus status)
     {
         var instruction = ObligationCalculationInstructionFixture.Default().With(x => x.Status, status).Create();
         await ObligationCalculationInstructions.InsertOneAsync(
             instruction,
             cancellationToken: TestContext.Current.CancellationToken
         );
-        var logger = new RecordingLogger<ObligationCalculationInstructionProcessor>();
-        var processor = new ObligationCalculationInstructionProcessor(GetMongoApplicationDatabase(), logger);
+        var source = new ObligationCalculationWorkSource(GetMongoApplicationDatabase());
 
-        var processed = await processor.ProcessNext(TestContext.Current.CancellationToken);
-
-        processed.Should().BeFalse();
+        (await source.GetNext([], TestContext.Current.CancellationToken)).Should().BeNull();
         (await Read(instruction)).Should().BeEquivalentTo(instruction);
-        logger.Entries.Should().BeEmpty();
     }
 
     [Theory]
     [InlineData(1)]
     [InlineData(3)]
-    public async Task ProcessNext_WhenHostsCompete_ShouldCompleteEachInstructionOnlyOnce(int instructionCount)
+    public async Task Workers_ShouldProcessEachPersistedInstructionOnceAcrossHosts(int instructionCount)
     {
         var instructions = Enumerable
             .Range(0, instructionCount)
@@ -90,70 +93,69 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
             instructions,
             cancellationToken: TestContext.Current.CancellationToken
         );
-        var processors = Enumerable
-            .Range(0, 3)
-            .Select(_ => new ObligationCalculationInstructionProcessor(
-                GetMongoApplicationDatabase(),
-                new RecordingLogger<ObligationCalculationInstructionProcessor>()
-            ))
-            .ToArray();
+        ConcurrentBag<ObjectId> processed = [];
+        var allStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var processor = Substitute.For<IScheduledJobProcessor<ObligationCalculationInstruction>>();
+        processor
+            .Process(Arg.Any<ObligationCalculationInstruction>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                processed.Add(call.Arg<ObligationCalculationInstruction>().Id);
+                if (processed.Count == instructionCount)
+                    allStarted.TrySetResult();
 
-        var results = await Task.WhenAll(processors.Select(x => x.ProcessNext(TestContext.Current.CancellationToken)));
+                return finish.Task;
+            });
+        await using var first = Services(processor);
+        await using var second = Services(processor);
+        await using var third = Services(processor);
+        var workers = new[] { first, second, third }.Select(x => x.GetRequiredService<IHostedService>()).ToArray();
+        try
+        {
+            await Task.WhenAll(workers.Select(x => x.StartAsync(TestContext.Current.CancellationToken)));
+            await allStarted.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+            foreach (var instruction in instructions)
+                (await Read(instruction)).Status.Should().Be(ObligationCalculationInstructionStatus.Running);
+            finish.SetResult();
+            await WaitForAsync(async () =>
+            {
+                foreach (var instruction in instructions)
+                    (await Read(instruction)).Status.Should().Be(ObligationCalculationInstructionStatus.Completed);
+            });
+        }
+        finally
+        {
+            finish.TrySetResult();
+            await Task.WhenAll(workers.Select(x => x.StopAsync(TestContext.Current.CancellationToken)));
+        }
 
-        results.Count(x => x).Should().Be(instructionCount);
-        foreach (var instruction in instructions)
-            (await Read(instruction)).Status.Should().Be(ObligationCalculationInstructionStatus.Completed);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ProcessNext_ShouldAllowFreshInstructionForCompletedScope(bool submitterSpecific)
-    {
-        Guid? submitterId = submitterSpecific ? Guid.NewGuid() : null;
-        var creation = new ObligationCalculationInstructionService(
-            GetMongoApplicationDatabase(),
-            new FakeTimeProvider(new DateTimeOffset(2026, 10, 30, 1, 0, 0, TimeSpan.Zero))
-        );
-        var first = await creation.Create(2026, submitterId, TestContext.Current.CancellationToken);
-        var processor = new ObligationCalculationInstructionProcessor(
-            GetMongoApplicationDatabase(),
-            new RecordingLogger<ObligationCalculationInstructionProcessor>()
-        );
-
-        await processor.ProcessNext(TestContext.Current.CancellationToken);
-        var next = await creation.Create(2026, submitterId, TestContext.Current.CancellationToken);
-
-        next.Id.Should().NotBe(first.Id);
-        next.Status.Should().Be(ObligationCalculationInstructionStatus.Pending);
-        (await Read(first)).Status.Should().Be(ObligationCalculationInstructionStatus.Completed);
+        processed.Should().BeEquivalentTo(instructions.Select(x => x.Id));
     }
 
     [Fact]
-    public async Task Worker_ShouldCompleteInstructionThroughRegisteredProcessor()
+    public async Task Worker_ShouldRecoverRunningInstructionAfterItsPreviousLeaseExpires()
     {
-        var instruction = ObligationCalculationInstructionFixture.Default().Create();
+        var instruction = ObligationCalculationInstructionFixture
+            .Default()
+            .With(x => x.Status, ObligationCalculationInstructionStatus.Running)
+            .Create();
         await ObligationCalculationInstructions.InsertOneAsync(
             instruction,
             cancellationToken: TestContext.Current.CancellationToken
         );
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(
-                new Dictionary<string, string?>
-                {
-                    ["ObligationCalculationProcessing:Enabled"] = "true",
-                    ["ObligationCalculationProcessing:PollIntervalSeconds"] = "1",
-                }
-            )
-            .Build();
-        await using var services = new ServiceCollection()
-            .AddLogging()
-            .AddSingleton<IConfiguration>(configuration)
-            .AddSingleton(GetMongoApplicationDatabase())
-            .AddObligationCalculationProcessing()
-            .BuildServiceProvider();
+        var past = new Microsoft.Extensions.Time.Testing.FakeTimeProvider(DateTimeOffset.UtcNow.AddMinutes(-2));
+        var previousOwner = new ScheduledJobLeaseService(
+            GetMongoApplicationDatabase(),
+            past,
+            JobName,
+            instruction.Id.ToString()
+        );
+        (await previousOwner.TryAcquire(TimeSpan.FromMinutes(1), TestContext.Current.CancellationToken))
+            .Should()
+            .BeTrue();
+        await using var services = Services();
         var worker = services.GetRequiredService<IHostedService>();
-
         try
         {
             await worker.StartAsync(TestContext.Current.CancellationToken);
@@ -165,6 +167,104 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
         {
             await worker.StopAsync(TestContext.Current.CancellationToken);
         }
+    }
+
+    [Fact]
+    public async Task Worker_WhenProcessorFails_ShouldKeepSameInstructionAndRetryBeforeCompleting()
+    {
+        var instruction = ObligationCalculationInstructionFixture.Default().Create();
+        await ObligationCalculationInstructions.InsertOneAsync(
+            instruction,
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        var retryStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var attempts = 0;
+        var processor = Substitute.For<IScheduledJobProcessor<ObligationCalculationInstruction>>();
+        processor
+            .Process(Arg.Any<ObligationCalculationInstruction>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                if (Interlocked.Increment(ref attempts) == 1)
+                    return Task.FromException(new InvalidOperationException("Retry this instruction"));
+                retryStarted.TrySetResult();
+
+                return finish.Task;
+            });
+        await using var services = Services(processor);
+        var worker = services.GetRequiredService<IHostedService>();
+        try
+        {
+            await worker.StartAsync(TestContext.Current.CancellationToken);
+            await retryStarted.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+            (await Read(instruction)).Status.Should().Be(ObligationCalculationInstructionStatus.Running);
+            finish.SetResult();
+            await WaitForAsync(async () =>
+                (await Read(instruction)).Status.Should().Be(ObligationCalculationInstructionStatus.Completed)
+            );
+        }
+        finally
+        {
+            finish.TrySetResult();
+            await worker.StopAsync(TestContext.Current.CancellationToken);
+        }
+        attempts.Should().Be(2);
+        (
+            await ObligationCalculationInstructions.CountDocumentsAsync(
+                FilterDefinition<ObligationCalculationInstruction>.Empty,
+                cancellationToken: TestContext.Current.CancellationToken
+            )
+        )
+            .Should()
+            .Be(1);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Worker_ShouldCompleteByConventionAndAllowFreshInstruction(bool submitterSpecific)
+    {
+        Guid? submitterId = submitterSpecific ? Guid.NewGuid() : null;
+        var creation = new ObligationCalculationInstructionService(GetMongoApplicationDatabase(), TimeProvider.System);
+        var first = await creation.Create(2026, submitterId, TestContext.Current.CancellationToken);
+        await using var services = Services();
+        var worker = services.GetRequiredService<IHostedService>();
+        try
+        {
+            await worker.StartAsync(TestContext.Current.CancellationToken);
+            await WaitForAsync(async () =>
+                (await Read(first)).Status.Should().Be(ObligationCalculationInstructionStatus.Completed)
+            );
+        }
+        finally
+        {
+            await worker.StopAsync(TestContext.Current.CancellationToken);
+        }
+        var next = await creation.Create(2026, submitterId, TestContext.Current.CancellationToken);
+        next.Id.Should().NotBe(first.Id);
+        next.Status.Should().Be(ObligationCalculationInstructionStatus.Pending);
+    }
+
+    private static ServiceProvider Services(IScheduledJobProcessor<ObligationCalculationInstruction>? processor = null)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["ObligationCalculation:Enabled"] = "false",
+                    ["ObligationCalculation:Processing:Enabled"] = "true",
+                    ["ObligationCalculation:Processing:PollIntervalSeconds"] = "1",
+                }
+            )
+            .Build();
+        var services = new ServiceCollection()
+            .AddLogging()
+            .AddSingleton(GetMongoApplicationDatabase())
+            .AddScheduledJobs(configuration);
+        if (processor is not null)
+            services.AddScoped(_ => processor);
+
+        return services.BuildServiceProvider();
     }
 
     private Task<ObligationCalculationInstruction> Read(ObligationCalculationInstruction instruction) =>

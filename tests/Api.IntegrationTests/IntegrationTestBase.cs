@@ -98,6 +98,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         await DeleteMany(OrganisationEligibilitySnapshots);
         await DeleteMany(OrganisationWorkerLeases);
         await DeleteMany(ObligationCalculationInstructions);
+        await DeleteMany(GetMongoCollection<BackgroundWorkerLease>("_scheduled_job_processing_leases"));
         await DeleteMany(OrganisationObligationSummaries);
         await DeleteMany(OrganisationObligationHistoricalBackfills);
         await DeleteMany(OrganisationObligationRequestPacingStates);
