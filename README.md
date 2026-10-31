@@ -132,6 +132,90 @@ See [dependabot.yml](.github/dependabot.yml) for group configuration.
   - Build Docker image and publish to CDP
   - Sonar
 
+## Scheduled jobs
+
+Implement `IScheduledJob.Run(CancellationToken)` in `src/Api/ScheduledJobs/<Name>Job.cs`,
+using the namespace `Defra.WasteObligations.Api.ScheduledJobs`. The configuration
+entry name selects the implementation by convention: `ObligationCalculation` loads
+`Defra.WasteObligations.Api.ScheduledJobs.ObligationCalculationJob` from the API assembly.
+`Program.cs` registers all configured jobs with
+`builder.Services.AddScheduledJobs(builder.Configuration.GetSection("ScheduledJobs"))`.
+Each entry accepts `Enabled` (default `false`) and `Cron` (a five-field UTC expression,
+required when enabled). When both scheduling and processing are disabled, the entry registers no worker and does not access MongoDB.
+An enabled job with a missing implementation or invalid cron syntax prevents startup.
+A valid expression with no future occurrence logs a warning and stops that worker.
+
+The obligation calculation job is disabled in `appsettings.json`. Set
+`ScheduledJobs__ObligationCalculation__Enabled=true` to enable it at host startup.
+Its default schedule is `0 1 * * *` (01:00 UTC); override it with
+`ScheduledJobs__ObligationCalculation__Cron`. The job creates a pending Mongo instruction for all submitters in the current obligation year.
+January uses the previous year; the year changes on 1 February. Actual calculation
+rules and result storage are left for later commits. These environment values
+must be set on the API container in the target environment. No deployed configuration
+or journey settings change is needed while scheduling and processing remain disabled.
+
+Each host waits for the next occurrence. A per-job Mongo lease allows one host to
+execute at a time, with renewal every 20 seconds and a one-minute expiry. The last
+started occurrence is stored separately, so another host cannot repeat it after
+completion. Failed attempts are logged and consumed; the next occurrence can run.
+Missed occurrences while a host is stopped are not replayed.
+An occurrence can also be skipped if the lease holder fails before claiming it and
+the other hosts have already failed to acquire the lease.
+
+Jobs must honour cancellation. Shutdown or lease loss cancels the job; the worker
+waits for it to finish before releasing its lease or attempting another run.
+Renewal continues while shutdown drains the job. Lease calls request cancellation
+after ten seconds and drain before the worker moves on; a late successful acquisition
+is released without running the job. A stalled renewal cancels the job, and release
+failures are logged so the lease can expire naturally. These are cooperative
+cancellation deadlines, not permission to abandon an in-flight Mongo operation.
+An expired lease permits recovery
+after a crash, but cannot guarantee zero overlap during a host pause or network
+partition. Keep job names stable across hosts and deployments: the name identifies
+both the lease and occurrence history in the private `_scheduled_job_leases` and
+`_scheduled_job_state` collections.
+
+Obligation calculation instructions are stored in `_obligation_calculation_instructions`
+with an ID, obligation year, nullable submitter GUID, status and creation timestamp.
+A null submitter means all submitters for the year. Creation returns the existing
+pending or running instruction for the same year and submitter; whole-year and
+submitter instructions do not block one another. Migration 021 adds a partial unique
+index to enforce this across hosts. Instruction creation assumes that index already
+exists and does not wait for migrations. Apply the migrations before enabling the
+job or adding another producer. The target MongoDB deployment must support `$in`
+in partial index filters (MongoDB 6.0 or later); confirm its version before enabling.
+No existing documents or analytics schemas are changed. Creation is limited to five
+attempts in total; only duplicate-key collisions are retried.
+
+When no matching pending or running instruction exists, creation always inserts a new
+document with a new ID; completed and failed instructions are retained as history.
+Migration 021 adds a partial TTL index that removes completed and failed instructions
+365 days after their creation timestamp. Pending and running instructions never expire.
+MongoDB performs TTL cleanup periodically, so deletion is not immediate at the cutoff.
+
+The shared instruction service accepts an explicit year and optional submitter ID for future manual requests. Scheduling and processing are configured together under `ScheduledJobs:ObligationCalculation`, but can be enabled independently. Both default to disabled:
+
+```json
+"ObligationCalculation": {
+  "Enabled": false,
+  "Cron": "0 1 * * *",
+  "Processing": {
+    "Enabled": false,
+    "PollIntervalSeconds": 10
+  }
+}
+```
+
+Set `ScheduledJobs__ObligationCalculation__Processing__Enabled=true` to start processing, and use `ScheduledJobs__ObligationCalculation__Processing__PollIntervalSeconds` to change the idle/error polling delay. Each host processes one instruction at a time, then checks immediately for more work. Three hosts can process three different instructions concurrently. Background execution does not block host startup.
+
+The same `AddScheduledJobs` registration discovers `<Name>Processor` and `<Name>WorkSource` in the scheduled-jobs namespace when processing is enabled. The processor implements `IScheduledJobProcessor<TWork>` and the matching work source implements `IScheduledJobWorkSource<TWork>`. Disabled or omitted processing needs neither implementation. The work source finds work and controls persisted state; the shared worker owns execution and passes the payload to the processor.
+
+The obligation work source selects the oldest pending or running instruction. The worker acquires a renewable lease keyed by job name and instruction ID, rechecks that it is active, marks it running, invokes the processor, and marks it completed only after successful processing. Busy candidates are skipped so another instruction can run. Running instructions can be recovered after lease expiry. Failed processing leaves the same instruction active for a later polling attempt. The placeholder processor only logs that no calculation was performed.
+
+Migration 021 creates the admission, retention and work-selection indexes, plus a TTL index retaining expired processing leases for 365 days. Processing leases use the private `_scheduled_job_processing_leases` collection. Apply migrations before enabling either scheduling or processing. Lease renewal and cancellation use the same lifecycle as scheduled execution; expired leases still permit overlap during host pauses or network partitions. Real calculations must make their side effects idempotent.
+
+Mongo admission is independent of delivery. A future SQS message should carry an existing instruction ID; receiving or redelivering it must load that instruction rather than create another one. The active-scope unique index continues to block duplicate admission, and instruction ownership controls processing. Reliable queue publication and acknowledgement would need their own implementation. No SQS integration, calculation, result persistence or management endpoint is included here. Keep both switches disabled until placeholder completion is explicitly wanted.
+
 ## System health checks
 
 The [.NET health-check CLI](tools/healthcheck/README.md) checks configurable services and their dependencies. Configure service addresses in `tools/healthcheck/appsettings.json` and credentials in the Git-ignored `tools/healthcheck/.env` file.
