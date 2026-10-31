@@ -71,10 +71,11 @@ retention is additionally exercised through MongoDB's real TTL monitor.
 | Collection | Predicate / operation | Index |
 | --- | --- | --- |
 | `_scheduled_job_leases` | Job `_id`, with owner or expiry conditions for acquisition, renewal and release | `_id_` |
+| `_scheduled_job_processing_leases` | Job/instruction `_id`, owner or expiry conditions for acquisition, renewal and release; expired lease retention | `_id_`; `ExpiresAt_ProcessingLeaseRetention` TTL, migration 021 |
 | `_scheduled_job_state` | Job `_id` and `lastStartedAt` earlier than the scheduled occurrence | `_id_` |
 | `_obligation_calculation_instructions` | Obligation year, nullable submitter ID, and status in `Pending`/`Running`; atomic create-or-return | `Active_ObligationYear_SubmitterId`, a unique partial index created by migration 021 |
-| `_obligation_calculation_instructions` | Oldest `Pending` instruction by `createdAt`, `_id`; atomic transition to `Completed` | `Status_CreatedAt_Id`, created by migration 023 |
-| `_obligation_calculation_instructions` | MongoDB TTL cleanup of `Completed`/`Failed` instructions 365 days after `createdAt` | `CreatedAt_Terminal_Retention`, a partial TTL index created by migration 022 |
+| `_obligation_calculation_instructions` | Oldest `Pending`/`Running` instruction by `createdAt`, `_id`, optionally excluding busy IDs; start/complete updates by `_id` and active status | `Status_CreatedAt_Id` for selection (migration 021); `_id_` for state transitions |
+| `_obligation_calculation_instructions` | MongoDB TTL cleanup of `Completed`/`Failed` instructions 365 days after `createdAt` | `CreatedAt_Terminal_Retention`, a partial TTL index created by migration 021 |
 
 The instruction query includes the active-status predicate required for MongoDB to
 use the partial unique index. A null submitter selects whole-year work independently
@@ -85,9 +86,7 @@ The TTL index excludes active instructions entirely.
 Instruction creation assumes migrations have been applied before a producer is
 enabled; the service does not coordinate migration completion. These `$in` partial
 filters require MongoDB 6.0 or later. Local Compose uses MongoDB 7.0; the deployed
-server version must be confirmed before enabling the job. The placeholder processor
-uses migration 023 to select and complete pending instructions in one atomic update;
-its queries are profiled in real MongoDB integration tests.
+server version must be confirmed before enabling the job. The work source uses migration 021 for active-work selection, then starts and completes instructions by ID under a renewable processing lease. These queries are profiled in real MongoDB integration tests.
 
 ## How to add coverage
 
