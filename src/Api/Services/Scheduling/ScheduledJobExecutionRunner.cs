@@ -14,14 +14,14 @@ internal sealed class ScheduledJobExecutionRunner(
     private static readonly TimeSpan s_leaseOperationTimeout = TimeSpan.FromSeconds(10);
     private readonly TimeSpan _leaseDuration = TimeSpan.FromMinutes(1);
 
-    public async Task<bool> Run(
+    public async Task Run(
         IServiceScopeFactory scopeFactory,
         Func<IServiceProvider, CancellationToken, Task> operation,
         CancellationToken stoppingToken
     )
     {
         if (!await TryAcquireLease(stoppingToken))
-            return false;
+            return;
 
         using var work = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
         using var renewal = new CancellationTokenSource();
@@ -57,8 +57,6 @@ internal sealed class ScheduledJobExecutionRunner(
 
         if (processingFailure is not null)
             ExceptionDispatchInfo.Capture(processingFailure).Throw();
-
-        return true;
     }
 
     private async Task RenewLease(CancellationTokenSource work, CancellationToken cancellationToken)
