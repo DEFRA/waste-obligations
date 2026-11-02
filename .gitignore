@@ -276,3 +276,6 @@ library.db
 *.received/
 
 openapi.json
+
+# HTTP runbook credentials
+runbooks/http/http-client.private.env.json

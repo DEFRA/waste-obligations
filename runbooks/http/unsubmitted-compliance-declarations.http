@@ -1,0 +1,59 @@
+### Polling configuration
+# @no-log
+GET {{host}}/admin/unsubmitted-compliance-declarations/polling-configuration
+Authorization: Bearer {{$auth.token("service")}}
+
+### Polling status
+# @no-log
+GET {{host}}/admin/unsubmitted-compliance-declarations/polling-status
+Authorization: Bearer {{$auth.token("service")}}
+
+### Polling volume
+# @no-log
+GET {{host}}/admin/unsubmitted-compliance-declarations/polling-volume
+Authorization: Bearer {{$auth.token("service")}}
+
+### Polling plan
+# @no-log
+GET {{host}}/admin/unsubmitted-compliance-declarations/polling-plan
+Authorization: Bearer {{$auth.token("service")}}
+
+### Start historical backfill (changes data; polling must be disabled)
+# @no-log
+POST {{host}}/admin/unsubmitted-compliance-declarations/historical-backfill
+Authorization: Bearer {{$auth.token("service")}}
+
+### Reference resolution issues
+# @no-log
+GET {{host}}/admin/unsubmitted-compliance-declarations/reference-resolution-issues
+Authorization: Bearer {{$auth.token("service")}}
+
+### Organisation details (set includeLiveData=true to query live data)
+# @no-log
+GET {{host}}/admin/unsubmitted-compliance-declarations/organisations/{{organisationId}}?includeLiveData=false
+Authorization: Bearer {{$auth.token("service")}}
+
+### Eligibility snapshot
+# @no-log
+GET {{host}}/admin/unsubmitted-compliance-declarations/eligibility-snapshot
+Authorization: Bearer {{$auth.token("service")}}
+
+### Eligibility (optional generation and referenceResolutionState filters)
+# @no-log
+GET {{host}}/admin/unsubmitted-compliance-declarations/eligibility
+Authorization: Bearer {{$auth.token("service")}}
+
+### Failed obligation summaries (obligationYear is required)
+# @no-log
+GET {{host}}/admin/unsubmitted-compliance-declarations/failed-obligation-summaries?obligationYear={{obligationYear}}
+Authorization: Bearer {{$auth.token("service")}}
+
+### Historical backfills
+# @no-log
+GET {{host}}/admin/unsubmitted-compliance-declarations/historical-backfills
+Authorization: Bearer {{$auth.token("service")}}
+
+### Request pacing
+# @no-log
+GET {{host}}/admin/unsubmitted-compliance-declarations/request-pacing
+Authorization: Bearer {{$auth.token("service")}}

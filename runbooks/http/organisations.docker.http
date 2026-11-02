@@ -1,0 +1,9 @@
+### Compliance declarations (optional obligationYear)
+# @no-log
+GET {{host}}/admin/organisations/{{organisationId}}/compliance-declarations
+Authorization: {{authorization}}
+
+### Obligation summaries
+# @no-log
+GET {{host}}/admin/organisations/{{organisationId}}/obligation-summaries
+Authorization: {{authorization}}

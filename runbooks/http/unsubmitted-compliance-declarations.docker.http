@@ -1,0 +1,59 @@
+### Polling configuration
+# @no-log
+GET {{host}}/admin/unsubmitted-compliance-declarations/polling-configuration
+Authorization: {{authorization}}
+
+### Polling status
+# @no-log
+GET {{host}}/admin/unsubmitted-compliance-declarations/polling-status
+Authorization: {{authorization}}
+
+### Polling volume
+# @no-log
+GET {{host}}/admin/unsubmitted-compliance-declarations/polling-volume
+Authorization: {{authorization}}
+
+### Polling plan
+# @no-log
+GET {{host}}/admin/unsubmitted-compliance-declarations/polling-plan
+Authorization: {{authorization}}
+
+### Start historical backfill (changes data; polling must be disabled)
+# @no-log
+POST {{host}}/admin/unsubmitted-compliance-declarations/historical-backfill
+Authorization: {{authorization}}
+
+### Reference resolution issues
+# @no-log
+GET {{host}}/admin/unsubmitted-compliance-declarations/reference-resolution-issues
+Authorization: {{authorization}}
+
+### Organisation details (set includeLiveData=true to query live data)
+# @no-log
+GET {{host}}/admin/unsubmitted-compliance-declarations/organisations/{{organisationId}}?includeLiveData=false
+Authorization: {{authorization}}
+
+### Eligibility snapshot
+# @no-log
+GET {{host}}/admin/unsubmitted-compliance-declarations/eligibility-snapshot
+Authorization: {{authorization}}
+
+### Eligibility (optional generation and referenceResolutionState filters)
+# @no-log
+GET {{host}}/admin/unsubmitted-compliance-declarations/eligibility
+Authorization: {{authorization}}
+
+### Failed obligation summaries (obligationYear is required)
+# @no-log
+GET {{host}}/admin/unsubmitted-compliance-declarations/failed-obligation-summaries?obligationYear={{obligationYear}}
+Authorization: {{authorization}}
+
+### Historical backfills
+# @no-log
+GET {{host}}/admin/unsubmitted-compliance-declarations/historical-backfills
+Authorization: {{authorization}}
+
+### Request pacing
+# @no-log
+GET {{host}}/admin/unsubmitted-compliance-declarations/request-pacing
+Authorization: {{authorization}}

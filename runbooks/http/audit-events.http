@@ -1,0 +1,9 @@
+### Audit events (optional filters: afterSequence, limit, entity, entityId)
+# @no-log
+GET {{host}}/admin/audit-events?afterSequence=0&limit=100
+Authorization: Bearer {{$auth.token("service")}}
+
+### Audit event counter
+# @no-log
+GET {{host}}/admin/audit-events/counter
+Authorization: Bearer {{$auth.token("service")}}
