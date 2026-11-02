@@ -38,6 +38,7 @@ public class ObligationCalculationInstructionServiceTests : IntegrationTestBase
                     { "obligationYear", 2025 },
                     { "submitterId", BsonNull.Value },
                     { "status", "Pending" },
+                    { "failureCount", 0 },
                     { "createdAt", _timeProvider.GetUtcNow().UtcDateTime },
                 }
             );

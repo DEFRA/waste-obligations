@@ -6,6 +6,7 @@ using Defra.WasteObligations.Api.Services.Scheduling;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 namespace Defra.WasteObligations.Api.Tests.Services.Scheduling;
 
@@ -144,6 +145,28 @@ public class ServiceCollectionExtensionsTests
         var action = () => services.AddScheduledJobs(configuration);
 
         action.Should().Throw<InvalidOperationException>().WithMessage("*MissingProcessor*");
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void AddScheduledJobs_WhenAttemptLimitIsNotPositive_ShouldRejectConfiguration(int maximumAttempts)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["ObligationCalculation:Processing:Enabled"] = "true",
+                    ["ObligationCalculation:Processing:MaximumAttempts"] = $"{maximumAttempts}",
+                }
+            )
+            .Build();
+        using var services = new ServiceCollection().AddScheduledJobs(configuration).BuildServiceProvider();
+
+        var action = () =>
+            services.GetRequiredService<IOptionsMonitor<ScheduledJobProcessingOptions>>().Get("ObligationCalculation");
+
+        action.Should().Throw<OptionsValidationException>();
     }
 
     private static IConfiguration Configuration(string name, string? enabled, string? cron = null) =>

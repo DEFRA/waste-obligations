@@ -9,5 +9,7 @@ public interface IScheduledJobWorkSource<TWork>
 
     Task<bool> TryStart(ScheduledJobWork<TWork> work, CancellationToken cancellationToken);
 
+    Task RecordFailure(ScheduledJobWork<TWork> work, int maximumAttempts, CancellationToken cancellationToken);
+
     Task Complete(ScheduledJobWork<TWork> work, CancellationToken cancellationToken);
 }

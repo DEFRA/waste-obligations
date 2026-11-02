@@ -14,5 +14,6 @@ public static class ObligationCalculationInstructionFixture
             .With(x => x.ObligationYear, 2026)
             .With(x => x.SubmitterId, (Guid?)null)
             .With(x => x.Status, ObligationCalculationInstructionStatus.Pending)
+            .With(x => x.FailureCount, 0)
             .With(x => x.CreatedAt, new DateTime(2026, 10, 30, 1, 0, 0, DateTimeKind.Utc));
 }

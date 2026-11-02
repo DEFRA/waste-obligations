@@ -19,6 +19,8 @@ public record ObligationCalculationInstruction
     public ObligationCalculationInstructionStatus Status { get; init; } =
         ObligationCalculationInstructionStatus.Pending;
 
+    public int FailureCount { get; init; }
+
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public required DateTime CreatedAt { get; init; }
 }

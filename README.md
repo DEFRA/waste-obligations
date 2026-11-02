@@ -201,7 +201,8 @@ The shared instruction service accepts an explicit year and optional submitter I
   "Cron": "0 1 * * *",
   "Processing": {
     "Enabled": false,
-    "PollIntervalSeconds": 10
+    "PollIntervalSeconds": 10,
+    "MaximumAttempts": 3
   }
 }
 ```
@@ -210,7 +211,9 @@ Set `ScheduledJobs__ObligationCalculation__Processing__Enabled=true` to start pr
 
 The same `AddScheduledJobs` registration discovers `<Name>Processor` and `<Name>WorkSource` in the scheduled-jobs namespace when processing is enabled. The processor implements `IScheduledJobProcessor<TWork>` and the matching work source implements `IScheduledJobWorkSource<TWork>`. Disabled or omitted processing needs neither implementation. The work source finds work and controls persisted state; the shared worker owns execution and passes the payload to the processor.
 
-The obligation work source selects the oldest pending or running instruction. The worker acquires a renewable lease keyed by job name and instruction ID, rechecks that it is active, marks it running, invokes the processor, and marks it completed only after successful processing. Busy candidates are skipped so another instruction can run. Running instructions can be recovered after lease expiry. Failed processing logs the instruction ID and leaves the same instruction active. The worker skips that ID for the rest of the current polling pass, continues with other work, then retries it after the polling delay. The placeholder processor only logs that no calculation was performed.
+The obligation work source selects the oldest pending or running instruction. The worker acquires a renewable lease keyed by job name and instruction ID, rechecks that it is active, marks it running, invokes the processor, and marks it completed only after successful processing. Busy candidates are skipped so another instruction can run. Running instructions can be recovered after lease expiry. The placeholder processor only logs that no calculation was performed.
+
+A processor failure logs the instruction ID and atomically increments its persisted failure count. Below the limit, the instruction stays `Running` and is skipped for the rest of the polling pass, allowing other work to run before retry. On the third failure by default, it becomes `Failed` and is never selected again. Configure the limit with `ScheduledJobs__ObligationCalculation__Processing__MaximumAttempts` (minimum one). Counts survive host changes; older instructions without a count start at zero. Shutdown and lease-loss cancellation do not count as processing failures. A later schedule can create a fresh instruction for that scope.
 
 Migration 021 creates the admission, retention and work-selection indexes, plus a TTL index retaining expired processing leases for 365 days. Processing leases use the private `_scheduled_job_processing_leases` collection. Apply migrations before enabling either scheduling or processing. Lease renewal and cancellation use the same lifecycle as scheduled execution; expired leases still permit overlap during host pauses or network partitions. Real calculations must make their side effects idempotent.
 

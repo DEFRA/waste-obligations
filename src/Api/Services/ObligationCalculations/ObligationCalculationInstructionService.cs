@@ -38,6 +38,7 @@ public class ObligationCalculationInstructionService(IMongoDatabase database, Ti
             .SetOnInsert(x => x.ObligationYear, instruction.ObligationYear)
             .SetOnInsert(x => x.SubmitterId, instruction.SubmitterId)
             .SetOnInsert(x => x.Status, instruction.Status)
+            .SetOnInsert(x => x.FailureCount, instruction.FailureCount)
             .SetOnInsert(x => x.CreatedAt, instruction.CreatedAt);
 
         var attempt = 0;

@@ -48,6 +48,52 @@ public class ObligationCalculationWorkSource(IMongoDatabase database)
         return result.MatchedCount == 1;
     }
 
+    public async Task RecordFailure(
+        ScheduledJobWork<ObligationCalculationInstruction> work,
+        int maximumAttempts,
+        CancellationToken cancellationToken
+    )
+    {
+        PipelineDefinition<ObligationCalculationInstruction, ObligationCalculationInstruction> pipeline =
+            new BsonDocument[]
+            {
+                new(
+                    "$set",
+                    new BsonDocument(
+                        "failureCount",
+                        new BsonDocument(
+                            "$add",
+                            new BsonArray { new BsonDocument("$ifNull", new BsonArray { "$failureCount", 0 }), 1 }
+                        )
+                    )
+                ),
+                new(
+                    "$set",
+                    new BsonDocument(
+                        "status",
+                        new BsonDocument(
+                            "$cond",
+                            new BsonArray
+                            {
+                                new BsonDocument("$gte", new BsonArray { "$failureCount", maximumAttempts }),
+                                nameof(ObligationCalculationInstructionStatus.Failed),
+                                nameof(ObligationCalculationInstructionStatus.Running),
+                            }
+                        )
+                    )
+                ),
+            };
+        var result = await _instructions.UpdateOneAsync(
+            x => x.Id == work.Payload.Id && x.Status == ObligationCalculationInstructionStatus.Running,
+            Builders<ObligationCalculationInstruction>.Update.Pipeline(pipeline),
+            cancellationToken: cancellationToken
+        );
+        if (result.MatchedCount != 1)
+            throw new InvalidOperationException(
+                "The instruction is no longer running and its failure cannot be recorded"
+            );
+    }
+
     public async Task Complete(
         ScheduledJobWork<ObligationCalculationInstruction> work,
         CancellationToken cancellationToken

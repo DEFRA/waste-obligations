@@ -71,7 +71,27 @@ public class ScheduledJobProcessingWorker<TWork>(
                         return;
 
                     token.ThrowIfCancellationRequested();
-                    await services.GetRequiredService<IScheduledJobProcessor<TWork>>().Process(work.Payload, token);
+                    try
+                    {
+                        await services.GetRequiredService<IScheduledJobProcessor<TWork>>().Process(work.Payload, token);
+                    }
+                    catch (Exception processingFailure) when (!token.IsCancellationRequested)
+                    {
+                        try
+                        {
+                            await source.RecordFailure(work, options.MaximumAttempts, token);
+                        }
+                        catch (Exception recordingFailure)
+                        {
+                            throw new AggregateException(
+                                "Processing and recording its failure both failed.",
+                                processingFailure,
+                                recordingFailure
+                            );
+                        }
+
+                        throw;
+                    }
                     token.ThrowIfCancellationRequested();
                     await source.Complete(work, token);
                     completed = true;

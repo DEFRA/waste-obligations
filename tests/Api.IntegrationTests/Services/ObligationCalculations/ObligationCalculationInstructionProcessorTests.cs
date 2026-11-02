@@ -209,6 +209,7 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
             await worker.StopAsync(TestContext.Current.CancellationToken);
         }
         attempts.Should().Be(2);
+        (await Read(instruction)).FailureCount.Should().Be(1);
         (
             await ObligationCalculationInstructions.CountDocumentsAsync(
                 FilterDefinition<ObligationCalculationInstruction>.Empty,
@@ -271,6 +272,110 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
     }
 
     [Theory]
+    [InlineData(null, 3)]
+    [InlineData(2, 2)]
+    public async Task Worker_WhenFailureLimitReachedAcrossHosts_ShouldPermanentlyFailInstruction(
+        int? maximumAttempts,
+        int expectedFailures
+    )
+    {
+        var instruction = ObligationCalculationInstructionFixture.Default().Create();
+        await ObligationCalculationInstructions.InsertOneAsync(
+            instruction,
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        var attempts = 0;
+        var processor = Substitute.For<IScheduledJobProcessor<ObligationCalculationInstruction>>();
+        processor
+            .Process(Arg.Any<ObligationCalculationInstruction>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                Interlocked.Increment(ref attempts);
+
+                return Task.FromException(new InvalidOperationException("Always fails"));
+            });
+        await using (var firstHost = Services(processor, maximumAttempts: maximumAttempts, pollIntervalSeconds: 3600))
+        {
+            var worker = firstHost.GetRequiredService<IHostedService>();
+            try
+            {
+                await worker.StartAsync(TestContext.Current.CancellationToken);
+                await WaitForAsync(async () => (await Read(instruction)).FailureCount.Should().Be(1));
+            }
+            finally
+            {
+                await worker.StopAsync(TestContext.Current.CancellationToken);
+            }
+        }
+        (await Read(instruction)).Status.Should().Be(ObligationCalculationInstructionStatus.Running);
+        await using (var secondHost = Services(processor, maximumAttempts: maximumAttempts))
+        {
+            var worker = secondHost.GetRequiredService<IHostedService>();
+            try
+            {
+                await worker.StartAsync(TestContext.Current.CancellationToken);
+                await WaitForAsync(async () =>
+                    (await Read(instruction)).Status.Should().Be(ObligationCalculationInstructionStatus.Failed)
+                );
+            }
+            finally
+            {
+                await worker.StopAsync(TestContext.Current.CancellationToken);
+            }
+        }
+
+        attempts.Should().Be(expectedFailures);
+        (await Read(instruction)).FailureCount.Should().Be(expectedFailures);
+        var source = new ObligationCalculationWorkSource(GetMongoApplicationDatabase());
+        (await source.GetNext([], TestContext.Current.CancellationToken)).Should().BeNull();
+        (await source.TryStart(new(instruction.Id.ToString(), instruction), TestContext.Current.CancellationToken))
+            .Should()
+            .BeFalse();
+        var next = await new ObligationCalculationInstructionService(
+            GetMongoApplicationDatabase(),
+            TimeProvider.System
+        ).Create(instruction.ObligationYear, instruction.SubmitterId, TestContext.Current.CancellationToken);
+        next.Id.Should().NotBe(instruction.Id);
+        next.FailureCount.Should().Be(0);
+        (await Read(instruction)).Status.Should().Be(ObligationCalculationInstructionStatus.Failed);
+    }
+
+    [Fact]
+    public async Task RecordFailure_WhenLegacyInstructionHasNoCount_ShouldCountFailuresAndFailAtLimit()
+    {
+        var id = ObjectId.GenerateNewId();
+        await GetMongoDatabase()
+            .GetCollection<BsonDocument>(ObligationCalculationInstruction.CollectionName)
+            .InsertOneAsync(
+                new BsonDocument
+                {
+                    { "_id", id },
+                    { "obligationYear", 2026 },
+                    { "submitterId", BsonNull.Value },
+                    { "status", nameof(ObligationCalculationInstructionStatus.Running) },
+                    { "createdAt", DateTime.UtcNow },
+                },
+                cancellationToken: TestContext.Current.CancellationToken
+            );
+        var source = new ObligationCalculationWorkSource(GetMongoApplicationDatabase());
+        var work = await source.GetNext([], TestContext.Current.CancellationToken);
+        work.Should().NotBeNull();
+        work.Payload.FailureCount.Should().Be(0);
+
+        await source.RecordFailure(work, 3, TestContext.Current.CancellationToken);
+        (await Read(work.Payload)).FailureCount.Should().Be(1);
+        (await Read(work.Payload)).Status.Should().Be(ObligationCalculationInstructionStatus.Running);
+        await source.RecordFailure(work, 3, TestContext.Current.CancellationToken);
+        (await Read(work.Payload)).Status.Should().Be(ObligationCalculationInstructionStatus.Running);
+        await source.RecordFailure(work, 3, TestContext.Current.CancellationToken);
+
+        var stored = await Read(work.Payload);
+        stored.FailureCount.Should().Be(3);
+        stored.Status.Should().Be(ObligationCalculationInstructionStatus.Failed);
+        (await source.GetNext([], TestContext.Current.CancellationToken)).Should().BeNull();
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task Worker_ShouldCompleteByConventionAndAllowFreshInstruction(bool submitterSpecific)
@@ -298,19 +403,20 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
 
     private static ServiceProvider Services(
         IScheduledJobProcessor<ObligationCalculationInstruction>? processor = null,
-        ILogger<ScheduledJobProcessingWorker<ObligationCalculationInstruction>>? logger = null
+        ILogger<ScheduledJobProcessingWorker<ObligationCalculationInstruction>>? logger = null,
+        int? maximumAttempts = null,
+        int pollIntervalSeconds = 1
     )
     {
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(
-                new Dictionary<string, string?>
-                {
-                    ["ObligationCalculation:Enabled"] = "false",
-                    ["ObligationCalculation:Processing:Enabled"] = "true",
-                    ["ObligationCalculation:Processing:PollIntervalSeconds"] = "1",
-                }
-            )
-            .Build();
+        var settings = new Dictionary<string, string?>
+        {
+            ["ObligationCalculation:Enabled"] = "false",
+            ["ObligationCalculation:Processing:Enabled"] = "true",
+            ["ObligationCalculation:Processing:PollIntervalSeconds"] = $"{pollIntervalSeconds}",
+        };
+        if (maximumAttempts is { } limit)
+            settings["ObligationCalculation:Processing:MaximumAttempts"] = $"{limit}";
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
         var services = new ServiceCollection()
             .AddLogging()
             .AddSingleton(GetMongoApplicationDatabase())

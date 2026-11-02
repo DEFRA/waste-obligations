@@ -123,6 +123,7 @@ public class ScheduledJobProcessingWorkerTests
 
         await source.Received(1).GetNext(Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>());
         await source.DidNotReceive().Complete(work, Arg.Any<CancellationToken>());
+        await source.DidNotReceive().RecordFailure(work, Arg.Any<int>(), Arg.Any<CancellationToken>());
         await lease.Received(1).Release(Arg.Any<CancellationToken>());
     }
 
