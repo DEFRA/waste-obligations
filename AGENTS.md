@@ -25,13 +25,13 @@
 - Place new appsettings.json (and related environment variant files) config sections at the bottom of existing settings
 
 ## Change iterations
-- For every implementation cycle, run this portable end-to-end verification before committing. An implementation cycle changes production or test code, runtime or container configuration, dependencies, schemas or migrations, or test fixtures. It rebuilds the Compose image (including CSharpier and container build checks), runs the complete test suite against the local environment, then tears the environment down. Do not substitute individual project build or test commands for this check:
+- Choose verification according to the behaviour and risk of the change. Before committing changes that alter observable behaviour, integration wiring, runtime or container configuration, dependencies, persisted data or schema contracts, migration behaviour, test behaviour or fixture data, or generated contract artefacts, run the portable end-to-end verification below. It rebuilds the Compose image (including CSharpier and container build checks), runs the complete test suite against the local environment, then tears the environment down. When this full cycle is warranted, do not substitute individual project build or test commands for it:
   1. `docker compose up --build -d --wait`
   2. `dotnet build`
   3. `dotnet test --test-modules tests/Api.Tests/bin/Debug/net10.0/Api.Tests.dll --no-build`
   4. `dotnet test --test-modules tests/Api.IntegrationTests/bin/Debug/net10.0/Api.IntegrationTests.dll --no-build`
   5. `docker compose down -v --remove-orphans` (run this even if either test command fails)
-- Documentation-only changes (including `AGENTS.md`), comment-only changes, and other non-functional text edits do not require the full Compose/test cycle. Run a proportionate lightweight check instead, such as `git diff --check`; for changed C# files, also run CSharpier. Do not use this exception for changes that alter code, configuration, schemas, dependencies, test execution, or generated contract artefacts.
+- Changes that do not warrant the full Compose/test cycle may be made and committed without running it. This includes documentation-only changes (including `AGENTS.md`), comments, formatting, and low-risk mechanical code edits that demonstrably preserve behaviour, such as extracting an unchanged literal into a constant or replacing it with an equivalent `nameof` expression. Run proportionate checks instead: `git diff --check`, CSharpier for changed C# files, and a build or focused tests where they add meaningful assurance. Briefly record why the full cycle is unnecessary and which checks ran. A small diff alone is not a reason to skip the full cycle when behaviour or material integration, persistence, concurrency, or contract risk changes.
 - Integration clients should return their integration response models rather than public API DTOs; map to API DTOs in the consuming endpoint or application service
 - Before adding an endpoint, request DTO, validation rule, serialisation converter, or OpenAPI customisation, compare the nearest existing implementation. If the change needs a one-off pattern or would alter an established request, validation, error-response, or documentation convention, pause and ask the user before introducing it.
 - For every endpoint added or materially changed, add in-process endpoint tests through the API `WebApplicationFactory`. Cover the successful response and practical deliberate error branches, and use `VerifyJson` snapshots for JSON response bodies so field names, nesting, nullable/default values, and problem-details shapes remain contract-tested. Keep Docker integration tests focused on real cross-process wiring; they must not be the only coverage of an endpoint's response contract.
@@ -43,7 +43,7 @@
 - In tests, prefer the fixtures in the Testing support project for repeated valid entity, DTO, and service response shapes; direct instantiation is fine for intentionally malformed/null payloads or small one-off values where a fixture would add noise
 - Fixture location should follow the `tests/Testing/Fixtures` folder taxonomy: DTO fixtures in `Dtos`, entity fixtures in `Entities`, and service integration response fixtures in folders named for that integration
 - Attempt to mask use of ToString where possible
-- The required Compose/test cycle above includes the build, API tests, and integration tests for implementation changes.
+- When the full Compose/test cycle is required, it includes the build, API tests, and integration tests above.
 
 ## Persisted entity and schema changes
 - Treat a change to a persisted entity, including any nested entity such as `User`, as a possible Mongo storage and analytics contract change; do not assess only the root entity file

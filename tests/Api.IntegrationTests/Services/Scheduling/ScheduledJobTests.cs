@@ -1,0 +1,566 @@
+using System.Threading.Channels;
+using AwesomeAssertions;
+using Cronos;
+using Defra.WasteObligations.Api.Data.Entities;
+using Defra.WasteObligations.Api.Services;
+using Defra.WasteObligations.Api.Services.ObligationCalculations;
+using Defra.WasteObligations.Api.Services.Scheduling;
+using Defra.WasteObligations.Testing;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
+using MongoDB.Bson;
+using MongoDB.Driver;
+using NSubstitute;
+
+namespace Defra.WasteObligations.Api.IntegrationTests.Services.Scheduling;
+
+public class ScheduledJobTests : IntegrationTestBase
+{
+    private const string JobName = "test-scheduled-job";
+    private const string LeaseCollection = "_scheduled_job_leases";
+    private const string StateCollection = "_scheduled_job_state";
+    private readonly FakeTimeProvider _clock = new(new DateTimeOffset(2026, 10, 30, 0, 59, 0, TimeSpan.Zero));
+
+    [Theory]
+    [InlineData(2027, 1, 31, 2026)]
+    [InlineData(2027, 2, 1, 2027)]
+    public async Task ConfiguredJob_ShouldCreateInstructionForCurrentObligationYear(
+        int year,
+        int month,
+        int day,
+        int expectedYear
+    )
+    {
+        await Reset();
+        _clock.SetUtcNow(new DateTimeOffset(year, month, day, 0, 59, 0, TimeSpan.Zero));
+        var time = new SchedulerTimeProvider(_clock);
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["ObligationCalculation:Enabled"] = "true",
+                    ["ObligationCalculation:Cron"] = "0 1 * * *",
+                }
+            )
+            .Build();
+        await using var host = new ServiceCollection()
+            .AddLogging()
+            .AddSingleton(GetMongoApplicationDatabase())
+            .AddSingleton<TimeProvider>(time)
+            .AddSingleton<ICurrentObligationYearProvider, CurrentObligationYearProvider>()
+            .AddTransient<IObligationCalculationInstructionService, ObligationCalculationInstructionService>()
+            .AddScheduledJobs(configuration)
+            .BuildServiceProvider();
+        var worker = host.GetRequiredService<IHostedService>();
+
+        await worker.StartAsync(TestContext.Current.CancellationToken);
+        await time.WaitForTimer(TimeSpan.FromMinutes(1));
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        await time.WaitForTimer(TimeSpan.FromDays(1));
+
+        var instruction = await ObligationCalculationInstructions
+            .Find(x => x.ObligationYear == expectedYear)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        instruction.SubmitterId.Should().BeNull();
+        instruction.Status.Should().Be(ObligationCalculationInstructionStatus.Pending);
+        await worker.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task Shutdown_ShouldKeepRenewingLeaseUntilCancelledJobFinishes()
+    {
+        await Reset();
+        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var control = new JobControl
+        {
+            Run = async token =>
+            {
+                using var registration = token.Register(() => cancelled.TrySetResult());
+                await finish.Task;
+            },
+        };
+        var time = new SchedulerTimeProvider(_clock);
+        await using var host = CreateHost(time, control, "* * * * *");
+        var worker = host.GetRequiredService<IHostedService>();
+        await worker.StartAsync(TestContext.Current.CancellationToken);
+        await time.WaitForTimer(TimeSpan.FromMinutes(1));
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        await WaitForAsync(() =>
+        {
+            control.Count.Should().Be(1);
+            return Task.CompletedTask;
+        });
+        var initialExpiry = (await ReadLease())["expiresAt"].ToUniversalTime();
+
+        var stopping = worker.StopAsync(TestContext.Current.CancellationToken);
+        await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        _clock.Advance(TimeSpan.FromSeconds(40));
+        await WaitForAsync(async () =>
+            (await ReadLease())["expiresAt"].ToUniversalTime().Should().BeAfter(initialExpiry)
+        );
+
+        stopping.IsCompleted.Should().BeFalse();
+        control.Count.Should().Be(1);
+        finish.SetResult();
+        await stopping.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        (await ReadLease()).Contains("owner").Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Schedule_ShouldRunOnceAcrossHostsIncludingAHostCheckingAfterCompletion()
+    {
+        await Reset();
+        var control = new JobControl();
+        var firstTime = new SchedulerTimeProvider(_clock);
+        var secondTime = new SchedulerTimeProvider(_clock);
+        await using var first = CreateHost(firstTime, control);
+        await using var second = CreateHost(secondTime, control);
+        var firstWorker = first.GetRequiredService<IHostedService>();
+        var secondWorker = second.GetRequiredService<IHostedService>();
+        await firstWorker.StartAsync(TestContext.Current.CancellationToken);
+        await secondWorker.StartAsync(TestContext.Current.CancellationToken);
+        await firstTime.WaitForTimer(TimeSpan.FromMinutes(1));
+        await secondTime.WaitForTimer(TimeSpan.FromMinutes(1));
+        control.Count.Should().Be(0);
+
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        await firstTime.WaitForTimer(TimeSpan.FromDays(1));
+        await secondTime.WaitForTimer(TimeSpan.FromDays(1));
+
+        control.Count.Should().Be(1);
+        var state = await GetMongoDatabase()
+            .GetCollection<BsonDocument>(StateCollection)
+            .Find(new BsonDocument("_id", JobName))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        state["lastStartedAt"].ToUniversalTime().Should().Be(_clock.GetUtcNow().UtcDateTime);
+
+        var lateClock = new FakeTimeProvider(_clock.GetUtcNow().AddMinutes(-1));
+        var lateTime = new SchedulerTimeProvider(lateClock);
+        await using var late = CreateHost(lateTime, control);
+        var lateWorker = late.GetRequiredService<IHostedService>();
+        await lateWorker.StartAsync(TestContext.Current.CancellationToken);
+        await lateTime.WaitForTimer(TimeSpan.FromMinutes(1));
+        lateClock.Advance(TimeSpan.FromMinutes(1));
+        await lateTime.WaitForTimer(TimeSpan.FromDays(1));
+
+        control.Count.Should().Be(1);
+        await lateWorker.StopAsync(TestContext.Current.CancellationToken);
+        await firstWorker.StopAsync(TestContext.Current.CancellationToken);
+        await secondWorker.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task LongRunningJob_ShouldRenewLeaseAndExcludeOtherHostsUntilFinished()
+    {
+        await Reset();
+        var finish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var control = new JobControl { Run = _ => finish.Task };
+        var time = new SchedulerTimeProvider(_clock);
+        await using var host = CreateHost(time, control, "* * * * *");
+        var worker = host.GetRequiredService<IHostedService>();
+        await worker.StartAsync(TestContext.Current.CancellationToken);
+        await time.WaitForTimer(TimeSpan.FromMinutes(1));
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        await WaitForAsync(() =>
+        {
+            control.Count.Should().Be(1);
+            return Task.CompletedTask;
+        });
+        var lease = await ReadLease();
+        var initialExpiry = lease["expiresAt"].ToUniversalTime();
+
+        _clock.Advance(TimeSpan.FromSeconds(40));
+        await WaitForAsync(async () =>
+            (await ReadLease())["expiresAt"].ToUniversalTime().Should().BeAfter(initialExpiry)
+        );
+
+        var secondTime = new SchedulerTimeProvider(_clock);
+        await using var second = CreateHost(secondTime, control, "* * * * *");
+        var secondWorker = second.GetRequiredService<IHostedService>();
+        await secondWorker.StartAsync(TestContext.Current.CancellationToken);
+        await secondTime.WaitForTimer(TimeSpan.FromSeconds(20));
+        _clock.Advance(TimeSpan.FromSeconds(20));
+        await secondTime.WaitForTimer(TimeSpan.FromMinutes(1));
+
+        control.Count.Should().Be(1);
+        finish.SetResult();
+        await time.WaitForTimer(TimeSpan.FromMinutes(1));
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        await WaitForAsync(() =>
+        {
+            control.Count.Should().Be(2);
+            return Task.CompletedTask;
+        });
+
+        await worker.StopAsync(TestContext.Current.CancellationToken);
+        await secondWorker.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task FailedJob_ShouldReleaseLeaseAndRunAtNextOccurrence()
+    {
+        await Reset();
+        var control = new JobControl { Run = _ => Task.FromException(new InvalidOperationException("Job failed")) };
+        var time = new SchedulerTimeProvider(_clock);
+        await using var host = CreateHost(time, control, "* * * * *");
+        var worker = host.GetRequiredService<IHostedService>();
+        await worker.StartAsync(TestContext.Current.CancellationToken);
+        await time.WaitForTimer(TimeSpan.FromMinutes(1));
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        await time.WaitForTimer(TimeSpan.FromMinutes(1));
+
+        control.Count.Should().Be(1);
+        (await ReadLease()).Contains("owner").Should().BeFalse();
+
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        await time.WaitForTimer(TimeSpan.FromMinutes(1));
+
+        control.Count.Should().Be(2);
+        await worker.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task LostLease_ShouldCancelAndDrainJobBeforeStartingAnotherOccurrence()
+    {
+        await Reset();
+        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var control = new JobControl
+        {
+            Run = async token =>
+            {
+                using var registration = token.Register(() => cancelled.TrySetResult());
+                await finish.Task;
+            },
+        };
+        var time = new SchedulerTimeProvider(_clock);
+        await using var host = CreateHost(time, control, "* * * * *");
+        var worker = host.GetRequiredService<IHostedService>();
+        await worker.StartAsync(TestContext.Current.CancellationToken);
+        await time.WaitForTimer(TimeSpan.FromMinutes(1));
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        await WaitForAsync(() =>
+        {
+            control.Count.Should().Be(1);
+            return Task.CompletedTask;
+        });
+        await GetMongoDatabase()
+            .GetCollection<BsonDocument>(LeaseCollection)
+            .UpdateOneAsync(
+                new BsonDocument("_id", JobName),
+                new BsonDocument("$set", new BsonDocument("owner", "another-host")),
+                cancellationToken: TestContext.Current.CancellationToken
+            );
+
+        _clock.Advance(TimeSpan.FromSeconds(20));
+        await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        _clock.Advance(TimeSpan.FromMinutes(2));
+
+        control.Count.Should().Be(1);
+        (await ReadLease())["owner"].AsString.Should().Be("another-host");
+        finish.SetResult();
+        await time.WaitForTimer(TimeSpan.FromSeconds(40));
+        (await ReadLease())["owner"].AsString.Should().Be("another-host");
+        await worker.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FailedJob_WhenCleanupAlsoFails_ShouldReportBothErrorsAndReleaseLease(bool scopeDisposalFails)
+    {
+        await Reset();
+        var jobFailure = new InvalidOperationException("Job execution failed");
+        var cleanupFailure = new InvalidOperationException("Cancellation cleanup failed");
+        var control = new JobControl
+        {
+            Run = token =>
+            {
+                if (!scopeDisposalFails)
+                    token.Register(() => throw cleanupFailure);
+
+                return Task.FromException(jobFailure);
+            },
+            Dispose = () => scopeDisposalFails ? Task.FromException(cleanupFailure) : Task.CompletedTask,
+        };
+        var time = new SchedulerTimeProvider(_clock);
+        var logger = new RecordingLogger<ScheduledJobWorker>();
+        await using var host = CreateHost(time, control, logger: logger);
+        var worker = host.GetRequiredService<IHostedService>();
+        await worker.StartAsync(TestContext.Current.CancellationToken);
+        await time.WaitForTimer(TimeSpan.FromMinutes(1));
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        await time.WaitForTimer(TimeSpan.FromDays(1));
+
+        var reported = logger.Entries.Single(x => x.Exception is AggregateException);
+        ((AggregateException)reported.Exception!)
+            .Flatten()
+            .InnerExceptions.Should()
+            .Contain(jobFailure)
+            .And.Contain(cleanupFailure);
+        (await ReadLease()).Contains("owner").Should().BeFalse();
+        await worker.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task Schedule_WhenStateHasAdditionalFields_ShouldRunAndPreserveThem()
+    {
+        await Reset();
+        await GetMongoDatabase()
+            .GetCollection<BsonDocument>(StateCollection)
+            .InsertOneAsync(
+                new BsonDocument
+                {
+                    { "_id", JobName },
+                    { "lastStartedAt", _clock.GetUtcNow().AddDays(-1).UtcDateTime },
+                    { "futureField", "preserved" },
+                },
+                cancellationToken: TestContext.Current.CancellationToken
+            );
+        var control = new JobControl();
+        var time = new SchedulerTimeProvider(_clock);
+        await using var host = CreateHost(time, control);
+        var worker = host.GetRequiredService<IHostedService>();
+        await worker.StartAsync(TestContext.Current.CancellationToken);
+        await time.WaitForTimer(TimeSpan.FromMinutes(1));
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        await time.WaitForTimer(TimeSpan.FromDays(1));
+
+        control.Count.Should().Be(1);
+        var state = await GetMongoDatabase()
+            .GetCollection<BsonDocument>(StateCollection)
+            .Find(new BsonDocument("_id", JobName))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        state["futureField"].AsString.Should().Be("preserved");
+        await worker.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task Schedule_WhenThereIsNoFutureOccurrence_ShouldLogWhyItStopped()
+    {
+        var logger = new RecordingLogger<ScheduledJobWorker>();
+        var control = new JobControl();
+        await using var host = CreateHost(new SchedulerTimeProvider(_clock), control, "0 0 30 2 *", logger);
+        var worker = (BackgroundService)host.GetRequiredService<IHostedService>();
+        await worker.StartAsync(TestContext.Current.CancellationToken);
+        await worker.ExecuteTask!.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        logger
+            .Entries.Should()
+            .ContainSingle(x => x.Level == LogLevel.Warning && x.Message.Contains("no future cron occurrence"));
+        control.Count.Should().Be(0);
+        await worker.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task StalledAcquisition_WhenItEventuallySucceeds_ShouldReleaseWithoutRunningJob()
+    {
+        var lease = Substitute.For<IScheduledJobLeaseService>();
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var acquired = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        lease
+            .TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                call.Arg<CancellationToken>().Register(() => cancelled.TrySetResult());
+                started.TrySetResult();
+
+                return acquired.Task;
+            });
+        var control = new JobControl();
+        var time = new SchedulerTimeProvider(_clock);
+        await using var host = CreateHost(time, control, "* * * * *", leaseService: lease);
+        var worker = host.GetRequiredService<IHostedService>();
+        await worker.StartAsync(TestContext.Current.CancellationToken);
+        await time.WaitForTimer(TimeSpan.FromMinutes(1));
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        _clock.Advance(TimeSpan.FromSeconds(11));
+        await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        acquired.SetResult(true);
+        await time.WaitForTimer(TimeSpan.FromSeconds(49));
+
+        control.Count.Should().Be(0);
+        await lease.Received(1).Release(Arg.Any<CancellationToken>());
+        await worker.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task StalledRenewal_ShouldCancelJobAndDrainBothBeforeReleasingLease()
+    {
+        await Reset();
+        var lease = Substitute.For<IScheduledJobLeaseService>();
+        lease.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
+        var renewalStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var renewed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        lease
+            .TryRenew(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                renewalStarted.TrySetResult();
+
+                return renewed.Task;
+            });
+        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var control = new JobControl
+        {
+            Run = token =>
+            {
+                token.Register(() => cancelled.TrySetResult());
+
+                return finished.Task;
+            },
+        };
+        var time = new SchedulerTimeProvider(_clock);
+        await using var host = CreateHost(time, control, "* * * * *", leaseService: lease);
+        var worker = host.GetRequiredService<IHostedService>();
+        await worker.StartAsync(TestContext.Current.CancellationToken);
+        await time.WaitForTimer(TimeSpan.FromMinutes(1));
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        await WaitForAsync(() =>
+        {
+            control.Count.Should().Be(1);
+            return Task.CompletedTask;
+        });
+        _clock.Advance(TimeSpan.FromSeconds(20));
+        await renewalStarted.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        _clock.Advance(TimeSpan.FromSeconds(11));
+        await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await lease.DidNotReceive().Release(Arg.Any<CancellationToken>());
+
+        finished.SetResult();
+        await lease.DidNotReceive().Release(Arg.Any<CancellationToken>());
+        renewed.SetResult(true);
+        await time.WaitForTimer(TimeSpan.FromSeconds(29));
+
+        await lease.Received(1).Release(Arg.Any<CancellationToken>());
+        control.Count.Should().Be(1);
+        await worker.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task StalledRelease_ShouldRequestCancellationAndAllowWorkerToFinish()
+    {
+        await Reset();
+        var lease = Substitute.For<IScheduledJobLeaseService>();
+        lease.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
+        var releaseStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        lease
+            .Release(Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var token = call.Arg<CancellationToken>();
+                token.Register(() => cancelled.TrySetResult());
+                releaseStarted.TrySetResult();
+
+                return Task.Delay(Timeout.InfiniteTimeSpan, token);
+            });
+        var time = new SchedulerTimeProvider(_clock);
+        var control = new JobControl();
+        var logger = new RecordingLogger<ScheduledJobWorker>();
+        await using var host = CreateHost(time, control, "* * * * *", logger, lease);
+        var worker = host.GetRequiredService<IHostedService>();
+        await worker.StartAsync(TestContext.Current.CancellationToken);
+        await time.WaitForTimer(TimeSpan.FromMinutes(1));
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        await releaseStarted.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        _clock.Advance(TimeSpan.FromSeconds(11));
+        await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await time.WaitForTimer(TimeSpan.FromSeconds(49));
+
+        control.Count.Should().Be(1);
+        logger.Messages.Should().Contain(x => x.Contains("lease could not be released"));
+        await worker.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    private static ServiceProvider CreateHost(
+        SchedulerTimeProvider time,
+        JobControl control,
+        string cron = "0 1 * * *",
+        ILogger<ScheduledJobWorker>? logger = null,
+        IScheduledJobLeaseService? leaseService = null
+    ) =>
+        new ServiceCollection()
+            .AddLogging()
+            .AddSingleton(GetMongoApplicationDatabase())
+            .AddSingleton<TimeProvider>(time)
+            .AddSingleton(control)
+            .AddScoped<TestJob>()
+            .AddSingleton<IHostedService>(provider => new ScheduledJobWorker(
+                JobName,
+                CronExpression.Parse(cron),
+                typeof(TestJob),
+                provider.GetRequiredService<IServiceScopeFactory>(),
+                provider.GetRequiredService<IMongoDatabase>(),
+                leaseService
+                    ?? new ScheduledJobLeaseService(provider.GetRequiredService<IMongoDatabase>(), time, JobName),
+                time,
+                logger ?? NullLogger<ScheduledJobWorker>.Instance
+            ))
+            .BuildServiceProvider();
+
+    private static async Task Reset()
+    {
+        await GetMongoDatabase().DropCollectionAsync(LeaseCollection, TestContext.Current.CancellationToken);
+        await GetMongoDatabase().DropCollectionAsync(StateCollection, TestContext.Current.CancellationToken);
+    }
+
+    private static Task<BsonDocument> ReadLease() =>
+        GetMongoDatabase()
+            .GetCollection<BsonDocument>(LeaseCollection)
+            .Find(new BsonDocument("_id", JobName))
+            .SingleAsync(TestContext.Current.CancellationToken);
+
+    private sealed class JobControl
+    {
+        public int Count;
+        public Func<CancellationToken, Task> Run { get; init; } = _ => Task.CompletedTask;
+        public Func<Task> Dispose { get; init; } = () => Task.CompletedTask;
+    }
+
+    private sealed class TestJob(JobControl control) : IScheduledJob, IAsyncDisposable
+    {
+        public ValueTask DisposeAsync() => new(control.Dispose());
+
+        public Task Run(CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref control.Count);
+
+            return control.Run(cancellationToken);
+        }
+    }
+
+    private sealed class SchedulerTimeProvider(FakeTimeProvider clock) : TimeProvider
+    {
+        private readonly Channel<TimeSpan> _timers = Channel.CreateUnbounded<TimeSpan>();
+
+        public override DateTimeOffset GetUtcNow() => clock.GetUtcNow();
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            var timer = clock.CreateTimer(callback, state, dueTime, period);
+            _timers.Writer.TryWrite(dueTime);
+
+            return timer;
+        }
+
+        public async Task WaitForTimer(TimeSpan dueTime)
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(10));
+            while (await _timers.Reader.ReadAsync(timeout.Token) != dueTime)
+            {
+                // Ignore unrelated lease-renewal timers.
+            }
+        }
+    }
+}

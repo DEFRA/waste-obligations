@@ -1,17 +1,88 @@
 using System.Net;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
+using Defra.WasteObligations.Api.Data.Entities;
+using Defra.WasteObligations.Api.ScheduledJobs;
+using Defra.WasteObligations.Api.Services.Scheduling;
 using Defra.WasteObligations.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using MongoDB.Driver;
 using NSubstitute;
 
 namespace Defra.WasteObligations.Api.Tests;
 
 public class StartupTests(ApiWebApplicationFactory factory) : IClassFixture<ApiWebApplicationFactory>
 {
+    [Fact]
+    public void ScheduledJob_ShouldResolveThroughApplicationRegistrations()
+    {
+        using var application = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                services.AddSingleton(Substitute.For<IMongoDatabase>());
+                services.AddScoped<ObligationCalculationJob>();
+            })
+        );
+        using var client = application.CreateClient();
+        using var scope = application.Services.CreateScope();
+
+        var resolve = () => scope.ServiceProvider.GetRequiredService<ObligationCalculationJob>();
+
+        resolve.Should().NotThrow();
+    }
+
+    [Fact]
+    public async Task WhenProcessingWorkDiscoveryBlocks_ShouldStillStartAndServeHealth()
+    {
+        var source = Substitute.For<IScheduledJobWorkSource<ObligationCalculationInstruction>>();
+        var discovering = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var discovery = new TaskCompletionSource<ScheduledJobWork<ObligationCalculationInstruction>?>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        source
+            .GetNext(Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                discovering.TrySetResult();
+
+                return discovery.Task;
+            });
+        using var application = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                services.AddScoped(_ => source);
+                services.AddHostedService(
+                    provider => new ScheduledJobProcessingWorker<ObligationCalculationInstruction>(
+                        "test",
+                        provider.GetRequiredService<IServiceScopeFactory>(),
+                        new() { Enabled = true, PollIntervalSeconds = 3600 },
+                        TimeProvider.System,
+                        _ => Substitute.For<IScheduledJobLeaseService>(),
+                        new RecordingLogger<ScheduledJobProcessingWorker<ObligationCalculationInstruction>>()
+                    )
+                );
+            })
+        );
+        try
+        {
+            using var client = await Task.Run(application.CreateClient)
+                .WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+            await discovering.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+            discovery.Task.IsCompleted.Should().BeFalse();
+
+            var response = await client.GetAsync("/health", TestContext.Current.CancellationToken);
+
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+        }
+        finally
+        {
+            discovery.TrySetResult(null);
+        }
+    }
+
     [Fact]
     public void WhenFaultOnStartup_ShouldThrow()
     {
