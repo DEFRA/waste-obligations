@@ -89,6 +89,44 @@ public class ScheduledJobProcessingWorkerTests
     }
 
     [Fact]
+    public async Task Stop_WhenProcessingIsCancelled_ShouldReleaseLeaseWithoutFindingMoreWork()
+    {
+        var work = new ScheduledJobWork<ObligationCalculationInstruction>(
+            "cancelled",
+            new() { ObligationYear = 2026, CreatedAt = DateTime.UtcNow }
+        );
+        var source = Substitute.For<IScheduledJobWorkSource<ObligationCalculationInstruction>>();
+        source.GetNext(Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>()).Returns(work);
+        source.TryStart(work, Arg.Any<CancellationToken>()).Returns(true);
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var processor = Substitute.For<IScheduledJobProcessor<ObligationCalculationInstruction>>();
+        processor
+            .Process(work.Payload, Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                started.TrySetResult();
+
+                return Task.Delay(Timeout.Infinite, call.Arg<CancellationToken>());
+            });
+        var lease = Lease();
+        using var services = Services(source, processor);
+        using var worker = Worker(services, new() { Enabled = true, PollIntervalSeconds = 3600 }, _ => lease);
+        try
+        {
+            await worker.StartAsync(TestContext.Current.CancellationToken);
+            await started.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        }
+        finally
+        {
+            await worker.StopAsync(TestContext.Current.CancellationToken);
+        }
+
+        await source.Received(1).GetNext(Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>());
+        await source.DidNotReceive().Complete(work, Arg.Any<CancellationToken>());
+        await lease.Received(1).Release(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Start_WhenWorkDiscoveryFails_ShouldLogAndRetryAfterPollingInterval()
     {
         var source = Substitute.For<IScheduledJobWorkSource<ObligationCalculationInstruction>>();

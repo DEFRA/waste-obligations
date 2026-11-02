@@ -219,6 +219,57 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
             .Be(1);
     }
 
+    [Fact]
+    public async Task Worker_WhenOldestInstructionKeepsFailing_ShouldCompleteLaterWorkBeforeRetrying()
+    {
+        var oldest = ObligationCalculationInstructionFixture.Default().Create();
+        var later = ObligationCalculationInstructionFixture
+            .Default()
+            .With(x => x.SubmitterId, Guid.NewGuid())
+            .With(x => x.CreatedAt, oldest.CreatedAt.AddMinutes(1))
+            .Create();
+        await ObligationCalculationInstructions.InsertManyAsync(
+            [oldest, later],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        ConcurrentQueue<ObjectId> attempts = [];
+        var failure = new InvalidOperationException("This instruction always fails");
+        var processor = Substitute.For<IScheduledJobProcessor<ObligationCalculationInstruction>>();
+        processor
+            .Process(Arg.Any<ObligationCalculationInstruction>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var instruction = call.Arg<ObligationCalculationInstruction>();
+                attempts.Enqueue(instruction.Id);
+
+                return instruction.Id == oldest.Id ? Task.FromException(failure) : Task.CompletedTask;
+            });
+        var logger = new RecordingLogger<ScheduledJobProcessingWorker<ObligationCalculationInstruction>>();
+        await using var services = Services(processor, logger);
+        var worker = services.GetRequiredService<IHostedService>();
+        try
+        {
+            await worker.StartAsync(TestContext.Current.CancellationToken);
+            await WaitForAsync(() =>
+            {
+                attempts.Count.Should().BeGreaterThanOrEqualTo(3);
+
+                return Task.CompletedTask;
+            });
+        }
+        finally
+        {
+            await worker.StopAsync(TestContext.Current.CancellationToken);
+        }
+
+        attempts.Take(3).Should().Equal(oldest.Id, later.Id, oldest.Id);
+        (await Read(oldest)).Status.Should().Be(ObligationCalculationInstructionStatus.Running);
+        (await Read(later)).Status.Should().Be(ObligationCalculationInstructionStatus.Completed);
+        logger
+            .Entries.Should()
+            .Contain(x => ReferenceEquals(x.Exception, failure) && x.Message.Contains(oldest.Id.ToString()));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -245,7 +296,10 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
         next.Status.Should().Be(ObligationCalculationInstructionStatus.Pending);
     }
 
-    private static ServiceProvider Services(IScheduledJobProcessor<ObligationCalculationInstruction>? processor = null)
+    private static ServiceProvider Services(
+        IScheduledJobProcessor<ObligationCalculationInstruction>? processor = null,
+        ILogger<ScheduledJobProcessingWorker<ObligationCalculationInstruction>>? logger = null
+    )
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(
@@ -263,6 +317,8 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
             .AddScheduledJobs(configuration);
         if (processor is not null)
             services.AddScoped(_ => processor);
+        if (logger is not null)
+            services.AddSingleton(logger);
 
         return services.BuildServiceProvider();
     }

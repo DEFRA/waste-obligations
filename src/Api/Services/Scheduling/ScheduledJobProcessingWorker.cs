@@ -54,29 +54,44 @@ public class ScheduledJobProcessingWorker<TWork>(
             return false;
 
         var completed = false;
-        var execution = new ScheduledJobExecutionRunner(
-            $"{name}:{work.Id}",
-            leaseFactory(work.Id),
-            timeProvider,
-            logger
-        );
-        await execution.Run(
-            scopeFactory,
-            async (services, token) =>
-            {
-                var source = services.GetRequiredService<IScheduledJobWorkSource<TWork>>();
-                if (!await source.TryStart(work, token))
-                    return;
+        try
+        {
+            var execution = new ScheduledJobExecutionRunner(
+                $"{name}:{work.Id}",
+                leaseFactory(work.Id),
+                timeProvider,
+                logger
+            );
+            await execution.Run(
+                scopeFactory,
+                async (services, token) =>
+                {
+                    var source = services.GetRequiredService<IScheduledJobWorkSource<TWork>>();
+                    if (!await source.TryStart(work, token))
+                        return;
 
-                token.ThrowIfCancellationRequested();
-                await services.GetRequiredService<IScheduledJobProcessor<TWork>>().Process(work.Payload, token);
-                token.ThrowIfCancellationRequested();
-                await source.Complete(work, token);
-                completed = true;
-                logger.LogInformation("Scheduled job {JobName} completed instruction {InstructionId}", name, work.Id);
-            },
-            stoppingToken
-        );
+                    token.ThrowIfCancellationRequested();
+                    await services.GetRequiredService<IScheduledJobProcessor<TWork>>().Process(work.Payload, token);
+                    token.ThrowIfCancellationRequested();
+                    await source.Complete(work, token);
+                    completed = true;
+                    logger.LogInformation(
+                        "Scheduled job {JobName} completed instruction {InstructionId}",
+                        name,
+                        work.Id
+                    );
+                },
+                stoppingToken
+            );
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Scheduled job {JobName} failed instruction {InstructionId}", name, work.Id);
+        }
 
         if (!completed)
             excludedIds.Add(work.Id);
