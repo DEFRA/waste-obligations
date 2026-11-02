@@ -1,0 +1,11 @@
+### Compliance declarations
+# Optional query parameter: obligationYear, an integer from 2023 to 2050.
+# Example: /admin/organisations/{{organisationId}}/compliance-declarations?obligationYear={{obligationYear}}
+# @no-log
+GET {{host}}/admin/organisations/{{organisationId}}/compliance-declarations
+Authorization: {{authorization}}
+
+### Obligation summaries
+# @no-log
+GET {{host}}/admin/organisations/{{organisationId}}/obligation-summaries
+Authorization: {{authorization}}

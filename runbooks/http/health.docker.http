@@ -1,0 +1,14 @@
+### Readiness
+# @no-log
+GET {{host}}/health
+Authorization: {{authorization}}
+
+### All health checks
+# @no-log
+GET {{host}}/health/all
+Authorization: {{authorization}}
+
+### Basic-auth readiness
+# @no-log
+GET {{host}}/health/authorized
+Authorization: {{authorization}}
