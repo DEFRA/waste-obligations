@@ -28,7 +28,9 @@ Authorization: Bearer {{$auth.token("service")}}
 GET {{host}}/admin/unsubmitted-compliance-declarations/reference-resolution-issues
 Authorization: Bearer {{$auth.token("service")}}
 
-### Organisation details (set includeLiveData=true to query live data)
+### Organisation details
+# Optional query parameter: includeLiveData=true or false; defaults to false.
+# Set it to true to query live data.
 # @no-log
 GET {{host}}/admin/unsubmitted-compliance-declarations/organisations/{{organisationId}}?includeLiveData=false
 Authorization: Bearer {{$auth.token("service")}}
@@ -38,12 +40,17 @@ Authorization: Bearer {{$auth.token("service")}}
 GET {{host}}/admin/unsubmitted-compliance-declarations/eligibility-snapshot
 Authorization: Bearer {{$auth.token("service")}}
 
-### Eligibility (optional generation and referenceResolutionState filters)
+### Eligibility
+# Optional query parameters:
+# generation: generation ID from the eligibility snapshot; defaults to the active generation.
+# referenceResolutionState: Pending, Resolved, NotFound, Failed, Ambiguous or AwaitingLookupKey.
+# Example: /admin/unsubmitted-compliance-declarations/eligibility?generation=replace-me&referenceResolutionState=Failed
 # @no-log
 GET {{host}}/admin/unsubmitted-compliance-declarations/eligibility
 Authorization: Bearer {{$auth.token("service")}}
 
-### Failed obligation summaries (obligationYear is required)
+### Failed obligation summaries
+# Required query parameter: obligationYear, an integer from 2023 to 2050.
 # @no-log
 GET {{host}}/admin/unsubmitted-compliance-declarations/failed-obligation-summaries?obligationYear={{obligationYear}}
 Authorization: Bearer {{$auth.token("service")}}

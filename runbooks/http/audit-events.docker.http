@@ -1,4 +1,10 @@
-### Audit events (optional filters: afterSequence, limit, entity, entityId)
+### Audit events
+# Optional query parameters:
+# afterSequence: integer from 0 to 9223372036854775807; returns later events.
+# limit: integer from 1 to 500; defaults to 100.
+# entity: entity name, up to 100 characters, for example compliance_declaration.
+# entityId: entity ID, up to 100 characters; copy an ID from an event.
+# Example: /admin/audit-events?afterSequence=0&limit=100&entity=compliance_declaration&entityId=replace-me
 # @no-log
 GET {{host}}/admin/audit-events?afterSequence=0&limit=100
 Authorization: {{authorization}}
