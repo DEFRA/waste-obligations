@@ -2,8 +2,10 @@ using System.Net;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.ObligationCalculations;
+using Defra.WasteObligations.Api.Services.Scheduling;
 using Defra.WasteObligations.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using NSubstitute;
 
@@ -15,8 +17,17 @@ public class StartObligationCalculationTests(ApiWebApplicationFactory factory, I
     private IObligationCalculationInstructionService Instructions { get; } =
         Substitute.For<IObligationCalculationInstructionService>();
 
-    protected override void ConfigureTestServices(IServiceCollection services) =>
+    private bool ProcessingEnabled { get; set; } = true;
+
+    protected override void ConfigureTestServices(IServiceCollection services)
+    {
         services.AddTransient<IObligationCalculationInstructionService>(_ => Instructions);
+        var options = Substitute.For<IOptionsMonitor<ScheduledJobProcessingOptions>>();
+        options
+            .Get("ObligationCalculation")
+            .Returns(_ => new ScheduledJobProcessingOptions { Enabled = ProcessingEnabled });
+        services.AddSingleton(options);
+    }
 
     [Theory]
     [InlineData(false)]
@@ -63,6 +74,22 @@ public class StartObligationCalculationTests(ApiWebApplicationFactory factory, I
         );
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        await Instructions.DidNotReceiveWithAnyArgs().Create(default, default, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task WhenProcessingIsDisabled_ShouldReturnConflictWithoutCreatingInstruction()
+    {
+        ProcessingEnabled = false;
+        var client = CreateClient(testUser: TestUser.Admin);
+        var response = await client.PostAsync(
+            "/admin/obligation-calculations?obligationYear=2026",
+            null,
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).Should().BeEmpty();
         await Instructions.DidNotReceiveWithAnyArgs().Create(default, default, TestContext.Current.CancellationToken);
     }
 
