@@ -203,7 +203,7 @@ Migration 021 adds a partial TTL index that removes completed and failed instruc
 365 days after their creation timestamp. Pending and running instructions never expire.
 MongoDB performs TTL cleanup periodically, so deletion is not immediate at the cutoff.
 
-An admin can queue or reuse an active instruction with `POST /admin/obligation-calculations?obligationYear=2026&submitterId=<guid>`. The obligation year is required; omit the submitter ID to select all submitters. Processing must be enabled to consume the instruction. Scheduling and processing are configured together under `ScheduledJobs:ObligationCalculation`, but can be enabled independently. Both default to disabled:
+An admin can queue or reuse an active instruction with `POST /admin/obligation-calculations?obligationYear=2026&submitterId=<guid>`. The obligation year is required; omit the submitter ID to select all submitters. The endpoint returns `409 Conflict` without creating an instruction when processing is disabled. Scheduling and processing are configured together under `ScheduledJobs:ObligationCalculation`, but can be enabled independently. Both default to disabled:
 
 ```json
 "ObligationCalculation": {
