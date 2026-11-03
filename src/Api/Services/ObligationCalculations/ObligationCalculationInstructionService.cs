@@ -29,6 +29,8 @@ public class ObligationCalculationInstructionService(IMongoDatabase database, Ti
         CancellationToken cancellationToken
     )
     {
+        ArgumentNullException.ThrowIfNull(session);
+
         return await CreateCore(session, obligationYear, submitterId, cancellationToken);
     }
 

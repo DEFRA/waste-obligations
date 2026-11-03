@@ -158,10 +158,13 @@ Each host waits for the next occurrence. A per-job Mongo lease allows one host t
 execute at a time, with renewal every 20 seconds and a one-minute expiry.
 For the obligation calculation, instruction creation and the occurrence marker
 commit together in a Mongo transaction. Hosts that observe an occurrence retry
-lease contention or a failed handoff every five seconds until it succeeds or the
-next occurrence is due. A retry checks the committed marker, even if the
-instruction has already completed. Missed occurrences while all hosts are stopped
-are not replayed. Scheduled jobs perform only their durable MongoDB handoff using
+lease contention every five seconds. Failed handoffs use jittered exponential
+backoff from five seconds up to one minute. Both retry until the handoff succeeds
+or the next occurrence is due. A retry checks the committed marker, even if the
+instruction has already completed. Retry state is held in memory: if every host
+that observed an occurrence stops before the handoff commits, a replacement host
+waits for the next occurrence. Missed occurrences while all hosts are stopped are
+not replayed. Scheduled jobs perform only their durable MongoDB handoff using
 the supplied session; the transaction callback may be retried. External calls and
 other nontransactional effects belong in the processing worker after commit.
 
@@ -186,9 +189,13 @@ submitter instructions do not block one another. Migration 021 adds a partial un
 index to enforce this across hosts. Instruction creation assumes that index already
 exists and does not wait for migrations. Apply the migrations before enabling the
 job or adding another producer. The target MongoDB deployment must support `$in`
-in partial index filters (MongoDB 6.0 or later); confirm its version before enabling.
-No existing documents or analytics schemas are changed. Creation is limited to five
-attempts in total; only duplicate-key collisions are retried.
+in partial index filters (MongoDB 6.0 or later) and support transactions, including
+creating the scheduler state collection on its first handoff. Confirm the deployed
+version and topology before enabling. The transaction shares the configured
+`Mongo:TransactionTimeoutSeconds` budget (five seconds by default). No existing
+documents or analytics schemas are changed. Outside a transaction, creation retries
+duplicate-key collisions up to five attempts. In a transaction, a collision aborts
+the attempt and the scheduler retries the entire handoff.
 
 When no matching pending or running instruction exists, creation always inserts a new
 document with a new ID; completed and failed instructions are retained as history.
@@ -196,7 +203,7 @@ Migration 021 adds a partial TTL index that removes completed and failed instruc
 365 days after their creation timestamp. Pending and running instructions never expire.
 MongoDB performs TTL cleanup periodically, so deletion is not immediate at the cutoff.
 
-The shared instruction service accepts an explicit year and optional submitter ID for future manual requests. Scheduling and processing are configured together under `ScheduledJobs:ObligationCalculation`, but can be enabled independently. Both default to disabled:
+An admin can queue or reuse an active instruction with `POST /admin/obligation-calculations?obligationYear=2026&submitterId=<guid>`. The obligation year is required; omit the submitter ID to select all submitters. Processing must be enabled to consume the instruction. Scheduling and processing are configured together under `ScheduledJobs:ObligationCalculation`, but can be enabled independently. Both default to disabled:
 
 ```json
 "ObligationCalculation": {
@@ -220,7 +227,7 @@ A processor failure logs the instruction ID and atomically increments its persis
 
 Migration 021 creates the admission, retention and work-selection indexes, plus a TTL index retaining expired processing leases for 365 days. Processing leases use the private `_scheduled_job_processing_leases` collection. Apply migrations before enabling either scheduling or processing. Lease renewal and cancellation use the same lifecycle as scheduled execution; expired leases still permit overlap during host pauses or network partitions. Real calculations must make their side effects idempotent.
 
-Mongo admission is independent of delivery. A future SQS message should carry an existing instruction ID; receiving or redelivering it must load that instruction rather than create another one. The active-scope unique index continues to block duplicate admission, and instruction ownership controls processing. Reliable queue publication and acknowledgement would need their own implementation. No SQS integration, calculation, result persistence or management endpoint is included here. Keep both switches disabled until placeholder completion is explicitly wanted.
+Mongo admission is independent of delivery. A future SQS message should carry an existing instruction ID; receiving or redelivering it must load that instruction rather than create another one. The active-scope unique index continues to block duplicate admission, and instruction ownership controls processing. Reliable queue publication and acknowledgement would need their own implementation. No SQS integration, calculation or result persistence is included here. Keep both switches disabled until placeholder completion is explicitly wanted.
 
 ## System health checks
 

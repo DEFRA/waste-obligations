@@ -441,6 +441,153 @@ public class ScheduledJobTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Schedule_WhenHandoffRepeatedlyFails_ShouldBackOffAndReduceLogSeverity()
+    {
+        await Reset();
+        var logger = new RecordingLogger<ScheduledJobWorker>();
+        var clock = new SchedulerTimeProvider(_clock);
+        var retryTimers = Channel.CreateUnbounded<TimeSpan>();
+        var capturedFailures = 0;
+        clock.ObserveTimer = delay =>
+        {
+            var failures = logger.Entries.Count(x => x.Message.Contains("handoff") && x.Message.Contains("fail"));
+            if (failures > capturedFailures)
+            {
+                capturedFailures = failures;
+                retryTimers.Writer.TryWrite(delay);
+            }
+        };
+        var control = new JobControl
+        {
+            Run = _ => Task.FromException(new InvalidOperationException("Mongo handoff failed")),
+        };
+        await using var host = CreateHost(clock, control, logger: logger);
+        var worker = host.GetRequiredService<IHostedService>();
+        try
+        {
+            await worker.StartAsync(TestContext.Current.CancellationToken);
+            await clock.WaitForTimer(TimeSpan.FromMinutes(1));
+            _clock.Advance(TimeSpan.FromMinutes(1));
+            (int Min, int Max)[] expectedDelays = [(5, 5), (10, 12), (20, 24), (40, 48), (48, 59), (48, 59)];
+            for (var i = 0; i < expectedDelays.Length; i++)
+            {
+                var (min, max) = expectedDelays[i];
+                var delay = await retryTimers
+                    .Reader.ReadAsync(TestContext.Current.CancellationToken)
+                    .AsTask()
+                    .WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+                delay.Should().BeGreaterThanOrEqualTo(TimeSpan.FromSeconds(min));
+                delay.Should().BeLessThanOrEqualTo(TimeSpan.FromSeconds(max));
+                if (i < expectedDelays.Length - 1)
+                    _clock.Advance(delay);
+            }
+
+            var failures = logger
+                .Entries.Where(x => x.Message.Contains("handoff") && x.Message.Contains("fail"))
+                .ToArray();
+            failures.Should().HaveCount(expectedDelays.Length);
+            failures[0].Level.Should().Be(LogLevel.Error);
+            failures.Skip(1).Should().OnlyContain(x => x.Level == LogLevel.Warning);
+        }
+        finally
+        {
+            await worker.StopAsync(TestContext.Current.CancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task Schedule_WhenLeasesOverlap_ShouldCommitOneInstructionAndMarker()
+    {
+        await Reset();
+        var arrived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var proceed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var arrivals = 0;
+        var releases = 0;
+        var lease = Substitute.For<IScheduledJobLeaseService>();
+        lease.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
+        lease.TryRenew(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
+        lease
+            .Release(Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                Interlocked.Increment(ref releases);
+                return Task.CompletedTask;
+            });
+        Task WaitForBoth(CancellationToken token)
+        {
+            if (Interlocked.Increment(ref arrivals) == 2)
+                arrived.TrySetResult();
+            return proceed.Task.WaitAsync(token);
+        }
+
+        var initial = _clock.GetUtcNow();
+        var firstClock = new FakeTimeProvider(initial);
+        var secondClock = new FakeTimeProvider(initial);
+        var firstTime = new SchedulerTimeProvider(firstClock);
+        var secondTime = new SchedulerTimeProvider(secondClock);
+        var firstControl = new JobControl { BeforeCreate = WaitForBoth };
+        var secondControl = new JobControl { BeforeCreate = WaitForBoth };
+        await using var first = CreateHost(firstTime, firstControl, leaseService: lease, transactional: true);
+        await using var second = CreateHost(secondTime, secondControl, leaseService: lease, transactional: true);
+        var firstWorker = first.GetRequiredService<IHostedService>();
+        var secondWorker = second.GetRequiredService<IHostedService>();
+        try
+        {
+            await firstWorker.StartAsync(TestContext.Current.CancellationToken);
+            await secondWorker.StartAsync(TestContext.Current.CancellationToken);
+            await firstTime.WaitForTimer(TimeSpan.FromMinutes(1));
+            await secondTime.WaitForTimer(TimeSpan.FromMinutes(1));
+            firstClock.Advance(TimeSpan.FromMinutes(1));
+            secondClock.Advance(TimeSpan.FromMinutes(1));
+            await arrived.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+            proceed.SetResult();
+            await WaitForAsync(
+                async () =>
+                {
+                    releases.Should().BeGreaterThanOrEqualTo(2);
+                    (
+                        await ObligationCalculationInstructions.CountDocumentsAsync(
+                            FilterDefinition<ObligationCalculationInstruction>.Empty,
+                            cancellationToken: TestContext.Current.CancellationToken
+                        )
+                    )
+                        .Should()
+                        .Be(1);
+                    (
+                        await GetMongoDatabase()
+                            .GetCollection<BsonDocument>(StateCollection)
+                            .CountDocumentsAsync(
+                                new BsonDocument("_id", JobName),
+                                cancellationToken: TestContext.Current.CancellationToken
+                            )
+                    )
+                        .Should()
+                        .Be(1);
+                },
+                timeout: 15
+            );
+            firstClock.Advance(TimeSpan.FromMinutes(1));
+            secondClock.Advance(TimeSpan.FromMinutes(1));
+            await firstTime.WaitForTimerLongerThan(TimeSpan.FromHours(1));
+            await secondTime.WaitForTimerLongerThan(TimeSpan.FromHours(1));
+            (
+                await ObligationCalculationInstructions.CountDocumentsAsync(
+                    FilterDefinition<ObligationCalculationInstruction>.Empty,
+                    cancellationToken: TestContext.Current.CancellationToken
+                )
+            )
+                .Should()
+                .Be(1);
+        }
+        finally
+        {
+            proceed.TrySetResult();
+            await firstWorker.StopAsync(TestContext.Current.CancellationToken);
+            await secondWorker.StopAsync(TestContext.Current.CancellationToken);
+        }
+    }
+
+    [Fact]
     public async Task Schedule_WhenCommitResponseIsLost_ShouldNotCreateAnotherCompletedInstruction()
     {
         await Reset();
@@ -687,6 +834,40 @@ public class ScheduledJobTests : IntegrationTestBase
         finish.SetResult();
         await stopping;
         (await ReadLease())["owner"].AsString.Should().Be("another-host");
+    }
+
+    [Fact]
+    public async Task SuccessfulHandoff_WhenCleanupFails_ShouldLogWarningWithoutRetrying()
+    {
+        await Reset();
+        var failure = new InvalidOperationException("Scope cleanup failed");
+        var control = new JobControl { Dispose = () => Task.FromException(failure) };
+        var time = new SchedulerTimeProvider(_clock);
+        var logger = new RecordingLogger<ScheduledJobWorker>();
+        await using var host = CreateHost(time, control, logger: logger);
+        var worker = host.GetRequiredService<IHostedService>();
+        try
+        {
+            await worker.StartAsync(TestContext.Current.CancellationToken);
+            await time.WaitForTimer(TimeSpan.FromMinutes(1));
+            _clock.Advance(TimeSpan.FromMinutes(1));
+            await time.WaitForTimer(TimeSpan.FromDays(1));
+
+            control.Count.Should().Be(1);
+            var state = await GetMongoDatabase()
+                .GetCollection<BsonDocument>(StateCollection)
+                .Find(new BsonDocument("_id", JobName))
+                .SingleAsync(TestContext.Current.CancellationToken);
+            state["lastStartedAt"].ToUniversalTime().Should().Be(_clock.GetUtcNow().UtcDateTime);
+            logger
+                .Entries.Should()
+                .ContainSingle(x => x.Level == LogLevel.Warning && x.Message.Contains("cleanup failed"));
+            logger.Entries.Should().NotContain(x => x.Level == LogLevel.Error);
+        }
+        finally
+        {
+            await worker.StopAsync(TestContext.Current.CancellationToken);
+        }
     }
 
     [Fact]
@@ -954,6 +1135,7 @@ public class ScheduledJobTests : IntegrationTestBase
     {
         public int Count;
         public Func<CancellationToken, Task> Run { get; init; } = _ => Task.CompletedTask;
+        public Func<CancellationToken, Task> BeforeCreate { get; init; } = _ => Task.CompletedTask;
         public Func<Task> Dispose { get; init; } = () => Task.CompletedTask;
     }
 
@@ -975,6 +1157,7 @@ public class ScheduledJobTests : IntegrationTestBase
         public async Task Run(IClientSessionHandle session, CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref control.Count);
+            await control.BeforeCreate(cancellationToken);
             await instructions.Create(session, 2026, null, cancellationToken);
             await control.Run(cancellationToken);
         }
@@ -986,6 +1169,7 @@ public class ScheduledJobTests : IntegrationTestBase
         private readonly TaskCompletionSource _retryTimer = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public Task RetryTimer => _retryTimer.Task;
+        public Action<TimeSpan>? ObserveTimer { get; set; }
 
         public override DateTimeOffset GetUtcNow() => clock.GetUtcNow();
 
@@ -993,10 +1177,21 @@ public class ScheduledJobTests : IntegrationTestBase
         {
             var timer = clock.CreateTimer(callback, state, dueTime, period);
             _timers.Writer.TryWrite(dueTime);
+            ObserveTimer?.Invoke(dueTime);
             if (dueTime == TimeSpan.FromSeconds(5))
                 _retryTimer.TrySetResult();
 
             return timer;
+        }
+
+        public async Task WaitForTimerLongerThan(TimeSpan minimum)
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(10));
+            while (await _timers.Reader.ReadAsync(timeout.Token) <= minimum)
+            {
+                // Ignore lease and retry timers.
+            }
         }
 
         public async Task WaitForTimer(TimeSpan dueTime)
