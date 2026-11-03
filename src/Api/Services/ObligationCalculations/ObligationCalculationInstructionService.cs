@@ -19,6 +19,26 @@ public class ObligationCalculationInstructionService(IMongoDatabase database, Ti
         CancellationToken cancellationToken
     )
     {
+        return await CreateCore(null, obligationYear, submitterId, cancellationToken);
+    }
+
+    public async Task<ObligationCalculationInstruction> Create(
+        IClientSessionHandle session,
+        int obligationYear,
+        Guid? submitterId,
+        CancellationToken cancellationToken
+    )
+    {
+        return await CreateCore(session, obligationYear, submitterId, cancellationToken);
+    }
+
+    private async Task<ObligationCalculationInstruction> CreateCore(
+        IClientSessionHandle? session,
+        int obligationYear,
+        Guid? submitterId,
+        CancellationToken cancellationToken
+    )
+    {
         var instruction = new ObligationCalculationInstruction
         {
             ObligationYear = obligationYear,
@@ -47,19 +67,18 @@ public class ObligationCalculationInstructionService(IMongoDatabase database, Ti
             attempt++;
             try
             {
-                return await _instructions.FindOneAndUpdateAsync(
-                    filter,
-                    update,
-                    new FindOneAndUpdateOptions<ObligationCalculationInstruction>
-                    {
-                        IsUpsert = true,
-                        ReturnDocument = ReturnDocument.After,
-                    },
-                    cancellationToken
-                );
+                var options = new FindOneAndUpdateOptions<ObligationCalculationInstruction>
+                {
+                    IsUpsert = true,
+                    ReturnDocument = ReturnDocument.After,
+                };
+
+                return session is null
+                    ? await _instructions.FindOneAndUpdateAsync(filter, update, options, cancellationToken)
+                    : await _instructions.FindOneAndUpdateAsync(session, filter, update, options, cancellationToken);
             }
             catch (MongoCommandException exception)
-                when (exception.Code == DuplicateKeyErrorCode && attempt < MaximumCreationAttempts)
+                when (session is null && exception.Code == DuplicateKeyErrorCode && attempt < MaximumCreationAttempts)
             {
                 // Another host inserted first. Retry to return its active instruction.
             }

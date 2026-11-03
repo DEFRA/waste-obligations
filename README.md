@@ -155,12 +155,16 @@ must be set on the API container in the target environment. No deployed configur
 or journey settings change is needed while scheduling and processing remain disabled.
 
 Each host waits for the next occurrence. A per-job Mongo lease allows one host to
-execute at a time, with renewal every 20 seconds and a one-minute expiry. The last
-started occurrence is stored separately, so another host cannot repeat it after
-completion. Failed attempts are logged and consumed; the next occurrence can run.
-Missed occurrences while a host is stopped are not replayed.
-An occurrence can also be skipped if the lease holder fails before claiming it and
-the other hosts have already failed to acquire the lease.
+execute at a time, with renewal every 20 seconds and a one-minute expiry.
+For the obligation calculation, instruction creation and the occurrence marker
+commit together in a Mongo transaction. Hosts that observe an occurrence retry
+lease contention or a failed handoff every five seconds until it succeeds or the
+next occurrence is due. A retry checks the committed marker, even if the
+instruction has already completed. Missed occurrences while all hosts are stopped
+are not replayed. Ordinary `IScheduledJob` implementations retain their existing
+mark-before-run behaviour; only `ITransactionalScheduledJob` implementations use
+the transactional handoff and must perform only Mongo writes using the supplied
+session in that handoff.
 
 Jobs must honour cancellation. Shutdown or lease loss cancels the job; the worker
 waits for it to finish before releasing its lease or attempting another run.

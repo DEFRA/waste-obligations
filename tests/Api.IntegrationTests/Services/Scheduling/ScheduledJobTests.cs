@@ -1,6 +1,7 @@
 using System.Threading.Channels;
 using AwesomeAssertions;
 using Cronos;
+using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.ObligationCalculations;
@@ -51,6 +52,8 @@ public class ScheduledJobTests : IntegrationTestBase
             .AddLogging()
             .AddSingleton(GetMongoApplicationDatabase())
             .AddSingleton<TimeProvider>(time)
+            .AddOptions()
+            .AddScoped<IDbContext, MongoDbContext>()
             .AddSingleton<ICurrentObligationYearProvider, CurrentObligationYearProvider>()
             .AddTransient<IObligationCalculationInstructionService, ObligationCalculationInstructionService>()
             .AddScheduledJobs(configuration)
@@ -152,6 +155,411 @@ public class ScheduledJobTests : IntegrationTestBase
         await lateWorker.StopAsync(TestContext.Current.CancellationToken);
         await firstWorker.StopAsync(TestContext.Current.CancellationToken);
         await secondWorker.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task Schedule_WhenLeaseHolderStopsBeforeHandoff_ShouldRetryTheDueOccurrence()
+    {
+        await Reset();
+        var lease = Substitute.For<IScheduledJobLeaseService>();
+        lease.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(false, true);
+        lease.TryRenew(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
+        var control = new JobControl();
+        var time = new SchedulerTimeProvider(_clock);
+        await using var host = CreateHost(time, control, leaseService: lease, transactional: true);
+        var worker = host.GetRequiredService<IHostedService>();
+        try
+        {
+            await worker.StartAsync(TestContext.Current.CancellationToken);
+            await time.WaitForTimer(TimeSpan.FromMinutes(1));
+            _clock.Advance(TimeSpan.FromMinutes(1));
+            await WaitForAsync(async () =>
+                await lease.Received(1).TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            );
+            await time.WaitForTimer(TimeSpan.FromSeconds(5));
+            _clock.Advance(TimeSpan.FromSeconds(5));
+            await WaitForAsync(
+                () =>
+                {
+                    control.Count.Should().Be(1);
+                    return Task.CompletedTask;
+                },
+                timeout: 5
+            );
+        }
+        finally
+        {
+            await worker.StopAsync(TestContext.Current.CancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task Schedule_WhenClaimedHandoffFails_ShouldAllowAnotherHostToRetry()
+    {
+        await Reset();
+        var firstClock = new FakeTimeProvider(_clock.GetUtcNow());
+        var firstTime = new SchedulerTimeProvider(firstClock);
+        var firstControl = new JobControl
+        {
+            Run = _ => Task.FromException(new InvalidOperationException("Handoff interrupted")),
+        };
+        await using var first = CreateHost(firstTime, firstControl, transactional: true);
+        var firstWorker = first.GetRequiredService<IHostedService>();
+        var secondClock = new FakeTimeProvider(_clock.GetUtcNow());
+        var secondTime = new SchedulerTimeProvider(secondClock);
+        var secondControl = new JobControl();
+        await using var second = CreateHost(secondTime, secondControl, transactional: true);
+        var secondWorker = second.GetRequiredService<IHostedService>();
+        try
+        {
+            await firstWorker.StartAsync(TestContext.Current.CancellationToken);
+            await firstTime.WaitForTimer(TimeSpan.FromMinutes(1));
+            firstClock.Advance(TimeSpan.FromMinutes(1));
+            await firstTime.WaitForTimer(TimeSpan.FromSeconds(5));
+            firstControl.Count.Should().Be(1);
+            (
+                await ObligationCalculationInstructions.CountDocumentsAsync(
+                    FilterDefinition<ObligationCalculationInstruction>.Empty,
+                    cancellationToken: TestContext.Current.CancellationToken
+                )
+            )
+                .Should()
+                .Be(0);
+            (
+                await GetMongoDatabase()
+                    .GetCollection<BsonDocument>(StateCollection)
+                    .CountDocumentsAsync(
+                        new BsonDocument("_id", JobName),
+                        cancellationToken: TestContext.Current.CancellationToken
+                    )
+            )
+                .Should()
+                .Be(0);
+
+            await secondWorker.StartAsync(TestContext.Current.CancellationToken);
+            await secondTime.WaitForTimer(TimeSpan.FromMinutes(1));
+            secondClock.Advance(TimeSpan.FromMinutes(1));
+            await WaitForAsync(
+                async () =>
+                {
+                    (
+                        await ObligationCalculationInstructions.CountDocumentsAsync(
+                            FilterDefinition<ObligationCalculationInstruction>.Empty,
+                            cancellationToken: TestContext.Current.CancellationToken
+                        )
+                    )
+                        .Should()
+                        .Be(1);
+                    (
+                        await GetMongoDatabase()
+                            .GetCollection<BsonDocument>(StateCollection)
+                            .CountDocumentsAsync(
+                                new BsonDocument("_id", JobName),
+                                cancellationToken: TestContext.Current.CancellationToken
+                            )
+                    )
+                        .Should()
+                        .Be(1);
+                },
+                timeout: 5
+            );
+            secondControl.Count.Should().Be(1);
+        }
+        finally
+        {
+            await firstWorker.StopAsync(TestContext.Current.CancellationToken);
+            await secondWorker.StopAsync(TestContext.Current.CancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task Schedule_WhenAnotherHostCrashes_ShouldRetryAfterLeaseExpiry()
+    {
+        await Reset();
+        var time = new SchedulerTimeProvider(_clock);
+        var owner = new ScheduledJobLeaseService(GetMongoApplicationDatabase(), time, JobName);
+        (await owner.TryAcquire(TimeSpan.FromSeconds(61), TestContext.Current.CancellationToken)).Should().BeTrue();
+        var control = new JobControl();
+        await using var host = CreateHost(time, control, transactional: true);
+        var worker = host.GetRequiredService<IHostedService>();
+        try
+        {
+            await worker.StartAsync(TestContext.Current.CancellationToken);
+            await time.WaitForTimer(TimeSpan.FromMinutes(1));
+            _clock.Advance(TimeSpan.FromMinutes(1));
+            await time.WaitForTimer(TimeSpan.FromSeconds(5));
+            control.Count.Should().Be(0);
+            _clock.Advance(TimeSpan.FromSeconds(5));
+            await WaitForAsync(async () =>
+            {
+                (
+                    await ObligationCalculationInstructions.CountDocumentsAsync(
+                        FilterDefinition<ObligationCalculationInstruction>.Empty,
+                        cancellationToken: TestContext.Current.CancellationToken
+                    )
+                )
+                    .Should()
+                    .Be(1);
+            });
+            control.Count.Should().Be(1);
+        }
+        finally
+        {
+            await worker.StopAsync(TestContext.Current.CancellationToken);
+            await owner.Release(TestContext.Current.CancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task Schedule_WhenAnotherHostAlreadyHandedOff_ShouldNotRepeatCompletedInstruction()
+    {
+        await Reset();
+        var firstTime = new SchedulerTimeProvider(_clock);
+        var firstControl = new JobControl();
+        await using var first = CreateHost(firstTime, firstControl, transactional: true);
+        var firstWorker = first.GetRequiredService<IHostedService>();
+        var lateClock = new FakeTimeProvider(_clock.GetUtcNow());
+        var lateTime = new SchedulerTimeProvider(lateClock);
+        var lateControl = new JobControl();
+        await using var late = CreateHost(lateTime, lateControl, transactional: true);
+        var lateWorker = late.GetRequiredService<IHostedService>();
+        try
+        {
+            await firstWorker.StartAsync(TestContext.Current.CancellationToken);
+            await firstTime.WaitForTimer(TimeSpan.FromMinutes(1));
+            _clock.Advance(TimeSpan.FromMinutes(1));
+            await firstTime.WaitForTimer(TimeSpan.FromDays(1));
+            await ObligationCalculationInstructions.UpdateOneAsync(
+                FilterDefinition<ObligationCalculationInstruction>.Empty,
+                Builders<ObligationCalculationInstruction>.Update.Set(
+                    x => x.Status,
+                    ObligationCalculationInstructionStatus.Completed
+                ),
+                cancellationToken: TestContext.Current.CancellationToken
+            );
+            await lateWorker.StartAsync(TestContext.Current.CancellationToken);
+            await lateTime.WaitForTimer(TimeSpan.FromMinutes(1));
+            lateClock.Advance(TimeSpan.FromMinutes(1));
+            await lateTime.WaitForTimer(TimeSpan.FromDays(1));
+
+            var instructions = await ObligationCalculationInstructions
+                .Find(FilterDefinition<ObligationCalculationInstruction>.Empty)
+                .ToListAsync(TestContext.Current.CancellationToken);
+            instructions
+                .Should()
+                .ContainSingle()
+                .Which.Status.Should()
+                .Be(ObligationCalculationInstructionStatus.Completed);
+            firstControl.Count.Should().Be(1);
+            lateControl.Count.Should().Be(0);
+        }
+        finally
+        {
+            await firstWorker.StopAsync(TestContext.Current.CancellationToken);
+            await lateWorker.StopAsync(TestContext.Current.CancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task Schedule_WhenHostsCompete_ShouldNotRepeatCompletedHandoff()
+    {
+        await Reset();
+        var finish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var firstClock = new FakeTimeProvider(_clock.GetUtcNow());
+        var firstTime = new SchedulerTimeProvider(firstClock);
+        var firstControl = new JobControl { Run = _ => finish.Task };
+        await using var first = CreateHost(firstTime, firstControl, transactional: true);
+        var firstWorker = first.GetRequiredService<IHostedService>();
+        var secondClock = new FakeTimeProvider(_clock.GetUtcNow());
+        var secondTime = new SchedulerTimeProvider(secondClock);
+        var secondControl = new JobControl();
+        await using var second = CreateHost(secondTime, secondControl, transactional: true);
+        var secondWorker = second.GetRequiredService<IHostedService>();
+        try
+        {
+            await firstWorker.StartAsync(TestContext.Current.CancellationToken);
+            await secondWorker.StartAsync(TestContext.Current.CancellationToken);
+            await firstTime.WaitForTimer(TimeSpan.FromMinutes(1));
+            await secondTime.WaitForTimer(TimeSpan.FromMinutes(1));
+            firstClock.Advance(TimeSpan.FromMinutes(1));
+            await WaitForAsync(() =>
+            {
+                firstControl.Count.Should().Be(1);
+                return Task.CompletedTask;
+            });
+            secondClock.Advance(TimeSpan.FromMinutes(1));
+            await secondTime.WaitForTimer(TimeSpan.FromSeconds(5));
+            finish.SetResult();
+            await firstTime.WaitForTimer(TimeSpan.FromDays(1));
+            await ObligationCalculationInstructions.UpdateOneAsync(
+                FilterDefinition<ObligationCalculationInstruction>.Empty,
+                Builders<ObligationCalculationInstruction>.Update.Set(
+                    x => x.Status,
+                    ObligationCalculationInstructionStatus.Completed
+                ),
+                cancellationToken: TestContext.Current.CancellationToken
+            );
+            secondClock.Advance(TimeSpan.FromSeconds(5));
+            await secondTime.WaitForTimer(TimeSpan.FromDays(1) - TimeSpan.FromSeconds(5));
+
+            var instructions = await ObligationCalculationInstructions
+                .Find(FilterDefinition<ObligationCalculationInstruction>.Empty)
+                .ToListAsync(TestContext.Current.CancellationToken);
+            instructions
+                .Should()
+                .ContainSingle()
+                .Which.Status.Should()
+                .Be(ObligationCalculationInstructionStatus.Completed);
+            secondControl.Count.Should().Be(0);
+            var state = await GetMongoDatabase()
+                .GetCollection<BsonDocument>(StateCollection)
+                .Find(new BsonDocument("_id", JobName))
+                .SingleAsync(TestContext.Current.CancellationToken);
+            state["lastStartedAt"].ToUniversalTime().Should().Be(firstClock.GetUtcNow().UtcDateTime);
+        }
+        finally
+        {
+            finish.TrySetResult();
+            await firstWorker.StopAsync(TestContext.Current.CancellationToken);
+            await secondWorker.StopAsync(TestContext.Current.CancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task Schedule_WhenCommitResponseIsLost_ShouldNotCreateAnotherCompletedInstruction()
+    {
+        await Reset();
+        var responseLost = false;
+        IDbContext Decorate(IDbContext real)
+        {
+            var decorated = Substitute.For<IDbContext>();
+            decorated
+                .ExecuteTransaction(
+                    Arg.Any<Func<IClientSessionHandle, CancellationToken, Task<bool>>>(),
+                    Arg.Any<string>(),
+                    Arg.Any<CancellationToken>()
+                )
+                .Returns(async call =>
+                {
+                    var result = await real.ExecuteTransaction(
+                        call.Arg<Func<IClientSessionHandle, CancellationToken, Task<bool>>>(),
+                        call.Arg<string>(),
+                        call.Arg<CancellationToken>()
+                    );
+                    if (!responseLost)
+                    {
+                        responseLost = true;
+                        await ObligationCalculationInstructions.UpdateOneAsync(
+                            FilterDefinition<ObligationCalculationInstruction>.Empty,
+                            Builders<ObligationCalculationInstruction>.Update.Set(
+                                x => x.Status,
+                                ObligationCalculationInstructionStatus.Completed
+                            ),
+                            cancellationToken: TestContext.Current.CancellationToken
+                        );
+                        throw new TimeoutException("Commit response lost");
+                    }
+
+                    return result;
+                });
+
+            return decorated;
+        }
+
+        var time = new SchedulerTimeProvider(_clock);
+        var control = new JobControl();
+        await using var host = CreateHost(time, control, transactional: true, decorateContext: Decorate);
+        var worker = host.GetRequiredService<IHostedService>();
+        try
+        {
+            await worker.StartAsync(TestContext.Current.CancellationToken);
+            await time.WaitForTimer(TimeSpan.FromMinutes(1));
+            _clock.Advance(TimeSpan.FromMinutes(1));
+            await time.WaitForTimer(TimeSpan.FromSeconds(5));
+            _clock.Advance(TimeSpan.FromSeconds(5));
+            await time.WaitForTimer(TimeSpan.FromHours(23) + TimeSpan.FromMinutes(59) + TimeSpan.FromSeconds(55));
+
+            var instructions = await ObligationCalculationInstructions
+                .Find(FilterDefinition<ObligationCalculationInstruction>.Empty)
+                .ToListAsync(TestContext.Current.CancellationToken);
+            instructions
+                .Should()
+                .ContainSingle()
+                .Which.Status.Should()
+                .Be(ObligationCalculationInstructionStatus.Completed);
+            control.Count.Should().Be(1);
+        }
+        finally
+        {
+            await worker.StopAsync(TestContext.Current.CancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task Schedule_WhenRetryReachesNextOccurrence_ShouldRunTheNextOccurrence()
+    {
+        await Reset();
+        var lease = Substitute.For<IScheduledJobLeaseService>();
+        var following = _clock.GetUtcNow().AddMinutes(2);
+        lease
+            .TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(_ => Task.FromResult(_clock.GetUtcNow() >= following));
+        lease.TryRenew(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
+        var time = new SchedulerTimeProvider(_clock);
+        var control = new JobControl();
+        await using var host = CreateHost(time, control, "* * * * *", leaseService: lease, transactional: true);
+        var worker = host.GetRequiredService<IHostedService>();
+        try
+        {
+            await worker.StartAsync(TestContext.Current.CancellationToken);
+            await time.WaitForTimer(TimeSpan.FromMinutes(1));
+            _clock.Advance(TimeSpan.FromMinutes(1));
+            await time.WaitForTimer(TimeSpan.FromSeconds(5));
+            _clock.Advance(TimeSpan.FromMinutes(1));
+            await WaitForAsync(async () =>
+            {
+                var state = await GetMongoDatabase()
+                    .GetCollection<BsonDocument>(StateCollection)
+                    .Find(new BsonDocument("_id", JobName))
+                    .SingleAsync(TestContext.Current.CancellationToken);
+                state["lastStartedAt"].ToUniversalTime().Should().Be(following.UtcDateTime);
+            });
+            control.Count.Should().Be(1);
+        }
+        finally
+        {
+            await worker.StopAsync(TestContext.Current.CancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task Schedule_WhenHostWakesLate_ShouldStillRunObservedOccurrence()
+    {
+        await Reset();
+        var time = new SchedulerTimeProvider(_clock);
+        var control = new JobControl();
+        await using var host = CreateHost(time, control, "* * * * *");
+        var worker = host.GetRequiredService<IHostedService>();
+        try
+        {
+            await worker.StartAsync(TestContext.Current.CancellationToken);
+            await time.WaitForTimer(TimeSpan.FromMinutes(1));
+            _clock.Advance(TimeSpan.FromMinutes(2));
+            await WaitForAsync(() =>
+            {
+                control.Count.Should().Be(1);
+                return Task.CompletedTask;
+            });
+            var state = await GetMongoDatabase()
+                .GetCollection<BsonDocument>(StateCollection)
+                .Find(new BsonDocument("_id", JobName))
+                .SingleAsync(TestContext.Current.CancellationToken);
+            state["lastStartedAt"].ToUniversalTime().Should().Be(_clock.GetUtcNow().AddMinutes(-1).UtcDateTime);
+        }
+        finally
+        {
+            await worker.StopAsync(TestContext.Current.CancellationToken);
+        }
     }
 
     [Fact]
@@ -487,18 +895,28 @@ public class ScheduledJobTests : IntegrationTestBase
         JobControl control,
         string cron = "0 1 * * *",
         ILogger<ScheduledJobWorker>? logger = null,
-        IScheduledJobLeaseService? leaseService = null
+        IScheduledJobLeaseService? leaseService = null,
+        bool transactional = false,
+        Func<IDbContext, IDbContext>? decorateContext = null
     ) =>
         new ServiceCollection()
             .AddLogging()
             .AddSingleton(GetMongoApplicationDatabase())
             .AddSingleton<TimeProvider>(time)
             .AddSingleton(control)
+            .AddOptions()
+            .AddScoped<MongoDbContext>()
+            .AddScoped<IDbContext>(x =>
+                decorateContext?.Invoke(x.GetRequiredService<MongoDbContext>())
+                ?? x.GetRequiredService<MongoDbContext>()
+            )
+            .AddTransient<IObligationCalculationInstructionService, ObligationCalculationInstructionService>()
             .AddScoped<TestJob>()
+            .AddScoped<TestTransactionalJob>()
             .AddSingleton<IHostedService>(provider => new ScheduledJobWorker(
                 JobName,
                 CronExpression.Parse(cron),
-                typeof(TestJob),
+                transactional ? typeof(TestTransactionalJob) : typeof(TestJob),
                 provider.GetRequiredService<IServiceScopeFactory>(),
                 provider.GetRequiredService<IMongoDatabase>(),
                 leaseService
@@ -536,6 +954,19 @@ public class ScheduledJobTests : IntegrationTestBase
             Interlocked.Increment(ref control.Count);
 
             return control.Run(cancellationToken);
+        }
+    }
+
+    private sealed class TestTransactionalJob(JobControl control, IObligationCalculationInstructionService instructions)
+        : ITransactionalScheduledJob
+    {
+        public Task Run(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public async Task Run(IClientSessionHandle session, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref control.Count);
+            await instructions.Create(session, 2026, null, cancellationToken);
+            await control.Run(cancellationToken);
         }
     }
 
