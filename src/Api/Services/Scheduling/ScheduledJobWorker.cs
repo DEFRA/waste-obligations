@@ -18,7 +18,6 @@ public sealed class ScheduledJobWorker(
     ILogger<ScheduledJobWorker> logger
 ) : BackgroundService
 {
-    private const int DuplicateKeyErrorCode = 11000;
     private static readonly TimeSpan s_maximumWait = TimeSpan.FromDays(1);
     private static readonly TimeSpan s_retryDelay = TimeSpan.FromSeconds(5);
 
@@ -69,10 +68,7 @@ public sealed class ScheduledJobWorker(
                         if (await Run(scheduledAt, stoppingToken))
                             break;
                     }
-                    catch (Exception exception)
-                        when (!stoppingToken.IsCancellationRequested
-                            && typeof(ITransactionalScheduledJob).IsAssignableFrom(jobType)
-                        )
+                    catch (Exception exception) when (!stoppingToken.IsCancellationRequested)
                     {
                         logger.LogError(
                             exception,
@@ -113,82 +109,38 @@ public sealed class ScheduledJobWorker(
             async (services, token) =>
             {
                 var job = (IScheduledJob)services.GetRequiredService(jobType);
-                if (job is ITransactionalScheduledJob transactionalJob)
-                {
-                    var handedOff = await services
-                        .GetRequiredService<IDbContext>()
-                        .ExecuteTransaction(
-                            async (session, transactionToken) =>
-                            {
-                                var state = await _states
-                                    .Find(session, x => x.Id == name)
-                                    .FirstOrDefaultAsync(transactionToken);
-                                if (state is not null && state.LastStartedAt >= scheduledAt)
-                                    return false;
+                var handedOff = await services
+                    .GetRequiredService<IDbContext>()
+                    .ExecuteTransaction(
+                        async (session, transactionToken) =>
+                        {
+                            var state = await _states
+                                .Find(session, x => x.Id == name)
+                                .FirstOrDefaultAsync(transactionToken);
+                            if (state is not null && state.LastStartedAt >= scheduledAt)
+                                return false;
 
-                                await transactionalJob.Run(session, transactionToken);
-                                await _states.UpdateOneAsync(
-                                    session,
-                                    x => x.Id == name,
-                                    Builders<ScheduledJobState>.Update.Set(x => x.LastStartedAt, scheduledAt),
-                                    new UpdateOptions { IsUpsert = true },
-                                    transactionToken
-                                );
+                            await job.Run(session, transactionToken);
+                            await _states.UpdateOneAsync(
+                                session,
+                                x => x.Id == name,
+                                Builders<ScheduledJobState>.Update.Set(x => x.LastStartedAt, scheduledAt),
+                                new UpdateOptions { IsUpsert = true },
+                                transactionToken
+                            );
 
-                                return true;
-                            },
-                            "scheduled job handoff",
-                            token
-                        );
-                    if (handedOff)
-                        logger.LogInformation(
-                            "Scheduled job {JobName} handed off for {ScheduledAt}",
-                            name,
-                            scheduledAt
-                        );
-                }
-                else
-                {
-                    if (await TryStart(scheduledAt, token))
-                    {
-                        token.ThrowIfCancellationRequested();
-                        logger.LogInformation("Scheduled job {JobName} started for {ScheduledAt}", name, scheduledAt);
-                        await job.Run(token);
-                        logger.LogInformation("Scheduled job {JobName} finished for {ScheduledAt}", name, scheduledAt);
-                    }
-                }
+                            return true;
+                        },
+                        "scheduled job handoff",
+                        token
+                    );
+                if (handedOff)
+                    logger.LogInformation("Scheduled job {JobName} handed off for {ScheduledAt}", name, scheduledAt);
                 settled = true;
             },
             stoppingToken
         );
 
-        return settled || !typeof(ITransactionalScheduledJob).IsAssignableFrom(jobType);
-    }
-
-    private async Task<bool> TryStart(DateTime scheduledAt, CancellationToken cancellationToken)
-    {
-        var filter = Builders<ScheduledJobState>.Filter.And(
-            Builders<ScheduledJobState>.Filter.Eq(x => x.Id, name),
-            Builders<ScheduledJobState>.Filter.Lt(x => x.LastStartedAt, scheduledAt)
-        );
-        var update = Builders<ScheduledJobState>
-            .Update.SetOnInsert(x => x.Id, name)
-            .Set(x => x.LastStartedAt, scheduledAt);
-
-        try
-        {
-            await _states.FindOneAndUpdateAsync(
-                filter,
-                update,
-                new FindOneAndUpdateOptions<ScheduledJobState> { IsUpsert = true },
-                cancellationToken
-            );
-
-            return true;
-        }
-        catch (MongoCommandException exception) when (exception.Code == DuplicateKeyErrorCode)
-        {
-            return false;
-        }
+        return settled;
     }
 }

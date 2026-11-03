@@ -10,23 +10,8 @@ public sealed class ObligationCalculationJob(
     ICurrentObligationYearProvider obligationYearProvider,
     IObligationCalculationInstructionService instructions,
     ILogger<ObligationCalculationJob> logger
-) : ITransactionalScheduledJob
+) : IScheduledJob
 {
-    public async Task Run(CancellationToken cancellationToken)
-    {
-        var instruction = await instructions.Create(
-            obligationYearProvider.GetCurrentObligationYear(),
-            null,
-            cancellationToken
-        );
-        logger.LogInformation(
-            "Obligation calculation instruction {InstructionId} is {InstructionStatus} for obligation year {ObligationYear}",
-            instruction.Id,
-            instruction.Status,
-            instruction.ObligationYear
-        );
-    }
-
     public async Task Run(IClientSessionHandle session, CancellationToken cancellationToken)
     {
         var instruction = await instructions.Create(

@@ -134,7 +134,7 @@ See [dependabot.yml](.github/dependabot.yml) for group configuration.
 
 ## Scheduled jobs
 
-Implement `IScheduledJob.Run(CancellationToken)` in `src/Api/ScheduledJobs/<Name>Job.cs`,
+Implement `IScheduledJob.Run(IClientSessionHandle, CancellationToken)` in `src/Api/ScheduledJobs/<Name>Job.cs`,
 using the namespace `Defra.WasteObligations.Api.ScheduledJobs`. The configuration
 entry name selects the implementation by convention: `ObligationCalculation` loads
 `Defra.WasteObligations.Api.ScheduledJobs.ObligationCalculationJob` from the API assembly.
@@ -161,10 +161,9 @@ commit together in a Mongo transaction. Hosts that observe an occurrence retry
 lease contention or a failed handoff every five seconds until it succeeds or the
 next occurrence is due. A retry checks the committed marker, even if the
 instruction has already completed. Missed occurrences while all hosts are stopped
-are not replayed. Ordinary `IScheduledJob` implementations retain their existing
-mark-before-run behaviour; only `ITransactionalScheduledJob` implementations use
-the transactional handoff and must perform only Mongo writes using the supplied
-session in that handoff.
+are not replayed. Scheduled jobs perform only their durable MongoDB handoff using
+the supplied session; the transaction callback may be retried. External calls and
+other nontransactional effects belong in the processing worker after commit.
 
 Jobs must honour cancellation. Shutdown or lease loss cancels the job; the worker
 waits for it to finish before releasing its lease or attempting another run.

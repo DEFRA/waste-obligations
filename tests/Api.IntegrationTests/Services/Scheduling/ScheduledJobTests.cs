@@ -132,24 +132,39 @@ public class ScheduledJobTests : IntegrationTestBase
         control.Count.Should().Be(0);
 
         _clock.Advance(TimeSpan.FromMinutes(1));
-        await firstTime.WaitForTimer(TimeSpan.FromDays(1));
-        await secondTime.WaitForTimer(TimeSpan.FromDays(1));
+        var retry = await Task.WhenAny(firstTime.RetryTimer, secondTime.RetryTimer)
+            .WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await WaitForAsync(async () =>
+        {
+            control.Count.Should().Be(1);
+            var committed = await GetMongoDatabase()
+                .GetCollection<BsonDocument>(StateCollection)
+                .Find(new BsonDocument("_id", JobName))
+                .FirstOrDefaultAsync(TestContext.Current.CancellationToken);
+            committed.Should().NotBeNull();
+            (await ReadLease()).Contains("owner").Should().BeFalse();
+        });
+        _clock.Advance(TimeSpan.FromSeconds(5));
+        var retryingHost = retry == firstTime.RetryTimer ? firstTime : secondTime;
+        await retryingHost.WaitForTimer(TimeSpan.FromDays(1) - TimeSpan.FromSeconds(5));
 
         control.Count.Should().Be(1);
         var state = await GetMongoDatabase()
             .GetCollection<BsonDocument>(StateCollection)
             .Find(new BsonDocument("_id", JobName))
             .SingleAsync(TestContext.Current.CancellationToken);
-        state["lastStartedAt"].ToUniversalTime().Should().Be(_clock.GetUtcNow().UtcDateTime);
+        state["lastStartedAt"].ToUniversalTime().Should().Be(_clock.GetUtcNow().AddSeconds(-5).UtcDateTime);
 
-        var lateClock = new FakeTimeProvider(_clock.GetUtcNow().AddMinutes(-1));
+        var lateClock = new FakeTimeProvider(_clock.GetUtcNow().AddMinutes(-1).AddSeconds(-5));
         var lateTime = new SchedulerTimeProvider(lateClock);
         await using var late = CreateHost(lateTime, control);
         var lateWorker = late.GetRequiredService<IHostedService>();
         await lateWorker.StartAsync(TestContext.Current.CancellationToken);
         await lateTime.WaitForTimer(TimeSpan.FromMinutes(1));
         lateClock.Advance(TimeSpan.FromMinutes(1));
-        await lateTime.WaitForTimer(TimeSpan.FromDays(1));
+        await lateTime.WaitForTimer(TimeSpan.FromSeconds(5));
+        lateClock.Advance(TimeSpan.FromSeconds(5));
+        await lateTime.WaitForTimer(TimeSpan.FromDays(1) - TimeSpan.FromSeconds(5));
 
         control.Count.Should().Be(1);
         await lateWorker.StopAsync(TestContext.Current.CancellationToken);
@@ -545,11 +560,8 @@ public class ScheduledJobTests : IntegrationTestBase
             await worker.StartAsync(TestContext.Current.CancellationToken);
             await time.WaitForTimer(TimeSpan.FromMinutes(1));
             _clock.Advance(TimeSpan.FromMinutes(2));
-            await WaitForAsync(() =>
-            {
-                control.Count.Should().Be(1);
-                return Task.CompletedTask;
-            });
+            await time.WaitForTimer(TimeSpan.FromMinutes(1));
+            control.Count.Should().Be(1);
             var state = await GetMongoDatabase()
                 .GetCollection<BsonDocument>(StateCollection)
                 .Find(new BsonDocument("_id", JobName))
@@ -593,7 +605,7 @@ public class ScheduledJobTests : IntegrationTestBase
         await secondWorker.StartAsync(TestContext.Current.CancellationToken);
         await secondTime.WaitForTimer(TimeSpan.FromSeconds(20));
         _clock.Advance(TimeSpan.FromSeconds(20));
-        await secondTime.WaitForTimer(TimeSpan.FromMinutes(1));
+        await secondTime.WaitForTimer(TimeSpan.FromSeconds(5));
 
         control.Count.Should().Be(1);
         finish.SetResult();
@@ -620,13 +632,13 @@ public class ScheduledJobTests : IntegrationTestBase
         await worker.StartAsync(TestContext.Current.CancellationToken);
         await time.WaitForTimer(TimeSpan.FromMinutes(1));
         _clock.Advance(TimeSpan.FromMinutes(1));
-        await time.WaitForTimer(TimeSpan.FromMinutes(1));
+        await time.WaitForTimer(TimeSpan.FromSeconds(5));
 
         control.Count.Should().Be(1);
         (await ReadLease()).Contains("owner").Should().BeFalse();
 
         _clock.Advance(TimeSpan.FromMinutes(1));
-        await time.WaitForTimer(TimeSpan.FromMinutes(1));
+        await time.WaitForTimer(TimeSpan.FromSeconds(5));
 
         control.Count.Should().Be(2);
         await worker.StopAsync(TestContext.Current.CancellationToken);
@@ -671,30 +683,22 @@ public class ScheduledJobTests : IntegrationTestBase
 
         control.Count.Should().Be(1);
         (await ReadLease())["owner"].AsString.Should().Be("another-host");
+        var stopping = worker.StopAsync(TestContext.Current.CancellationToken);
         finish.SetResult();
-        await time.WaitForTimer(TimeSpan.FromSeconds(40));
+        await stopping;
         (await ReadLease())["owner"].AsString.Should().Be("another-host");
-        await worker.StopAsync(TestContext.Current.CancellationToken);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task FailedJob_WhenCleanupAlsoFails_ShouldReportBothErrorsAndReleaseLease(bool scopeDisposalFails)
+    [Fact]
+    public async Task FailedJob_WhenScopeDisposalAlsoFails_ShouldReportBothErrorsAndReleaseLease()
     {
         await Reset();
         var jobFailure = new InvalidOperationException("Job execution failed");
         var cleanupFailure = new InvalidOperationException("Cancellation cleanup failed");
         var control = new JobControl
         {
-            Run = token =>
-            {
-                if (!scopeDisposalFails)
-                    token.Register(() => throw cleanupFailure);
-
-                return Task.FromException(jobFailure);
-            },
-            Dispose = () => scopeDisposalFails ? Task.FromException(cleanupFailure) : Task.CompletedTask,
+            Run = _ => Task.FromException(jobFailure),
+            Dispose = () => Task.FromException(cleanupFailure),
         };
         var time = new SchedulerTimeProvider(_clock);
         var logger = new RecordingLogger<ScheduledJobWorker>();
@@ -703,7 +707,7 @@ public class ScheduledJobTests : IntegrationTestBase
         await worker.StartAsync(TestContext.Current.CancellationToken);
         await time.WaitForTimer(TimeSpan.FromMinutes(1));
         _clock.Advance(TimeSpan.FromMinutes(1));
-        await time.WaitForTimer(TimeSpan.FromDays(1));
+        await time.WaitForTimer(TimeSpan.FromSeconds(5));
 
         var reported = logger.Entries.Single(x => x.Exception is AggregateException);
         ((AggregateException)reported.Exception!)
@@ -793,7 +797,7 @@ public class ScheduledJobTests : IntegrationTestBase
         await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
 
         acquired.SetResult(true);
-        await time.WaitForTimer(TimeSpan.FromSeconds(49));
+        await time.WaitForTimer(TimeSpan.FromSeconds(5));
 
         control.Count.Should().Be(0);
         await lease.Received(1).Release(Arg.Any<CancellationToken>());
@@ -847,7 +851,7 @@ public class ScheduledJobTests : IntegrationTestBase
         finished.SetResult();
         await lease.DidNotReceive().Release(Arg.Any<CancellationToken>());
         renewed.SetResult(true);
-        await time.WaitForTimer(TimeSpan.FromSeconds(29));
+        await time.WaitForTimer(TimeSpan.FromSeconds(5));
 
         await lease.Received(1).Release(Arg.Any<CancellationToken>());
         control.Count.Should().Be(1);
@@ -928,8 +932,16 @@ public class ScheduledJobTests : IntegrationTestBase
 
     private static async Task Reset()
     {
-        await GetMongoDatabase().DropCollectionAsync(LeaseCollection, TestContext.Current.CancellationToken);
-        await GetMongoDatabase().DropCollectionAsync(StateCollection, TestContext.Current.CancellationToken);
+        var filter = new BsonDocument(
+            "_id",
+            new BsonDocument("$in", new BsonArray { JobName, "ObligationCalculation" })
+        );
+        await GetMongoDatabase()
+            .GetCollection<BsonDocument>(LeaseCollection)
+            .DeleteManyAsync(filter, TestContext.Current.CancellationToken);
+        await GetMongoDatabase()
+            .GetCollection<BsonDocument>(StateCollection)
+            .DeleteManyAsync(filter, TestContext.Current.CancellationToken);
     }
 
     private static Task<BsonDocument> ReadLease() =>
@@ -949,7 +961,7 @@ public class ScheduledJobTests : IntegrationTestBase
     {
         public ValueTask DisposeAsync() => new(control.Dispose());
 
-        public Task Run(CancellationToken cancellationToken)
+        public Task Run(IClientSessionHandle session, CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref control.Count);
 
@@ -958,10 +970,8 @@ public class ScheduledJobTests : IntegrationTestBase
     }
 
     private sealed class TestTransactionalJob(JobControl control, IObligationCalculationInstructionService instructions)
-        : ITransactionalScheduledJob
+        : IScheduledJob
     {
-        public Task Run(CancellationToken cancellationToken) => throw new NotSupportedException();
-
         public async Task Run(IClientSessionHandle session, CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref control.Count);
@@ -973,6 +983,9 @@ public class ScheduledJobTests : IntegrationTestBase
     private sealed class SchedulerTimeProvider(FakeTimeProvider clock) : TimeProvider
     {
         private readonly Channel<TimeSpan> _timers = Channel.CreateUnbounded<TimeSpan>();
+        private readonly TaskCompletionSource _retryTimer = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task RetryTimer => _retryTimer.Task;
 
         public override DateTimeOffset GetUtcNow() => clock.GetUtcNow();
 
@@ -980,6 +993,8 @@ public class ScheduledJobTests : IntegrationTestBase
         {
             var timer = clock.CreateTimer(callback, state, dueTime, period);
             _timers.Writer.TryWrite(dueTime);
+            if (dueTime == TimeSpan.FromSeconds(5))
+                _retryTimer.TrySetResult();
 
             return timer;
         }
