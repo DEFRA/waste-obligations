@@ -10,6 +10,27 @@ namespace Defra.WasteObligations.Api.IntegrationTests.Scenarios;
 public class StartObligationCalculationTests : IntegrationTestBase
 {
     [Fact]
+    public async Task WhenProcessingIsDisabled_ShouldRejectWithoutPersistingInstruction()
+    {
+        using var client = CreateClient();
+        var response = await client.PostAsync(
+            "/admin/obligation-calculations?obligationYear=2026",
+            null,
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (
+            await ObligationCalculationInstructions.CountDocumentsAsync(
+                FilterDefinition<ObligationCalculationInstruction>.Empty,
+                cancellationToken: TestContext.Current.CancellationToken
+            )
+        )
+            .Should()
+            .Be(0);
+    }
+
+    [Fact]
     public async Task AdminInstruction_ShouldBeProcessedByComposeService()
     {
         const int obligationYear = 2026;
