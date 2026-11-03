@@ -83,35 +83,7 @@ public sealed class ScheduledJobWorker(
             catch (Exception exception) when (!stoppingToken.IsCancellationRequested)
             {
                 consecutiveFailures = Math.Min(consecutiveFailures + 1, 5);
-                if (consecutiveFailures == 1)
-                    logger.LogError(
-                        exception,
-                        "Scheduled job {JobName} handoff failed for {ScheduledAt}; retrying",
-                        name,
-                        scheduledAt
-                    );
-                else
-                    logger.LogWarning(
-                        "Scheduled job {JobName} handoff still failing for {ScheduledAt}: {FailureMessage}",
-                        name,
-                        scheduledAt,
-                        exception.Message
-                    );
-
-                var baseSeconds = Math.Min(
-                    MaximumRetryDelaySeconds,
-                    InitialRetryDelaySeconds << (consecutiveFailures - 1)
-                );
-                var delaySeconds = baseSeconds switch
-                {
-                    InitialRetryDelaySeconds => InitialRetryDelaySeconds,
-                    MaximumRetryDelaySeconds => Random.Shared.Next(
-                        MaximumRetryDelaySeconds * 4 / 5,
-                        MaximumRetryDelaySeconds
-                    ),
-                    _ => baseSeconds + Random.Shared.Next(baseSeconds / 5 + 1),
-                };
-                retryDelay = TimeSpan.FromSeconds(delaySeconds);
+                retryDelay = FailureRetryDelay(exception, scheduledAt, consecutiveFailures);
             }
 
             var remaining = nextOccurrence is null
@@ -120,6 +92,34 @@ public sealed class ScheduledJobWorker(
             if (remaining > TimeSpan.Zero)
                 await Task.Delay(remaining < retryDelay ? remaining : retryDelay, timeProvider, stoppingToken);
         }
+    }
+
+    private TimeSpan FailureRetryDelay(Exception exception, DateTime scheduledAt, int consecutiveFailures)
+    {
+        if (consecutiveFailures == 1)
+            logger.LogError(
+                exception,
+                "Scheduled job {JobName} handoff failed for {ScheduledAt}; retrying",
+                name,
+                scheduledAt
+            );
+        else
+            logger.LogWarning(
+                "Scheduled job {JobName} handoff still failing for {ScheduledAt}: {FailureMessage}",
+                name,
+                scheduledAt,
+                exception.Message
+            );
+
+        var baseSeconds = Math.Min(MaximumRetryDelaySeconds, InitialRetryDelaySeconds << (consecutiveFailures - 1));
+        var delaySeconds = baseSeconds switch
+        {
+            InitialRetryDelaySeconds => InitialRetryDelaySeconds,
+            MaximumRetryDelaySeconds => Random.Shared.Next(MaximumRetryDelaySeconds * 4 / 5, MaximumRetryDelaySeconds),
+            _ => baseSeconds + Random.Shared.Next(baseSeconds / 5 + 1),
+        };
+
+        return TimeSpan.FromSeconds(delaySeconds);
     }
 
     private async Task<bool> Run(DateTime scheduledAt, CancellationToken stoppingToken)
