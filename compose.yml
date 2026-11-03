@@ -105,5 +105,19 @@ services:
       retries: 10
       start_period: 5s
 
+
+  scheduled-job-api:
+    extends:
+      service: api
+    environment:
+      Mongo__DatabaseName: waste-obligations-scheduled-job-test
+      AnalyticsAuditEventProcessor__ProcessingEnabled: false
+      # The scenario creates instructions through the admin endpoint; only the processor runs here.
+      ScheduledJobs__ObligationCalculation__Enabled: false
+      ScheduledJobs__ObligationCalculation__Processing__Enabled: true
+      ScheduledJobs__ObligationCalculation__Processing__PollIntervalSeconds: 1
+    ports: !override
+      - 8081:8080
+
 volumes:
   mongodb-data:
