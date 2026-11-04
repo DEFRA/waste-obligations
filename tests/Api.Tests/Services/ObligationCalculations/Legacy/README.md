@@ -1,6 +1,6 @@
 # Full-year PRN comparison corpus
 
-`FullYearParityTests` compiles and executes the PRN material calculator and both material strategies from [DEFRA/epr-prn-common-backend at 488028bff5b52658cc82af831d0dcfd833f71dcf](https://github.com/DEFRA/epr-prn-common-backend/tree/488028bff5b52658cc82af831d0dcfd833f71dcf). The C# files in this directory are test-only source snapshots, with repository formatting applied and calculation/record-creation logic retained. They are not production dependencies. Update the pinned revision and review the case mapping when refreshing them.
+`FullYearParityTests` compiles and executes the PRN material calculator and both material strategies from [DEFRA/epr-prn-common-backend at 488028bff5b52658cc82af831d0dcfd833f71dcf](https://github.com/DEFRA/epr-prn-common-backend/tree/488028bff5b52658cc82af831d0dcfd833f71dcf). The C# files in this directory are test-only source snapshots, with repository formatting applied and calculation/record-creation logic retained. The SQL model removes redundant null-forgiving operators where nullable warnings are disabled. They are not production dependencies. Update the pinned revision and review the case mapping when refreshing them.
 
 The upstream source paths are:
 
