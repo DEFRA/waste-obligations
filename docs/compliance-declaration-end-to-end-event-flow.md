@@ -11,6 +11,17 @@ The service uses two audit concepts:
 
 Declaration changes and their outbox events commit in the same Mongo transaction. A failed transaction commits neither; after commit, analytics publication happens asynchronously. The embedded declaration audit history and the publishable outbox event serve different purposes and must not be treated as interchangeable. See [transactional analytics outbox](adr/0008-transactional-analytics-outbox.md) for the decision and its rationale.
 
+```mermaid
+flowchart LR
+    A[Declaration change] --> B[Mongo transaction]
+    B --> C[Declaration]
+    B --> D[Audit event outbox]
+    D --> E[Analytics processor]
+    E --> F[Analytics SNS topic]
+```
+
+The declaration and outbox writes share the transaction; publication happens after commit. The [declaration service](../src/Api/Services/ComplianceDeclarationService.cs), [audit event service](../src/AuditEvents/AuditEventService.cs), and [analytics processor](../src/AuditEvents/Analytics/AnalyticsAuditEventProcessor.cs) define the current implementation.
+
 ## Mutation and outbox implementation
 
 The [declaration service](../src/Api/Services/ComplianceDeclarationService.cs) and [audit event service](../src/AuditEvents/AuditEventService.cs) implement the transaction and optimistic concurrency. The [declaration entity](../src/Api/Data/Entities/ComplianceDeclaration.cs) owns business status history. Email delivery is outside the transaction; see the [email delivery cutover](email-delivery-cutover.md) for its cross-service activation and recovery constraints.
@@ -24,5 +35,17 @@ Older embedded schemas remain available because historical audit snapshots retai
 ## Analytics event dispatch
 
 The [processor](../src/AuditEvents/Analytics/AnalyticsAuditEventProcessor.cs), [mapper](../src/AuditEvents/Analytics/AnalyticsEventMappers.cs), [sender](../src/AuditEvents/Analytics/SnsAnalyticsEventSender.cs) and [processor options](../src/AuditEvents/Analytics/AnalyticsAuditEventProcessorOptions.cs) define dispatch, retry, message encoding and configuration. The [analytics guide](analytics-compliance-declaration-events.md) describes the consumer-facing contract and examples.
+
+```mermaid
+sequenceDiagram
+    participant Outbox as Audit event outbox
+    participant Processor as Analytics processor
+    participant SNS as Analytics SNS topic
+    Processor->>Outbox: Read event for dispatch
+    Processor->>SNS: Publish event
+    SNS-->>Processor: Publish succeeds
+    Processor->>Outbox: Record dispatch outcome
+    Note over Processor,Outbox: Failure before outcome is recorded can lead to another publication
+```
 
 Delivery is at least once: publication can succeed before the dispatch outcome is recorded, so downstream consumers should use `eventId` or `sequence` to make ingestion idempotent. The optional [analytics consumer](../src/Api/Consumers/AnalyticsAuditEventConsumer.cs) is downstream of publication and is not required for audit capture or SNS publishing.
