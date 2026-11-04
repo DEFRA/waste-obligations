@@ -22,7 +22,7 @@ public class ObligationCalculationConfigurationTests(ApiWebApplicationFactory fa
     {
         var targets = factory.Services.GetRequiredService<IOptions<ObligationCalculationOptions>>().Value.Targets;
 
-        targets.Keys.Should().BeEquivalentTo(2025, 2026, 2027, 2028, 2029, 2030);
+        targets.Keys.Should().BeEquivalentTo([2025, 2026, 2027, 2028, 2029, 2030]);
         targets[year]
             .Should()
             .BeEquivalentTo(
