@@ -7,8 +7,6 @@ namespace Defra.WasteObligations.Api.Services.ObligationCalculations;
 public class ObligationCalculator(IOptions<ObligationCalculationOptions> options, TimeProvider timeProvider)
     : IObligationCalculator
 {
-    private static readonly HashSet<string> InputMaterials = ["PL", "PC", "FC", "AL", "ST", "WD", "GL"];
-
     public ObligationCalculation Calculate(ApprovedSubmission submission, int obligationYear)
     {
         ArgumentNullException.ThrowIfNull(submission);
@@ -47,21 +45,21 @@ public class ObligationCalculator(IOptions<ObligationCalculationOptions> options
         var tonnes = (long)decimal.Round(material.Kilograms / 1000m, 0, MidpointRounding.AwayFromZero);
         var initialTarget = (decimal)targets[material.MaterialCode] * tonnes;
         var total = (long)decimal.Ceiling(initialTarget);
-        if (material.MaterialCode == "GL")
+        if (material.MaterialCode == ObligationMaterials.Glass)
         {
-            var remelt = (long)decimal.Ceiling(initialTarget * (decimal)targets["GR"]);
+            var remelt = (long)decimal.Ceiling(initialTarget * (decimal)targets[ObligationMaterials.GlassRemelt]);
 
             return
             [
                 new()
                 {
-                    MaterialCode = "GL",
+                    MaterialCode = ObligationMaterials.Glass,
                     InputTonnage = tonnes,
                     Obligation = total - remelt,
                 },
                 new()
                 {
-                    MaterialCode = "GR",
+                    MaterialCode = ObligationMaterials.GlassRemelt,
                     InputTonnage = tonnes,
                     Obligation = remelt,
                 },
@@ -117,7 +115,7 @@ public class ObligationCalculator(IOptions<ObligationCalculationOptions> options
             {
                 if (
                     material is null
-                    || !InputMaterials.Contains(material.MaterialCode)
+                    || !ObligationMaterials.Inputs.Contains(material.MaterialCode)
                     || !materialCodes.Add(material.MaterialCode)
                     || material.Kilograms < 0
                 )
