@@ -261,11 +261,84 @@ for (const prn of complianceAwaitingPrns.slice(1)) {
 // Other page sizes are served by the mappings above, which return every note, so
 // they only suit a year whose notes all fit on the page. Priorities are negative
 // so the most specific stub wins over the filter and sort mappings.
-const YEAR_PAGE_PRIORITY = -3;
-const YEAR_PAST_END_PRIORITY = -2;
+// A year combined with a filter or sort must keep the filter and sort, so those
+// stubs rank above the year-wide one, and the count's single-note pages rank
+// above both.
+const YEAR_PAGE_PRIORITY = -6;
+const YEAR_PAST_END_PRIORITY = -5;
+const YEAR_FILTER_SORT_PRIORITY = -4;
+const YEAR_FILTER_PRIORITY = -3;
+const YEAR_SORT_PRIORITY = -2;
 const YEAR_WIDE_PRIORITY = -1;
 
-export const yearMappings = ({ prefix, searchMapping, items, now = new Date() }) => {
+const sortedBy = (items, sort = defaultPrnSort) =>
+    [...items].sort((a, b) => sort(a, b) || defaultPrnSort(a, b));
+
+// The year-wide stub above would otherwise answer a year combined with a filter
+// or sort and ignore them, so each combination is answered from the notes
+// acceptable into the year, filtered and sorted the way the backend does.
+const yearFilterAndSortMappings = ({
+    prefix,
+    searchMapping,
+    acceptable,
+    year,
+    yearParam,
+    filters,
+    sorts,
+}) => {
+    const answer = (filter = () => true, sort) => {
+        const matching = sortedBy(acceptable.filter(filter), sort);
+
+        return { items: matching, totalItems: matching.length };
+    };
+    const mappings = [];
+
+    for (const [sortBy, sort] of Object.entries(sorts)) {
+        mappings.push([
+            `${prefix}-year-${year}-sort-${sortBy}.json`,
+            searchMapping(
+                [yearParam, queryParam("sortBy", sortBy)],
+                answer(undefined, sort),
+                YEAR_SORT_PRIORITY,
+            ),
+        ]);
+    }
+    for (const [filterBy, filter] of Object.entries(filters)) {
+        mappings.push([
+            `${prefix}-year-${year}-filter-${filterBy}.json`,
+            searchMapping(
+                [yearParam, queryParam("filterBy", filterBy)],
+                answer(filter),
+                YEAR_FILTER_PRIORITY,
+            ),
+        ]);
+        for (const [sortBy, sort] of Object.entries(sorts)) {
+            mappings.push([
+                `${prefix}-year-${year}-filter-${filterBy}-sort-${sortBy}.json`,
+                searchMapping(
+                    [
+                        yearParam,
+                        queryParam("filterBy", filterBy),
+                        queryParam("sortBy", sortBy),
+                    ],
+                    answer(filter, sort),
+                    YEAR_FILTER_SORT_PRIORITY,
+                ),
+            ]);
+        }
+    }
+
+    return mappings;
+};
+
+export const yearMappings = ({
+    prefix,
+    searchMapping,
+    items,
+    filters = {},
+    sorts = {},
+    now = new Date(),
+}) => {
     const journeyYear = Number(obligationYear);
     const mappings = [];
 
@@ -285,6 +358,20 @@ export const yearMappings = ({ prefix, searchMapping, items, now = new Date() })
         }
         if (acceptable.length === 0) {
             continue;
+        }
+
+        if (acceptable.length < items.length) {
+            mappings.push(
+                ...yearFilterAndSortMappings({
+                    prefix,
+                    searchMapping,
+                    acceptable,
+                    year,
+                    yearParam,
+                    filters,
+                    sorts,
+                }),
+            );
         }
 
         const sizeOne = [
@@ -320,6 +407,8 @@ prnMappings.push(
         prefix: "journey-producer-prns",
         searchMapping: prnSearchMapping,
         items: searchPrns().items,
+        filters: prnFilters,
+        sorts: prnSorts,
     }),
     ...yearMappings({
         prefix: "journey-compliance-scheme-prns",

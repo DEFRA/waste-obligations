@@ -69,6 +69,8 @@ const yearMappingsAt = (now) => ({
     prefix: "journey-producer-prns",
     searchMapping: prnMappings.prnSearchMapping,
     items: prnMappings.searchPrns().items,
+    filters: prnMappings.prnFilters,
+    sorts: prnMappings.prnSorts,
     now,
   }),
   compliance: prnMappings.yearMappings({
@@ -146,4 +148,70 @@ test("the compliance scheme gets the same year and paging mappings for its own n
   assert.equal(last.Response.BodyAsJson.totalItems, 8);
   assert.equal(last.Response.BodyAsJson.items.length, 1);
   assert.equal(last.Request.Headers[0].Matchers[0].Pattern, "5165d0cb-fb61-4fd4-8b5e-75fa0e99a323");
+});
+
+const nextYear = journeyYear + 1;
+const nextYearName = (suffix = "") => `journey-producer-prns-year-${nextYear}${suffix}.json`;
+const numbersOf = (mapping) => mapping.Response.BodyAsJson.items.map((prn) => prn.prnNumber);
+const decemberNote = prns.producerPrns.find((prn) => prn.prnNumber === "PRN870");
+const filterNamesFor = (prn) =>
+  Object.keys(prnMappings.prnFilters).filter((name) => prnMappings.prnFilters[name](prn));
+
+test("a year combined with a filter keeps the filter, so a next-year request for another material lists nothing", () => {
+  const { producer } = yearMappingsAt(insideWindow);
+  const matching = filterNamesFor(decemberNote);
+  const other = Object.keys(prnMappings.prnFilters).find((name) => !matching.includes(name));
+
+  assert.ok(matching.length > 1, "the December note matches its material filter and awaiting-all");
+  assert.ok(other, "a filter for a different material exists");
+  for (const name of matching) {
+    assert.deepEqual(numbersOf(mappingNamed(producer, nextYearName(`-filter-${name}`))), ["PRN870"]);
+  }
+  const unrelated = mappingNamed(producer, nextYearName(`-filter-${other}`));
+
+  assert.deepEqual(unrelated.Response.BodyAsJson, { items: [], totalItems: 0 });
+  assert.deepEqual(paramsOf(unrelated), { acceptableIntoYear: String(nextYear), filterBy: other });
+});
+
+test("a year combined with a sort answers from the acceptable notes and keeps the total", () => {
+  const { producer } = yearMappingsAt(insideWindow);
+  const sorted = mappingNamed(producer, nextYearName("-sort-tonnage-asc"));
+
+  assert.deepEqual(paramsOf(sorted), { acceptableIntoYear: String(nextYear), sortBy: "tonnage-asc" });
+  assert.deepEqual(sorted.Response.BodyAsJson, { items: [decemberNote], totalItems: 1 });
+});
+
+test("a year with a filter and a sort is answered too, and each stub outranks the less specific one", () => {
+  const { producer } = yearMappingsAt(insideWindow);
+  const both = mappingNamed(producer, nextYearName("-filter-awaiting-all-sort-tonnage-desc"));
+  const filterOnly = mappingNamed(producer, nextYearName("-filter-awaiting-all"));
+  const sortOnly = mappingNamed(producer, nextYearName("-sort-tonnage-desc"));
+  const yearWide = mappingNamed(producer, nextYearName());
+  const page = mappingNamed(prnMappings.prnMappings, `journey-producer-prns-year-${journeyYear}-size-1-page-1.json`);
+
+  assert.deepEqual(numbersOf(both), ["PRN870"]);
+  assert.ok(page.Priority < both.Priority);
+  assert.ok(both.Priority < filterOnly.Priority);
+  assert.ok(filterOnly.Priority < sortOnly.Priority);
+  assert.ok(sortOnly.Priority < yearWide.Priority);
+});
+
+test("a year with no acceptable notes needs no filter or sort stubs because the empty year-wide stub answers everything", () => {
+  const { producer } = yearMappingsAt(outsideWindow);
+  const names = producer.map(([name]) => name).filter((name) => name.includes(`-year-${nextYear}`));
+
+  assert.deepEqual(names, [nextYearName()]);
+});
+
+test("a year every note can be accepted into leaves filtering and sorting to the filter and sort mappings", () => {
+  const { producer } = yearMappingsAt(outsideWindow);
+  const names = producer.map(([name]) => name).filter((name) => name.includes(`-year-${journeyYear}-`));
+
+  assert.equal(names.some((name) => name.includes("-filter-") || name.includes("-sort-")), false);
+});
+
+test("the compliance scheme has no filter or sort mappings to combine with a year", () => {
+  const { compliance } = yearMappingsAt(insideWindow);
+
+  assert.equal(compliance.some(([name]) => name.includes("-filter-") || name.includes("-sort-")), false);
 });
