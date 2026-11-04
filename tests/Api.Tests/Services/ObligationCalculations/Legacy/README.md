@@ -1,31 +1,21 @@
-# Full-year PRN comparison corpus
+# Full-year PRN assertion mapping
 
-`FullYearParityTests` compiles and executes the PRN material calculator and both material strategies from [DEFRA/epr-prn-common-backend at 488028bff5b52658cc82af831d0dcfd833f71dcf](https://github.com/DEFRA/epr-prn-common-backend/tree/488028bff5b52658cc82af831d0dcfd833f71dcf). The C# files in this directory are test-only source snapshots, with repository formatting applied and calculation/record-creation logic retained. The general strategy uses the equivalent generic enum enumeration, and the SQL model removes redundant null-forgiving operators where nullable warnings are disabled. They are not production dependencies. Update the pinned revision and review the case mapping when refreshing them.
+`FullYearParityTests` exercises this repository's calculator against the expected values in [PRN PR #466](https://github.com/DEFRA/epr-prn-common-backend/pull/466) and the original material calculation tests. The upstream reference is pinned to [revision 488028bff5b52658cc82af831d0dcfd833f71dcf](https://github.com/DEFRA/epr-prn-common-backend/tree/488028bff5b52658cc82af831d0dcfd833f71dcf). No PRN implementation code is included or executed in this repository.
 
-The upstream source paths are:
+For each named case, the test supplies the source targets and converts whole tonnes to kilograms by multiplying by 1,000. It asserts the material code, input tonnage and literal obligation expected by the upstream assertion, together with producer, submitter, type, obligation year and a controlled UTC timestamp. Original arithmetic cases have no material identity; the corpus uses PL for their general arithmetic and preserves their supplied targets and compliance years. Both submitter types exercise every case, with matching producer/submitter IDs for direct registrants and distinct IDs for schemes. The expected records are test data, not a reimplementation of the legacy arithmetic.
 
-- `src/EPR.PRN.Backend.Obligation/Services/MaterialCalculationService.cs`
-- `src/EPR.PRN.Backend.Obligation/Strategies/GeneralCalculationStrategy.cs` and `GlassCalculationStrategy.cs`
-- `src/EPR.PRN.Backend.Obligation/Interfaces/IMaterialCalculationService.cs` and `IMaterialCalculationStrategy.cs`
-- `src/EPR.PRN.Backend.Obligation/Dto/CalculationRequestDto.cs`
-- `src/EPR.PRN.Backend.Obligation/Models/SubmissionCalculationRequest.cs`
-- `src/EPR.PRN.Backend.API.Common/Enums/MaterialType.cs`
-- `src/EPR.PRN.Backend.Data/DataModels/Material.cs`, `PrnMaterialMapping.cs`, `ObligationCalculation.cs` and `ObligationCalculationOrganisationSubmitterType.cs`
-
-The legacy strategies create the SQL-shaped records. The test maps legacy material lookup IDs to codes and submitter lookup IDs 1/2 to ComplianceScheme/DirectRegistrant, then compares producer, submitter, type, obligation year, material code, tonnes and obligation with the flattened destination result. Whole tonnes become kilograms by multiplication by 1,000. Original material arithmetic cases have no material identity; the corpus uses PL for their general arithmetic and preserves their supplied targets and compliance years. Both submitter types exercise every case, with matching producer/submitter IDs for direct registrants and distinct IDs for schemes.
-
-Both implementations' timestamp contracts are checked. Legacy strategies read the wall clock and must produce UTC-time-window records with one timestamp per material calculation. The destination uses a controlled clock. Only the mapped timestamp is normalized to that controlled instant for record comparison; equality of independently sampled clock values is not claimed. This does not execute the legacy repository orchestration, target loader or submission-year parser; the corpus supplies the equivalent resolved obligation year and targets directly to the real strategies.
+The implemented comparison covers 76 named full-year cases and the additional SQL integer boundary check. It allows the destination assertions to be audited against the linked upstream assertions. It does not run the legacy calculator, repository orchestration, target loader or submission-year parser, and does not compare independently sampled timestamps.
 
 ## Case mapping
 
-The original source is `src/EPR.PRN.Backend.Obligation.UnitTests/Services/MaterialCalculationServiceTests.cs` at the pinned revision. Row numbers below count only the full-year rows, whose days argument is null; all their literal targets, tonnes, years and expected results are retained.
+The original source is [MaterialCalculationServiceTests](https://github.com/DEFRA/epr-prn-common-backend/blob/488028bff5b52658cc82af831d0dcfd833f71dcf/src/EPR.PRN.Backend.Obligation.UnitTests/Services/MaterialCalculationServiceTests.cs#L40-L91). Row numbers below count only the full-year rows, whose days argument is null; all their literal targets, tonnes, years and expected results are retained.
 
 | Corpus ID | Upstream method/data row |
 | --- | --- |
 | `original-general-01` through `original-general-15` | `CasesForMaterialsExceptGlass`, full-year rows 1–15, in source order |
 | `original-glass-01` through `original-glass-06` | `CasesForGlassMaterial`, full-year rows 1–6, in source order; expected tuple is mapped from remelt/remainder to GL/GR |
 
-The PR #466 source is `src/EPR.PRN.Backend.Obligation.UnitTests/Services/CalculationParityTests.cs` at the same pinned revision.
+The PR #466 source is [CalculationParityTests](https://github.com/DEFRA/epr-prn-common-backend/blob/488028bff5b52658cc82af831d0dcfd833f71dcf/src/EPR.PRN.Backend.Obligation.UnitTests/Services/CalculationParityTests.cs#L79-L260), with its [large-weight boundary](https://github.com/DEFRA/epr-prn-common-backend/blob/488028bff5b52658cc82af831d0dcfd833f71dcf/src/EPR.PRN.Backend.Obligation.UnitTests/Services/CalculationParityTests.cs#L333-L342).
 
 | Corpus ID | Upstream method/data row |
 | --- | --- |
@@ -41,8 +31,8 @@ The mixed `Compliance_scheme_calculates_each_member_and_preserves_identity` scen
 
 ## Compatibility boundary and exclusions
 
-The SQL model stores both tonnage and obligation as signed 32-bit integers. The corpus covers the original ST/int.MaxValue case and an added unit-target/int.MaxValue case. The test's checked SQL projection accepts the maximum and rejects int.MaxValue + 1 tonnes. The destination deliberately retains 64-bit tonnages and obligations; a future SQL consumer must range-check both fields before writing. Wider destination results are not evidence of SQL compatibility, and this test projection is not a production SQL consumer.
+The upstream [SQL model](https://github.com/DEFRA/epr-prn-common-backend/blob/488028bff5b52658cc82af831d0dcfd833f71dcf/src/EPR.PRN.Backend.Data/DataModels/ObligationCalculation.cs#L18-L28) stores both tonnage and obligation as signed 32-bit integers. The corpus covers the original ST/int.MaxValue case and an added unit-target/int.MaxValue case. The test's checked SQL projection accepts the maximum and rejects int.MaxValue + 1 tonnes. The destination deliberately retains 64-bit tonnages and obligations; a future SQL consumer must range-check both fields before writing. Wider destination results are not evidence of SQL compatibility, and this test projection is not a production SQL consumer.
 
 The legacy synthetic target 2.0 overflow case is excluded because startup configuration deliberately accepts targets only from zero through one. Partial-year cases, upstream selection/adjustment, transitional packaging, persistence and SQL history are excluded. Missing/invalid targets, invalid identities and material codes are covered by destination validation tests as stricter behavior, not legacy parity. Separate destination kilogram-rounding tests remain because legacy inputs already contain whole tonnes.
 
-The corpus provides finite evidence for the listed cases, including non-seeded target combinations. It does not prove equivalence for every possible input.
+The corpus provides baseline parity evidence for the listed assertions, including non-seeded target combinations. These finite examples do not prove equivalence for every possible input.

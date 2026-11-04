@@ -1,16 +1,8 @@
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.ObligationCalculations;
-using EPR.PRN.Backend.API.Common.Enums;
-using EPR.PRN.Backend.Data.DataModels;
-using EPR.PRN.Backend.Obligation.Dto;
-using EPR.PRN.Backend.Obligation.Interfaces;
-using EPR.PRN.Backend.Obligation.Models;
-using EPR.PRN.Backend.Obligation.Services;
-using EPR.PRN.Backend.Obligation.Strategies;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
-using ObligationCalculation = Defra.WasteObligations.Api.Data.Entities.ObligationCalculation;
 
 namespace Defra.WasteObligations.Api.Tests.Services.ObligationCalculations;
 
@@ -24,17 +16,9 @@ public class FullYearParityTests
 
     [Theory]
     [MemberData(nameof(CaseIds))]
-    public void FullYearCorpus_ShouldMatchPinnedLegacyArithmeticAndMappedRecords(string caseId)
+    public void FullYearCorpus_ShouldMatchUpstreamExpectedRecords(string caseId)
     {
         var example = Cases().Single(x => x.Id == caseId);
-        var legacy = new MaterialCalculationService();
-        var obligations =
-            example.Material == "GL"
-                ? GlassObligations(legacy, example)
-                : new[] { legacy.Calculate(example.Target, example.Tonnes, null, example.Year) };
-
-        obligations.Should().Equal(example.Expected);
-
         foreach (
             var submitterType in new[]
             {
@@ -68,123 +52,26 @@ public class FullYearParityTests
                 },
                 example.Year
             );
-            var before = DateTime.UtcNow;
-            var legacyRecords = LegacyRecords(example, producerId, submitterType);
-            var after = DateTime.UtcNow;
-            legacyRecords.Select(x => x.MaterialObligationValue).Should().Equal(example.Expected);
-            legacyRecords.Should().OnlyContain(x => x.CalculatedOn >= before && x.CalculatedOn <= after);
-            legacyRecords.Select(x => x.CalculatedOn).Distinct().Should().ContainSingle();
-            var legacyRows = legacyRecords
-                .Select(x => new MappedRow(
-                    x.OrganisationId,
-                    x.SubmitterId,
-                    x.SubmitterTypeId == 2 ? "DirectRegistrant" : "ComplianceScheme",
-                    x.Year,
-                    Materials().Single(material => material.Id == x.MaterialId).MaterialCode,
-                    x.Tonnage,
-                    x.MaterialObligationValue,
-                    CalculationTime.UtcDateTime
-                ))
+            string[] materialCodes = example.Material == "GL" ? ["GL", "GR"] : [example.Material];
+            var expectedRows = example
+                .Expected.Select(
+                    (obligation, index) =>
+                        new MappedRow(
+                            producerId,
+                            Submitter,
+                            submitterType.ToString(),
+                            example.Year,
+                            materialCodes[index],
+                            example.Tonnes,
+                            obligation,
+                            CalculationTime.UtcDateTime
+                        )
+                )
                 .ToArray();
 
-            Flatten(result).Should().Equal(legacyRows);
+            Flatten(result).Should().Equal(expectedRows);
         }
     }
-
-    private static List<EPR.PRN.Backend.Data.DataModels.ObligationCalculation> LegacyRecords(
-        ParityCase example,
-        Guid producerId,
-        ObligationSubmitterType submitterType
-    )
-    {
-        var material = Materials().Single(x => x.MaterialCode == example.Material);
-        var materialType = Enum.Parse<MaterialType>(material.MaterialName);
-        IMaterialCalculationStrategy strategy =
-            example.Material == "GL"
-                ? new GlassCalculationStrategy(new MaterialCalculationService())
-                : new GeneralCalculationStrategy(new MaterialCalculationService());
-
-        return strategy.Calculate(
-            new CalculationRequestDto
-            {
-                SubmitterId = Submitter,
-                SubmitterTypeId = submitterType == ObligationSubmitterType.DirectRegistrant ? 2 : 1,
-                ComplianceYear = example.Year,
-                MaterialType = materialType,
-                Materials = Materials(),
-                SubmissionCalculationRequest = new SubmissionCalculationRequest
-                {
-                    OrganisationId = producerId,
-                    SubmitterId = Submitter,
-                    SubmitterType = submitterType.ToString(),
-                    SubmissionPeriod = (example.Year - 1).ToString(),
-                    PackagingMaterial = example.Material,
-                    PackagingMaterialWeight = example.Tonnes,
-                    NumberOfDaysObligated = null,
-                },
-                RecyclingTargets = new Dictionary<int, Dictionary<MaterialType, double>>
-                {
-                    [example.Year] = new Dictionary<MaterialType, double>
-                    {
-                        [materialType] = example.Target,
-                        [MaterialType.GlassRemelt] = example.RemeltTarget,
-                    },
-                },
-            }
-        );
-    }
-
-    private static List<Material> Materials() =>
-        [
-            new()
-            {
-                Id = 1,
-                MaterialCode = "PL",
-                MaterialName = "Plastic",
-            },
-            new()
-            {
-                Id = 2,
-                MaterialCode = "PC",
-                MaterialName = "Paper",
-            },
-            new()
-            {
-                Id = 3,
-                MaterialCode = "FC",
-                MaterialName = "FibreComposite",
-            },
-            new()
-            {
-                Id = 4,
-                MaterialCode = "GL",
-                MaterialName = "Glass",
-            },
-            new()
-            {
-                Id = 5,
-                MaterialCode = "GR",
-                MaterialName = "GlassRemelt",
-            },
-            new()
-            {
-                Id = 6,
-                MaterialCode = "AL",
-                MaterialName = "Aluminium",
-            },
-            new()
-            {
-                Id = 7,
-                MaterialCode = "ST",
-                MaterialName = "Steel",
-            },
-            new()
-            {
-                Id = 8,
-                MaterialCode = "WD",
-                MaterialName = "Wood",
-            },
-        ];
 
     [Fact]
     public void SqlIntBoundary_ShouldMapMaximumAndRejectLargerDestinationTonnage()
@@ -205,10 +92,9 @@ public class FullYearParityTests
             ],
         };
         var maximum = calculator.Calculate(submission, 2025);
-        var legacy = new MaterialCalculationService().Calculate(1, int.MaxValue, null, 2025);
 
         Flatten(maximum).Single().InputTonnage.Should().Be(int.MaxValue);
-        Flatten(maximum).Single().Obligation.Should().Be(legacy);
+        Flatten(maximum).Single().Obligation.Should().Be(int.MaxValue);
 
         var larger = calculator.Calculate(
             submission with
@@ -245,19 +131,6 @@ public class FullYearParityTests
                 calculation.CalculatedOn
             ))
         );
-
-    private static int[] GlassObligations(MaterialCalculationService calculator, ParityCase example)
-    {
-        var (remelt, remainder) = calculator.CalculateGlass(
-            example.Target,
-            example.RemeltTarget,
-            example.Tonnes,
-            null,
-            example.Year
-        );
-
-        return [remainder, remelt];
-    }
 
     private static ObligationCalculator Calculator(ParityCase example)
     {
