@@ -164,70 +164,50 @@ public class ObligationCalculatorTests(ApiWebApplicationFactory factory) : IClas
         act.Should().Throw<ArgumentNullException>();
     }
 
-    public static TheoryData<ApprovedSubmission> InvalidSubmissions()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    [InlineData(7)]
+    [InlineData(8)]
+    [InlineData(9)]
+    [InlineData(10)]
+    [InlineData(11)]
+    [InlineData(12)]
+    [InlineData(13)]
+    [InlineData(14)]
+    [InlineData(15)]
+    [InlineData(16)]
+    public void InvalidSubmission_ShouldRejectWholeCalculation(int invalidCase)
     {
         var valid = Submission(["PL"], 1_000);
         var producer = valid.Producers.Single();
-
-        return new()
+        var submission = invalidCase switch
         {
-            valid with
-            {
-                SubmitterOrganisationId = Guid.Empty,
-            },
-            valid with
-            {
-                SubmitterType = (ObligationSubmitterType)9,
-            },
-            valid with
-            {
-                Producers = [],
-            },
-            valid with
-            {
-                Producers = null!,
-            },
-            valid with
-            {
-                Producers = [null!],
-            },
-            valid with
-            {
-                Producers = [producer with { ProducerOrganisationId = Guid.Empty }],
-            },
-            valid with
-            {
-                Producers = [producer with { ProducerOrganisationId = Guid.NewGuid() }],
-            },
-            valid with
-            {
-                Producers = [producer, producer],
-            },
-            valid with
-            {
-                Producers = [producer with { Materials = [] }],
-            },
-            valid with
-            {
-                Producers = [producer with { Materials = null! }],
-            },
-            valid with
-            {
-                Producers = [producer with { Materials = [null!] }],
-            },
-            Submission(["PL", "PL"], 1_000),
-            Submission(["PL", "GR"], 1_000),
-            Submission(["PL", "XX"], 1_000),
-            Submission(["pl"], 1_000),
-            Submission([null!], 1_000),
-            Submission(["PL"], -1),
+            0 => valid with { SubmitterOrganisationId = Guid.Empty },
+            1 => valid with { SubmitterType = (ObligationSubmitterType)9 },
+            2 => valid with { Producers = [] },
+            3 => valid with { Producers = null! },
+            4 => valid with { Producers = [null!] },
+            5 => valid with { Producers = [producer with { ProducerOrganisationId = Guid.Empty }] },
+            6 => valid with { Producers = [producer with { ProducerOrganisationId = Guid.NewGuid() }] },
+            7 => valid with { Producers = [producer, producer] },
+            8 => valid with { Producers = [producer with { Materials = [] }] },
+            9 => valid with { Producers = [producer with { Materials = null! }] },
+            10 => valid with { Producers = [producer with { Materials = [null!] }] },
+            11 => Submission(["PL", "PL"], 1_000),
+            12 => Submission(["PL", "GR"], 1_000),
+            13 => Submission(["PL", "XX"], 1_000),
+            14 => Submission(["pl"], 1_000),
+            15 => Submission([null!], 1_000),
+            16 => Submission(["PL"], -1),
+            _ => throw new ArgumentOutOfRangeException(nameof(invalidCase)),
         };
-    }
 
-    [Theory]
-    [MemberData(nameof(InvalidSubmissions))]
-    public void InvalidSubmission_ShouldRejectWholeCalculation(ApprovedSubmission submission)
-    {
         var act = () => Calculator().Calculate(submission, 2025);
 
         act.Should().Throw<ArgumentException>();
