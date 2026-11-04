@@ -12,8 +12,7 @@ public class GeneralCalculationStrategy : IMaterialCalculationStrategy
 
     public GeneralCalculationStrategy(IMaterialCalculationService calculationService)
     {
-        _generalMaterials = Enum.GetValues(typeof(MaterialType))
-            .Cast<MaterialType>()
+        _generalMaterials = Enum.GetValues<MaterialType>()
             .Where(m => m != MaterialType.Glass && m != MaterialType.GlassRemelt)
             .ToList();
         _calculationService = calculationService;
