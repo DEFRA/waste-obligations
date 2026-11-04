@@ -18,7 +18,7 @@ public class ObligationCalculatorTests(ApiWebApplicationFactory factory) : IClas
     [InlineData(2028, 61, 81, 81, 64, 83, 48, 17, 63)]
     [InlineData(2029, 63, 83, 83, 65, 84, 49, 17, 65)]
     [InlineData(2030, 65, 85, 85, 67, 85, 50, 17, 68)]
-    public void FullYear_ShouldMatchLegacyMaterialAndYearExamples(int year, params long[] expected)
+    public void FullYear_ShouldMatchLegacyMaterialAndYearExamples(int year, params int[] expected)
     {
         var submission = Submission(["PL", "PC", "FC", "AL", "ST", "WD", "GL"], 100_000);
 
@@ -29,7 +29,7 @@ public class ObligationCalculatorTests(ApiWebApplicationFactory factory) : IClas
             .Materials.Select(x => x.MaterialCode)
             .Should()
             .Equal("PL", "PC", "FC", "AL", "ST", "WD", "GL", "GR");
-        result.Producers.Single().Materials.Select(x => x.Obligation).Should().Equal(expected);
+        result.Producers.Single().Materials.Select(x => x.Obligation).Should().Equal(expected.Select(x => (long)x));
         result.Producers.Single().Materials.Should().OnlyContain(x => x.InputTonnage == 100);
     }
 
