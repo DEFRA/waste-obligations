@@ -11,6 +11,8 @@ const githubActionsIntegrationId = 15368;
 const methodNotAllowedStatus = 405;
 const conflictStatus = 409;
 const blockedMergeStatuses = new Set([methodNotAllowedStatus, conflictStatus]);
+const rebaseMarker = '<!-- dependabot-queue-rebase -->';
+const rebaseCooldownMs = 24 * 60 * 60 * 1000;
 
 // Accept the canonical signed Dependabot metadata format; unfamiliar formats stay manual.
 export function hasOnlyMinorOrPatchUpdates(message) {
@@ -300,7 +302,11 @@ export async function mergeDependabotPullRequest({ github, context, core, pullNu
     return undefined;
   }
 
-  if (!await isEligibleOpenPullRequest({ github, repository, pr, runId, runAttempt, core })) {
+  const eligibility = await isEligibleOpenPullRequest({ github, repository, pr, runId, runAttempt, core });
+  if (eligibility === 'rebase-requested') {
+    return true;
+  }
+  if (!eligibility) {
     return undefined;
   }
 
@@ -316,6 +322,12 @@ async function isEligibleOpenPullRequest({ github, repository, pr, runId, runAtt
   const { data: currentPr } = await github.rest.pulls.get({ ...repository, pull_number: pr.number });
   const { data: main } = await github.rest.repos.getBranch({ ...repository, branch: mainBranch });
   if (!isFreshPullRequest(currentPr, pr, repository, run, main)) {
+    if (isDependabotPullRequest(currentPr, `${repository.owner}/${repository.repo}`)
+      && currentPr.state === 'open' && !currentPr.draft && currentPr.head.sha === pr.head.sha
+      && await hasReleaseCapacity(github, repository, main.commit.sha, core)
+      && await requestRebase(github, repository, currentPr, main.commit.sha, core)) {
+      return 'rebase-requested';
+    }
     skip(core, 'The PR or main changed since CI; wait for a rebase and a fresh CI run.');
 
     return false;
@@ -325,6 +337,34 @@ async function isEligibleOpenPullRequest({ github, repository, pr, runId, runAtt
     return false;
   }
 
+  return true;
+}
+
+async function requestRebase(github, repository, pr, mainSha, core) {
+  const comments = await github.paginate(github.rest.issues.listComments, {
+    ...repository, issue_number: pr.number, per_page: 100
+  });
+  const recentRequest = comments.some(comment => comment.user?.login === 'github-actions[bot]'
+    && comment.body?.includes(rebaseMarker)
+    && Date.now() - Date.parse(comment.created_at) < rebaseCooldownMs);
+  if (recentRequest) {
+    skip(core, 'A rebase was requested in the last 24 hours; wait before requesting another.');
+    return false;
+  }
+
+  const { data: currentPr } = await github.rest.pulls.get({ ...repository, pull_number: pr.number });
+  const { data: currentMain } = await github.rest.repos.getBranch({ ...repository, branch: mainBranch });
+  if (!isDependabotPullRequest(currentPr, `${repository.owner}/${repository.repo}`)
+    || currentPr.state !== 'open' || currentPr.draft || currentPr.head.sha !== pr.head.sha
+    || currentMain.commit.sha !== mainSha) {
+    return false;
+  }
+
+  await github.rest.issues.createComment({
+    ...repository, issue_number: pr.number,
+    body: `@dependabot rebase\n\n${rebaseMarker}\nThe last successful checks used an older main revision. Please rebase so CI can test this update against the current main.`
+  });
+  core.notice('Requested a Dependabot rebase; wait for a new signed commit and fresh CI.');
   return true;
 }
 

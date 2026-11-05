@@ -51,7 +51,7 @@ function harness() {
     } }],
     publishRuns: [{ id: 40, status: 'completed', conclusion: 'success', head_sha: baseSha, head_branch: 'main' }],
     publishJobs: { 40: [successfulJob('CDP-publish-workflow')] },
-    activeReleaseRuns: [], hotfixRuns: [], comparison: 'ahead', prReads: 0, openPrs: [pr], candidates: {}
+    activeReleaseRuns: [], hotfixRuns: [], comparison: 'ahead', prReads: 0, openPrs: [pr], candidates: {}, comments: [], rebaseRequests: []
   };
   const effects = { reviews: [], merges: [], dispatches: [] };
   const output = {};
@@ -68,6 +68,10 @@ function harness() {
       return Array.isArray(data) ? data : data.workflow_runs ?? data.jobs ?? data.check_runs;
     },
     rest: {
+      issues: {
+        async listComments() { return { data: state.comments }; },
+        async createComment(input) { state.rebaseRequests.push(input); }
+      },
       pulls: {
         async listFiles() { return { data: state.files ?? [{ filename: 'src/Api/Api.csproj', status: 'modified' }] }; },
         async list(input) { return { data: state.openPrs.slice((input.page - 1) * input.per_page, input.page * input.per_page) }; },
@@ -436,6 +440,88 @@ test('a duplicate skipped Publish run does not erase an actual successful public
   await merge(h);
 
   assert.equal(h.output.merge_commit_sha, mergeSha);
+});
+
+test('a green stale Dependabot PR requests one rebase and does not merge', async () => {
+  const h = harness();
+  h.state.run.pull_requests[0].base.sha = otherSha;
+  h.state.openPrs.push({ ...h.state.pr, number: 124 });
+  await processDependabotQueue(h);
+
+  assert.equal(h.state.rebaseRequests.length, 1);
+  assert.equal(h.state.rebaseRequests[0].issue_number, 123);
+  assert.match(h.state.rebaseRequests[0].body, /^@dependabot rebase\n/);
+  assertUntouched(h);
+});
+
+test('recent automated rebase requests are rate limited for 24 hours', async () => {
+  const h = harness();
+  h.state.run.pull_requests[0].base.sha = otherSha;
+  h.state.comments.push({ user: { login: 'github-actions[bot]' },
+    body: '@dependabot rebase\n\n<!-- dependabot-queue-rebase -->', created_at: new Date().toISOString() });
+  await processDependabotQueue(h);
+
+  assert.equal(h.state.rebaseRequests.length, 0);
+  assertUntouched(h);
+});
+
+test('a previous rebase request can be retried after 24 hours', async () => {
+  const h = harness();
+  h.state.run.pull_requests[0].base.sha = otherSha;
+  h.state.comments.push({ user: { login: 'github-actions[bot]' },
+    body: '<!-- dependabot-queue-rebase -->', created_at: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString() });
+  await processDependabotQueue(h);
+
+  assert.equal(h.state.rebaseRequests.length, 1);
+  assertUntouched(h);
+});
+
+test('a changed PR head prevents a rebase request', async () => {
+  const h = harness();
+  h.state.run.pull_requests[0].base.sha = otherSha;
+  h.github.rest.issues.listComments = async () => {
+    h.state.changedPr = { ...h.state.pr, head: { ...h.state.pr.head, sha: otherSha } };
+    return { data: [] };
+  };
+  await processDependabotQueue(h);
+
+  assert.equal(h.state.rebaseRequests.length, 0);
+  assertUntouched(h);
+});
+
+test('a changed main prevents a rebase request', async () => {
+  const h = harness();
+  h.state.run.pull_requests[0].base.sha = otherSha;
+  h.github.rest.issues.listComments = async () => {
+    h.state.mainSha = otherSha;
+    return { data: [] };
+  };
+  await processDependabotQueue(h);
+
+  assert.equal(h.state.rebaseRequests.length, 0);
+  assertUntouched(h);
+});
+
+test('stale PRs with failed checks or major updates do not request a rebase', async () => {
+  for (const change of [h => { h.state.jobs[0].conclusion = 'failure'; },
+    h => { h.state.commits[0].commit.message = metadata(['version-update:semver-major']); }]) {
+    const h = harness();
+    h.state.run.pull_requests[0].base.sha = otherSha;
+    change(h);
+    await processDependabotQueue(h);
+    assert.equal(h.state.rebaseRequests.length, 0);
+    assertUntouched(h);
+  }
+});
+
+test('a stale PR does not request a rebase while main has not published', async () => {
+  const h = harness();
+  h.state.run.pull_requests[0].base.sha = otherSha;
+  h.state.publishRuns = [];
+  await processDependabotQueue(h);
+
+  assert.equal(h.state.rebaseRequests.length, 0);
+  assertUntouched(h);
 });
 
 test('one eligible merge consumes a published head until the next head is published and retested', async () => {
