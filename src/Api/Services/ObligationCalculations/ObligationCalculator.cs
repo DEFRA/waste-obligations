@@ -96,10 +96,6 @@ public class ObligationCalculator(IOptions<ObligationCalculationOptions> options
                 producer is null
                 || producer.ProducerOrganisationId == Guid.Empty
                 || !producerIds.Add(producer.ProducerOrganisationId)
-                || (
-                    submission.SubmitterType == ObligationSubmitterType.DirectRegistrant
-                    && producer.ProducerOrganisationId != submission.SubmitterOrganisationId
-                )
                 || producer.Materials is null
                 || producer.Materials.Count == 0
             )

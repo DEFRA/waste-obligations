@@ -171,7 +171,6 @@ public class ObligationCalculatorTests(ApiWebApplicationFactory factory) : IClas
     [InlineData(3)]
     [InlineData(4)]
     [InlineData(5)]
-    [InlineData(6)]
     [InlineData(7)]
     [InlineData(8)]
     [InlineData(9)]
@@ -194,7 +193,6 @@ public class ObligationCalculatorTests(ApiWebApplicationFactory factory) : IClas
             3 => valid with { Producers = null! },
             4 => valid with { Producers = [null!] },
             5 => valid with { Producers = [producer with { ProducerOrganisationId = Guid.Empty }] },
-            6 => valid with { Producers = [producer with { ProducerOrganisationId = Guid.NewGuid() }] },
             7 => valid with { Producers = [producer, producer] },
             8 => valid with { Producers = [producer with { Materials = [] }] },
             9 => valid with { Producers = [producer with { Materials = null! }] },
