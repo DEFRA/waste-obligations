@@ -47,7 +47,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: 22
+          node-version: 26
       - name: Run workflow and journey-test Compose helper tests
         run: node --test .github/scripts/*.test.mjs 'compose/journey-tests/**/*.test.mjs'
       - name: Test
@@ -60,6 +60,10 @@ jobs:
           dotnet restore -p:NuGetAudit=true -p:NuGetAuditMode=all
           dotnet build tests/Api.Tests/Api.Tests.csproj
           dotnet test --test-modules tests/Api.Tests/bin/Debug/net10.0/Api.Tests.dll --no-build
+      - name: Build and test the healthcheck tool
+        run: |
+          dotnet build tools/healthcheck/healthcheck.slnx
+          dotnet test --test-modules tools/healthcheck/tests/HealthCheck.Tests/bin/Debug/net10.0/HealthCheck.Tests.dll --no-build
       - name: Build integration tests without Notify credentials
         run: |
           docker compose up -d --wait
@@ -111,7 +115,7 @@ jobs:
           docker save waste-obligations:latest -o "$RUNNER_TEMP/waste-obligations-image.tar"
           docker run --rm \
             -v "$RUNNER_TEMP/waste-obligations-image.tar:/scan/image.tar:ro" \
-            aquasec/trivy:0.69.3@sha256:bcc376de8d77cfe086a917230e818dc9f8528e3c852f7b1aff648949b6258d1c \
+            aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb \
             image --input /scan/image.tar --exit-code 1 --severity HIGH,CRITICAL
       - name: Check openapi with Vacuum
         run: make lint-openapi

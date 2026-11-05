@@ -19,10 +19,9 @@ exclusion if SonarCloud reliably recognises the Dependabot configuration.
 The image version tags were checked against their pinned digests on 5 November
 2026.
 
-The Sonar scanner is installed at an explicit NuGet version, with a matching
-cache key and no fallback to the old unversioned scanner cache. NuGet tools
-are versioned packages, not GitHub actions, so a Git commit is not a usable
-installation reference.
+The Sonar scanner and CSharpier versions are declared in the repository's
+[.NET tool manifest](../.config/dotnet-tools.json) and restored by CI. Dependabot
+can propose tool-manifest updates through the NuGet ecosystem.
 
 ## Updating pins
 
@@ -33,11 +32,29 @@ verified minor and patch updates when all checks pass and publication capacity
 is available. Updates without a minor or patch classification stay manual.
 Mongo permits minor, patch and digest updates within version 7; major
 version upgrades are excluded. A hash prevents a reference from moving silently,
-but does not establish that the selected code is trustworthy. The Sonar scanner
-version, Trivy command and Vacuum Makefile pin need explicit review when updating;
-do not assume Dependabot discovers arbitrary shell commands or Make variables.
-Resolve action references against the upstream repository and container digests
-against the registry. Run the repository's required Compose/build/test cycle.
+but does not establish that the selected code is trustworthy. The Trivy command and Vacuum Makefile pin need explicit review when updating;
+Dependabot does not discover arbitrary shell commands or Make variables. Resolve
+action references against the upstream repository and container digests against
+the registry. Run the repository's required Compose/build/test cycle.
+
+## Coverage plan
+
+- Dependabot monitors the root NuGet solution and the separate healthcheck
+  solution; the PR workflow builds and tests the healthcheck tool. Verify the
+  first post-merge update includes its expected project files.
+- Dependabot can update the Sonar scanner through the .NET tool manifest. Verify
+  its next update PR changes the manifest and that its scanner and quality gate
+  complete before relying on automatic merges.
+- Trivy and Vacuum still require manual update PRs. To automate them, put each
+  image reference in a Dependabot-discoverable Dockerfile, configure the
+  corresponding Docker directories, and build/run the tool image from that
+  definition. First confirm that Dependabot classifies the resulting PRs and
+  that the tools preserve their current scan behaviour; leave unclassified or
+  major changes manual.
+- The Node, .NET and Java setup selectors and `ubuntu-latest` runner are not
+  version updates proposed by Dependabot. Their pinned setup actions receive
+  Dependabot PRs, but runtime-major and runner-image changes require an
+  explicit scheduled review or a separately tested update mechanism.
 
 ## Remaining trust boundaries
 

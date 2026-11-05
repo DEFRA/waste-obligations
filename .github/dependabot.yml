@@ -107,6 +107,14 @@ updates:
           - 'minor'
           - 'patch'
 
+  # The standalone healthcheck solution is not part of the root solution.
+  - package-ecosystem: nuget
+    directory: /tools/healthcheck
+    schedule:
+      interval: daily
+      time: '10:30'
+      timezone: 'Europe/London'
+
   - package-ecosystem: github-actions
     directory: /
     schedule:
