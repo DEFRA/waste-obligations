@@ -1,4 +1,4 @@
-VACUUM_IMAGE := dshanley/vacuum:latest@sha256:e13b08c36d5858753cafe677282bb38d9b7ca7945f3a3afba403ed47520dc5af
+CI_TOOLS_COMPOSE := compose/compose.ci-tools.yml
 
 dependencies:
 	dotnet tool restore
@@ -8,5 +8,5 @@ build: dependencies
 	dotnet build src/Api/Api.csproj -c Release
 
 lint-openapi: build
-	docker pull $(VACUUM_IMAGE)
-	docker run --rm -v "$(PWD):/work:ro" $(VACUUM_IMAGE) lint -d -r .vacuum.yml src/Api/openapi.json || true
+	docker compose -f $(CI_TOOLS_COMPOSE) pull vacuum
+	docker compose -f $(CI_TOOLS_COMPOSE) run --rm --no-deps -T -v "$(PWD):/work:ro" vacuum lint -d -r .vacuum.yml src/Api/openapi.json || true

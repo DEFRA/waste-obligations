@@ -10,29 +10,27 @@ permissions:
   contents: read
   pull-requests: read
 
-env:
-  SONAR_SCANNER_VERSION: 11.3.0
-
 jobs:
   build:
     if: github.run_number != 1
     name: CDP SonarCloud coverage scan
     runs-on: ubuntu-latest
     steps:
-      - name: Set up JDK 17
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
-        with:
-          java-version: 17
-          distribution: "zulu"
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
+          persist-credentials: false
+      - name: Run workflow policy tests with JavaScript coverage
+        run: |
+          docker compose -f compose/compose.ci-tools.yml run --rm --no-deps node node --test --experimental-test-coverage \
+            --test-reporter=spec --test-reporter-destination=stdout \
+            --test-reporter=lcov --test-reporter-destination=coverage.node.lcov \
+            '.github/scripts/*.test.mjs'
       - name: Set up .NET 10.0
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: |
-            10.0
+          global-json-file: global.json
       - name: Docker compose up
         run: |
           docker compose up -d --wait
@@ -46,25 +44,15 @@ jobs:
           path: ~/sonar/cache
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
-      - name: Cache SonarCloud scanner
-        id: cache-sonar-scanner
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: ./.sonar/scanner
-          key: ${{ runner.os }}-sonar-scanner-${{ env.SONAR_SCANNER_VERSION }}
-      - name: Install SonarCloud scanner
-        if: steps.cache-sonar-scanner.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p ./.sonar/scanner
-          dotnet tool install dotnet-sonarscanner --version "$SONAR_SCANNER_VERSION" --tool-path ./.sonar/scanner
+      - name: Restore .NET tools
+        run: dotnet tool restore
       - name: Build and analyze
-        if: github.actor != 'dependabot[bot]'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Needed to get PR information, if any
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          ./.sonar/scanner/dotnet-sonarscanner begin /k:"DEFRA_waste-obligations" /o:"defra" /d:sonar.token="$SONAR_TOKEN" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.cs.vscoveragexml.reportsPaths=coverage*.xml /d:sonar.coverage.exclusions=compose/journey-tests/**
+          dotnet tool run dotnet-sonarscanner begin /k:"DEFRA_waste-obligations" /o:"defra" /d:sonar.token="$SONAR_TOKEN" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.qualitygate.wait=true /d:sonar.cs.vscoveragexml.reportsPaths=coverage*.xml /d:sonar.javascript.lcov.reportPaths=coverage.node.lcov /d:sonar.coverage.exclusions=compose/journey-tests/**
           dotnet build --no-incremental
           dotnet test --test-modules tests/Api.Tests/bin/Debug/net10.0/Api.Tests.dll --no-build -- --coverage --coverage-output-format xml --coverage-output "$GITHUB_WORKSPACE/coverage.Api.Tests.xml"
           dotnet test --test-modules tests/Api.IntegrationTests/bin/Debug/net10.0/Api.IntegrationTests.dll --no-build -- --coverage --coverage-output-format xml --coverage-output "$GITHUB_WORKSPACE/coverage.Api.IntegrationTests.xml"
-          ./.sonar/scanner/dotnet-sonarscanner end /d:sonar.token="$SONAR_TOKEN"
+          dotnet tool run dotnet-sonarscanner end /d:sonar.token="$SONAR_TOKEN"
