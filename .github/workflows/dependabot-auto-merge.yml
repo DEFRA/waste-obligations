@@ -31,7 +31,7 @@ jobs:
           persist-credentials: false
       - name: Resolve the Dependabot PR
         id: resolve
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const { resolvePullRequest } = await import(`${process.env.GITHUB_WORKSPACE}/.github/scripts/dependabot-auto-merge.mjs`);
@@ -59,7 +59,7 @@ jobs:
           persist-credentials: false
       - name: Approve and merge at most one eligible update after publication
         id: merge
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           PULL_NUMBER: ${{ needs.resolve.outputs.pull_number }}
         with:
@@ -71,7 +71,7 @@ jobs:
             });
       - name: Publish main after the confirmed merge
         if: steps.merge.outputs.merge_commit_sha != ''
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           MERGE_COMMIT_SHA: ${{ steps.merge.outputs.merge_commit_sha }}
         with:
