@@ -14,6 +14,7 @@ const conflictStatus = 409;
 const blockedMergeStatuses = new Set([methodNotAllowedStatus, conflictStatus]);
 const rebaseMarker = '<!-- dependabot-queue-rebase -->';
 const rebaseCooldownMs = 24 * 60 * 60 * 1000;
+const recoveryRequested = 'recovery-requested';
 
 // Accept the canonical signed Dependabot metadata format; unfamiliar formats stay manual.
 export function hasOnlyMinorOrPatchUpdates(message) {
@@ -134,22 +135,30 @@ async function hasReleaseCapacity(github, repository, mainSha, core) {
 export async function processDependabotQueue({ github, context, core, pullNumber }) {
   if (pullNumber) {
     // Explicit recovery of an already merged PR must work while main is unpublished.
-    await mergeDependabotPullRequest({ github, context, core, pullNumber });
+    const candidateCore = scopedCandidateCore(core, context.repo, pullNumber);
+    await mergeDependabotPullRequest({ github, context, core: candidateCore, pullNumber });
 
     return;
   }
 
   const { data: main } = await github.rest.repos.getBranch({ ...context.repo, branch: mainBranch });
+  core.notice(`Scanning Dependabot updates against main ${main.commit.sha}.`);
   if (!await hasReleaseCapacity(github, context.repo, main.commit.sha, core)) {
+    await writeQueueSummary(core, context.repo, main.commit.sha, [], 'Waiting for publication capacity.');
     return;
   }
 
+  const candidates = await listCandidates(github, context.repo, core);
+  await scanCandidates({ github, context, core, candidates, mainSha: main.commit.sha });
+}
+
+async function listCandidates(github, repository, core) {
   const candidates = [];
   for (let page = 1; page <= maxQueuePages; page++) {
     const { data: prs } = await github.rest.pulls.list({
-      ...context.repo, state: 'open', base: mainBranch, sort: 'created', direction: 'asc', per_page: 100, page
+      ...repository, state: 'open', base: mainBranch, sort: 'created', direction: 'asc', per_page: 100, page
     });
-    candidates.push(...prs.filter(x => isDependabotPullRequest(x, `${context.repo.owner}/${context.repo.repo}`)));
+    candidates.push(...prs.filter(x => isDependabotPullRequest(x, `${repository.owner}/${repository.repo}`)));
     if (candidates.length >= maxQueueCandidates || prs.length < 100) {
       break;
     }
@@ -161,10 +170,69 @@ export async function processDependabotQueue({ github, context, core, pullNumber
     core.notice('Queue scan is limited to 50 Dependabot candidates; retry an omitted PR by number.');
   }
 
-  for (const pr of candidates.slice(0, maxQueueCandidates)) {
-    if (await mergeDependabotPullRequest({ github, context, core, pullNumber: pr.number })) {
-      return;
+  return candidates;
+}
+
+async function scanCandidates({ github, context, core, candidates, mainSha }) {
+  const results = [];
+  try {
+    for (const pr of candidates.slice(0, maxQueueCandidates)) {
+      const candidateCore = scopedCandidateCore(core, context.repo, pr.number);
+      candidateCore.notice(`Inspecting head ${pr.head.sha}.`);
+      let result;
+      try {
+        result = await mergeDependabotPullRequest({ github, context, core: candidateCore, pullNumber: pr.number });
+      } catch (error) {
+        candidateCore.notice('Processing failed; see the workflow error for details.');
+        results.push({ number: pr.number, head: pr.head.sha, outcome: 'Error', details: candidateCore.messages.slice(1) });
+        throw error;
+      }
+      const outcome = queueOutcome(result);
+      candidateCore.notice(`Decision: ${outcome}.`);
+      results.push({ number: pr.number, head: pr.head.sha, outcome, details: candidateCore.messages.slice(1, -1) });
+      if (result) {
+        break;
+      }
     }
+  } finally {
+    await writeQueueSummary(core, context.repo, mainSha, results);
+  }
+}
+
+function queueOutcome(result) {
+  if (result === true) return 'Merged';
+  if (result === recoveryRequested) return 'Recovery requested';
+  return 'Skipped';
+}
+
+function scopedCandidateCore(core, repository, number) {
+  const scoped = Object.create(core);
+  scoped.messages = [];
+  scoped.notice = message => {
+    scoped.messages.push(message);
+    core.notice(`PR #${number} (https://github.com/${repository.owner}/${repository.repo}/pull/${number}): ${message}`);
+  };
+  return scoped;
+}
+
+async function writeQueueSummary(core, repository, mainSha, results, message) {
+  const counts = ['Merged', 'Recovery requested', 'Skipped', 'Error'].map(outcome =>
+    `${outcome}: ${results.filter(result => result.outcome === outcome).length}`).join(', ');
+  core.notice(`Queue summary for main ${mainSha}: ${results.length} considered; ${counts}.${message ? ` ${message}` : ''}`);
+  if (!core.summary) return;
+
+  try {
+    core.summary.addHeading('Dependabot queue').addRaw(`Main: \`${mainSha}\`  \n${counts}\n\n`);
+    if (message) core.summary.addRaw(`${message}\n\n`);
+    if (results.length) {
+      core.summary.addTable([
+        [{ data: 'PR', header: true }, { data: 'Head', header: true }, { data: 'Decision', header: true }, { data: 'Details', header: true }],
+        ...results.map(result => [`<a href="https://github.com/${repository.owner}/${repository.repo}/pull/${result.number}">#${result.number}</a>`, result.head, result.outcome, result.details.join(' ')])
+      ]);
+    }
+    await core.summary.write();
+  } catch {
+    core.notice('Could not write the GitHub job summary; decisions are available in the job log.');
   }
 }
 
@@ -206,19 +274,25 @@ async function getCurrentRun(github, repository, pr, runId, runAttempt, core) {
     head_sha: pr.head.sha, per_page: 100
   });
   const latest = runs.sort((a, b) => compareRunRecency(b, a))[0];
+  if (!latest) {
+    skip(core, 'No PR CI run exists for this head.');
+    return undefined;
+  }
   if (!matchesRunAttempt(latest, runId, runAttempt)) {
-    skip(core, 'No current CI run, or a newer run/attempt replaced this event.');
+    skip(core, 'A newer CI run or attempt replaced this event.');
 
     return undefined;
   }
 
   const { data: run } = await github.rest.actions.getWorkflowRun({ ...repository, run_id: latest.id });
+  core.notice(`CI run ${run.id}, attempt ${run.run_attempt}: ${run.status}, conclusion ${run.conclusion ?? 'pending'}.`);
   if (!isCompletedPullRequestRun(run, latest, repository, pr) || !recordsCurrentPullRequest(run, pr)) {
-    skip(core, 'CI has not completed for this PR and revision.');
+    skip(core, 'CI is pending or its workflow, head or PR association does not match.');
 
     return undefined;
   }
 
+  core.notice(`CI tested main ${run.pull_requests.find(x => x.number === pr.number).base.sha}.`);
   return run;
 }
 
@@ -249,10 +323,22 @@ async function verifyCommits(github, repository, pr, core) {
   const commits = await github.paginate(github.rest.pulls.listCommits, {
     ...repository, pull_number: pr.number, per_page: 100
   });
-  if (!commits.length || commits.at(-1).sha !== pr.head.sha || commits.some(x =>
-    x.author?.login !== 'dependabot[bot]' || x.commit.verification?.verified !== true
-    || !hasOnlyMinorOrPatchUpdates(x.commit.message))) {
-    skip(core, 'Every commit must be verified Dependabot metadata containing only minor/patch updates.');
+  if (!commits.length || commits.at(-1).sha !== pr.head.sha) {
+    skip(core, 'Commit list is empty or does not match the current head.');
+    return undefined;
+  }
+  if (commits.some(x => x.author?.login !== 'dependabot[bot]')) {
+    skip(core, 'A commit is not authored by Dependabot.');
+    return undefined;
+  }
+  if (commits.some(x => x.commit.verification?.verified !== true)) {
+    skip(core, 'A commit does not have a verified signature.');
+    return undefined;
+  }
+  if (commits.some(x => !hasOnlyMinorOrPatchUpdates(x.commit.message))) {
+    const major = commits.some(x => /^  update-type: version-update:semver-major\r?$/m.test(x.commit.message));
+    skip(core, major ? 'Update metadata includes a major version; manual review is required.'
+      : 'Update metadata is missing, malformed, mixed or not classified as minor or patch.');
 
     return undefined;
   }
@@ -288,7 +374,9 @@ function isFreshPullRequest(currentPr, pr, repository, run, main) {
 export async function mergeDependabotPullRequest({ github, context, core, pullNumber, runId, runAttempt }) {
   const repository = context.repo;
   const { data: pr } = await github.rest.pulls.get({ ...repository, pull_number: pullNumber });
+  core.notice(`Current PR head ${pr.head.sha}.`);
   if (!isDependabotPullRequest(pr, `${repository.owner}/${repository.repo}`) || pr.draft) {
+    skip(core, 'PR is a draft or is not a same-repository Dependabot PR targeting main.');
     return undefined;
   }
 
@@ -308,12 +396,13 @@ export async function mergeDependabotPullRequest({ github, context, core, pullNu
     return true;
   }
   if (pr.state !== 'open') {
+    skip(core, 'PR is not open.');
     return undefined;
   }
 
   const eligibility = await isEligibleOpenPullRequest({ github, repository, pr, runId, runAttempt, core });
-  if (eligibility === 'recovery-requested') {
-    return true;
+  if (eligibility === recoveryRequested) {
+    return eligibility;
   }
   if (!eligibility) {
     return undefined;
@@ -332,7 +421,7 @@ async function isEligibleOpenPullRequest({ github, repository, pr, runId, runAtt
   const { data: main } = await github.rest.repos.getBranch({ ...repository, branch: mainBranch });
   if (!isFreshPullRequest(currentPr, pr, repository, run, main)) {
     if (await requestStaleRebase(github, repository, pr, currentPr, main.commit.sha, core)) {
-      return 'recovery-requested';
+      return recoveryRequested;
     }
     skip(core, 'The PR or main changed since CI; wait for a rebase and a fresh CI run.');
 
@@ -344,8 +433,11 @@ async function isEligibleOpenPullRequest({ github, repository, pr, runId, runAtt
   }
 
   if (run.conclusion !== 'success') {
-    return await retryFailedSonar(github, repository, pr, run, main.commit.sha, core)
-      ? 'recovery-requested' : false;
+    if (await retryFailedSonar(github, repository, pr, run, main.commit.sha, core)) {
+      return recoveryRequested;
+    }
+    skip(core, 'CI failed or was cancelled and is not eligible for an automatic Sonar retry.');
+    return false;
   }
 
   return hasGreenChecks(github, repository, pr, run, core);
@@ -444,6 +536,7 @@ async function approveAndMerge(github, repository, pr, core) {
   }
 
   core.setOutput('merge_commit_sha', result.data.sha);
+  core.notice(`Merged head ${pr.head.sha} as ${result.data.sha}; publication will be dispatched.`);
 
   return true;
 }
@@ -475,14 +568,14 @@ export async function dispatchPublish({ github, context, core, mergeCommitSha })
   });
   for (const run of runs) {
     if (run.status !== 'completed' || await hasPublished(github, repository, run)) {
-      core.notice('Publish is already active or has published this main revision.');
+      core.notice(`Publish run ${run.id} is active or has published main ${main.commit.sha}.`);
 
       return;
     }
   }
 
   await github.rest.actions.createWorkflowDispatch({ ...repository, workflow_id: publishWorkflow, ref: mainBranch });
-  core.notice('Requested Publish on main. Check its result; rerun this workflow with the PR number if dispatch or publishing fails.');
+  core.notice(`Requested Publish on main ${main.commit.sha} after merge ${mergeCommitSha}. Check the result; rerun this workflow with the PR number if dispatch or publishing fails.`);
 }
 
 export async function shouldPublish({ github, context, core }) {

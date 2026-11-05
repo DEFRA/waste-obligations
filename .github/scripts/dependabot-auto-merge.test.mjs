@@ -55,7 +55,8 @@ function harness() {
   };
   const effects = { reviews: [], merges: [], dispatches: [] };
   const output = {};
-  const core = { notice() {}, setOutput(name, value) { output[name] = value; } };
+  const notices = [];
+  const core = { notice(message) { notices.push(message); }, setOutput(name, value) { output[name] = value; } };
   const context = {
     repo: repository, ref: 'refs/heads/main', sha: baseSha, runId: 99,
     eventName: 'workflow_run', payload: { workflow_run: run }
@@ -136,7 +137,7 @@ function harness() {
     }
   };
 
-  return { github, context, core, state, effects, output };
+  return { github, context, core, state, effects, output, notices };
 }
 
 async function merge(h) {
@@ -441,6 +442,57 @@ test('a duplicate skipped Publish run does not erase an actual successful public
   await merge(h);
 
   assert.equal(h.output.merge_commit_sha, mergeSha);
+});
+
+test('queue logs the PR, current head and a clear reason for a pending CI run', async () => {
+  const h = harness();
+  h.state.run.status = 'in_progress';
+  h.state.run.conclusion = null;
+  await processDependabotQueue(h);
+  assert.ok(h.notices.some(message => message.includes(`PR #123`) && message.includes(headSha)));
+  assert.ok(h.notices.some(message => message.includes('in_progress') && message.includes('pending')));
+  assert.ok(h.notices.some(message => message.includes('Queue summary') && message.includes('Skipped: 1')));
+  assertUntouched(h);
+});
+
+test('queue identifies major updates separately from unverified commits', async () => {
+  for (const [change, expected] of [
+    [h => { h.state.commits[0].commit.message = metadata(['version-update:semver-major']); }, 'major version'],
+    [h => { h.state.commits[0].commit.verification.verified = false; }, 'verified signature']
+  ]) {
+    const h = harness();
+    change(h);
+    await processDependabotQueue(h);
+    assert.ok(h.notices.some(message => message.includes('PR #123') && message.includes(expected)));
+    assertUntouched(h);
+  }
+});
+
+test('queue summary contains the PR link, decision and reason', async () => {
+  const h = harness();
+  const tables = [];
+  h.core.summary = {
+    addHeading() { return this; }, addRaw() { return this; },
+    addTable(table) { tables.push(table); return this; }, async write() {}
+  };
+  h.state.run.status = 'queued';
+  h.state.run.conclusion = null;
+  await processDependabotQueue(h);
+  assert.match(tables[0][1][0], /https:\/\/github.com\/DEFRA\/waste-obligations\/pull\/123/);
+  assert.equal(tables[0][1][2], 'Skipped');
+  assert.match(tables[0][1][3], /queued/);
+});
+
+test('failure to write a queue summary does not prevent publication after a merge', async () => {
+  const h = harness();
+  h.core.summary = {
+    addHeading() { return this; }, addRaw() { return this; }, addTable() { return this; },
+    async write() { throw new Error('summary unavailable'); }
+  };
+  await processDependabotQueue(h);
+  assert.equal(h.output.merge_commit_sha, mergeSha);
+  assert.equal(h.effects.merges.length, 1);
+  assert.ok(h.notices.some(message => message.includes('Could not write the GitHub job summary')));
 });
 
 test('a green stale Dependabot PR requests one rebase and does not merge', async () => {
