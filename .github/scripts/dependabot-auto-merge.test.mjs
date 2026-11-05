@@ -651,16 +651,16 @@ for (const latestPassed of [false, true]) {
   });
 }
 
-test('a failed optional Sonar job does not block a successfully published main revision', async () => {
+test('a later Sonar failure blocks a previously published main revision', async () => {
   const h = harness();
-  h.state.publishRuns[0].conclusion = 'failure';
-  h.state.publishJobs[40].push(
+  h.state.publishRuns.push({ id: 50, status: 'completed', conclusion: 'failure', head_branch: 'main' });
+  h.state.publishJobs[50] = [
     { name: 'CDP-build-workflow', status: 'completed', conclusion: 'success' },
+    { name: 'CDP-publish-workflow', status: 'completed', conclusion: 'skipped' },
     { name: 'CDP SonarCloud Scan / CDP SonarCloud coverage scan', status: 'completed', conclusion: 'failure' }
-  );
+  ];
   await merge(h);
-
-  assert.equal(h.output.merge_commit_sha, mergeSha);
+  assertUntouched(h);
 });
 
 test('a failed optional Sonar job does not conceal a failed CDP build after an earlier publication', async () => {
@@ -676,7 +676,7 @@ test('a failed optional Sonar job does not conceal a failed CDP build after an e
   assertUntouched(h);
 });
 
-test('a successfully published hotfix with a failed optional Sonar job allows further approvals', async () => {
+test('a failed hotfix Sonar job blocks further approvals', async () => {
   const h = harness();
   h.state.hotfixRuns.push({ id: 50, status: 'completed', conclusion: 'failure' });
   h.state.publishJobs[50] = [
@@ -686,5 +686,5 @@ test('a successfully published hotfix with a failed optional Sonar job allows fu
   ];
   await merge(h);
 
-  assert.equal(h.output.merge_commit_sha, mergeSha);
+  assertUntouched(h);
 });

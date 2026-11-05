@@ -10,7 +10,6 @@ const publishWorkflow = 'publish.yml';
 const mainBranch = 'main';
 const maxQueueCandidates = 50;
 const maxQueuePages = 5;
-const failureConclusion = 'failure';
 const githubActionsIntegrationId = 15368;
 const methodNotAllowedStatus = 405;
 const conflictStatus = 409;
@@ -59,25 +58,8 @@ function compareRunRecency(a, b) {
   return (Date.parse(a.updated_at ?? '') || 0) - (Date.parse(b.updated_at ?? '') || 0) || a.id - b.id;
 }
 
-async function isSuccessfulReleaseRun(github, repository, run) {
-  if (run?.status !== 'completed') {
-    return false;
-  }
-  if (run.conclusion === 'success') {
-    return true;
-  }
-  if (run.conclusion !== failureConclusion) {
-    return false;
-  }
-
-  const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
-    ...repository, run_id: run.id, filter: 'latest', per_page: 100
-  });
-  const releaseJobs = jobs.filter(x => !optionalSonarChecks.has(x.name));
-
-  return releaseJobs.length > 0
-    && releaseJobs.every(x => x.status === 'completed' && ['success', 'skipped'].includes(x.conclusion))
-    && jobs.some(x => optionalSonarChecks.has(x.name) && x.conclusion === failureConclusion);
+function isSuccessfulReleaseRun(run) {
+  return run?.status === 'completed' && run.conclusion === 'success';
 }
 
 async function hasActiveRelease(github, repository) {
@@ -113,7 +95,7 @@ async function hasRecoveredHotfixes(github, repository, latestMainRun, core) {
     if (compareRunRecency(hotfix, latestMainRun) <= 0) {
       return true;
     }
-    if (!await isSuccessfulReleaseRun(github, repository, hotfix)) {
+    if (!isSuccessfulReleaseRun(hotfix)) {
       skip(core, 'A hotfix release failed after main publication; inspect and recover the release before approving.');
 
       return false;
@@ -139,7 +121,7 @@ async function hasReleaseCapacity(github, repository, mainSha, core) {
   });
   const mainRuns = runs.filter(x => x.head_branch === mainBranch).sort((a, b) => compareRunRecency(b, a));
   // A later failed/cancelled attempt must not inherit an earlier successful release.
-  if (!await isSuccessfulReleaseRun(github, repository, mainRuns[0])
+  if (!isSuccessfulReleaseRun(mainRuns[0])
     || !await hasMainPublication(github, repository, mainRuns)) {
     skip(core, 'Current main has no successful publication, or a later publication failed. Recover that release first.');
 
