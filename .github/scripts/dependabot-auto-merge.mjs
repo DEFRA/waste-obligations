@@ -349,9 +349,9 @@ async function approveAndMerge(github, repository, pr, core) {
       throw error;
     }
 
-    skip(core, 'GitHub blocked the merge; no Publish run was requested.');
+    skip(core, 'GitHub blocked the merge; continue to the next candidate.');
 
-    return true;
+    return false;
   }
   if (!result.data.merged) {
     throw new Error('GitHub did not confirm the merge; Publish was not dispatched.');

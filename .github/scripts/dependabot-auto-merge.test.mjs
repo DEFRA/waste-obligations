@@ -82,6 +82,7 @@ function harness() {
         async createReview(input) { effects.reviews.push(input); },
         async merge(input) {
           effects.merges.push(input);
+          if (state.mergeErrors?.[input.pull_number]) throw state.mergeErrors[input.pull_number];
           if (state.mergeError) throw state.mergeError;
 
           state.mainSha = mergeSha;
@@ -461,6 +462,24 @@ test('one eligible merge consumes a published head until the next head is publis
   assert.equal(h.effects.merges.length, 2);
   assert.equal(h.effects.merges[1].pull_number, 124);
 });
+
+for (const status of [405, 409]) {
+  test(`a rejected merge (${status}) does not prevent a later eligible PR from merging`, async () => {
+    const h = harness();
+    const blockedSha = 'e'.repeat(40);
+    const blockedPr = { ...h.state.pr, number: 122, head: { ...h.state.pr.head, sha: blockedSha } };
+    h.state.openPrs.unshift(blockedPr);
+    h.state.candidates[122] = { pr: blockedPr, commits: [{ ...h.state.commits[0], sha: blockedSha }] };
+    h.state.ciRuns.push({ ...h.state.run, id: 11, head_sha: blockedSha,
+      pull_requests: [{ number: 122, head: { sha: blockedSha }, base: { ref: 'main', sha: baseSha } }] });
+    h.state.ciJobs[11] = h.state.jobs;
+    h.state.mergeErrors = { 122: Object.assign(new Error('Merge blocked'), { status }) };
+    await processDependabotQueue(h);
+    assert.deepEqual(h.effects.merges.map(x => x.pull_number), [122, 123]);
+    assert.equal(h.output.merge_commit_sha, mergeSha);
+    assert.equal(h.effects.dispatches.length, 0);
+  });
+}
 
 test('queue scanning skips a major candidate and considers the next eligible update', async () => {
   const h = harness();

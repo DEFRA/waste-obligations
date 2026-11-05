@@ -12,11 +12,17 @@ Dependabot controls its own update schedules, grouping and exclusions. Its PR me
 
 ## Pacing and recovery
 
-The scheduled scan runs every 15 minutes, and a manual dispatch may scan or retry a specific PR. Each run attempts at most one merge. A shared concurrency group serializes the queue's approval, merge and dispatch operations. Before each attempt, the current `main` must have a successful CDP publication, no later failed release, and no active or queued main or hotfix release. After a merge, the new `main` is unpublished, so the next PR waits for publication and fresh CI against that head.
+The scheduled scan runs every 15 minutes, and a manual dispatch may scan or retry a specific PR. Each run performs at most one successful merge. A shared concurrency group serializes the queue's approval, merge and dispatch operations. Before each attempt, the current `main` must have a successful CDP publication, no later failed release, and no active or queued main or hotfix release. After a merge, the new `main` is unpublished, so the next PR waits for publication and fresh CI against that head.
 
 GitHub does not start push workflows for a merge performed using `GITHUB_TOKEN`. After a successful bot merge, the workflow dispatches `Publish` on `main`. If the dispatch fails after the merge, manually dispatch `Merge Dependabot updates` with the merged PR number to recover; only a verified Dependabot PR merged by the Actions bot is accepted. Alternatively, dispatch `Publish` on `main` after inspecting any partial release. A failed or cancelled release stops the queue until it is inspected and successfully recovered.
 
-Main and hotfix publishing jobs share `cdp-release-publish`, and the main workflow uses `publish-main`; both use `queue: max` and do not cancel running work. A superseded main run requests publication of current `main`. Human merges, hotfixes on older refs without this lock, and other release writers are not atomically reserved by the Dependabot queue. Coordinate those separately. GitHub does not guarantee schedule or queue timing. The scan is bounded to 50 candidates in the first 500 open PRs; retry an omitted PR explicitly. A PR whose merge GitHub rejects ends that scan and may delay later candidates.
+Main and hotfix publishing jobs share `cdp-release-publish`, and the main workflow uses `publish-main`; both use `queue: max` and do not cancel running work. A superseded main run requests publication of current `main`. Human merges, hotfixes on older refs without this lock, and other release writers are not atomically reserved by the Dependabot queue. Coordinate those separately. GitHub does not guarantee schedule or queue timing. The scan is bounded to 50 candidates in the first 500 open PRs; retry an omitted PR explicitly. When GitHub confirms a merge was rejected, the scan can consider the next candidate; an uncertain API failure stops the run without dispatching a publication.
+
+## Stale PRs and image digests
+
+A stale PR needs CI against the new base. Re-running an old workflow does not replace its recorded base. Dependabot can be asked to rebase with `@dependabot rebase`; its new commit should trigger the normal PR workflow. Automatic requests from the Actions bot are not implemented: verify GitHub accepts the bot's command and deduplicate or rate-limit requests before relying on them.
+
+An image digest identifies content but does not inherently encode a release version. Registry labels and tags can help identify a version when a publisher supplies reliable metadata, but may be missing or mutable. Unknown updates remain manual rather than being assumed non-major. Versioned tags with digest pins are an option where the publisher and Dependabot support them; verify SonarCloud and Dependabot behaviour on the actual PR.
 
 ## Activation and verification
 
