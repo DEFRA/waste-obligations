@@ -286,7 +286,8 @@ const yearFilterAndSortMappings = ({
     filters,
     sorts,
 }) => {
-    const answer = (filter = () => true, sort) => {
+    const matchAll = () => true;
+    const answer = (filter, sort) => {
         const matching = sortedBy(acceptable.filter(filter), sort);
 
         return { items: matching, totalItems: matching.length };
@@ -298,7 +299,7 @@ const yearFilterAndSortMappings = ({
             `${prefix}-year-${year}-sort-${sortBy}.json`,
             searchMapping(
                 [yearParam, queryParam("sortBy", sortBy)],
-                answer(undefined, sort),
+                answer(matchAll, sort),
                 YEAR_SORT_PRIORITY,
             ),
         ]);
@@ -308,7 +309,7 @@ const yearFilterAndSortMappings = ({
             `${prefix}-year-${year}-filter-${filterBy}.json`,
             searchMapping(
                 [yearParam, queryParam("filterBy", filterBy)],
-                answer(filter),
+                answer(filter, defaultPrnSort),
                 YEAR_FILTER_PRIORITY,
             ),
         ]);
