@@ -4,8 +4,9 @@ WORKDIR /app
 
 # Add curl to template.
 # CDP PLATFORM HEALTHCHECK REQUIREMENT
-RUN apt update && \
-    apt install curl -y && \
+RUN apt-get update && \
+    apt-get install -y --only-upgrade apt libapt-pkg6.0t64 && \
+    apt-get install -y curl && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
