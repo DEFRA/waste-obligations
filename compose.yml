@@ -25,7 +25,7 @@ services:
     pull_policy: always
     environment:
       TZ: Europe/London
-    image: sheyenrath/wiremock.net:latest@sha256:3d31cf7a0b5ad8062c9ae1ba36e2355f4b034102bd980217d5003da5effd0e10
+    image: sheyenrath/wiremock.net:2.14.0@sha256:3d31cf7a0b5ad8062c9ae1ba36e2355f4b034102bd980217d5003da5effd0e10
     ports:
       - "9090:80"
 
@@ -42,7 +42,7 @@ services:
     restart: unless-stopped
 
   floci-init:
-    image: amazon/aws-cli:latest@sha256:45056897f7c47a84e3ef5a4f9095f748bd9f5a24c5d54e7d5cfc3d4da52c9331
+    image: amazon/aws-cli:2.36.48@sha256:45056897f7c47a84e3ef5a4f9095f748bd9f5a24c5d54e7d5cfc3d4da52c9331
     entrypoint: ["/bin/sh", "/compose/init-floci.sh"]
     depends_on:
       floci:
