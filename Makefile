@@ -1,4 +1,4 @@
-VACUUM_IMAGE := dshanley/vacuum:latest@sha256:e13b08c36d5858753cafe677282bb38d9b7ca7945f3a3afba403ed47520dc5af
+VACUUM_IMAGE := dshanley/vacuum:v0.30.6@sha256:e13b08c36d5858753cafe677282bb38d9b7ca7945f3a3afba403ed47520dc5af
 
 dependencies:
 	dotnet tool restore

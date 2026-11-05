@@ -6,9 +6,18 @@ reusable workflows run from the caller's commit and do not need a separate SHA.
 The existing Docker build action pin was verified and retained.
 
 Dockerfile base images, Compose images, Trivy and the Makefile's Vacuum image
-use registry manifest digests. Tags remain for readability; the digest selects
-the content, including for tags named `latest`. Manifest-list digests retain
+use version tags alongside registry manifest digests. The digest selects the
+content; the tag identifies the release for readers and update tooling. Verify
+the tag resolves to the digest when changing either. Manifest-list digests retain
 platform selection for local ARM64 and CI AMD64 hosts.
+
+SonarCloud's `docker:S8431` flags a tag and digest together in a Dockerfile. This
+project excludes that rule for the root `Dockerfile` via SonarCloud's project
+analysis scope; other rules remain active for that file. The PR analysis passed
+with this exclusion and the tag-and-digest runtime reference. Revisit the
+exclusion if SonarCloud reliably recognises the Dependabot configuration.
+The image version tags were checked against their pinned digests on 5 November
+2026.
 
 The Sonar scanner is installed at an explicit NuGet version, with a matching
 cache key and no fallback to the old unversioned scanner cache. NuGet tools
@@ -60,5 +69,5 @@ Pins were resolved from upstream GitHub, container registry and NuGet APIs on
 The dependency-review action v5.0.0 pin and the refreshed ASP.NET runtime digest
 were verified on 7 October 2026. The runtime update removes the high-severity
 OpenSSL finding exposed by the new blocking image scan. See
-[dependency automation security exposure](dependabot-auto-merge.md#security-exposure)
+[dependency automation security exposure](dependabot-auto-merge.md#eligibility)
 for credential, transitive-dependency and unknown-malware limits.
