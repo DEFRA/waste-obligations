@@ -1,10 +1,7 @@
-import { getRuntimeTargets, passesSupplyChainPolicy, readMinorOrPatchUpdates } from './dependabot-security-policy.mjs';
+import { readMinorOrPatchUpdates } from './dependabot-metadata.mjs';
 
 const requiredJobs = ['Dependency security review', 'Run Pull Request Checks', 'Run journey tests'];
-const optionalSonarChecks = new Set([
-  'CDP SonarCloud Scan / CDP SonarCloud coverage scan',
-  'SonarCloud Code Analysis'
-]);
+const sonarJob = 'CDP SonarCloud Scan / CDP SonarCloud coverage scan';
 const publishJob = 'CDP-publish-workflow';
 const publishWorkflow = 'publish.yml';
 const mainBranch = 'main';
@@ -131,10 +128,10 @@ async function hasReleaseCapacity(github, repository, mainSha, core) {
   return hasRecoveredHotfixes(github, repository, mainRuns[0], core);
 }
 
-export async function processDependabotQueue({ github, context, core, pullNumber, releaseLookup, now }) {
+export async function processDependabotQueue({ github, context, core, pullNumber }) {
   if (pullNumber) {
     // Explicit recovery of an already merged PR must work while main is unpublished.
-    await mergeDependabotPullRequest({ github, context, core, pullNumber, releaseLookup, now });
+    await mergeDependabotPullRequest({ github, context, core, pullNumber });
 
     return;
   }
@@ -162,7 +159,7 @@ export async function processDependabotQueue({ github, context, core, pullNumber
   }
 
   for (const pr of candidates.slice(0, maxQueueCandidates)) {
-    if (await mergeDependabotPullRequest({ github, context, core, pullNumber: pr.number, releaseLookup, now })) {
+    if (await mergeDependabotPullRequest({ github, context, core, pullNumber: pr.number })) {
       return;
     }
   }
@@ -181,18 +178,20 @@ function recordsCurrentPullRequest(run, pr) {
 function isCompletedPullRequestRun(run, latest, repository, pr) {
   return run.event === 'pull_request' && run.path === '.github/workflows/check-pull-request.yml'
     && run.head_repository?.full_name === `${repository.owner}/${repository.repo}`
-    && run.head_sha === pr.head.sha && run.status === 'completed'
+    && run.head_sha === pr.head.sha && run.status === 'completed' && run.conclusion === 'success'
     && run.run_attempt === latest.run_attempt;
 }
 
 function hasSuccessfulRequiredJobs(jobs) {
-  return requiredJobs.every(name => jobs.filter(x => x.name === name).length === 1)
-    && jobs.filter(x => !optionalSonarChecks.has(x.name)).every(x => x.status === 'completed' && x.conclusion === 'success');
+  return [...requiredJobs, sonarJob].every(name => jobs.filter(x => x.name === name).length === 1)
+    && jobs.every(x => x.status === 'completed' && x.conclusion === 'success');
 }
 
 function hasSuccessfulChecks(checks, statuses) {
-  return checks.filter(x => !optionalSonarChecks.has(x.name)).every(x => x.status === 'completed' && x.conclusion === 'success')
-    && statuses.statuses.filter(x => !optionalSonarChecks.has(x.context)).every(x => x.state === 'success');
+  return checks.some(x => x.name === 'SonarCloud Code Analysis' && x.app?.slug === 'sonarqubecloud'
+      && x.status === 'completed' && x.conclusion === 'success')
+    && checks.every(x => x.status === 'completed' && x.conclusion === 'success')
+    && statuses.statuses.every(x => x.state === 'success');
 }
 
 async function getEligibleRun(github, repository, pr, runId, runAttempt, core) {
@@ -272,7 +271,7 @@ function isFreshPullRequest(currentPr, pr, repository, run, main) {
     && run.pull_requests.find(x => x.number === pr.number).base.sha === main.commit.sha;
 }
 
-export async function mergeDependabotPullRequest({ github, context, core, pullNumber, runId, runAttempt, releaseLookup, now }) {
+export async function mergeDependabotPullRequest({ github, context, core, pullNumber, runId, runAttempt }) {
   const repository = context.repo;
   const { data: pr } = await github.rest.pulls.get({ ...repository, pull_number: pullNumber });
   if (!isDependabotPullRequest(pr, `${repository.owner}/${repository.repo}`) || pr.draft) {
@@ -298,14 +297,14 @@ export async function mergeDependabotPullRequest({ github, context, core, pullNu
     return undefined;
   }
 
-  if (!await isEligibleOpenPullRequest({ github, repository, pr, runId, runAttempt, commits, core, releaseLookup, now })) {
+  if (!await isEligibleOpenPullRequest({ github, repository, pr, runId, runAttempt, core })) {
     return undefined;
   }
 
   return approveAndMerge(github, repository, pr, core);
 }
 
-async function isEligibleOpenPullRequest({ github, repository, pr, runId, runAttempt, commits, core, releaseLookup, now }) {
+async function isEligibleOpenPullRequest({ github, repository, pr, runId, runAttempt, core }) {
   const run = await getEligibleRun(github, repository, pr, runId, runAttempt, core);
   if (!run || !await hasStrictMergeRules(github, repository, core)) {
     return false;
@@ -323,11 +322,6 @@ async function isEligibleOpenPullRequest({ github, repository, pr, runId, runAtt
     return false;
   }
 
-  if (!await passesSupplyChainPolicy({ github, repository, pr, baseSha: main.commit.sha,
-    targets: getRuntimeTargets(commits), core, releaseLookup, now })) {
-    return false;
-  }
-
   return true;
 }
 
@@ -338,7 +332,7 @@ async function approveAndMerge(github, repository, pr, core) {
   if (!reviews.some(x => x.user?.login === 'github-actions[bot]' && x.commit_id === pr.head.sha && x.state === 'APPROVED')) {
     await github.rest.pulls.createReview({
       ...repository, pull_number: pr.number, commit_id: pr.head.sha, event: 'APPROVE',
-      body: 'Allowlisted runtime NuGet minor/patch update with version-only changes and listed releases at least seven days old. Required checks passed for this revision. These controls do not certify upstream code as safe.'
+      body: 'Verified Dependabot minor/patch update. All checks passed for this revision. These controls do not certify upstream code as safe.'
     });
   }
 

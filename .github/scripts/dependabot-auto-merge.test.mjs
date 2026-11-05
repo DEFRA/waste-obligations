@@ -37,7 +37,8 @@ function harness() {
   };
   const successfulJob = name => ({ name, status: 'completed', conclusion: 'success' });
   const state = {
-    pr, run, ciRuns: [run], ciJobs: {}, mainSha: baseSha, reviews: [], checks: [], statuses: [],
+    pr, run, ciRuns: [run], ciJobs: {}, mainSha: baseSha, reviews: [],
+    checks: [{ name: 'SonarCloud Code Analysis', app: { slug: 'sonarqubecloud' }, status: 'completed', conclusion: 'success' }], statuses: [],
     jobs: [successfulJob('Run Pull Request Checks'), successfulJob('Run journey tests'),
       successfulJob('CDP SonarCloud Scan / CDP SonarCloud coverage scan'), successfulJob('Dependency security review')],
     commits: [{ sha: headSha, author: { login: 'dependabot[bot]' },
@@ -129,9 +130,7 @@ function harness() {
     }
   };
 
-  return { github, context, core, state, effects, output,
-    now: Date.parse('2026-10-07T12:00:00Z'),
-    releaseLookup: async () => ({ published: '2026-09-29T12:00:00Z', listed: true }) };
+  return { github, context, core, state, effects, output };
 }
 
 async function merge(h) {
@@ -172,49 +171,24 @@ test('a passing update approves and merges the exact tested SHA', async () => {
   assert.equal(h.output.merge_commit_sha, mergeSha);
 });
 
-test('an optional Sonar failure does not block the three successful required jobs', async () => {
-  const h = harness();
-  h.state.run.conclusion = 'failure';
-  h.state.jobs[2].conclusion = 'failure';
-  h.state.checks.push({ name: 'SonarCloud Code Analysis', status: 'completed', conclusion: 'failure' });
-  await merge(h);
-
-  assert.equal(h.output.merge_commit_sha, mergeSha);
-});
-
-for (const [name, change] of [
-  ['runtime release younger than seven days', h => { h.releaseLookup = async () => ({ listed: true, published: '2026-10-01T12:00:00Z' }); }],
-  ['unlisted runtime release', h => { h.releaseLookup = async () => ({ listed: false, published: '2026-09-29T12:00:00Z' }); }],
-  ['future release timestamp', h => { h.releaseLookup = async () => ({ listed: true, published: '2026-10-08T12:00:00Z' }); }],
-  ['unknown release timestamp', h => { h.releaseLookup = async () => ({ listed: true, published: 'unknown' }); }],
-  ['NuGet unlisted sentinel timestamp', h => { h.releaseLookup = async () => ({ listed: true, published: '1900-01-01T00:00:00Z' }); }],
-  ['registry unavailable', h => { h.releaseLookup = async () => { throw new Error('NuGet unavailable'); }; }],
-  ['an Actions update', h => { h.state.commits[0].commit.message = metadata().replace('MongoDB.Driver', 'actions/checkout'); }],
-  ['missing target version metadata', h => { h.state.commits[0].commit.message = metadata().replace('  dependency-version: 3.10.0\n', ''); }],
-  ['a workflow edit alongside a dependency update', h => { h.state.files = [{ filename: '.github/workflows/publish.yml', status: 'modified' }]; }],
-  ['an added project', h => { h.state.files = [{ filename: 'src/Api/Api.csproj', status: 'added' }]; }],
-  ['an executable build target alongside a version update', h => { h.state.after = '<Project><PackageReference Include="MongoDB.Driver" Version="3.10.0" /><Target Name="Build"><Exec Command="attack" /></Target></Project>'; }]
-]) {
-  test(`${name} causes no approval, merge or dispatch`, async () => {
+for (const name of ['actions/checkout', '@example/frontend-package', 'MongoDB.Driver']) {
+  test(`a verified minor or patch update to ${name} can merge after green CI`, async () => {
     const h = harness();
-    change(h);
+    h.state.commits[0].commit.message = metadata().replace('MongoDB.Driver', name);
     await merge(h);
-
-    assertUntouched(h);
+    assert.equal(h.output.merge_commit_sha, mergeSha);
   });
 }
 
-test('a release exactly seven days old is eligible regardless of PR creation/rebase date', async () => {
-  const h = harness();
-  h.state.pr.created_at = '2026-10-07T11:00:00Z';
-  h.releaseLookup = async () => ({ listed: true, published: '2026-09-30T12:00:00Z' });
-  await merge(h);
-
-  assert.equal(h.effects.merges.length, 1);
-});
-
 for (const [name, change] of [
   ['failed PR build', h => { h.state.jobs[0].conclusion = 'failure'; }],
+  ['failed Sonar job', h => { h.state.jobs[2].conclusion = 'failure'; }],
+  ['missing Sonar job', h => { h.state.jobs.splice(2, 1); }],
+  ['missing Sonar quality gate', h => { h.state.checks = []; }],
+  ['pending Sonar quality gate', h => { h.state.checks[0].status = 'in_progress'; h.state.checks[0].conclusion = null; }],
+  ['untrusted Sonar check', h => { h.state.checks[0].app.slug = 'other'; }],
+  ['failed Sonar status', h => { h.state.checks.push({ name: 'SonarCloud Code Analysis', status: 'completed', conclusion: 'failure' }); }],
+  ['failed workflow run', h => { h.state.run.conclusion = 'failure'; }],
   ['failed dependency security review', h => { h.state.jobs[3].conclusion = 'failure'; }],
   ['missing dependency security review', h => { h.state.jobs.splice(3, 1); }],
   ['skipped dependency security review', h => { h.state.jobs[3].conclusion = 'skipped'; }],
@@ -663,7 +637,7 @@ test('a later Sonar failure blocks a previously published main revision', async 
   assertUntouched(h);
 });
 
-test('a failed optional Sonar job does not conceal a failed CDP build after an earlier publication', async () => {
+test('a failed Sonar job does not conceal a failed CDP build after an earlier publication', async () => {
   const h = harness();
   h.state.publishRuns.push({ id: 50, status: 'completed', conclusion: 'failure', head_branch: 'main' });
   h.state.publishJobs[50] = [

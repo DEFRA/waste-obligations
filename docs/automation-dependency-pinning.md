@@ -19,9 +19,9 @@ installation reference.
 
 Dependabot checks GitHub Actions, Docker and Docker Compose dependencies weekly
 using their [separate supported ecosystems](https://docs.github.com/en/code-security/reference/supply-chain-security/supported-ecosystems-and-repositories).
-[Dependabot automation](dependabot-auto-merge.md) can approve and merge verified
-allowlisted runtime NuGet minor/patch updates after the required checks and
-seven-day release-age gate pass; Actions and container updates need manual review.
+[Dependabot automation](dependabot-auto-merge.md) can approve and merge
+verified minor and patch updates when all checks pass and publication capacity
+is available. Updates without a minor or patch classification stay manual.
 Mongo permits minor, patch and digest updates within version 7; major
 version upgrades are excluded. A hash prevents a reference from moving silently,
 but does not establish that the selected code is trustworthy. The Sonar scanner
