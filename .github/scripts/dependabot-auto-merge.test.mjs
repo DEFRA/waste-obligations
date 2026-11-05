@@ -51,7 +51,7 @@ function harness() {
     } }],
     publishRuns: [{ id: 40, status: 'completed', conclusion: 'success', head_sha: baseSha, head_branch: 'main' }],
     publishJobs: { 40: [successfulJob('CDP-publish-workflow')] },
-    activeReleaseRuns: [], hotfixRuns: [], comparison: 'ahead', prReads: 0, openPrs: [pr], candidates: {}, comments: [], rebaseRequests: []
+    activeReleaseRuns: [], hotfixRuns: [], comparison: 'ahead', prReads: 0, openPrs: [pr], candidates: {}, comments: [], rebaseRequests: [], reruns: []
   };
   const effects = { reviews: [], merges: [], dispatches: [] };
   const output = {};
@@ -109,6 +109,7 @@ function harness() {
       },
       checks: { async listForRef() { return { data: { check_runs: state.checks } }; } },
       actions: {
+        async reRunWorkflowFailedJobs(input) { state.reruns.push(input); },
         async listWorkflowRuns(input) {
           const runs = input.workflow_id === 'publish.yml' ? state.publishRuns
             : input.workflow_id === 'publish-hotfix.yml' ? state.hotfixRuns : state.ciRuns;
@@ -502,16 +503,64 @@ test('a changed main prevents a rebase request', async () => {
   assertUntouched(h);
 });
 
-test('stale PRs with failed checks or major updates do not request a rebase', async () => {
-  for (const change of [h => { h.state.jobs[0].conclusion = 'failure'; },
-    h => { h.state.commits[0].commit.message = metadata(['version-update:semver-major']); }]) {
+test('a stale PR requests a rebase even when its previous CI failed', async () => {
+  const h = harness();
+  h.state.run.pull_requests[0].base.sha = otherSha;
+  h.state.run.conclusion = 'failure';
+  h.state.jobs[0].conclusion = 'failure';
+  await processDependabotQueue(h);
+  assert.equal(h.state.rebaseRequests.length, 1);
+  assertUntouched(h);
+});
+
+test('a stale major update does not request a rebase', async () => {
+  const h = harness();
+  h.state.run.pull_requests[0].base.sha = otherSha;
+  h.state.commits[0].commit.message = metadata(['version-update:semver-major']);
+  await processDependabotQueue(h);
+  assert.equal(h.state.rebaseRequests.length, 0);
+  assertUntouched(h);
+});
+
+test('a current PR with only a failed Sonar job retries that run once', async () => {
+  const h = harness();
+  h.state.run.conclusion = 'failure';
+  h.state.jobs.find(job => job.name === 'CDP SonarCloud Scan / CDP SonarCloud coverage scan').conclusion = 'failure';
+  await processDependabotQueue(h);
+  assert.deepEqual(h.state.reruns, [{ ...repository, run_id: 10 }]);
+  assertUntouched(h);
+});
+
+test('a Sonar retry is not repeated or used to bypass other failures', async () => {
+  for (const change of [h => { h.state.run.run_attempt = 2; },
+    h => { h.state.jobs[0].conclusion = 'failure'; },
+    h => { h.state.publishRuns = []; }]) {
     const h = harness();
-    h.state.run.pull_requests[0].base.sha = otherSha;
+    h.state.run.conclusion = 'failure';
+    h.state.jobs.find(job => job.name === 'CDP SonarCloud Scan / CDP SonarCloud coverage scan').conclusion = 'failure';
     change(h);
     await processDependabotQueue(h);
-    assert.equal(h.state.rebaseRequests.length, 0);
+    assert.deepEqual(h.state.reruns, []);
     assertUntouched(h);
   }
+});
+
+test('a successful Sonar retry is still checked before merging', async () => {
+  const h = harness();
+  h.state.run.conclusion = 'failure';
+  const sonar = h.state.jobs.find(job => job.name === 'CDP SonarCloud Scan / CDP SonarCloud coverage scan');
+  sonar.conclusion = 'failure';
+  await processDependabotQueue(h);
+  assert.equal(h.state.reruns.length, 1);
+  assertUntouched(h);
+
+  h.state.run.run_attempt = 2;
+  h.state.run.conclusion = 'success';
+  sonar.conclusion = 'success';
+  h.state.jobs.forEach(job => { job.run_attempt = 2; });
+  await processDependabotQueue(h);
+  assert.equal(h.effects.merges.length, 1);
+  assert.equal(h.output.merge_commit_sha, mergeSha);
 });
 
 test('a stale PR does not request a rebase while main has not published', async () => {

@@ -184,7 +184,7 @@ function isCompletedPullRequestRun(run, latest, repository, pr) {
     && run.head_repository?.full_name === `${repository.owner}/${repository.repo}`;
 
   return expectedWorkflow && run.head_sha === pr.head.sha
-    && run.status === 'completed' && run.conclusion === 'success'
+    && run.status === 'completed'
     && run.run_attempt === latest.run_attempt;
 }
 
@@ -200,7 +200,7 @@ function hasSuccessfulChecks(checks, statuses) {
     && statuses.statuses.every(x => x.state === 'success');
 }
 
-async function getEligibleRun(github, repository, pr, runId, runAttempt, core) {
+async function getCurrentRun(github, repository, pr, runId, runAttempt, core) {
   const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
     ...repository, workflow_id: 'check-pull-request.yml', event: 'pull_request',
     head_sha: pr.head.sha, per_page: 100
@@ -219,13 +219,17 @@ async function getEligibleRun(github, repository, pr, runId, runAttempt, core) {
     return undefined;
   }
 
+  return run;
+}
+
+async function hasGreenChecks(github, repository, pr, run, core) {
   const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
     ...repository, run_id: run.id, filter: 'latest', per_page: 100
   });
   if (!hasSuccessfulRequiredJobs(jobs)) {
     skip(core, 'Every required job must succeed; missing, skipped or failed jobs stay manual.');
 
-    return undefined;
+    return false;
   }
 
   const checks = await github.paginate(github.rest.checks.listForRef, {
@@ -235,10 +239,10 @@ async function getEligibleRun(github, repository, pr, runId, runAttempt, core) {
   if (!hasSuccessfulChecks(checks, statuses)) {
     skip(core, 'Another check or commit status is pending or unsuccessful.');
 
-    return undefined;
+    return false;
   }
 
-  return run;
+  return true;
 }
 
 async function verifyCommits(github, repository, pr, core) {
@@ -308,7 +312,7 @@ export async function mergeDependabotPullRequest({ github, context, core, pullNu
   }
 
   const eligibility = await isEligibleOpenPullRequest({ github, repository, pr, runId, runAttempt, core });
-  if (eligibility === 'rebase-requested') {
+  if (eligibility === 'recovery-requested') {
     return true;
   }
   if (!eligibility) {
@@ -319,7 +323,7 @@ export async function mergeDependabotPullRequest({ github, context, core, pullNu
 }
 
 async function isEligibleOpenPullRequest({ github, repository, pr, runId, runAttempt, core }) {
-  const run = await getEligibleRun(github, repository, pr, runId, runAttempt, core);
+  const run = await getCurrentRun(github, repository, pr, runId, runAttempt, core);
   if (!run || !await hasStrictMergeRules(github, repository, core)) {
     return false;
   }
@@ -327,10 +331,8 @@ async function isEligibleOpenPullRequest({ github, repository, pr, runId, runAtt
   const { data: currentPr } = await github.rest.pulls.get({ ...repository, pull_number: pr.number });
   const { data: main } = await github.rest.repos.getBranch({ ...repository, branch: mainBranch });
   if (!isFreshPullRequest(currentPr, pr, repository, run, main)) {
-    if (isCurrentDependabotPullRequest(currentPr, pr, repository)
-      && await hasReleaseCapacity(github, repository, main.commit.sha, core)
-      && await requestRebase(github, repository, currentPr, main.commit.sha, core)) {
-      return 'rebase-requested';
+    if (await requestStaleRebase(github, repository, pr, currentPr, main.commit.sha, core)) {
+      return 'recovery-requested';
     }
     skip(core, 'The PR or main changed since CI; wait for a rebase and a fresh CI run.');
 
@@ -341,6 +343,47 @@ async function isEligibleOpenPullRequest({ github, repository, pr, runId, runAtt
     return false;
   }
 
+  if (run.conclusion !== 'success') {
+    return await retryFailedSonar(github, repository, pr, run, main.commit.sha, core)
+      ? 'recovery-requested' : false;
+  }
+
+  return hasGreenChecks(github, repository, pr, run, core);
+}
+
+async function requestStaleRebase(github, repository, pr, currentPr, mainSha, core) {
+  return isCurrentDependabotPullRequest(currentPr, pr, repository)
+    && await hasReleaseCapacity(github, repository, mainSha, core)
+    && await requestRebase(github, repository, currentPr, mainSha, core);
+}
+
+function isSonarOnlyFailure(jobs) {
+  return [...requiredJobs, sonarJob].every(name => jobs.filter(job => job.name === name).length === 1)
+    && jobs.every(job => job.status === 'completed'
+      && (job.conclusion === 'success' || (job.name === sonarJob && job.conclusion === 'failure')))
+    && jobs.some(job => job.name === sonarJob && job.conclusion === 'failure');
+}
+
+async function retryFailedSonar(github, repository, pr, run, mainSha, core) {
+  if (run.conclusion !== 'failure' || run.run_attempt !== 1) {
+    return false;
+  }
+  const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
+    ...repository, run_id: run.id, filter: 'latest', per_page: 100
+  });
+  if (!isSonarOnlyFailure(jobs)) {
+    return false;
+  }
+
+  const { data: currentPr } = await github.rest.pulls.get({ ...repository, pull_number: pr.number });
+  const { data: main } = await github.rest.repos.getBranch({ ...repository, branch: mainBranch });
+  const latest = await getCurrentRun(github, repository, pr, run.id, run.run_attempt, core);
+  if (!latest || !isCurrentDependabotPullRequest(currentPr, pr, repository) || main.commit.sha !== mainSha) {
+    return false;
+  }
+
+  await github.rest.actions.reRunWorkflowFailedJobs({ ...repository, run_id: run.id });
+  core.notice('Retried the failed Sonar job once; wait for CI and the quality gate.');
   return true;
 }
 
@@ -365,7 +408,7 @@ async function requestRebase(github, repository, pr, mainSha, core) {
 
   await github.rest.issues.createComment({
     ...repository, issue_number: pr.number,
-    body: `@dependabot rebase\n\n${rebaseMarker}\nThe last successful checks used an older main revision. Please rebase so CI can test this update against the current main.`
+    body: `@dependabot rebase\n\n${rebaseMarker}\nThe last checks used an older main revision. Please rebase so CI can test this update against the current main.`
   });
   core.notice('Requested a Dependabot rebase; wait for a new signed commit and fresh CI.');
   return true;
