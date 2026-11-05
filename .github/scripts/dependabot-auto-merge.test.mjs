@@ -51,11 +51,12 @@ function harness() {
     } }],
     publishRuns: [{ id: 40, status: 'completed', conclusion: 'success', head_sha: baseSha, head_branch: 'main' }],
     publishJobs: { 40: [successfulJob('CDP-publish-workflow')] },
-    activeReleaseRuns: [], hotfixRuns: [], comparison: 'ahead', prReads: 0, openPrs: [pr], candidates: {}, comments: [], rebaseRequests: []
+    activeReleaseRuns: [], hotfixRuns: [], comparison: 'ahead', prReads: 0, openPrs: [pr], candidates: {}, comments: [], rebaseRequests: [], reruns: []
   };
   const effects = { reviews: [], merges: [], dispatches: [] };
   const output = {};
-  const core = { notice() {}, setOutput(name, value) { output[name] = value; } };
+  const notices = [];
+  const core = { notice(message) { notices.push(message); }, setOutput(name, value) { output[name] = value; } };
   const context = {
     repo: repository, ref: 'refs/heads/main', sha: baseSha, runId: 99,
     eventName: 'workflow_run', payload: { workflow_run: run }
@@ -109,6 +110,7 @@ function harness() {
       },
       checks: { async listForRef() { return { data: { check_runs: state.checks } }; } },
       actions: {
+        async reRunWorkflowFailedJobs(input) { state.reruns.push(input); },
         async listWorkflowRuns(input) {
           const runs = input.workflow_id === 'publish.yml' ? state.publishRuns
             : input.workflow_id === 'publish-hotfix.yml' ? state.hotfixRuns : state.ciRuns;
@@ -135,7 +137,7 @@ function harness() {
     }
   };
 
-  return { github, context, core, state, effects, output };
+  return { github, context, core, state, effects, output, notices };
 }
 
 async function merge(h) {
@@ -442,6 +444,57 @@ test('a duplicate skipped Publish run does not erase an actual successful public
   assert.equal(h.output.merge_commit_sha, mergeSha);
 });
 
+test('queue logs the PR, current head and a clear reason for a pending CI run', async () => {
+  const h = harness();
+  h.state.run.status = 'in_progress';
+  h.state.run.conclusion = null;
+  await processDependabotQueue(h);
+  assert.ok(h.notices.some(message => message.includes(`PR #123`) && message.includes(headSha)));
+  assert.ok(h.notices.some(message => message.includes('in_progress') && message.includes('pending')));
+  assert.ok(h.notices.some(message => message.includes('Queue summary') && message.includes('Skipped: 1')));
+  assertUntouched(h);
+});
+
+test('queue identifies major updates separately from unverified commits', async () => {
+  for (const [change, expected] of [
+    [h => { h.state.commits[0].commit.message = metadata(['version-update:semver-major']); }, 'major version'],
+    [h => { h.state.commits[0].commit.verification.verified = false; }, 'verified signature']
+  ]) {
+    const h = harness();
+    change(h);
+    await processDependabotQueue(h);
+    assert.ok(h.notices.some(message => message.includes('PR #123') && message.includes(expected)));
+    assertUntouched(h);
+  }
+});
+
+test('queue summary contains the PR link, decision and reason', async () => {
+  const h = harness();
+  const tables = [];
+  h.core.summary = {
+    addHeading() { return this; }, addRaw() { return this; },
+    addTable(table) { tables.push(table); return this; }, async write() {}
+  };
+  h.state.run.status = 'queued';
+  h.state.run.conclusion = null;
+  await processDependabotQueue(h);
+  assert.match(tables[0][1][0], /https:\/\/github.com\/DEFRA\/waste-obligations\/pull\/123/);
+  assert.equal(tables[0][1][2], 'Skipped');
+  assert.match(tables[0][1][3], /queued/);
+});
+
+test('failure to write a queue summary does not prevent publication after a merge', async () => {
+  const h = harness();
+  h.core.summary = {
+    addHeading() { return this; }, addRaw() { return this; }, addTable() { return this; },
+    async write() { throw new Error('summary unavailable'); }
+  };
+  await processDependabotQueue(h);
+  assert.equal(h.output.merge_commit_sha, mergeSha);
+  assert.equal(h.effects.merges.length, 1);
+  assert.ok(h.notices.some(message => message.includes('Could not write the GitHub job summary')));
+});
+
 test('a green stale Dependabot PR requests one rebase and does not merge', async () => {
   const h = harness();
   h.state.run.pull_requests[0].base.sha = otherSha;
@@ -502,16 +555,64 @@ test('a changed main prevents a rebase request', async () => {
   assertUntouched(h);
 });
 
-test('stale PRs with failed checks or major updates do not request a rebase', async () => {
-  for (const change of [h => { h.state.jobs[0].conclusion = 'failure'; },
-    h => { h.state.commits[0].commit.message = metadata(['version-update:semver-major']); }]) {
+test('a stale PR requests a rebase even when its previous CI failed', async () => {
+  const h = harness();
+  h.state.run.pull_requests[0].base.sha = otherSha;
+  h.state.run.conclusion = 'failure';
+  h.state.jobs[0].conclusion = 'failure';
+  await processDependabotQueue(h);
+  assert.equal(h.state.rebaseRequests.length, 1);
+  assertUntouched(h);
+});
+
+test('a stale major update does not request a rebase', async () => {
+  const h = harness();
+  h.state.run.pull_requests[0].base.sha = otherSha;
+  h.state.commits[0].commit.message = metadata(['version-update:semver-major']);
+  await processDependabotQueue(h);
+  assert.equal(h.state.rebaseRequests.length, 0);
+  assertUntouched(h);
+});
+
+test('a current PR with only a failed Sonar job retries that run once', async () => {
+  const h = harness();
+  h.state.run.conclusion = 'failure';
+  h.state.jobs.find(job => job.name === 'CDP SonarCloud Scan / CDP SonarCloud coverage scan').conclusion = 'failure';
+  await processDependabotQueue(h);
+  assert.deepEqual(h.state.reruns, [{ ...repository, run_id: 10 }]);
+  assertUntouched(h);
+});
+
+test('a Sonar retry is not repeated or used to bypass other failures', async () => {
+  for (const change of [h => { h.state.run.run_attempt = 2; },
+    h => { h.state.jobs[0].conclusion = 'failure'; },
+    h => { h.state.publishRuns = []; }]) {
     const h = harness();
-    h.state.run.pull_requests[0].base.sha = otherSha;
+    h.state.run.conclusion = 'failure';
+    h.state.jobs.find(job => job.name === 'CDP SonarCloud Scan / CDP SonarCloud coverage scan').conclusion = 'failure';
     change(h);
     await processDependabotQueue(h);
-    assert.equal(h.state.rebaseRequests.length, 0);
+    assert.deepEqual(h.state.reruns, []);
     assertUntouched(h);
   }
+});
+
+test('a successful Sonar retry is still checked before merging', async () => {
+  const h = harness();
+  h.state.run.conclusion = 'failure';
+  const sonar = h.state.jobs.find(job => job.name === 'CDP SonarCloud Scan / CDP SonarCloud coverage scan');
+  sonar.conclusion = 'failure';
+  await processDependabotQueue(h);
+  assert.equal(h.state.reruns.length, 1);
+  assertUntouched(h);
+
+  h.state.run.run_attempt = 2;
+  h.state.run.conclusion = 'success';
+  sonar.conclusion = 'success';
+  h.state.jobs.forEach(job => { job.run_attempt = 2; });
+  await processDependabotQueue(h);
+  assert.equal(h.effects.merges.length, 1);
+  assert.equal(h.output.merge_commit_sha, mergeSha);
 });
 
 test('a stale PR does not request a rebase while main has not published', async () => {
