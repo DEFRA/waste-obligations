@@ -72,7 +72,7 @@ retention is additionally exercised through MongoDB's real TTL monitor.
 | --- | --- | --- |
 | `_scheduled_job_leases` | Job `_id`, with owner or expiry conditions for acquisition, renewal and release | `_id_` |
 | `_scheduled_job_processing_leases` | Job/instruction `_id`, owner or expiry conditions for acquisition, renewal and release; expired lease retention | `_id_`; `ExpiresAt_ProcessingLeaseRetention` TTL, migration 021 |
-| `_scheduled_job_state` | Job `_id` and `lastStartedAt` earlier than the scheduled occurrence | `_id_` |
+| `_scheduled_job_state` | Job `_id` for transactional marker lookup and update; the occurrence is compared in application code | `_id_` |
 | `_obligation_calculation_instructions` | Obligation year, nullable submitter ID, and status in `Pending`/`Running`; atomic create-or-return | `Active_ObligationYear_SubmitterId`, a unique partial index created by migration 021 |
 | `_obligation_calculation_instructions` | Oldest `Pending`/`Running` instruction by `createdAt`, `_id`, optionally excluding busy IDs; start/complete/failure updates by `_id` and active status | `Status_CreatedAt_Id` for selection (migration 021); `_id_` for state transitions |
 | `_obligation_calculation_instructions` | MongoDB TTL cleanup of `Completed`/`Failed` instructions 365 days after `createdAt` | `CreatedAt_Terminal_Retention`, a partial TTL index created by migration 021 |

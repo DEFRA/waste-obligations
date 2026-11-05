@@ -107,6 +107,14 @@ updates:
           - 'minor'
           - 'patch'
 
+  # The standalone healthcheck solution is not part of the root solution.
+  - package-ecosystem: nuget
+    directory: /tools/healthcheck
+    schedule:
+      interval: daily
+      time: '10:30'
+      timezone: 'Europe/London'
+
   - package-ecosystem: github-actions
     directory: /
     schedule:
@@ -118,6 +126,14 @@ updates:
       github-actions:
         patterns:
           - '*'
+
+  # Track the SDK baseline used by local development and CI.
+  - package-ecosystem: dotnet-sdk
+    directory: /
+    schedule:
+      interval: weekly
+      time: '10:30'
+      timezone: 'Europe/London'
 
   # Keep Dockerfile and Compose digest pins receiving reviewed updates.
   - package-ecosystem: docker

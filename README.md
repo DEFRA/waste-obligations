@@ -136,6 +136,8 @@ Apply migrations before enabling either producer or processor. Migration 021's p
 
 Set configuration on the API container in the target environment; local Compose settings do not configure CDP. A future queue message should refer to an existing instruction rather than create another one. Reliable queue publication and acknowledgement require separate implementation.
 
+Each scheduled handoff creates the instruction and records the occurrence in one MongoDB transaction. Hosts that observed an occurrence retry a failed handoff until the next occurrence is due. If every host that observed it stops before the handoff commits, the occurrence is not replayed. The MongoDB deployment must support transactions, including creation of the scheduler state collection during the first handoff. The transaction uses the configured `Mongo:TransactionTimeoutSeconds` budget (five seconds by default). Scheduled jobs must use the supplied session for durable handoff; external calls and other nontransactional effects belong in the processing worker after commit.
+
 ## System health checks
 
 The [.NET health-check CLI](tools/healthcheck/README.md) checks configurable services and their dependencies. Configure service addresses in `tools/healthcheck/appsettings.json` and credentials in the Git-ignored `tools/healthcheck/.env` file.
