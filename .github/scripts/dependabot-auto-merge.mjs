@@ -8,6 +8,7 @@ const mainBranch = 'main';
 const maxQueueCandidates = 50;
 const maxQueuePages = 5;
 const githubActionsIntegrationId = 15368;
+const githubActionsBot = 'github-actions[bot]';
 const methodNotAllowedStatus = 405;
 const conflictStatus = 409;
 const blockedMergeStatuses = new Set([methodNotAllowedStatus, conflictStatus]);
@@ -270,9 +271,13 @@ async function hasStrictMergeRules(github, repository, core) {
   return true;
 }
 
-function isFreshPullRequest(currentPr, pr, repository, run, main) {
+function isCurrentDependabotPullRequest(currentPr, pr, repository) {
   return isDependabotPullRequest(currentPr, `${repository.owner}/${repository.repo}`)
-    && currentPr.state === 'open' && !currentPr.draft && currentPr.head.sha === pr.head.sha
+    && currentPr.state === 'open' && !currentPr.draft && currentPr.head.sha === pr.head.sha;
+}
+
+function isFreshPullRequest(currentPr, pr, repository, run, main) {
+  return isCurrentDependabotPullRequest(currentPr, pr, repository)
     && run.pull_requests.find(x => x.number === pr.number).base.sha === main.commit.sha;
 }
 
@@ -290,7 +295,7 @@ export async function mergeDependabotPullRequest({ github, context, core, pullNu
 
   // A duplicate event or manual retry can recover a merge that preceded a failed dispatch.
   if (pr.merged) {
-    if (pr.merged_by?.login !== 'github-actions[bot]') {
+    if (pr.merged_by?.login !== githubActionsBot) {
       return undefined;
     }
 
@@ -322,8 +327,7 @@ async function isEligibleOpenPullRequest({ github, repository, pr, runId, runAtt
   const { data: currentPr } = await github.rest.pulls.get({ ...repository, pull_number: pr.number });
   const { data: main } = await github.rest.repos.getBranch({ ...repository, branch: mainBranch });
   if (!isFreshPullRequest(currentPr, pr, repository, run, main)) {
-    if (isDependabotPullRequest(currentPr, `${repository.owner}/${repository.repo}`)
-      && currentPr.state === 'open' && !currentPr.draft && currentPr.head.sha === pr.head.sha
+    if (isCurrentDependabotPullRequest(currentPr, pr, repository)
       && await hasReleaseCapacity(github, repository, main.commit.sha, core)
       && await requestRebase(github, repository, currentPr, main.commit.sha, core)) {
       return 'rebase-requested';
@@ -344,7 +348,7 @@ async function requestRebase(github, repository, pr, mainSha, core) {
   const comments = await github.paginate(github.rest.issues.listComments, {
     ...repository, issue_number: pr.number, per_page: 100
   });
-  const recentRequest = comments.some(comment => comment.user?.login === 'github-actions[bot]'
+  const recentRequest = comments.some(comment => comment.user?.login === githubActionsBot
     && comment.body?.includes(rebaseMarker)
     && Date.now() - Date.parse(comment.created_at) < rebaseCooldownMs);
   if (recentRequest) {
@@ -354,8 +358,7 @@ async function requestRebase(github, repository, pr, mainSha, core) {
 
   const { data: currentPr } = await github.rest.pulls.get({ ...repository, pull_number: pr.number });
   const { data: currentMain } = await github.rest.repos.getBranch({ ...repository, branch: mainBranch });
-  if (!isDependabotPullRequest(currentPr, `${repository.owner}/${repository.repo}`)
-    || currentPr.state !== 'open' || currentPr.draft || currentPr.head.sha !== pr.head.sha
+  if (!isCurrentDependabotPullRequest(currentPr, pr, repository)
     || currentMain.commit.sha !== mainSha) {
     return false;
   }
@@ -372,7 +375,7 @@ async function approveAndMerge(github, repository, pr, core) {
   const reviews = await github.paginate(github.rest.pulls.listReviews, {
     ...repository, pull_number: pr.number, per_page: 100
   });
-  if (!reviews.some(x => x.user?.login === 'github-actions[bot]' && x.commit_id === pr.head.sha && x.state === 'APPROVED')) {
+  if (!reviews.some(x => x.user?.login === githubActionsBot && x.commit_id === pr.head.sha && x.state === 'APPROVED')) {
     await github.rest.pulls.createReview({
       ...repository, pull_number: pr.number, commit_id: pr.head.sha, event: 'APPROVE',
       body: 'Verified Dependabot minor/patch update. All checks passed for this revision. These controls do not certify upstream code as safe.'
