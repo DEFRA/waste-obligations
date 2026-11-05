@@ -22,6 +22,9 @@ public record UnsubmittedOrganisation
     [JsonPropertyName("referenceNumber")]
     public required string ReferenceNumber { get; init; }
 
+    [JsonPropertyName("schemeOperatorName")]
+    public string? SchemeOperatorName { get; init; }
+
     [JsonPropertyName("recyclingObligationsMet")]
     public bool? RecyclingObligationsMet { get; init; }
 

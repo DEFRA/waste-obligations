@@ -143,30 +143,9 @@ The client deserialises the downstream JSON directly into `PaginatedResponse<Prn
 7. The current endpoint has no cancellation-token parameter on the controller/service/repository path. The Waste Obligations adapter should still honour its caller's cancellation token when issuing its HTTP request.
 8. Common backend persists its `datetime2` timestamps as UTC and returns them as UTC values. Map `issueDate`, `createdOn`, and `lastUpdatedDate` directly to a UTC `DateTimeOffset`. The adapter retains an `Unspecified` fallback that attaches UTC without shifting the clock value, protecting against an unexpected legacy or serialisation change.
 
-## Implemented organisation PRN list request and common-backend mapping
+## Organisation PRN list boundary
 
-The public request uses PRN terminology while retaining the compliance-declaration pagination pattern:
-
-`GET /organisations/{organisationId}/prns?page={page}&pageSize={pageSize}&search={search}&status={status}&sort={sort}`
-
-`SearchOrganisationPrnsRequest` uses the same page/page-size binding, defaults, and validation as `SearchComplianceDeclarationsRequest`:
-
-| Public input | Binding and validation | Effective value | Common-backend request | Decision |
-| --- | --- | --- | --- | --- |
-| `organisationId` | Required GUID route value. | The recipient organisation ID. | `X-EPR-ORGANISATION: {organisationId}`. | Direct mapping. Continue the existing organisation lookup and recipient-scope protection. |
-| `page` | `[FromQuery(Name = "page")] int?`, `[Minimum(1)]`. | `Page ?? 1`. | `page={EffectivePage}`. | Direct mapping. Do not use the upstream default of 1 implicitly; send the effective value. |
-| `pageSize` | `[FromQuery(Name = "pageSize")] int?`, `[Range(1, 100)]`. | `PageSize ?? 20`. | `pageSize={EffectivePageSize}`. | Direct mapping. Waste Obligations deliberately caps the request below the unbounded upstream value. |
-| `search` | Optional free-text value. | Omitted when no value is supplied. | `search={search}`. | Direct mapping. Searches PRN number or issuer organisation name only; it is not a general PRN or recipient search. The source uses SQL `LIKE`, so `%` and `_` retain wildcard meaning. |
-| `status` | Optional single list-status value: `AwaitingAcceptance`, `Accepted`, `Rejected`, or `Cancelled`. Validate against this allow-list; it is not a comma-separated parameter. | No value means every common-backend status. | `filterBy` from the status mapping below; omitted when no status is requested. | Direct status translation. `AwaitingCancellation` is deliberately excluded from the list request contract because common backend cannot return it. |
-| `sort` | Optional list-sort value from the allow-list below. | Omitted when no value is supplied. | `sortBy` from the sort mapping below; omitted when no sort is requested. | Let common backend apply its source default when no sort is requested. |
-
-The endpoint binds this record with `[AsParameters]`, as `SearchComplianceDeclarations` does. Invalid page, page-size, status, or sort values are rejected as `400` by Waste Obligations request validation and are not forwarded to common backend. The public response is `PrnsPaged`: complete `Prn` items are mapped, source `totalItems` becomes `total`, and the effective page values become public `page` and `pageSize`. Common backend's `typeAhead` value is not exposed.
-
-The resulting source call is:
-
-`GET /api/v1/prn/search?page={EffectivePage}&pageSize={EffectivePageSize}&search={search?}&filterBy={mappedStatus?}&sortBy={mappedSort}`
-
-with `X-EPR-ORGANISATION: {organisationId}`. Do not use common backend's obsolete optional route segments.
+The [request model](../src/Api/Dtos/SearchOrganisationPrnsRequest.cs), [endpoint and source mappings](../src/Api/Endpoints/Organisations/Prns/SearchPrns.cs), and [common-backend client](../src/Api/Services/PrnCommonBackend/PrnCommonBackendService.cs) define the implemented public request, validation and source translation. The route identifies the recipient organisation. The upstream search uses that identity in `X-EPR-ORGANISATION`; its `search` semantics and source pagination limit which public filters can be supported accurately.
 
 ### Inputs not copied from `SearchComplianceDeclarationsRequest`
 
@@ -183,69 +162,33 @@ This is the intended reuse of the compliance-declaration request pattern: consis
 
 ### Deferred PRN-specific inputs
 
-The common-backend list supports the narrow `search` input documented above. Material and `obligationYear` controls remain deferred until their source semantics are agreed:
+The common-backend list supports the narrow `search` input documented above. General material filtering and `obligationYear` remain constrained by source capabilities:
 
 | Potential public input | Current common-backend capability | Gap or rule |
 | --- | --- | --- |
 | Comma-separated `status` | Not supported. | Requires a common-backend API enhancement that accepts a set of statuses and applies it before `totalItems`/paging. The initial public contract intentionally supports one status only. |
 | `obligationYear` | Not supported. | Requires a common-backend API enhancement that filters `Eprn.ObligationYear` before `totalItems`/paging. |
-| `material` | Not independently supported. | Existing `filterBy` values combine awaiting-acceptance status with a material. A general material filter requires a source enhancement. |
+| `material` | Supported for awaiting-acceptance notes only. | Existing `filterBy` values combine that status with a material. A general material filter requires a source enhancement. |
 | Additional sort options | `sortBy` accepts the legacy sort tokens mapped below. | The supported public sort values are part of the initial request contract. New values require an explicit public-to-source mapping. |
 
-#### Public status map
+#### Status and sort boundaries
 
-The list request has one optional public `status` query parameter. Its supported values map to common-backend `filterBy` values as follows:
+The [endpoint mappings](../src/Api/Endpoints/Organisations/Prns/SearchPrns.cs) and the public [status](../src/Api/Dtos/OrganisationPrnStatus.cs) and [sort](../src/Api/Dtos/OrganisationPrnSort.cs) types define supported translations. `AwaitingCancellation` remains a detail status but is not supported by the upstream list filter. Common backend silently falls back to its default for unknown sort values, so the public boundary validates them instead. Merging separate upstream status requests would invalidate the source's total, ordering and page boundaries.
 
-| Public `status` | Common-backend `filterBy` | Position |
-| --- | --- | --- |
-| `AwaitingAcceptance` | `awaiting-all` | Supported. |
-| `Accepted` | `accepted-all` | Supported. |
-| `Rejected` | `rejected-all` | Supported. |
-| `Cancelled` | `cancelled-all` | Supported. |
-
-`AwaitingCancellation` is not a possible value of the list `status` parameter. It remains a status in the existing full-detail `Prn` contract; this is a source-capability boundary for the common-backend-backed list only. An undeclared or invalid query value, including `AwaitingCancellation`, is rejected by request validation and is not advertised in OpenAPI.
-
-The comma-separated status pattern used by `SearchComplianceDeclarationsRequest` must not be reused until common backend supports a multi-status predicate. For example, `status=Accepted,Rejected` cannot be reduced to one `filterBy` value, and making two source calls then merging them would corrupt the total, ordering, and page boundary.
-
-#### Public sort map
-
-The list request has an optional `sort` parameter. It uses public names that describe Waste Obligations fields rather than exposing the legacy values. When omitted, Waste Obligations does not send `sortBy`; common backend currently defaults to issue date descending with `prnNumber` as a tie-breaker.
-
-| Proposed public `sort` | Common-backend `sortBy` | Position |
-| --- | --- | --- |
-| `IssuedAtDescending` | `date-issued-desc` | Supported. This is the current source default. |
-| `IssuedAtAscending` | `date-issued-asc` | Supported. |
-| `TonnageDescending` | `tonnage-desc` | Supported. |
-| `TonnageAscending` | `tonnage-asc` | Supported. |
-| `IssuerDescending` | `issued-by-desc` | Supported. |
-| `IssuerAscending` | `issued-by-asc` | Supported. |
-| `DecemberWasteDescending` | `december-waste-desc` | Supported. There is no ascending counterpart. |
-| `MaterialDescending` | `material-desc` | Supported. |
-| `MaterialAscending` | `material-asc` | Supported. |
-
-Do not pass unknown public sort values through: common backend silently uses `date-issued-desc`. The public contract must instead return `400` for an unsupported sort, and document that the source uses `prnNumber` as a tie-breaker after the selected primary sort.
-
-#### No safe public material map
+#### Limits on material filtering
 
 The material-bearing `filterBy` values are not a general material filter. They all also apply `awaiting-all` status:
 
-| Common-backend `filterBy` | Actual source predicate | Why it is not a public material filter |
+| Common-backend `filterBy` | Actual source predicate | Public contract limitation |
 | --- | --- | --- |
 | `awaiting-aluminium`, `awaiting-plastic`, `awaiting-steel`, `awaiting-wood` | Awaiting acceptance and the named source material. | Each excludes accepted, rejected, and cancelled PRNs. |
 | `awaiting-glassother` | Awaiting acceptance and `Glass Other`. | Waste Obligations calls this material `Glass`; the source also has a separate glass-remelt value. |
 | `awaiting-glassremelt` | Awaiting acceptance and `Glass Re-melt`. | Only usable together with the awaiting-acceptance status. |
 | `awaiting-paperfiber` | Awaiting acceptance and either `Paper/board` or `Fibre`. | Waste Obligations exposes `Paper` and `Fibre` separately, so this source token cannot distinguish them. |
 
-Do not add a public `material` query parameter until common backend can filter by material independently of status and can distinguish the public material vocabulary.
+The current public material filter is restricted to `AwaitingAcceptance`; see the [request validation](../src/Api/Dtos/SearchOrganisationPrnsRequest.cs) and [source mapping](../src/Api/Endpoints/Organisations/Prns/SearchPrns.cs). General material filtering would require independent source filtering and a way to distinguish the public material vocabulary.
 
-The adapter should:
-
-1. Model the common-backend search response envelope under `Services/PrnCommonBackend`. Both the detail response and search items use the same neutral `PrnData` source DTO because the search projection now supplies every field used by the public mapper.
-2. Map every returned search item directly to `Prn` using the complete projection above. Do not infer fields that are not part of the public contract from source defaults.
-3. Validate the returned recipient ID against the route organisation before returning a mapped `Prn`.
-4. Map the upstream search envelope to a Waste Obligations-owned envelope. Preserve the upstream `totalItems` as the public total because the first delivery applies no additional client-side filter.
-5. Return an empty page for an existing organisation with no matching PRNs. Preserve the existing organisation-scoped endpoint convention of returning `404` when the organisation itself does not exist.
-6. Use each item's `externalId` as the opaque list ID. It must not use common-backend's internal integer `id`.
+The [common-backend mapper](../src/Api/Services/PrnCommonBackend/Mappers.cs) and [search endpoint](../src/Api/Endpoints/Organisations/Prns/SearchPrns.cs) define the implemented response and recipient checks. The external ID is an opaque source identifier; the common backend's internal integer ID has a different meaning.
 
 ## epr-backend RREPW external-route assessment
 

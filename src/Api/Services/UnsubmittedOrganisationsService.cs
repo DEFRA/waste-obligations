@@ -29,7 +29,7 @@ public class UnsubmittedOrganisationsService(
             .SingleOrDefaultAsync(cancellationToken);
         if (snapshot?.ActiveGeneration is not { } activeGeneration)
         {
-            logger.LogError("Unsubmitted organisation query has no active organisation generation");
+            logger.LogWarning("Unsubmitted organisation query has no active organisation generation");
 
             return EmptyResult();
         }
@@ -92,6 +92,11 @@ public class UnsubmittedOrganisationsService(
             var pattern = new BsonRegularExpression(Regex.Escape(query.Search.Trim()), "i");
             eligible &= Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Or(
                 Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Regex(x => x.Name, pattern),
+                Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Regex(x => x.TradingName, pattern),
+                Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Regex(
+                    x => x.SchemeOperatorName,
+                    pattern
+                ),
                 Builders<OrganisationComplianceDeclarationEligibilityEntity>.Filter.Regex(
                     x => x.ReferenceNumber,
                     pattern
@@ -112,6 +117,7 @@ public class UnsubmittedOrganisationsService(
                 BusinessCountry = x.BusinessCountry,
                 Name = x.Name,
                 ReferenceNumber = x.ReferenceNumber!,
+                SchemeOperatorName = x.SchemeOperatorName,
                 RecyclingObligationsMet = x.RecyclingObligationsMet,
                 ObligationCoveragePercentage = x.ObligationCoveragePercentage,
             })

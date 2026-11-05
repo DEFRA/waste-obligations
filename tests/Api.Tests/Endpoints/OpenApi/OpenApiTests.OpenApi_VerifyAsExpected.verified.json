@@ -282,6 +282,100 @@
       }
     },
     "/organisations/{organisationId}/prns": {
+      "patch": {
+        "tags": [
+          "PRNs"
+        ],
+        "summary": "Update the status of several PRNs",
+        "description": "Accept or reject several PRNs by PRN ID in one request. The PRN common backend applies the update to every PRN or to none: if any PRN is not found, or any PRN's current status is a different accepted or rejected status, no PRN is updated. A PRN already in the requested status is updated again. obligationYear may only be given when accepting; it is recorded as the year each PRN counts towards, as sent: the caller is responsible for choosing the right year. When it is given, every PRN must still be awaiting acceptance (409 otherwise).",
+        "operationId": "UpdateOrganisationPrns",
+        "parameters": [
+          {
+            "name": "organisationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePrnsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
       "get": {
         "tags": [
           "PRNs"
@@ -1258,6 +1352,14 @@
           "id": {
             "type": "string"
           },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
           "created": {
             "type": "string",
             "description": "ISO 8601 extended format with offset",
@@ -1952,6 +2054,12 @@
           "referenceNumber": {
             "type": "string"
           },
+          "schemeOperatorName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "recyclingObligationsMet": {
             "type": [
               "null",
@@ -2060,6 +2168,63 @@
           },
           "user": {
             "$ref": "#/components/schemas/User"
+          },
+          "obligationYear": {
+            "maximum": 2050,
+            "minimum": 2023,
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "description": "The obligation year to accept the PRN into. Only applies when accepting, and only\nneeded for December waste PRNs where the user chooses between two years.",
+            "format": "int32"
+          }
+        }
+      },
+      "UpdatePrnsRequest": {
+        "required": [
+          "status",
+          "user",
+          "prnIds"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/UpdatePrnStatus"
+              }
+            ]
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          },
+          "prnIds": {
+            "maxItems": 100,
+            "minItems": 1,
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "obligationYear": {
+            "maximum": 2050,
+            "minimum": 2023,
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },

@@ -46,11 +46,7 @@ Additional project documentation:
 
 ### Compliance declaration analytics events
 
-Compliance declaration writes are captured in the same transaction as the declaration change. A background analytics processor claims undispatched changes, serialises them as analytics events using the versioned entity schema, and publishes them to the analytics SNS topic.
-
-The default analytics dispatch process name is `analytics`. Create events are published as `submission.created` with an `insert` operation, update events are published as `submission.amended` with an `update` operation, and delete events are published as `submission.removed` with a `delete` operation.
-
-Analytics messages are JSON by default. If a serialised message would exceed the SNS message size budget, the message body is gzip-compressed and base64-encoded, and the SNS message includes `Content-Encoding: gzip+base64`.
+The [analytics event guide](docs/analytics-compliance-declaration-events.md) describes the published contract and schema history. The [event flow](docs/compliance-declaration-end-to-end-event-flow.md) explains how transactional capture relates to asynchronous publication.
 
 ### Stopping and clearing local resources
 
@@ -131,6 +127,14 @@ See [dependabot.yml](.github/dependabot.yml) for group configuration.
   - Merge PR to main
   - Build Docker image and publish to CDP
   - Sonar
+
+## Scheduled jobs
+
+Scheduled-job registration and execution are implemented in [the scheduling services](src/Api/Services/Scheduling) and configured in [appsettings.json](src/Api/appsettings.json). The [obligation calculation job](src/Api/ScheduledJobs/ObligationCalculationJob.cs) creates instructions; the [processor](src/Api/ScheduledJobs/ObligationCalculationProcessor.cs) is a placeholder and does not calculate or persist results. Scheduling and processing are independently disabled by default. Keep both disabled until placeholder completion is explicitly wanted.
+
+Apply migrations before enabling either producer or processor. Migration 021's partial indexes require MongoDB 6.0 or later; confirm the deployed version first. See [migration 021](src/Api/Data/Migrations/021_ObligationCalculationInstructionIndexes.cs) and the [instruction integration tests](tests/Api.IntegrationTests/Services/ObligationCalculations). Lease expiry permits recovery after a crash but does not prevent overlap during a host pause or network partition. Any real processor must make side effects idempotent.
+
+Set configuration on the API container in the target environment; local Compose settings do not configure CDP. A future queue message should refer to an existing instruction rather than create another one. Reliable queue publication and acknowledgement require separate implementation.
 
 ## System health checks
 

@@ -33,6 +33,9 @@ public static class Endpoints
 
         public static string AuditEventCounter() => "admin/audit-events/counter";
 
+        public static string UnsubmittedPollingConfiguration() =>
+            "admin/unsubmitted-compliance-declarations/polling-configuration";
+
         public static string UnsubmittedPollingStatus() => "admin/unsubmitted-compliance-declarations/polling-status";
 
         public static string UnsubmittedPollingVolume() => "admin/unsubmitted-compliance-declarations/polling-volume";
@@ -93,6 +96,8 @@ public static class Endpoints
                 $"{Organisations.Read(organisationId)}/{Root}/{prnId}";
 
             public static string Update(Guid organisationId, string prnId) => Read(organisationId, prnId);
+
+            public static string UpdateMany(Guid organisationId) => Search(organisationId);
         }
 
         public static class ComplianceDeclarations

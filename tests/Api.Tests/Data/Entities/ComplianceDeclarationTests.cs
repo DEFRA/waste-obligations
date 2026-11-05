@@ -2,10 +2,12 @@ using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
+using Defra.WasteObligations.Api.Services.OrganisationObligations;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
 using ComplianceDeclaration = Defra.WasteObligations.Api.Data.Entities.ComplianceDeclaration;
 using ComplianceDeclarationStatus = Defra.WasteObligations.Api.Data.Entities.ComplianceDeclarationStatus;
 using Obligation = Defra.WasteObligations.Api.Data.Entities.Obligation;
+using PrnObligationFixture = Defra.WasteObligations.Testing.Fixtures.PrnCommonBackend.ObligationFixture;
 using ReasonAuditEntry = Defra.WasteObligations.Api.Data.Entities.ReasonAuditEntry;
 using UserLocale = Defra.WasteObligations.Api.Dtos.UserLocale;
 
@@ -108,6 +110,7 @@ public class ComplianceDeclarationTests
         var draft = CreateDraft(
             ObligationFixture
                 .Default()
+                .With(x => x.Status, Defra.WasteObligations.Api.Dtos.ObligationStatus.NotMet)
                 .With(
                     x => x.Tonnages,
                     ObligationTonnagesFixture.Default().With(t => t.Accepted, 2).With(t => t.Obligated, 5).Create()
@@ -122,11 +125,61 @@ public class ComplianceDeclarationTests
     }
 
     [Fact]
+    public void Submit_WhenMaterialTonnagesDiffer_ShouldAgreeWithTheUnsubmittedSummaryForTheSameRows()
+    {
+        (string Material, int Accepted, int Obligated, string Status)[] rows =
+        [
+            ("Glass", 90, 90, "Met"),
+            ("Plastic", 0, 10, "NotMet"),
+            ("Paper", 20, 200, "NoDataYet"),
+        ];
+        var draft = CreateDraft() with
+        {
+            Obligations = rows.Select(x =>
+                    ObligationFixture
+                        .Default()
+                        .With(y => y.Material, x.Material)
+                        .With(y => y.Status, x.Status)
+                        .With(
+                            y => y.Tonnages,
+                            ObligationTonnagesFixture
+                                .Default()
+                                .With(y => y.Accepted, x.Accepted)
+                                .With(y => y.Obligated, x.Obligated)
+                                .Create()
+                        )
+                        .Create()
+                )
+                .ToArray(),
+        };
+        var sourceObligations = rows.Select(x =>
+            PrnObligationFixture
+                .Default()
+                .With(y => y.MaterialName, x.Material)
+                .With(y => y.TonnageAccepted, x.Accepted)
+                .With(y => y.ObligationToMeet, (int?)x.Obligated)
+                .With(y => y.Status, x.Status)
+                .Create()
+        );
+
+        var submitted = draft.Submit(UserFixture.Default().Create(), UtcNow);
+        var summary = OrganisationObligationSummaryMapper.Map(
+            draft.Organisation.Id,
+            draft.ObligationYear,
+            sourceObligations
+        );
+
+        submitted.ObligationCoveragePercentage.Should().Be(50m);
+        submitted.ObligationCoveragePercentage.Should().Be(summary.ObligationCoveragePercentage);
+    }
+
+    [Fact]
     public void Submit_WhenRepeatingDecimal_ShouldRoundToWholeNumber()
     {
         var draft = CreateDraft(
             ObligationFixture
                 .Default()
+                .With(x => x.Status, Defra.WasteObligations.Api.Dtos.ObligationStatus.NotMet)
                 .With(
                     x => x.Tonnages,
                     ObligationTonnagesFixture.Default().With(t => t.Accepted, 1).With(t => t.Obligated, 3).Create()
@@ -146,6 +199,7 @@ public class ComplianceDeclarationTests
         var draft = CreateDraft(
             ObligationFixture
                 .Default()
+                .With(x => x.Status, Defra.WasteObligations.Api.Dtos.ObligationStatus.NotMet)
                 .With(x => x.Tonnages, ObligationTonnagesFixture.Default().With(t => t.Obligated, 0).Create())
                 .Create()
         );
@@ -162,6 +216,7 @@ public class ComplianceDeclarationTests
         var draft = CreateDraft(
             ObligationFixture
                 .Default()
+                .With(x => x.Status, Defra.WasteObligations.Api.Dtos.ObligationStatus.NotMet)
                 .With(
                     x => x.Tonnages,
                     ObligationTonnagesFixture.Default().With(t => t.Accepted, 1).With(t => t.Obligated, 200).Create()

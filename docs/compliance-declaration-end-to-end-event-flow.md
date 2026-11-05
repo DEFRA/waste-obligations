@@ -7,220 +7,45 @@ The service uses two audit concepts:
 - The compliance declaration document has an embedded `audit` array. This is the business history of status actions on the declaration.
 - The `AuditEvent` collection is an outbox. It records publishable entity changes so a background processor can write analytics events after the API transaction commits.
 
-## Mutating actions
+## Transaction boundary
 
-| Action | Endpoint | Declaration change | Audit event operation | Audit event type | Analytics event |
-| --- | --- | --- | --- | --- | --- |
-| Create | `POST /organisations/{organisationId}/compliance-declarations` | Creates a submitted declaration, assigns version `1`, and adds a `Submitted` entry to the embedded `audit` array. | `insert` | `submission.created` | `create` with `before: null` and `after` set to the created declaration. |
-| Update status | `PATCH /organisations/{organisationId}/compliance-declarations/{complianceDeclarationId}` | Applies a valid status transition, increments the version, updates `updated`, and appends an embedded audit entry. | `update` | `submission.amended` | `update` with the previous declaration in `before` and the updated declaration in `after`. |
-| Delete | `DELETE /compliance-declarations/{id}` | Deletes the declaration using the current version as an optimistic concurrency check. | `delete` | `submission.removed` | `delete` with the previous declaration in `before`, `after: null`, and `deletedReason` set. |
-
-Read and search endpoints do not record audit events or analytics events. A PATCH request without a status change returns the existing declaration and does not write a new event.
-
-## End-to-end summary
+Declaration changes and their outbox events commit in the same Mongo transaction. A failed transaction commits neither; after commit, analytics publication happens asynchronously. The embedded declaration audit history and the publishable outbox event serve different purposes and must not be treated as interchangeable. See [transactional analytics outbox](adr/0008-transactional-analytics-outbox.md) for the decision and its rationale.
 
 ```mermaid
 flowchart LR
-    A["Mutating API request"] --> B["ComplianceDeclarationService"]
-    B --> C["Mongo transaction"]
-    C --> D["ComplianceDeclarations collection"]
-    C --> E["AuditEvent collection"]
-    E --> F["AnalyticsAuditEventProcessor"]
-    F --> G["Analytics event envelope"]
-    G --> H["Analytics SNS topic"]
-    F --> I["dispatches.analytics outcome"]
+    A[Declaration change] --> B[Mongo transaction]
+    B --> C[Declaration]
+    B --> D[Audit event outbox]
+    D --> E[Analytics processor]
+    E --> F[Analytics SNS topic]
 ```
 
-The declaration mutation and the audit event insert happen in the same Mongo transaction. If either write fails, the transaction is aborted and neither change is committed. Once committed, the analytics processor asynchronously reads undispatched audit events and publishes analytics events to the configured topic.
+The declaration and outbox writes share the transaction; publication happens after commit. The [declaration service](../src/Api/Services/ComplianceDeclarationService.cs), [audit event service](../src/AuditEvents/AuditEventService.cs), and [analytics processor](../src/AuditEvents/Analytics/AnalyticsAuditEventProcessor.cs) define the current implementation.
 
-## Compliance declaration mutation
+## Mutation and outbox implementation
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Client
-    participant Endpoint as API endpoint
-    participant Entity as ComplianceDeclaration entity
-    participant Service as ComplianceDeclarationService
-    participant Mongo as Mongo session
-    participant Declarations as ComplianceDeclarations
-    participant Audit as AuditEventService
-
-    Client->>Endpoint: POST, PATCH, or DELETE
-
-    alt Create
-        Endpoint->>Entity: ToEntity().Submit(user, timestamp)
-        Entity-->>Endpoint: Submitted declaration with embedded audit entry
-        Endpoint->>Service: Create(declaration)
-        Service->>Mongo: Start transaction
-        Service->>Declarations: Insert declaration
-        Service->>Audit: Record insert, submission.created
-    else Update status
-        Endpoint->>Service: Read current declaration
-        Endpoint->>Entity: UpdateStatus(status, reason, user, timestamp)
-        Entity-->>Endpoint: Updated declaration with appended embedded audit entry
-        Endpoint->>Service: Update(current, updated)
-        Service->>Mongo: Start transaction
-        Service->>Declarations: Replace where id and version match
-        Service->>Audit: Record update, submission.amended
-    else Delete
-        Endpoint->>Service: Delete(id)
-        Service->>Mongo: Start transaction
-        Service->>Declarations: Read current declaration
-        Service->>Declarations: Delete where id and version match
-        Service->>Audit: Record delete, submission.removed
-    end
-
-    Service->>Mongo: Commit transaction
-    Service-->>Endpoint: Mutated result
-    Endpoint-->>Client: HTTP response
-```
-
-Create and update build the embedded declaration audit history before the service writes to Mongo. The service then records the publishable audit event in the same transaction as the declaration write.
-
-Update and delete use optimistic concurrency:
-
-- Update replaces the declaration only when the stored `id` and `version` still match the value that was read.
-- Delete removes the declaration only when the stored `id` and `version` still match the current value.
-- A failed version match raises a concurrency error rather than recording an event for a mutation that did not happen.
-
-Create sends the submitted email after `ComplianceDeclarationService.Create` returns, so email delivery is outside the transaction and outside the analytics write path.
-
-The nullable [email delivery cutover](email-delivery-cutover.md) preserves this path by default. When configured, submitted and cancellation emails are sent only for their respective audit-entry timestamps before the cutover; actions at or after it are suppressed without changing declaration or analytics behaviour.
-
-## Audit event outbox
-
-```mermaid
-flowchart TD
-    A["ComplianceDeclarationService in Mongo transaction"] --> B["AuditEventService.RecordEvent"]
-    B --> C["Increment _audit_event_counter"]
-    C --> D["Allocate global sequence"]
-    D --> E["Insert AuditEvent document"]
-    E --> F{"Transaction commits?"}
-    F -- "Yes" --> G["Declaration mutation and AuditEvent become visible together"]
-    F -- "No" --> H["Declaration mutation and AuditEvent are rolled back"]
-    G --> I["dispatches is empty until a processor handles the event"]
-```
-
-`AuditEventService.RecordEvent` stores the outbox record with these key values:
-
-| Field | Source |
-| --- | --- |
-| `eventId` | A generated ULID. |
-| `sequence` | A global sequence from `_audit_event_counter`, allocated inside the same Mongo transaction. |
-| `entity` | `compliance_declaration`. |
-| `entityId` | The raw compliance declaration ObjectId string. |
-| `operation` | `insert`, `update`, or `delete`. |
-| `eventType` | `submission.created`, `submission.amended`, or `submission.removed`. |
-| `version` | The entity version after the operation. Delete records `current.Version + 1`. |
-| `before` | The previous declaration BSON document, or `null` for create. |
-| `after` | The new declaration BSON document, or `null` for delete. |
-| `schemaVersion` | The declaration schema version, currently `v1.3`. |
-| `traceId` | The propagated `x-cdp-request-id`, used for service logging and mapped to the analytics envelope's `correlationId` when available. |
-| `dispatches` | A per-process outcome map, initially empty. |
-
-The `AuditEvent` collection is indexed by sequence, entity/entity id/version, and the analytics dispatch fields so the dispatcher can read the oldest undispatched or retryable events efficiently.
+The [declaration service](../src/Api/Services/ComplianceDeclarationService.cs) and [audit event service](../src/AuditEvents/AuditEventService.cs) implement the transaction and optimistic concurrency. The [declaration entity](../src/Api/Data/Entities/ComplianceDeclaration.cs) owns business status history. Email delivery is outside the transaction; see the [email delivery cutover](email-delivery-cutover.md) for its cross-service activation and recovery constraints.
 
 ### Entity version and schema version
 
-The declaration has two independent versions:
+`version` is the concurrency version; `schemaVersion` identifies the persisted and analytics payload shape. A current declaration uses raw version `v1.3`, published as `compliance_declaration_v1.3` using the [v1.3 schema](../src/Api/Schemas/ComplianceDeclaration/compliance-declaration.v1.3.schema.json). See the [schema changelog](../src/Api/Schemas/ComplianceDeclaration/CHANGELOG.md) for contract history and migration compatibility.
 
-- `version` is incremented for each declaration mutation and is used for optimistic concurrency.
-- `schemaVersion` identifies the BSON and analytics payload shape. It changes only when that contract changes and currently uses major and minor components without a patch component.
-
-When a declaration shape changes, a new embedded schema file is added and the entity default moves to that version. Existing schema files remain unchanged because an `AuditEvent` records the schema version that applied when its immutable `before` and `after` snapshots were created. The analytics serializer uses that recorded version to load the matching embedded schema, so an older undispatched event can still be published after a newer application version is deployed. The [compliance declaration schema changelog](../src/Api/Schemas/ComplianceDeclaration/CHANGELOG.md) records the changes between versions.
-
-Mongo migrations update live declarations that need backfilling, but do not rewrite historical audit events. The `v1.0` to `v1.1` locale change is the current example: `locale` was added as an optional, nullable property of an audit entry's `user`; the migration set missing submitted-user locales to `null` and advanced affected declaration documents to `v1.1`, while preserving an already-written locale and leaving old audit events on `v1.0`.
-
-### Entity version and schema version
-
-The declaration has two independent versions:
-
-- `version` is incremented for each declaration mutation and is used for optimistic concurrency.
-- `schemaVersion` identifies the BSON and analytics payload shape. It changes only when that contract changes and currently uses major and minor components without a patch component.
-
-When a declaration shape changes, a new embedded schema file is added and the entity default moves to that version. Existing schema files remain unchanged because an `AuditEvent` records the schema version that applied when its immutable `before` and `after` snapshots were created. The analytics serializer uses that recorded version to load the matching embedded schema, so an older undispatched event can still be published after a newer application version is deployed.
-
-Mongo migrations update live declarations that need backfilling, but do not rewrite historical audit events. The `v1.0` to `v1.1` locale change is the current example: `locale` was added as an optional, nullable property of an audit entry's `user`; the migration set missing submitted-user locales to `null` and advanced affected declaration documents to `v1.1`, while preserving an already-written locale and leaving old audit events on `v1.0`. The `v1.1` to `v1.2` obligation coverage change added optional `obligationCoveragePercentage` to submitted declarations; the migration calculated the value from stored obligations, advanced affected declaration documents to `v1.2`, and preserved an already-written percentage while leaving old audit events on `v1.1`. `obligationCoveragePercentage` is calculated as `sum(tonnages.accepted) / sum(tonnages.obligated) × 100`, capped at 100%, and rounded to the nearest whole number on submit and when backfilled by migration `005_ComplianceDeclarationObligationCoveragePercentagePrecision`. The `v1.2` to `v1.3` business-country change adds optional `organisation.businessCountry`; migration `008_ComplianceDeclarationBusinessCountry` advances declarations to `v1.3` without inferring a value, so historical records remain nullable while newly submitted declarations retain the value returned by waste-organisations.
+Older embedded schemas remain available because historical audit snapshots retain their recorded version. For example, a v1.0 event remains v1.0 after a live declaration is migrated to v1.1. The [serializer](../src/AuditEvents/Analytics/JsonAnalyticsEventSerializer.cs) uses the event's version; migrations and corrections must not rewrite historical events. The [application data correction](application-data-corrections.md) explains the operational impact of the coverage correction, and the [calculator](../src/Api/Data/Entities/ObligationCoveragePercentageCalculator.cs) defines current coverage behaviour.
 
 ## Analytics event dispatch
 
+The [processor](../src/AuditEvents/Analytics/AnalyticsAuditEventProcessor.cs), [mapper](../src/AuditEvents/Analytics/AnalyticsEventMappers.cs), [sender](../src/AuditEvents/Analytics/SnsAnalyticsEventSender.cs) and [processor options](../src/AuditEvents/Analytics/AnalyticsAuditEventProcessorOptions.cs) define dispatch, retry, message encoding and configuration. The [analytics guide](analytics-compliance-declaration-events.md) describes the consumer-facing contract and examples.
+
 ```mermaid
 sequenceDiagram
-    autonumber
-    participant Processor as AnalyticsAuditEventProcessor
-    participant Lease as Audit event lease
-    participant Outbox as AuditEvent collection
-    participant Mapper as AnalyticsEventMappers
-    participant Serializer as JsonAnalyticsEventSerializer
+    participant Outbox as Audit event outbox
+    participant Processor as Analytics processor
     participant SNS as Analytics SNS topic
-
-    Processor->>Lease: TryAcquire("analytics")
-
-    alt Lease acquired
-        Processor->>Outbox: Read no analytics dispatch or failed and due
-        Outbox-->>Processor: Batch sorted by sequence
-
-        loop For each audit event
-            Processor->>Lease: TryRenew("analytics")
-            Processor->>Mapper: ToAnalyticsEvent(auditEvent)
-            Mapper-->>Processor: Analytics event envelope
-            Processor->>Serializer: Serialize with schema-bound BSON converter
-            Serializer-->>Processor: JSON body
-            Processor->>SNS: Publish to configured TopicArn
-
-            alt Publish succeeds
-                Processor->>Outbox: Mark dispatches.analytics as Dispatched
-            else Publish or serialization fails
-                Processor->>Outbox: Mark dispatches.analytics as Failed or DeadLettered
-            end
-        end
-
-        Processor->>Lease: Release("analytics")
-    else Lease not acquired
-        Processor-->>Processor: Wait until next poll
-    end
+    Processor->>Outbox: Read event for dispatch
+    Processor->>SNS: Publish event
+    SNS-->>Processor: Publish succeeds
+    Processor->>Outbox: Record dispatch outcome
+    Note over Processor,Outbox: Failure before outcome is recorded can lead to another publication
 ```
 
-`AnalyticsAuditEventProcessor` is the background writer for analytics events. When enabled, it polls using the configured interval and jitter, acquires a Mongo lease for the process name `analytics`, and reads up to the configured batch size.
-
-The processor reads audit events where `dispatches.analytics` does not exist, or where it is `Failed` and `nextAttemptAt` is due. Each event is mapped to the analytics envelope:
-
-- `eventId`, `sequence`, `entity`, `eventType`, timestamps, actor, version, `before`, and `after` are copied from the audit event. Submission and status-amendment events record their responsible user as `user:<UUID>`; the system-driven deletion flow records `service:waste-obligations`.
-- `entityId` is changed from the raw ObjectId string to `cdec_{objectId}`.
-- `insert` is mapped to the envelope operation `create`; `update` and `delete` are unchanged.
-- `schemaVersion` is changed from `v1.3` to `compliance_declaration_v1.3`.
-- `traceId` is mapped to `correlationId` when the originating request supplied `x-cdp-request-id`.
-- `piiKeyRef` is set to `null` under the instructed PII scope exclusion.
-- The emitted entity, operation, event type, actor prefix, deletion reason, and schema version are validated against the current governed vocabulary before publishing.
-
-The serializer loads the embedded compliance declaration JSON schema and uses it to write the `before` and `after` BSON documents with the expected field names and JSON value formats.
-
-## Publish outcome
-
-Analytics events are published to the configured SNS topic with `Content-Type` set to `application/json`. If the JSON body is too large for the SNS message size budget, the sender gzip-compresses the JSON, base64-encodes it, and adds `Content-Encoding: gzip+base64`.
-
-After publish:
-
-- Success marks `dispatches.analytics.status` as `Dispatched` and increments `attemptCount`.
-- Failure marks the dispatch as `Failed`, stores the exception message, increments `attemptCount`, and sets `nextAttemptAt`.
-- When the configured maximum attempt count is reached, the dispatch is marked `DeadLettered` and no further retry time is set.
-
-Delivery is at least once. The processor reads from Mongo and marks an event as dispatched only after SNS publish succeeds, so duplicate analytics messages are possible if a publish succeeds but the dispatch update fails, or if a stale read sees an old dispatch state. Downstream analytics consumers should use `eventId` or `sequence` to make ingestion idempotent.
-
-## Configuration
-
-The runtime controls live under `AnalyticsAuditEventProcessor`:
-
-| Setting | Purpose |
-| --- | --- |
-| `ProcessingEnabled` | Enables or disables the background analytics writer. |
-| `ProcessName` | Dispatch process name, currently `analytics`. |
-| `TopicArn` | SNS topic that receives analytics events. |
-| `BatchSize` | Maximum audit events processed per poll. |
-| `PollIntervalSeconds` and `PollJitterSeconds` | Delay between processor polls. |
-| `LeaseDurationSeconds` | Duration of the Mongo dispatch lease. |
-| `MaxDispatchAttempts` | Attempts before an event is marked `DeadLettered`. |
-| `FailedDispatchRetryDelaySeconds` | Delay before retrying a failed dispatch. |
-
-The service also contains an optional `AnalyticsAuditEventConsumer` that can read analytics messages from SQS when enabled. That consumer is downstream of the SNS write path and is not required for recording audit events or publishing analytics events.
+Delivery is at least once: publication can succeed before the dispatch outcome is recorded, so downstream consumers should use `eventId` or `sequence` to make ingestion idempotent. The optional [analytics consumer](../src/Api/Consumers/AnalyticsAuditEventConsumer.cs) is downstream of publication and is not required for audit capture or SNS publishing.

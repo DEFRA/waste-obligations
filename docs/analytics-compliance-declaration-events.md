@@ -66,7 +66,7 @@ All analytics events use this generic envelope:
 
 ## Controlled vocabulary
 
-The publisher validates the current compliance declaration entity, envelope operation, event type, actor prefix, deletion reason, and schema version before serialising a message. The supported operations are `create`, `update`, and `delete`; actor prefixes are `service`, `user`, `system`, and `integration`; and the supported declaration event types are `submission.created`, `submission.amended`, and `submission.removed`. Create and update events use the responsible audit user as `user:<UUID>`; the system-driven delete flow retains `service:waste-obligations`.
+The publisher validates the current compliance declaration entity, envelope operation, event type, actor prefix, deletion reason, and schema version before serialising a message. The supported operations are `create`, `update`, and `delete`; actor prefixes are `service`, `user`, `system`, and `integration`; and the supported declaration event types are `submission.created`, `submission.amended`, and `submission.removed`. Request-driven create and update events use the responsible audit user as `user:<UUID>`; system-driven corrections and deletes use `service:waste-obligations`.
 
 The only current deletion reason is `elevated_system_allowed_removal`. This replaces the legacy free-text value `elevated system allowed removal`, which remains normalised for undispatched historical outbox events. The governed list maintained with the shared event schema must include `elevated_system_allowed_removal` before additional deletion paths are introduced.
 
@@ -81,6 +81,12 @@ The current compliance declaration event types are:
 | `submission.created` | `create` | Compliance declaration was created. |
 | `submission.amended` | `update` | Compliance declaration was updated. |
 | `submission.removed` | `delete` | Compliance declaration was deleted. |
+
+## Obligation coverage and schema compatibility
+
+New declarations use raw schema version `v1.3`, published as `compliance_declaration_v1.3`. The [coverage calculator](../src/Api/Data/Entities/ObligationCoveragePercentageCalculator.cs) and its [tests](../tests/Api.Tests/Data/Entities/ObligationCoveragePercentageCalculatorTests.cs) define the calculation. The [schema changelog](../src/Api/Schemas/ComplianceDeclaration/CHANGELOG.md) records contract changes and compatibility.
+
+The one-time [application data correction](application-data-corrections.md) updates affected declarations through the normal service, creating new analytics events; it does not rewrite historical events. Old hosts can still write the previous formula during a rolling deployment. Rolling back code does not restore corrected values, and there is no operational reversal.
 
 ## Created event
 
@@ -159,7 +165,7 @@ The `before` value is `null`. The `after` value is the created compliance declar
       }
     ],
     "isRegulation43Compliant": true,
-    "obligationCoveragePercentage": 40
+    "obligationCoveragePercentage": 0
   },
   "schemaVersion": "compliance_declaration_v1.3"
 }
@@ -241,7 +247,7 @@ The `before` value is the declaration state before the update. The `after` value
       }
     ],
     "isRegulation43Compliant": true,
-    "obligationCoveragePercentage": 40
+    "obligationCoveragePercentage": 0
   },
   "after": {
     "id": "65f1f6570bb08052a8a27b01",
@@ -308,8 +314,10 @@ The `before` value is the declaration state before the update. The `after` value
       }
     ],
     "isRegulation43Compliant": true,
-    "obligationCoveragePercentage": 40
+    "obligationCoveragePercentage": 0
   },
   "schemaVersion": "compliance_declaration_v1.3"
 }
 ```
+
+Correction execution and service update conventions are documented in [Application data corrections](application-data-corrections.md).

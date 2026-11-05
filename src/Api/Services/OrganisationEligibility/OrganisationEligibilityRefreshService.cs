@@ -19,8 +19,6 @@ public class OrganisationEligibilityRefreshService(
 ) : IOrganisationEligibilityRefreshService
 {
     private const int DuplicateKeyErrorCode = 11000;
-    private const string ActiveGenerationChangedMessage =
-        "The active organisation eligibility generation changed during refresh";
 
     public async Task<OrganisationEligibilityRefreshResult> Refresh(CancellationToken cancellationToken)
     {
@@ -269,11 +267,11 @@ public class OrganisationEligibilityRefreshService(
             }
             catch (MongoCommandException exception) when (exception.Code == DuplicateKeyErrorCode)
             {
-                throw new InvalidOperationException(ActiveGenerationChangedMessage, exception);
+                throw new OrganisationEligibilityRefreshConflictException(exception);
             }
             catch (MongoWriteException exception) when (exception.WriteError.Code == DuplicateKeyErrorCode)
             {
-                throw new InvalidOperationException(ActiveGenerationChangedMessage, exception);
+                throw new OrganisationEligibilityRefreshConflictException(exception);
             }
 
             return;
@@ -308,7 +306,7 @@ public class OrganisationEligibilityRefreshService(
     {
         if (matchedCount != 1)
         {
-            throw new InvalidOperationException(ActiveGenerationChangedMessage);
+            throw new OrganisationEligibilityRefreshConflictException();
         }
     }
 }

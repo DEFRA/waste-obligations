@@ -218,29 +218,38 @@ public class OrganisationEligibilityRefreshWorkerTests
         await leaseService.Received(1).Release(CancellationToken.None);
     }
 
-    [Fact]
-    public async Task Start_WhenRefreshFails_ShouldLogTheFailureAndReleaseLease()
+    [Theory]
+    [InlineData(false, LogLevel.Error)]
+    [InlineData(true, LogLevel.Warning)]
+    public async Task Start_WhenRefreshFails_ShouldLogAtTheExpectedLevelAndReleaseLease(
+        bool isConflict,
+        LogLevel expectedLevel
+    )
     {
         var leaseService = Substitute.For<IOrganisationEligibilityRefreshLeaseService>();
         leaseService.TryAcquire(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(true);
         var refreshService = Substitute.For<IOrganisationEligibilityRefreshService>();
         var attempted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Exception exception = isConflict
+            ? new OrganisationEligibilityRefreshConflictException()
+            : new InvalidOperationException();
         refreshService
             .Refresh(Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
                 attempted.TrySetResult();
-                return Task.FromException<OrganisationEligibilityRefreshResult>(new InvalidOperationException());
+                return Task.FromException<OrganisationEligibilityRefreshResult>(exception);
             });
         var logger = new RecordingLogger<OrganisationEligibilityRefreshWorker>();
-        var subject = CreateSubject(leaseService, refreshService, logger: logger);
+        var metrics = Substitute.For<IOrganisationEligibilityRefreshMetrics>();
+        var subject = CreateSubject(leaseService, refreshService, metrics: metrics, logger: logger);
 
         await subject.StartAsync(TestContext.Current.CancellationToken);
         await attempted.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         await AsyncWaiter.WaitForAsync(
             () =>
             {
-                logger.Messages.Should().Contain("Organisation eligibility refresh failed");
+                logger.Entries.Should().ContainSingle(x => x.Exception == exception);
                 return Task.CompletedTask;
             },
             timeout: 5,
@@ -248,6 +257,9 @@ public class OrganisationEligibilityRefreshWorkerTests
         );
         await subject.StopAsync(TestContext.Current.CancellationToken);
 
+        logger.Entries.Should().ContainSingle(x => x.Exception == exception && x.Level == expectedLevel);
+        logger.Entries.Should().NotContain(x => x.Level > expectedLevel);
+        metrics.Received(1).Failed(Arg.Any<TimeSpan>());
         await leaseService.Received(1).Release(CancellationToken.None);
     }
 

@@ -1,0 +1,10 @@
+﻿{
+  "eligibilityRefreshPollingEnabled": true,
+  "organisationPollIntervalSeconds": 300,
+  "obligationPollingEnabled": true,
+  "obligationRefreshIntervalSeconds": 300,
+  "maximumSummaryStalenessSeconds": 1800,
+  "maxDownstreamRequestsPerMinute": 180,
+  "obligationPollIntervalSeconds": 15,
+  "currentObligationYear": 2026
+}

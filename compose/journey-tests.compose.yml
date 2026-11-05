@@ -34,13 +34,14 @@ services:
   # an empty producer PRNs list.
   waste-obligations-wiremock-init:
     image: node:25-alpine@sha256:bdf2cca6fe3dabd014ea60163eca3f0f7015fbd5c7ee1b0e9ccb4ced6eb02ef4
-    entrypoint: ["node", "/source/generate-wiremock-mappings.mjs"]
+    entrypoint: ["node", "/source/journey-tests/generate-wiremock-mappings.mjs"]
     environment:
       JOURNEY_TEST_WIREMOCK_MAPPINGS_DIR: /output
+      JOURNEY_TEST_OBLIGATION_YEAR: ${JOURNEY_TEST_OBLIGATION_YEAR:-}
       WASTE_OBLIGATION_ORG_ID: ${WASTE_OBLIGATION_ORG_ID:?WASTE_OBLIGATION_ORG_ID must be set}
       WASTE_OBLIGATION_CSO_ORG_ID: ${WASTE_OBLIGATION_CSO_ORG_ID:?WASTE_OBLIGATION_CSO_ORG_ID must be set}
       WASTE_OBLIGATION_SUBMITTER_ID: ${WASTE_OBLIGATION_SUBMITTER_ID:?WASTE_OBLIGATION_SUBMITTER_ID must be set}
       WASTE_OBLIGATION_SUBMITTER_EMAIL: ${WASTE_OBLIGATION_SUBMITTER_EMAIL:?WASTE_OBLIGATION_SUBMITTER_EMAIL must be set}
     volumes:
-      - ${WASTE_OBLIGATIONS_SOURCE_DIR:?WASTE_OBLIGATIONS_SOURCE_DIR must identify a Waste Obligations checkout}/compose/journey-tests/generate-wiremock-mappings.mjs:/source/generate-wiremock-mappings.mjs:ro
+      - ${WASTE_OBLIGATIONS_SOURCE_DIR:?WASTE_OBLIGATIONS_SOURCE_DIR must identify a Waste Obligations checkout}/compose/journey-tests:/source/journey-tests:ro
       - ${CI_STACK_RUNTIME_DIR:?CI_STACK_RUNTIME_DIR must identify the generated CI stack directory}/wiremock:/output

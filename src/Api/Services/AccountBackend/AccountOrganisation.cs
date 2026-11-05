@@ -7,6 +7,9 @@ public record AccountOrganisation
     [JsonPropertyName("externalId")]
     public string? ExternalId { get; init; }
 
+    [JsonPropertyName("name")]
+    public string? Name { get; init; }
+
     [JsonPropertyName("referenceNumber")]
     public string? ReferenceNumber { get; init; }
 

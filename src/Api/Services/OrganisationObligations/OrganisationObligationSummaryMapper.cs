@@ -38,9 +38,8 @@ public static class OrganisationObligationSummaryMapper
             TotalAcceptedTonnage = totalAcceptedTonnage,
             TotalObligatedTonnage = totalObligatedTonnage,
             RecyclingObligationsMet = CalculateRecyclingObligationsMet(obligationArray),
-            ObligationCoveragePercentage = ObligationCoveragePercentageCalculator.Calculate(
-                totalAcceptedTonnage,
-                totalObligatedTonnage
+            ObligationCoveragePercentage = ObligationCoveragePercentageCalculator.CalculateFromMaterials(
+                obligationArray.Select(x => (x.TonnageAccepted, x.ObligationToMeet ?? 0, x.Status))
             ),
             SourceFingerprint = CreateSourceFingerprint(organisationId, obligationYear, obligationArray),
         };
@@ -48,10 +47,13 @@ public static class OrganisationObligationSummaryMapper
 
     private static bool? CalculateRecyclingObligationsMet(PrnObligation[] obligations)
     {
-        if (obligations.Length == 0 || obligations.Any(x => x.Status == ObligationStatus.NoDataYet))
-            return null;
+        if (obligations.Any(x => x.Status == ObligationStatus.NotMet))
+            return false;
 
-        return !obligations.Any(x => x.Status == ObligationStatus.NotMet);
+        if (obligations.Any(x => x.Status == ObligationStatus.Met))
+            return true;
+
+        return null;
     }
 
     private static string CreateSourceFingerprint(

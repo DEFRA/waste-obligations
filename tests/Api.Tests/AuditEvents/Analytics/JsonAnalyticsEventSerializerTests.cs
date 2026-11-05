@@ -23,6 +23,29 @@ public class JsonAnalyticsEventSerializerTests
         Api.Data.ServiceCollectionExtensions.RegisterConventions();
     }
 
+    [Theory]
+    [InlineData(90)]
+    [InlineData(50)]
+    public void Serialize_WhenStoredCoverageDiffers_ShouldPreserveTheRecordedPercentage(decimal percentage)
+    {
+        var document = ComplianceDeclarationDocument(ComplianceDeclarationStatus.Submitted);
+        document["obligationCoveragePercentage"] = new BsonDecimal128(percentage);
+        var auditEvent = AuditEventFixture
+            .ComplianceDeclaration("01JZ8RXBMTY2K15SJB3PCFN3D0", 122)
+            .With(x => x.After, document)
+            .With(x => x.Actor, "service:waste-obligations")
+            .Create();
+
+        using var result = JsonDocument.Parse(CreateSubject().Serialize(auditEvent.ToAnalyticsEvent()));
+
+        result
+            .RootElement.GetProperty("after")
+            .GetProperty("obligationCoveragePercentage")
+            .GetDecimal()
+            .Should()
+            .Be(percentage);
+    }
+
     [Fact]
     public async Task Serialize_WhenInsertWithAfter_ShouldSerializeAsJson()
     {

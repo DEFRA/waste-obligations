@@ -44,6 +44,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     public required IMongoCollection<OrganisationComplianceDeclarationEligibility> OrganisationComplianceDeclarationEligibilities { get; set; }
     public required IMongoCollection<OrganisationEligibilitySnapshot> OrganisationEligibilitySnapshots { get; set; }
     public required IMongoCollection<BackgroundWorkerLease> OrganisationWorkerLeases { get; set; }
+    public required IMongoCollection<ObligationCalculationInstruction> ObligationCalculationInstructions { get; set; }
     public required IMongoCollection<OrganisationObligationSummary> OrganisationObligationSummaries { get; set; }
     public required IMongoCollection<OrganisationObligationHistoricalBackfill> OrganisationObligationHistoricalBackfills { get; set; }
     public required IMongoCollection<OrganisationObligationRequestPacingState> OrganisationObligationRequestPacingStates { get; set; }
@@ -78,6 +79,9 @@ public abstract class IntegrationTestBase : IAsyncLifetime
             GetMongoCollection<OrganisationComplianceDeclarationEligibility>();
         OrganisationEligibilitySnapshots = GetMongoCollection<OrganisationEligibilitySnapshot>();
         OrganisationWorkerLeases = GetMongoCollection<BackgroundWorkerLease>(BackgroundWorkerLease.CollectionName);
+        ObligationCalculationInstructions = GetMongoCollection<ObligationCalculationInstruction>(
+            ObligationCalculationInstruction.CollectionName
+        );
         OrganisationObligationSummaries = GetMongoCollection<OrganisationObligationSummary>();
         OrganisationObligationHistoricalBackfills = GetMongoCollection<OrganisationObligationHistoricalBackfill>(
             OrganisationObligationHistoricalBackfill.CollectionName
@@ -93,6 +97,8 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         await DeleteMany(OrganisationComplianceDeclarationEligibilities);
         await DeleteMany(OrganisationEligibilitySnapshots);
         await DeleteMany(OrganisationWorkerLeases);
+        await DeleteMany(ObligationCalculationInstructions);
+        await DeleteMany(GetMongoCollection<BackgroundWorkerLease>("_scheduled_job_processing_leases"));
         await DeleteMany(OrganisationObligationSummaries);
         await DeleteMany(OrganisationObligationHistoricalBackfills);
         await DeleteMany(OrganisationObligationRequestPacingStates);

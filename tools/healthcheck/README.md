@@ -22,6 +22,7 @@ Verified against the local service repositories:
 | --- | --- | --- |
 | epr-packaging-frontend | `/admin/health/all` | `X-Health-Check-Token` (configurable in the service) |
 | waste-obligations | `/health/all` | Anonymous; the gateway may require OAuth |
+| waste-obligations-notifications | `/health/all` | Anonymous; the gateway may require OAuth |
 | waste-obligations-frontend | `/health/all` | `X-Health-Check-Token` |
 | packaging-waste-proxy | `/health/all` | `X-Health-Check-Token`; the gateway may also require OAuth |
 
@@ -35,6 +36,8 @@ Configuration uses the standard .NET providers and binder, in order: `appsetting
 Services__epr-packaging-frontend__ApiKey__Value='frontend-health-token'
 Services__waste-obligations__OAuth__ClientId='gateway-client-id'
 Services__waste-obligations__OAuth__ClientSecret='gateway-client-secret'
+Services__waste-obligations-notifications__OAuth__ClientId='gateway-client-id'
+Services__waste-obligations-notifications__OAuth__ClientSecret='gateway-client-secret'
 ```
 
 These override `Services:epr-packaging-frontend:ApiKey:Value`, `Services:waste-obligations:OAuth:ClientId` and `Services:waste-obligations:OAuth:ClientSecret` directly. Keep credentials in `.env`; the committed `appsettings.json` has empty credential values. Service names remain stable when settings are reordered. Any other setting can also be overridden, for example `Services__epr-packaging-frontend__Url` or `TimeoutSeconds`.

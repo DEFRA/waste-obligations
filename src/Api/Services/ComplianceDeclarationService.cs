@@ -20,7 +20,6 @@ public class ComplianceDeclarationService(
     IUnsubmittedEligibilityVisibilityService unsubmittedEligibilityVisibilityService
 ) : IComplianceDeclarationService
 {
-    private const string SystemActor = "service:waste-obligations";
     private const string ComplianceDeclarationEntity = "compliance_declaration";
 
     public async Task<ComplianceDeclaration> Create(
@@ -152,7 +151,7 @@ public class ComplianceDeclarationService(
                 await auditEventService.RecordEvent(
                     transactionSession,
                     new AuditEventRequest(
-                        SystemActor,
+                        AuditActors.Service,
                         ComplianceDeclarationEntity,
                         AuditEventOperation.Delete,
                         "submission.removed",
@@ -244,7 +243,8 @@ public class ComplianceDeclarationService(
     public async Task<ComplianceDeclaration> Update(
         ComplianceDeclaration current,
         ComplianceDeclaration updated,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        string? actor = null
     )
     {
         var filter = Builders<ComplianceDeclaration>.Filter.And(
@@ -280,7 +280,7 @@ public class ComplianceDeclarationService(
                 await auditEventService.RecordEvent(
                     transactionSession,
                     new AuditEventRequest(
-                        GetActor(updated),
+                        actor ?? GetActor(updated),
                         ComplianceDeclarationEntity,
                         AuditEventOperation.Update,
                         "submission.amended",
@@ -415,5 +415,5 @@ public class ComplianceDeclarationService(
     ) => direction is ComplianceDeclarationSortDirection.Ascending ? descending : ascending;
 
     private static string GetActor(ComplianceDeclaration complianceDeclaration) =>
-        complianceDeclaration.Audit.LastOrDefault()?.User is { } user ? $"user:{user.Id}" : SystemActor;
+        complianceDeclaration.Audit.LastOrDefault()?.User is { } user ? $"user:{user.Id}" : AuditActors.Service;
 }

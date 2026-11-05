@@ -45,14 +45,9 @@ A PR's tested base SHA must match current `main`. Dependabot must rebase and
 complete fresh CI whenever `main` changes. The workflow does not update PR
 branches or queue merges against outdated checks.
 
-SonarCloud is optional for PR merging and publication. The exact Sonar workflow
-job and `SonarCloud Code Analysis` check are excluded from the approval gate.
-Main and hotfix publishing depend on their build job; Sonar runs independently.
-A release workflow can therefore be red solely because of Sonar even when CDP
-published successfully. The release gate checks the actual jobs in that case;
-any failed build or publishing job still pauses approvals. The queue waits for
-the entire release workflow to finish, so a running Sonar scan can still delay
-the next approval even though its result is optional.
+SonarCloud checks remain optional for the PR approval gate. Main and hotfix
+publication still require the build and Sonar jobs to succeed, as on main.
+The queue requires an actual successful publication before proceeding.
 
 ## Eligibility and trust
 
@@ -177,8 +172,7 @@ Immediately before approving, the gate requires:
 
 A successful workflow with only a skipped publishing job does not establish
 publication. A later failed/cancelled Publish run or attempt blocks the gate
-even if that revision was published earlier. A failure solely from optional
-Sonar is excluded after verifying all other release jobs succeeded or skipped.
+even if that revision was published earlier. A Sonar failure prevents the publication job from running.
 Actual successful publication is still required. A successful duplicate run that
 skips because the revision is already published can retain the earlier success.
 Release recency uses completion/update time, including reruns of older runs. A
@@ -214,13 +208,11 @@ on `main`. The run uses its captured `github.sha` consistently for checkout,
 Sonar analysis, image labels and release tagging. A later human merge can be
 included in that captured revision.
 
-GitHub concurrency keeps one running job and one pending job per group. A new
-pending job can replace an older pending job; `cancel-in-progress: false` does
-not make a durable FIFO queue. Each scheduled or manual scan reads the current
-queue again. A superseded queued main Publish run requests
-publication of current `main`. A publishing job displaced by a hotfix can leave
-main unpublished; the approval gate then stays closed until publication is
-recovered. No fixed cooldown or automatic retry conceals a release failure.
+The main workflow and shared CDP publication group use `queue: max` with
+`cancel-in-progress: false`, retaining up to 100 pending runs per group. GitHub
+does not guarantee dispatch order. Each scheduled or manual scan reads the
+queue again. A superseded main Publish run requests publication of current
+`main`. The approval gate stays closed until publication is recovered.
 
 Publication deduplication looks for a successful `CDP-publish-workflow` job,
 including earlier attempts of the same run. It avoids rerunning successful

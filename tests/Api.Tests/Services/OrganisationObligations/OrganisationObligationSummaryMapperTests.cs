@@ -12,6 +12,26 @@ public class OrganisationObligationSummaryMapperTests
     private const int ObligationYear = 2026;
 
     [Fact]
+    public void Map_WhenTonnagesDifferAndNoDataYetIsPresent_ShouldWeightMaterialsEquallyAndRetainTotals()
+    {
+        var result = OrganisationObligationSummaryMapper.Map(
+            ObligationFixture.OrganisationId,
+            ObligationYear,
+            [
+                CreateObligation("Glass", 90, 90, ObligationStatus.Met),
+                CreateObligation("Plastic", 0, 10, ObligationStatus.NotMet),
+                CreateObligation("Paper", 20, 200, ObligationStatus.NoDataYet),
+            ]
+        );
+
+        result.ObligationCoveragePercentage.Should().Be(50);
+        result.ObligationCount.Should().Be(3);
+        result.TotalAcceptedTonnage.Should().Be(110);
+        result.TotalObligatedTonnage.Should().Be(300);
+        result.RecyclingObligationsMet.Should().BeFalse();
+    }
+
+    [Fact]
     public void Map_WhenNoObligationsAreReturned_ShouldCreateAnEmptySuccessfulSummary()
     {
         var result = OrganisationObligationSummaryMapper.Map(ObligationFixture.OrganisationId, ObligationYear, []);
@@ -58,19 +78,43 @@ public class OrganisationObligationSummaryMapperTests
         result.RecyclingObligationsMet.Should().BeNull();
     }
 
-    [Fact]
-    public void Map_WhenAnyMaterialHasNoDataYet_ShouldSetRecyclingObligationsMetToNull()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(10)]
+    public void Map_WhenMaterialsAreMetAndNoDataYet_ShouldSetRecyclingObligationsMetToTrue(int tonnage)
     {
         var result = OrganisationObligationSummaryMapper.Map(
             ObligationFixture.OrganisationId,
             ObligationYear,
             [
-                CreateObligation("Glass", accepted: 10, obligated: 10, ObligationStatus.Met),
+                CreateObligation("Glass", accepted: tonnage, obligated: tonnage, ObligationStatus.Met),
                 CreateObligation("Plastic", accepted: 0, obligated: 10, ObligationStatus.NoDataYet),
             ]
         );
 
-        result.RecyclingObligationsMet.Should().BeNull();
+        result.RecyclingObligationsMet.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Map_WhenMaterialsAreNotMetAndNoDataYet_ShouldSetRecyclingObligationsMetToFalse(bool includeMet)
+    {
+        List<PrnObligation> obligations =
+        [
+            CreateObligation("Glass", accepted: 0, obligated: 10, ObligationStatus.NotMet),
+            CreateObligation("Plastic", accepted: 0, obligated: 10, ObligationStatus.NoDataYet),
+        ];
+        if (includeMet)
+            obligations.Add(CreateObligation("Paper", accepted: 10, obligated: 10, ObligationStatus.Met));
+
+        var result = OrganisationObligationSummaryMapper.Map(
+            ObligationFixture.OrganisationId,
+            ObligationYear,
+            obligations
+        );
+
+        result.RecyclingObligationsMet.Should().BeFalse();
     }
 
     [Fact]

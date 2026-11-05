@@ -25,6 +25,7 @@
       "referenceNumber": "100001",
       "referenceNumberResolutionState": "Resolved",
       "isVisibleInUnsubmittedView": true,
+      "schemeOperatorName": null,
       "recyclingObligationsMet": false,
       "obligationCoveragePercentage": 34.5,
       "declarationStateUpdatedAt": "DateTimeOffset_3",

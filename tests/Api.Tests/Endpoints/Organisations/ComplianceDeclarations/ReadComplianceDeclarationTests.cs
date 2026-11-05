@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
@@ -86,16 +87,24 @@ public class ReadComplianceDeclarationTests(ApiWebApplicationFactory factory, IT
     [Fact]
     public async Task WhenFound_AndMatch_ShouldBeOk()
     {
+        const int storedVersion = 7;
+        var declarationId = FakeComplianceDeclarationService.ComplianceDeclarationId.ToString();
+        var declaration = await ComplianceDeclarationService.Read(declarationId, TestContext.Current.CancellationToken);
+        declaration.Should().NotBeNull();
+        ComplianceDeclarationService.ReadResult = declaration with { Version = storedVersion };
+
         var client = CreateClient(testUser: TestUser.ReadOnly);
 
         var response = await client.GetStringAsync(
             Testing.Endpoints.Organisations.ComplianceDeclarations.Read(
                 FakeWasteOrganisationsService.OrganisationId,
-                FakeComplianceDeclarationService.ComplianceDeclarationId.ToString()
+                declarationId
             ),
             TestContext.Current.CancellationToken
         );
 
+        using var jsonDocument = JsonDocument.Parse(response);
+        jsonDocument.RootElement.GetProperty("version").GetInt32().Should().Be(storedVersion);
         await VerifyJson(response).DontScrubGuids().DontScrubDateTimes();
     }
 }

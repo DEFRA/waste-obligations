@@ -7,8 +7,9 @@
       "businessCountry": "GB-WLS",
       "name": "Alpha Packaging",
       "referenceNumber": "100001",
-      "recyclingObligationsMet": true,
-      "obligationCoveragePercentage": 80
+      "schemeOperatorName": null,
+      "recyclingObligationsMet": false,
+      "obligationCoveragePercentage": 50
     }
   ],
   "total": 6,

@@ -12,9 +12,11 @@ using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.AccountBackend;
 using Defra.WasteObligations.Api.Services.Admin;
 using Defra.WasteObligations.Api.Services.GovukNotify;
+using Defra.WasteObligations.Api.Services.ObligationCalculations;
 using Defra.WasteObligations.Api.Services.OrganisationEligibility;
 using Defra.WasteObligations.Api.Services.OrganisationObligations;
 using Defra.WasteObligations.Api.Services.PrnCommonBackend;
+using Defra.WasteObligations.Api.Services.Scheduling;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
 using Defra.WasteObligations.Api.Utils;
 using Defra.WasteObligations.Api.Utils.ErrorHandling;
@@ -64,6 +66,11 @@ try
     builder.Services.AddWasteOrganisationsService();
     builder.Services.AddOrganisationEligibility(!integrationTest && !openApiBuild);
     builder.Services.AddOrganisationObligationHydration(!integrationTest && !openApiBuild);
+    builder.Services.AddScheduledJobs(
+        builder.Configuration.GetSection("ScheduledJobs"),
+        !integrationTest && !openApiBuild
+    );
+
     builder.Services.AddGovukNotify();
     builder.Services.AddAuditEvents(builder.Configuration, !integrationTest && !openApiBuild);
     builder.Services.AddConsumers(builder.Configuration, !integrationTest && !openApiBuild);
@@ -71,6 +78,7 @@ try
     builder.Services.AddTransient<IComplianceDeclarationService, ComplianceDeclarationService>();
     builder.Services.AddScoped<IAdminDataService, AdminDataService>();
     builder.Services.AddSingleton<ICurrentObligationYearProvider, CurrentObligationYearProvider>();
+    builder.Services.AddTransient<IObligationCalculationInstructionService, ObligationCalculationInstructionService>();
     builder.Services.AddTransient<IUnsubmittedEligibilityVisibilityService, UnsubmittedEligibilityVisibilityService>();
     builder.Services.AddTransient<IUnsubmittedOrganisationsService, UnsubmittedOrganisationsService>();
     builder.Services.AddTransient<IUnsubmittedPollingStatusService, UnsubmittedPollingStatusService>();

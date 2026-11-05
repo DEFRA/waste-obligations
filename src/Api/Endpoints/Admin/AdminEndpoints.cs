@@ -9,6 +9,7 @@ public static class AdminEndpoints
         var adminApp = app.MapGroup("/admin").RequireAuthorization(PolicyNames.Admin);
 
         adminApp.MapAdminAuditEventEndpoints();
+        adminApp.MapAdminObligationCalculationEndpoints();
         adminApp.MapAdminOrganisationEndpoints();
         adminApp.MapAdminUnsubmittedComplianceDeclarationEndpoints();
     }

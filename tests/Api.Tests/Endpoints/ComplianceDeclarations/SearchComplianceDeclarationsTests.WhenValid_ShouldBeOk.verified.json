@@ -2,6 +2,7 @@
   "complianceDeclarations": [
     {
       "id": "000000000000000000000000",
+      "version": 1,
       "created": "DateTimeOffset_1",
       "updated": "DateTimeOffset_2",
       "status": "Submitted",

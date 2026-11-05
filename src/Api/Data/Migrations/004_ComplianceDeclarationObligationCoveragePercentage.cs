@@ -1,5 +1,4 @@
 using AdaskoTheBeAsT.MongoDbMigrations.Abstractions;
-using Defra.WasteObligations.Api.Data.Entities;
 using MongoDB.Bson;
 using MongoDB.Driver;
 using ComplianceDeclaration = Defra.WasteObligations.Api.Data.Entities.ComplianceDeclaration;
@@ -32,7 +31,7 @@ public class ComplianceDeclarationObligationCoveragePercentage : MongoMigration
             {
                 var obligationCoveragePercentage = document.Contains(ObligationCoveragePercentageField)
                     ? document[ObligationCoveragePercentageField].ToDecimal()
-                    : ObligationCoveragePercentageCalculator.CalculateFromBsonObligations(
+                    : HistoricalObligationCoveragePercentageCalculator.CalculateFromBsonObligations(
                         document[ObligationsField].AsBsonArray
                     );
                 var update = Builders<BsonDocument>

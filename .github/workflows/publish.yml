@@ -10,6 +10,7 @@ on:
 concurrency:
   group: publish-main
   cancel-in-progress: false
+  queue: max
 
 permissions:
   contents: read
@@ -88,8 +89,9 @@ jobs:
     concurrency:
       group: cdp-release-publish
       cancel-in-progress: false
+      queue: max
     name: CDP-publish-workflow
-    needs: build # Sonar runs independently and does not gate publication.
+    needs: [build, sonarcloud-scan]
     runs-on: ubuntu-latest
     permissions:
       contents: write # Create the release tag.
