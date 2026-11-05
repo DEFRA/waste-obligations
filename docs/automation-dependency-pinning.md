@@ -5,7 +5,7 @@ branch comments record the reference resolved when the pin was chosen. Local
 reusable workflows run from the caller's commit and do not need a separate SHA.
 The existing Docker build action pin was verified and retained.
 
-Dockerfile base images, Compose images, Trivy and the Makefile's Vacuum image
+Dockerfile base images and Compose images, including Trivy and Vacuum,
 use version tags alongside registry manifest digests. The digest selects the
 content; the tag identifies the release for readers and update tooling. Verify
 the tag resolves to the digest when changing either. Manifest-list digests retain
@@ -32,8 +32,9 @@ verified minor and patch updates when all checks pass and publication capacity
 is available. Updates without a minor or patch classification stay manual.
 Mongo permits minor, patch and digest updates within version 7; major
 version upgrades are excluded. A hash prevents a reference from moving silently,
-but does not establish that the selected code is trustworthy. The Trivy command and Vacuum Makefile pin need explicit review when updating;
-Dependabot does not discover arbitrary shell commands or Make variables. Resolve
+but does not establish that the selected code is trustworthy. The Trivy and
+Vacuum image references are in [compose.ci-tools.yml](../compose/compose.ci-tools.yml),
+which is scanned by the configured Docker Compose ecosystem. Resolve
 action references against the upstream repository and container digests against
 the registry. Run the repository's required Compose/build/test cycle.
 
@@ -45,12 +46,10 @@ the registry. Run the repository's required Compose/build/test cycle.
 - Dependabot can update the Sonar scanner through the .NET tool manifest. Verify
   its next update PR changes the manifest and that its scanner and quality gate
   complete before relying on automatic merges.
-- Trivy and Vacuum still require manual update PRs. To automate them, put each
-  image reference in a Dependabot-discoverable Dockerfile, configure the
-  corresponding Docker directories, and build/run the tool image from that
-  definition. First confirm that Dependabot classifies the resulting PRs and
-  that the tools preserve their current scan behaviour; leave unclassified or
-  major changes manual.
+- Trivy and Vacuum use image references in `compose/compose.ci-tools.yml`,
+  covered by the `/compose` Docker Compose entry. Verify the first update PRs
+  change the expected references and Dependabot supplies their update type;
+  unclassified or major updates remain manual.
 - The Node, .NET and Java setup selectors and `ubuntu-latest` runner are not
   version updates proposed by Dependabot. Their pinned setup actions receive
   Dependabot PRs, but runtime-major and runner-image changes require an
