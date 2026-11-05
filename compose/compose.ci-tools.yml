@@ -1,6 +1,12 @@
 # These tool images are kept here so Dependabot can update their version tags and digests.
 # Use Docker's default bridge as before, without creating a Compose project network.
 services:
+  node:
+    image: node:26.13.0-alpine@sha256:c6ad9e9c1d80f6eb607c26b4b0a132ff7a2344fad1c78ea3baa2a7d4c8de6d94
+    network_mode: bridge
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace
   trivy:
     image: aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb
     network_mode: bridge

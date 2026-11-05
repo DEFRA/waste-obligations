@@ -26,16 +26,12 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version: 26
       - name: Run workflow policy tests with JavaScript coverage
         run: |
-          node --test --experimental-test-coverage \
+          docker compose -f compose/compose.ci-tools.yml run --rm --no-deps node node --test --experimental-test-coverage \
             --test-reporter=spec --test-reporter-destination=stdout \
             --test-reporter=lcov --test-reporter-destination=coverage.node.lcov \
-            .github/scripts/*.test.mjs
+            '.github/scripts/*.test.mjs'
       - name: Set up .NET 10.0
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
