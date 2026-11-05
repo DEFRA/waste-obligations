@@ -127,6 +127,14 @@ updates:
         patterns:
           - '*'
 
+  # Track the SDK baseline used by local development and CI.
+  - package-ecosystem: dotnet-sdk
+    directory: /
+    schedule:
+      interval: weekly
+      time: '10:30'
+      timezone: 'Europe/London'
+
   # Keep Dockerfile and Compose digest pins receiving reviewed updates.
   - package-ecosystem: docker
     directory: /
