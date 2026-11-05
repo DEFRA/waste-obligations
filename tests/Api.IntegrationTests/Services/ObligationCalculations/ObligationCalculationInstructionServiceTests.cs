@@ -14,6 +14,23 @@ public class ObligationCalculationInstructionServiceTests : IntegrationTestBase
     private readonly FakeTimeProvider _timeProvider = new(new DateTimeOffset(2026, 10, 30, 1, 0, 0, TimeSpan.Zero));
 
     [Fact]
+    public async Task Create_WithMissingSession_ShouldRejectWithoutPersisting()
+    {
+        var subject = CreateSubject();
+        Func<Task> create = () => subject.Create(null!, 2026, null, TestContext.Current.CancellationToken);
+
+        await create.Should().ThrowAsync<ArgumentNullException>();
+        (
+            await ObligationCalculationInstructions.CountDocumentsAsync(
+                FilterDefinition<ObligationCalculationInstruction>.Empty,
+                cancellationToken: TestContext.Current.CancellationToken
+            )
+        )
+            .Should()
+            .Be(0);
+    }
+
+    [Fact]
     public async Task Create_ShouldPersistPendingInstructionForExplicitYear()
     {
         var subject = CreateSubject();
