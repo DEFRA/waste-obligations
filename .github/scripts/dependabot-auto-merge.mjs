@@ -176,9 +176,12 @@ function recordsCurrentPullRequest(run, pr) {
 }
 
 function isCompletedPullRequestRun(run, latest, repository, pr) {
-  return run.event === 'pull_request' && run.path === '.github/workflows/check-pull-request.yml'
-    && run.head_repository?.full_name === `${repository.owner}/${repository.repo}`
-    && run.head_sha === pr.head.sha && run.status === 'completed' && run.conclusion === 'success'
+  const expectedWorkflow = run.event === 'pull_request'
+    && run.path === '.github/workflows/check-pull-request.yml'
+    && run.head_repository?.full_name === `${repository.owner}/${repository.repo}`;
+
+  return expectedWorkflow && run.head_sha === pr.head.sha
+    && run.status === 'completed' && run.conclusion === 'success'
     && run.run_attempt === latest.run_attempt;
 }
 
