@@ -446,7 +446,7 @@ async function isEligibleOpenPullRequest({ github, repository, pr, runId, runAtt
 async function requestStaleRebase(github, repository, pr, currentPr, mainSha, core) {
   return isCurrentDependabotPullRequest(currentPr, pr, repository)
     && await hasReleaseCapacity(github, repository, mainSha, core)
-    && await requestRebase(github, repository, currentPr, mainSha, core);
+    && requestRebase(github, repository, currentPr, mainSha, core);
 }
 
 function isSonarOnlyFailure(jobs) {
