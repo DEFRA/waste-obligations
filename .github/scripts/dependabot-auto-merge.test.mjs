@@ -73,15 +73,22 @@ function harness() {
         async listComments() { return { data: state.comments }; },
         async createComment(input) { state.rebaseRequests.push(input); },
         async getLabel({ name }) {
+          if (state.getLabelError) throw state.getLabelError;
           if (!state.labels.includes(name)) throw Object.assign(new Error('Not found'), { status: 404 });
           return { data: { name } };
         },
-        async createLabel({ name }) { state.labels.push(name); },
+        async createLabel({ name }) {
+          if (state.createLabelError) throw state.createLabelError;
+          state.labels.push(name);
+        },
         async addLabels(input) {
           if (state.labelError) throw state.labelError;
           state.labelAssignments.push(input);
         },
-        async removeLabel(input) { state.labelRemovals.push(input); }
+        async removeLabel(input) {
+          if (state.removeLabelError) throw state.removeLabelError;
+          state.labelRemovals.push(input);
+        }
       },
       pulls: {
         async listFiles() { return { data: state.files ?? [{ filename: 'src/Api/Api.csproj', status: 'modified' }] }; },
@@ -657,6 +664,51 @@ test('a previously major PR loses its review label after becoming a minor update
   assert.deepEqual(h.state.labelRemovals, [{ ...repository, issue_number: 123, name: 'dependabot-major-review' }]);
   assert.equal(h.effects.merges.length, 1);
 });
+
+test('an existing major review label is reused', async () => {
+  const h = harness();
+  h.state.labels.push('dependabot-major-review');
+  h.state.commits[0].commit.message = metadata(['version-update:semver-major']);
+  await processDependabotQueue(h);
+
+  assert.deepEqual(h.state.labels, ['dependabot-major-review']);
+  assert.deepEqual(h.state.labelAssignments, [{ ...repository, issue_number: 123, labels: ['dependabot-major-review'] }]);
+  assertUntouched(h);
+});
+
+test('a concurrent label creation still permits the major PR to be labelled', async () => {
+  const h = harness();
+  h.state.commits[0].commit.message = metadata(['version-update:semver-major']);
+  h.state.createLabelError = Object.assign(new Error('Already exists'), { status: 422 });
+  await processDependabotQueue(h);
+
+  assert.equal(h.state.labelAssignments.length, 1);
+  assertUntouched(h);
+});
+
+for (const [field, status] of [['getLabelError', 403], ['createLabelError', 403]]) {
+  test(`${field} warns and skips the major update`, async () => {
+    const h = harness();
+    h.state.commits[0].commit.message = metadata(['version-update:semver-major']);
+    h.state[field] = Object.assign(new Error('Forbidden'), { status });
+    await processDependabotQueue(h);
+
+    assert.ok(h.notices.some(message => message.includes('Could not label PR #123')));
+    assertUntouched(h);
+  });
+}
+
+for (const [status, warned] of [[404, false], [403, true]]) {
+  test(`removing a review label with HTTP ${status} does not block an eligible update`, async () => {
+    const h = harness();
+    h.state.pr.labels = [{ name: 'dependabot-major-review' }];
+    h.state.removeLabelError = Object.assign(new Error('Cannot remove label'), { status });
+    await processDependabotQueue(h);
+
+    assert.equal(h.notices.some(message => message.includes('Could not remove the major-version review label')), warned);
+    assert.equal(h.effects.merges.length, 1);
+  });
+}
 
 test('a scheduled scan recovers dropped events using the latest eligible CI run', async () => {
   const h = harness();

@@ -12,6 +12,8 @@ const githubActionsIntegrationId = 15368;
 const githubActionsBot = 'github-actions[bot]';
 const methodNotAllowedStatus = 405;
 const conflictStatus = 409;
+const notFoundStatus = 404;
+const unprocessableStatus = 422;
 const blockedMergeStatuses = new Set([methodNotAllowedStatus, conflictStatus]);
 const recoveryRequested = 'recovery-requested';
 const majorReviewLabel = 'dependabot-major-review';
@@ -309,35 +311,49 @@ async function verifyCommits(github, repository, pr, core) {
     return undefined;
   }
 
-  if (pr.state === 'open' && pr.labels?.some(label => label.name === majorReviewLabel)) {
-    try {
-      await github.rest.issues.removeLabel({ ...repository, issue_number: pr.number, name: majorReviewLabel });
-    } catch (error) {
-      if (error.status !== 404) {
-        core.warning(`Could not remove the major-version review label from PR #${pr.number}: ${error.message}`);
-      }
-    }
-  }
+  await removeMajorLabel(github, repository, pr, core);
 
   return commits;
 }
 
+async function removeMajorLabel(github, repository, pr, core) {
+  if (pr.state !== 'open' || !pr.labels?.some(label => label.name === majorReviewLabel)) {
+    return;
+  }
+  try {
+    await github.rest.issues.removeLabel({ ...repository, issue_number: pr.number, name: majorReviewLabel });
+  } catch (error) {
+    if (error.status !== notFoundStatus) {
+      core.warning(`Could not remove the major-version review label from PR #${pr.number}: ${error.message}`);
+    }
+  }
+}
+
 async function labelMajorUpdate(github, repository, pr, core) {
   try {
-    try {
-      await github.rest.issues.getLabel({ ...repository, name: majorReviewLabel });
-    } catch (error) {
-      if (error.status !== 404) throw error;
-      try {
-        await github.rest.issues.createLabel({ ...repository, name: majorReviewLabel,
-          color: 'd93f0b', description: 'Dependabot major update requires manual review' });
-      } catch (createError) {
-        if (createError.status !== 422) throw createError;
-      }
-    }
+    await ensureMajorLabel(github, repository);
     await github.rest.issues.addLabels({ ...repository, issue_number: pr.number, labels: [majorReviewLabel] });
   } catch (error) {
     core.warning(`Could not label PR #${pr.number} for major-version review: ${error.message}`);
+  }
+}
+
+async function ensureMajorLabel(github, repository) {
+  try {
+    await github.rest.issues.getLabel({ ...repository, name: majorReviewLabel });
+    return;
+  } catch (error) {
+    if (error.status !== notFoundStatus) {
+      throw error;
+    }
+  }
+  try {
+    await github.rest.issues.createLabel({ ...repository, name: majorReviewLabel,
+      color: 'd93f0b', description: 'Dependabot major update requires manual review' });
+  } catch (error) {
+    if (error.status !== unprocessableStatus) {
+      throw error;
+    }
   }
 }
 
