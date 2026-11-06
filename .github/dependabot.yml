@@ -114,6 +114,13 @@ updates:
       interval: daily
       time: '10:30'
       timezone: 'Europe/London'
+    groups:
+      healthcheck-configuration:
+        patterns:
+          - 'Microsoft.Extensions.Configuration.*'
+        update-types:
+          - 'minor'
+          - 'patch'
 
   - package-ecosystem: github-actions
     directory: /
@@ -122,10 +129,13 @@ updates:
       time: '10:30'
       timezone: 'Europe/London'
     groups:
-      # Group all GitHub Actions updates into a single PR.
+      # Keep major updates separate so minor and patch updates can be auto-merged.
       github-actions:
         patterns:
           - '*'
+        update-types:
+          - 'minor'
+          - 'patch'
 
   # Track the SDK baseline used by local development and CI.
   - package-ecosystem: dotnet-sdk
@@ -142,6 +152,13 @@ updates:
       interval: weekly
       time: '10:30'
       timezone: 'Europe/London'
+    groups:
+      dotnet-images:
+        patterns:
+          - 'mcr.microsoft.com/dotnet/*'
+        update-types:
+          - 'minor'
+          - 'patch'
 
   - package-ecosystem: docker-compose
     directories:
@@ -156,3 +173,10 @@ updates:
       interval: weekly
       time: '10:30'
       timezone: 'Europe/London'
+    groups:
+      compose-aws-cli:
+        patterns:
+          - 'amazon/aws-cli'
+        update-types:
+          - 'minor'
+          - 'patch'
