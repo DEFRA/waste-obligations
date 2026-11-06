@@ -16,6 +16,25 @@ permissions:
   contents: read
 
 jobs:
+  workflow-validation:
+    name: Validate GitHub Actions
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Validate workflows with actionlint
+        run: |
+          archive="$RUNNER_TEMP/actionlint_1.7.12_linux_amd64.tar.gz"
+          curl --fail --silent --show-error --proto '=https' --proto-redir '=https' --location https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz --output "$archive"
+          printf '8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8 %s\n' "$archive" | sha256sum --check
+          mkdir -p "$RUNNER_TEMP/actionlint"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/actionlint" actionlint
+          # actionlint 1.7.12 predates GitHub's concurrency queue option.
+          "$RUNNER_TEMP/actionlint/actionlint" -ignore 'unexpected key "queue" for "concurrency" section'
+
   dependency-review:
     name: Dependency security review
     runs-on: ubuntu-latest
@@ -37,8 +56,12 @@ jobs:
 
   pr-validator:
     name: Run Pull Request Checks
-    needs: dependency-review
+    needs: [workflow-validation, dependency-review]
     runs-on: ubuntu-latest
+    outputs:
+      docker-build: ${{ steps.docker-build.outcome }}
+      trivy: ${{ steps.trivy.outcome }}
+      openapi: ${{ steps.openapi.outcome }}
     steps:
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -54,11 +77,11 @@ jobs:
         run: |
           dotnet restore -p:NuGetAudit=true -p:NuGetAuditMode=all
           dotnet build tests/Api.Tests/Api.Tests.csproj
-          dotnet test --test-modules tests/Api.Tests/bin/Debug/net10.0/Api.Tests.dll --no-build
+          dotnet test --test-modules tests/Api.Tests/bin/Debug/net10.0/Api.Tests.dll --no-build --results-directory "$GITHUB_WORKSPACE/TestResults/Api.Tests" -- --report-xunit-trx --report-xunit-trx-filename Api.Tests.trx
       - name: Build and test the healthcheck tool
         run: |
           dotnet build tools/healthcheck/healthcheck.slnx
-          dotnet test --test-modules tools/healthcheck/tests/HealthCheck.Tests/bin/Debug/net10.0/HealthCheck.Tests.dll --no-build
+          dotnet test --test-modules tools/healthcheck/tests/HealthCheck.Tests/bin/Debug/net10.0/HealthCheck.Tests.dll --no-build --results-directory "$GITHUB_WORKSPACE/TestResults/HealthCheck.Tests" -- --report-xunit-trx --report-xunit-trx-filename HealthCheck.Tests.trx
       - name: Build integration tests without Notify credentials
         run: |
           docker compose up -d --wait
@@ -74,7 +97,8 @@ jobs:
           set +e
           dotnet test \
             --test-modules tests/Api.IntegrationTests/bin/Debug/net10.0/Api.IntegrationTests.dll \
-            --no-build 2>&1 | tee "$test_log"
+            --no-build --results-directory "$GITHUB_WORKSPACE/TestResults/Api.IntegrationTests" \
+            -- --report-xunit-trx --report-xunit-trx-filename Api.IntegrationTests.trx 2>&1 | tee "$test_log"
           test_exit_code=${PIPESTATUS[0]}
           set -e
 
@@ -99,6 +123,7 @@ jobs:
             echo "::endgroup::"
           done
       - name: Check Dockerfile Builds
+        id: docker-build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
@@ -106,12 +131,16 @@ jobs:
           push: false
           tags: waste-obligations:latest
       - name: Check with Trivy
+        id: trivy
         run: |
+          mkdir -p "$GITHUB_WORKSPACE/TestResults"
           docker save waste-obligations:latest -o "$RUNNER_TEMP/waste-obligations-image.tar"
           docker compose -f compose/compose.ci-tools.yml run --rm --no-deps -T \
             -v "$RUNNER_TEMP/waste-obligations-image.tar:/scan/image.tar:ro" \
-            trivy image --input /scan/image.tar --exit-code 1 --severity HIGH,CRITICAL
+            -v "$GITHUB_WORKSPACE/TestResults:/reports" \
+            trivy image --input /scan/image.tar --exit-code 1 --severity HIGH,CRITICAL --scanners vuln,secret --format json --output /reports/trivy.json
       - name: Check openapi with Vacuum
+        id: openapi
         run: make lint-openapi
       - name: Store openapi artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -119,9 +148,18 @@ jobs:
           name: openapi.json
           path: src/Api/openapi.json
 
+      - name: Upload CI reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ci-reports
+          path: TestResults
+          if-no-files-found: warn
+          retention-days: 7
+
   sonarcloud-scan:
     name: CDP SonarCloud Scan
-    needs: dependency-review
+    needs: [workflow-validation, dependency-review]
     permissions:
       contents: read
       pull-requests: read
@@ -131,7 +169,7 @@ jobs:
 
   journey-tests:
     name: Run journey tests
-    needs: dependency-review
+    needs: [workflow-validation, dependency-review]
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     permissions:
@@ -176,3 +214,139 @@ jobs:
           WASTE_OBLIGATION_SUBMITTER_EMAIL: submitter@example.com
           WASTE_OBLIGATIONS_FRONTEND_B2C_CLIENT_SECRET: ${{ secrets.WASTE_OBLIGATIONS_FRONTEND_B2C_CLIENT_SECRET }}
           GOVUK_NOTIFY_API_KEY: ${{ secrets.GOVUK_NOTIFY_API_KEY }}
+
+  report:
+    name: Publish CI Report
+    needs: [workflow-validation, dependency-review, pr-validator, sonarcloud-scan, journey-tests]
+    if: ${{ always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ci-report-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Download CI reports
+        id: download
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: ci-reports
+          path: TestResults
+      - name: Create CI report
+        env:
+          WORKFLOW_VALIDATION: ${{ needs.workflow-validation.result }}
+          DEPENDENCY_REVIEW: ${{ needs.dependency-review.result }}
+          PR_VALIDATOR: ${{ needs.pr-validator.result }}
+          DOCKER_BUILD: ${{ needs.pr-validator.outputs.docker-build }}
+          TRIVY: ${{ needs.pr-validator.outputs.trivy }}
+          OPENAPI: ${{ needs.pr-validator.outputs.openapi }}
+          SONAR: ${{ needs.sonarcloud-scan.result }}
+          JOURNEY: ${{ needs.journey-tests.result }}
+          REPORT_DOWNLOAD: ${{ steps.download.outcome }}
+        run: |
+          python3 - <<'PY'
+          import collections
+          import json
+          import os
+          import re
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+
+          def status(name):
+              return {'success': '✅ Passed', 'failure': '❌ Failed', 'cancelled': '⚪ Cancelled'}.get(os.getenv(name), '⚪ Not run')
+
+          def tests(name):
+              path = Path('TestResults') / name / f'{name}.trx'
+              if not path.is_file():
+                  return '⚪ Results unavailable'
+              try:
+                  root = ET.parse(path).getroot()
+                  counters = root.find('{*}ResultSummary/{*}Counters')
+                  total, passed, failed = (int(counters.attrib[key]) for key in ('total', 'passed', 'failed'))
+                  skipped = int(counters.attrib.get('notExecuted', 0))
+                  results = root.findall('{*}Results/{*}UnitTestResult')
+                  if total <= 0 or total != len(results) or passed + failed + skipped != total or any(value < 0 for value in (passed, failed, skipped)):
+                      raise ValueError('Inconsistent test counts')
+                  if sum(r.get('outcome') == 'Passed' for r in results) != passed or sum(r.get('outcome') == 'NotExecuted' for r in results) != skipped or sum(r.get('outcome') not in ('Passed', 'NotExecuted') for r in results) != failed:
+                      raise ValueError('Inconsistent test outcomes')
+                  return f"{'❌' if failed else '⚠️' if skipped else '✅'} {passed}/{total} passed, {failed} failed, {skipped} skipped"
+              except (ET.ParseError, AttributeError, KeyError, OSError, ValueError):
+                  return '⚪ Results unavailable (invalid TRX)'
+
+          def scan():
+              state = os.getenv('TRIVY')
+              if state not in ('success', 'failure'):
+                  return '⚪ Not run'
+              try:
+                  report = json.loads(Path('TestResults/trivy.json').read_text())
+                  if report.get('SchemaVersion') != 2 or report.get('ArtifactType') != 'container_image' or not report.get('ArtifactName') or not isinstance(report.get('Results'), list):
+                      raise ValueError('Invalid Trivy report')
+                  findings = [finding for result in report['Results'] for key in ('Vulnerabilities', 'Secrets') for finding in (result.get(key) or [])]
+                  high = sum(f.get('Severity') == 'HIGH' for f in findings)
+                  critical = sum(f.get('Severity') == 'CRITICAL' for f in findings)
+                  icon = '❌' if high or critical or state == 'failure' else '✅'
+                  suffix = ' (scan failed)' if state == 'failure' and not (high or critical) else ''
+                  return f'{icon} {critical} Critical, {high} High{suffix}'
+              except (OSError, ValueError, TypeError, AttributeError):
+                  return '❌ Scan failed (no usable report)'
+
+          def openapi():
+              if os.getenv('OPENAPI') != 'success':
+                  return status('OPENAPI')
+              try:
+                  findings = json.loads(Path('TestResults/openapi-vacuum.json').read_text())
+                  if not isinstance(findings, list) or any(not isinstance(f, dict) or f.get('severity') not in (0, 1, 2, 3) for f in findings):
+                      raise ValueError('Invalid Vacuum report')
+                  counts = [sum(f['severity'] == severity for f in findings) for severity in range(4)]
+                  return f'⚠️ {counts[0]} errors, {counts[1]} warnings, {counts[2]} info, {counts[3]} hints (advisory)' if findings else '✅ No findings'
+              except (OSError, ValueError, TypeError):
+                  return '❌ Results unavailable (invalid Vacuum report)'
+
+          rows = [
+              ('Workflow validation', status('WORKFLOW_VALIDATION')),
+              ('Dependency security review', status('DEPENDENCY_REVIEW')),
+              ('CI report download', status('REPORT_DOWNLOAD')),
+              ('API unit tests', tests('Api.Tests')),
+              ('Healthcheck tests', tests('HealthCheck.Tests')),
+              ('API integration tests', tests('Api.IntegrationTests')),
+              ('Docker image', status('DOCKER_BUILD')),
+              ('Trivy (Critical/High)', scan()),
+              ('OpenAPI lint', openapi()),
+              ('SonarCloud', status('SONAR')),
+              ('Journey tests', status('JOURNEY')),
+              ('PR validation', status('PR_VALIDATOR')),
+          ]
+          url = f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
+          text = '<!-- ci-report -->\n## CI report\n\n| Check | Result |\n| --- | --- |\n'
+          text += ''.join(f'| {name} | {result} |\n' for name, result in rows)
+          text += f'\n[Workflow run and downloadable reports]({url}). Reports retained seven days.\n'
+          text += '\nOpenAPI findings are advisory; the full rule messages and locations are in openapi-vacuum.json.\n'
+          try:
+              findings = json.loads(Path('TestResults/openapi-vacuum.json').read_text())
+              if os.getenv('OPENAPI') == 'success' and isinstance(findings, list):
+                  rules = collections.Counter(f.get('code') for f in findings if isinstance(f, dict) and isinstance(f.get('code'), str) and re.fullmatch(r'[A-Za-z0-9_.-]+', f['code']))
+                  if rules:
+                      text += '\nMost frequent OpenAPI rules:\n\n| Rule | Findings |\n| --- | ---: |\n'
+                      text += ''.join(f'| {rule} | {count} |\n' for rule, count in rules.most_common(10))
+          except (OSError, ValueError):
+              pass
+          Path('ci-report.md').write_text(text)
+          PY
+      - name: Replace pull request comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          current_head=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha)
+          if [ "$current_head" != "$HEAD_SHA" ]; then
+            echo "Skipping CI report for a superseded commit."
+            exit 0
+          fi
+          comment_ids=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" --paginate --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | contains("<!-- ci-report -->"))) | .id')
+          gh api --method POST "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" --raw-field body="$(<ci-report.md)" > /dev/null
+          for comment_id in $comment_ids; do
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/issues/comments/$comment_id" > /dev/null
+          done
