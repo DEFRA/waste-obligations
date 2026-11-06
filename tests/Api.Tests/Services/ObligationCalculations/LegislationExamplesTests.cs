@@ -69,31 +69,19 @@ public class LegislationExamplesTests(ApiWebApplicationFactory factory) : IClass
     }
 
     [Fact]
-    public void DirectRegistrant_WithSubsidiaries_PreservesSubmitterAndProducerObligations()
+    public void DirectRegistrant_WithDifferentProducerId_RejectsSubmission()
     {
-        var thirdProducerId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+        // MO-701 will support direct registrants with subsidiary producer IDs.
         var submission = new ApprovedSubmission
         {
             SubmitterOrganisationId = SubmitterId,
             SubmitterType = ObligationSubmitterType.DirectRegistrant,
-            Producers = [Producer(OtherProducerId, ("PL", 100_000)), Producer(thirdProducerId, ("PL", 200_000))],
+            Producers = [Producer(OtherProducerId, ("PL", 100_000))],
         };
 
-        var result = Calculator().Calculate(submission, 2026);
+        var act = () => Calculator().Calculate(submission, 2026);
 
-        result.SubmitterOrganisationId.Should().Be(SubmitterId);
-        result.SubmitterType.Should().Be(ObligationSubmitterType.DirectRegistrant);
-        result.Producers.Should().HaveCount(2);
-        result
-            .Producers.Single(x => x.ProducerOrganisationId == OtherProducerId)
-            .Materials.Single()
-            .Obligation.Should()
-            .Be(57);
-        result
-            .Producers.Single(x => x.ProducerOrganisationId == thirdProducerId)
-            .Materials.Single()
-            .Obligation.Should()
-            .Be(114);
+        act.Should().Throw<ArgumentException>();
     }
 
     [Fact]
@@ -119,7 +107,7 @@ public class LegislationExamplesTests(ApiWebApplicationFactory factory) : IClass
     [Fact]
     public void C08_TwoSchemeMembers_RoundsEachBeforeAggregation()
     {
-        // Scheme members are rounded independently; the direct-registrant case is tested separately.
+        // Scheme members are rounded independently; direct-registrant groups are deferred to MO-701.
         var submission = new ApprovedSubmission
         {
             SubmitterOrganisationId = SubmitterId,
