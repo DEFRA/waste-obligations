@@ -12,10 +12,11 @@ const githubActionsIntegrationId = 15368;
 const githubActionsBot = 'github-actions[bot]';
 const methodNotAllowedStatus = 405;
 const conflictStatus = 409;
+const notFoundStatus = 404;
+const unprocessableStatus = 422;
 const blockedMergeStatuses = new Set([methodNotAllowedStatus, conflictStatus]);
-const rebaseMarker = '<!-- dependabot-queue-rebase -->';
-const rebaseCooldownMs = 24 * 60 * 60 * 1000;
 const recoveryRequested = 'recovery-requested';
+const majorReviewLabel = 'dependabot-major-review';
 
 // Accept the canonical signed Dependabot metadata format; unfamiliar formats stay manual.
 export function hasOnlyMinorOrPatchUpdates(message) {
@@ -191,7 +192,7 @@ async function scanCandidates({ github, context, core, candidates, mainSha }) {
       const outcome = queueOutcome(result);
       candidateCore.notice(`Decision: ${outcome}.`);
       results.push({ number: pr.number, head: pr.head.sha, outcome, details: candidateCore.messages.slice(1, -1) });
-      if (result) {
+      if (result === true) {
         break;
       }
     }
@@ -301,13 +302,59 @@ async function verifyCommits(github, repository, pr, core) {
   }
   if (commits.some(x => !hasOnlyMinorOrPatchUpdates(x.commit.message))) {
     const major = commits.some(x => /^ {2}update-type: version-update:semver-major\r?$/m.test(x.commit.message));
+    if (major && pr.state === 'open') {
+      await labelMajorUpdate(github, repository, pr, core);
+    }
     skip(core, major ? 'Update metadata includes a major version; manual review is required.'
       : 'Update metadata is missing, malformed, mixed or not classified as minor or patch.');
 
     return undefined;
   }
 
+  await removeMajorLabel(github, repository, pr, core);
+
   return commits;
+}
+
+async function removeMajorLabel(github, repository, pr, core) {
+  if (pr.state !== 'open' || !pr.labels?.some(label => label.name === majorReviewLabel)) {
+    return;
+  }
+  try {
+    await github.rest.issues.removeLabel({ ...repository, issue_number: pr.number, name: majorReviewLabel });
+  } catch (error) {
+    if (error.status !== notFoundStatus) {
+      core.warning(`Could not remove the major-version review label from PR #${pr.number}: ${error.message}`);
+    }
+  }
+}
+
+async function labelMajorUpdate(github, repository, pr, core) {
+  try {
+    await ensureMajorLabel(github, repository);
+    await github.rest.issues.addLabels({ ...repository, issue_number: pr.number, labels: [majorReviewLabel] });
+  } catch (error) {
+    core.warning(`Could not label PR #${pr.number} for major-version review: ${error.message}`);
+  }
+}
+
+async function ensureMajorLabel(github, repository) {
+  try {
+    await github.rest.issues.getLabel({ ...repository, name: majorReviewLabel });
+    return;
+  } catch (error) {
+    if (error.status !== notFoundStatus) {
+      throw error;
+    }
+  }
+  try {
+    await github.rest.issues.createLabel({ ...repository, name: majorReviewLabel,
+      color: 'd93f0b', description: 'Dependabot major update requires manual review' });
+  } catch (error) {
+    if (error.status !== unprocessableStatus) {
+      throw error;
+    }
+  }
 }
 
 async function hasStrictMergeRules(github, repository, core) {
@@ -384,9 +431,6 @@ async function isEligibleOpenPullRequest({ github, repository, pr, runId, runAtt
   const { data: currentPr } = await github.rest.pulls.get({ ...repository, pull_number: pr.number });
   const { data: main } = await github.rest.repos.getBranch({ ...repository, branch: mainBranch });
   if (!isFreshPullRequest(currentPr, pr, repository, run, main)) {
-    if (await requestStaleRebase(github, repository, pr, currentPr, main.commit.sha, core)) {
-      return recoveryRequested;
-    }
     skip(core, 'The PR or main changed since CI; wait for a rebase and a fresh CI run.');
 
     return false;
@@ -405,12 +449,6 @@ async function isEligibleOpenPullRequest({ github, repository, pr, runId, runAtt
   }
 
   return hasGreenChecks(github, repository, pr, run, core);
-}
-
-async function requestStaleRebase(github, repository, pr, currentPr, mainSha, core) {
-  return isCurrentDependabotPullRequest(currentPr, pr, repository)
-    && await hasReleaseCapacity(github, repository, mainSha, core)
-    && requestRebase(github, repository, currentPr, mainSha, core);
 }
 
 function isSonarOnlyFailure(jobs) {
@@ -440,33 +478,6 @@ async function retryFailedSonar(github, repository, pr, run, mainSha, core) {
 
   await github.rest.actions.reRunWorkflowFailedJobs({ ...repository, run_id: run.id });
   core.notice('Retried the failed Sonar job once; wait for CI and the quality gate.');
-  return true;
-}
-
-async function requestRebase(github, repository, pr, mainSha, core) {
-  const comments = await github.paginate(github.rest.issues.listComments, {
-    ...repository, issue_number: pr.number, per_page: 100
-  });
-  const recentRequest = comments.some(comment => comment.user?.login === githubActionsBot
-    && comment.body?.includes(rebaseMarker)
-    && Date.now() - Date.parse(comment.created_at) < rebaseCooldownMs);
-  if (recentRequest) {
-    skip(core, 'A rebase was requested in the last 24 hours; wait before requesting another.');
-    return false;
-  }
-
-  const { data: currentPr } = await github.rest.pulls.get({ ...repository, pull_number: pr.number });
-  const { data: currentMain } = await github.rest.repos.getBranch({ ...repository, branch: mainBranch });
-  if (!isCurrentDependabotPullRequest(currentPr, pr, repository)
-    || currentMain.commit.sha !== mainSha) {
-    return false;
-  }
-
-  await github.rest.issues.createComment({
-    ...repository, issue_number: pr.number,
-    body: `@dependabot rebase\n\n${rebaseMarker}\nThe last checks used an older main revision. Please rebase so CI can test this update against the current main.`
-  });
-  core.notice('Requested a Dependabot rebase; wait for a new signed commit and fresh CI.');
   return true;
 }
 

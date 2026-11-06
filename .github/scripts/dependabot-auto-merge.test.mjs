@@ -51,12 +51,12 @@ function harness() {
     } }],
     publishRuns: [{ id: 40, status: 'completed', conclusion: 'success', head_sha: baseSha, head_branch: 'main' }],
     publishJobs: { 40: [successfulJob('CDP-publish-workflow')] },
-    activeReleaseRuns: [], hotfixRuns: [], comparison: 'ahead', prReads: 0, openPrs: [pr], candidates: {}, comments: [], rebaseRequests: [], reruns: []
+    activeReleaseRuns: [], hotfixRuns: [], comparison: 'ahead', prReads: 0, openPrs: [pr], candidates: {}, comments: [], rebaseRequests: [], reruns: [], labels: [], labelAssignments: [], labelRemovals: []
   };
   const effects = { reviews: [], merges: [], dispatches: [] };
   const output = {};
   const notices = [];
-  const core = { notice(message) { notices.push(message); }, setOutput(name, value) { output[name] = value; } };
+  const core = { notice(message) { notices.push(message); }, warning(message) { notices.push(message); }, setOutput(name, value) { output[name] = value; } };
   const context = {
     repo: repository, ref: 'refs/heads/main', sha: baseSha, runId: 99,
     eventName: 'workflow_run', payload: { workflow_run: run }
@@ -71,7 +71,24 @@ function harness() {
     rest: {
       issues: {
         async listComments() { return { data: state.comments }; },
-        async createComment(input) { state.rebaseRequests.push(input); }
+        async createComment(input) { state.rebaseRequests.push(input); },
+        async getLabel({ name }) {
+          if (state.getLabelError) throw state.getLabelError;
+          if (!state.labels.includes(name)) throw Object.assign(new Error('Not found'), { status: 404 });
+          return { data: { name } };
+        },
+        async createLabel({ name }) {
+          if (state.createLabelError) throw state.createLabelError;
+          state.labels.push(name);
+        },
+        async addLabels(input) {
+          if (state.labelError) throw state.labelError;
+          state.labelAssignments.push(input);
+        },
+        async removeLabel(input) {
+          if (state.removeLabelError) throw state.removeLabelError;
+          state.labelRemovals.push(input);
+        }
       },
       pulls: {
         async listFiles() { return { data: state.files ?? [{ filename: 'src/Api/Api.csproj', status: 'modified' }] }; },
@@ -495,83 +512,36 @@ test('failure to write a queue summary does not prevent publication after a merg
   assert.ok(h.notices.some(message => message.includes('Could not write the GitHub job summary')));
 });
 
-test('a green stale Dependabot PR requests one rebase and does not merge', async () => {
+test('queue skips a stale PR without requesting a rebase and merges a later eligible PR', async () => {
   const h = harness();
-  h.state.run.pull_requests[0].base.sha = otherSha;
-  h.state.openPrs.push({ ...h.state.pr, number: 124 });
-  await processDependabotQueue(h);
-
-  assert.equal(h.state.rebaseRequests.length, 1);
-  assert.equal(h.state.rebaseRequests[0].issue_number, 123);
-  assert.match(h.state.rebaseRequests[0].body, /^@dependabot rebase\n/);
-  assertUntouched(h);
-});
-
-test('recent automated rebase requests are rate limited for 24 hours', async () => {
-  const h = harness();
-  h.state.run.pull_requests[0].base.sha = otherSha;
-  h.state.comments.push({ user: { login: 'github-actions[bot]' },
-    body: '@dependabot rebase\n\n<!-- dependabot-queue-rebase -->', created_at: new Date().toISOString() });
+  const staleSha = 'e'.repeat(40);
+  const stalePr = { ...h.state.pr, number: 122, head: { ...h.state.pr.head, sha: staleSha } };
+  h.state.openPrs.unshift(stalePr);
+  h.state.candidates[122] = { pr: stalePr, commits: [{ ...h.state.commits[0], sha: staleSha }] };
+  h.state.ciRuns.push({ ...h.state.run, id: 11, head_sha: staleSha,
+    pull_requests: [{ number: 122, head: { sha: staleSha }, base: { ref: 'main', sha: otherSha } }] });
+  h.state.ciJobs[11] = h.state.jobs;
   await processDependabotQueue(h);
 
   assert.equal(h.state.rebaseRequests.length, 0);
-  assertUntouched(h);
+  assert.deepEqual(h.effects.merges.map(x => x.pull_number), [123]);
+  assert.ok(h.notices.some(message => message.includes('PR #122') && message.includes('wait for a rebase')));
 });
 
-test('a previous rebase request can be retried after 24 hours', async () => {
+test('a Sonar retry does not stop the queue merging a later eligible PR', async () => {
   const h = harness();
-  h.state.run.pull_requests[0].base.sha = otherSha;
-  h.state.comments.push({ user: { login: 'github-actions[bot]' },
-    body: '<!-- dependabot-queue-rebase -->', created_at: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString() });
+  const retrySha = 'e'.repeat(40);
+  const retryPr = { ...h.state.pr, number: 122, head: { ...h.state.pr.head, sha: retrySha } };
+  h.state.openPrs.unshift(retryPr);
+  h.state.candidates[122] = { pr: retryPr, commits: [{ ...h.state.commits[0], sha: retrySha }] };
+  h.state.ciRuns.push({ ...h.state.run, id: 11, head_sha: retrySha, conclusion: 'failure',
+    pull_requests: [{ number: 122, head: { sha: retrySha }, base: { ref: 'main', sha: baseSha } }] });
+  h.state.ciJobs[11] = h.state.jobs.map(job => ({ ...job,
+    conclusion: job.name === 'CDP SonarCloud Scan / CDP SonarCloud coverage scan' ? 'failure' : 'success' }));
   await processDependabotQueue(h);
 
-  assert.equal(h.state.rebaseRequests.length, 1);
-  assertUntouched(h);
-});
-
-test('a changed PR head prevents a rebase request', async () => {
-  const h = harness();
-  h.state.run.pull_requests[0].base.sha = otherSha;
-  h.github.rest.issues.listComments = async () => {
-    h.state.changedPr = { ...h.state.pr, head: { ...h.state.pr.head, sha: otherSha } };
-    return { data: [] };
-  };
-  await processDependabotQueue(h);
-
-  assert.equal(h.state.rebaseRequests.length, 0);
-  assertUntouched(h);
-});
-
-test('a changed main prevents a rebase request', async () => {
-  const h = harness();
-  h.state.run.pull_requests[0].base.sha = otherSha;
-  h.github.rest.issues.listComments = async () => {
-    h.state.mainSha = otherSha;
-    return { data: [] };
-  };
-  await processDependabotQueue(h);
-
-  assert.equal(h.state.rebaseRequests.length, 0);
-  assertUntouched(h);
-});
-
-test('a stale PR requests a rebase even when its previous CI failed', async () => {
-  const h = harness();
-  h.state.run.pull_requests[0].base.sha = otherSha;
-  h.state.run.conclusion = 'failure';
-  h.state.jobs[0].conclusion = 'failure';
-  await processDependabotQueue(h);
-  assert.equal(h.state.rebaseRequests.length, 1);
-  assertUntouched(h);
-});
-
-test('a stale major update does not request a rebase', async () => {
-  const h = harness();
-  h.state.run.pull_requests[0].base.sha = otherSha;
-  h.state.commits[0].commit.message = metadata(['version-update:semver-major']);
-  await processDependabotQueue(h);
-  assert.equal(h.state.rebaseRequests.length, 0);
-  assertUntouched(h);
+  assert.deepEqual(h.state.reruns, [{ ...repository, run_id: 11 }]);
+  assert.deepEqual(h.effects.merges.map(x => x.pull_number), [123]);
 });
 
 test('a current PR with only a failed Sonar job retries that run once', async () => {
@@ -613,16 +583,6 @@ test('a successful Sonar retry is still checked before merging', async () => {
   await processDependabotQueue(h);
   assert.equal(h.effects.merges.length, 1);
   assert.equal(h.output.merge_commit_sha, mergeSha);
-});
-
-test('a stale PR does not request a rebase while main has not published', async () => {
-  const h = harness();
-  h.state.run.pull_requests[0].base.sha = otherSha;
-  h.state.publishRuns = [];
-  await processDependabotQueue(h);
-
-  assert.equal(h.state.rebaseRequests.length, 0);
-  assertUntouched(h);
 });
 
 test('one eligible merge consumes a published head until the next head is published and retested', async () => {
@@ -680,7 +640,75 @@ test('queue scanning skips a major candidate and considers the next eligible upd
   assert.equal(h.effects.merges[0].pull_number, 123);
   assert.equal(h.effects.reviews.length, 1);
   assert.equal(h.effects.reviews[0].pull_number, 123);
+  assert.deepEqual(h.state.labelAssignments, [{ ...repository, issue_number: 122, labels: ['dependabot-major-review'] }]);
 });
+
+test('a label error does not prevent a later eligible update from merging', async () => {
+  const h = harness();
+  const majorPr = { ...h.state.pr, number: 122 };
+  h.state.openPrs.unshift(majorPr);
+  h.state.candidates[122] = { pr: majorPr, commits: [{ ...h.state.commits[0],
+    commit: { verification: { verified: true }, message: metadata(['version-update:semver-major']) } }] };
+  h.state.labelError = new Error('Label access denied');
+  await processDependabotQueue(h);
+
+  assert.ok(h.notices.some(message => message.includes('Could not label PR #122')));
+  assert.deepEqual(h.effects.merges.map(x => x.pull_number), [123]);
+});
+
+test('a previously major PR loses its review label after becoming a minor update', async () => {
+  const h = harness();
+  h.state.pr.labels = [{ name: 'dependabot-major-review' }];
+  await processDependabotQueue(h);
+
+  assert.deepEqual(h.state.labelRemovals, [{ ...repository, issue_number: 123, name: 'dependabot-major-review' }]);
+  assert.equal(h.effects.merges.length, 1);
+});
+
+test('an existing major review label is reused', async () => {
+  const h = harness();
+  h.state.labels.push('dependabot-major-review');
+  h.state.commits[0].commit.message = metadata(['version-update:semver-major']);
+  await processDependabotQueue(h);
+
+  assert.deepEqual(h.state.labels, ['dependabot-major-review']);
+  assert.deepEqual(h.state.labelAssignments, [{ ...repository, issue_number: 123, labels: ['dependabot-major-review'] }]);
+  assertUntouched(h);
+});
+
+test('a concurrent label creation still permits the major PR to be labelled', async () => {
+  const h = harness();
+  h.state.commits[0].commit.message = metadata(['version-update:semver-major']);
+  h.state.createLabelError = Object.assign(new Error('Already exists'), { status: 422 });
+  await processDependabotQueue(h);
+
+  assert.equal(h.state.labelAssignments.length, 1);
+  assertUntouched(h);
+});
+
+for (const [field, status] of [['getLabelError', 403], ['createLabelError', 403]]) {
+  test(`${field} warns and skips the major update`, async () => {
+    const h = harness();
+    h.state.commits[0].commit.message = metadata(['version-update:semver-major']);
+    h.state[field] = Object.assign(new Error('Forbidden'), { status });
+    await processDependabotQueue(h);
+
+    assert.ok(h.notices.some(message => message.includes('Could not label PR #123')));
+    assertUntouched(h);
+  });
+}
+
+for (const [status, warned] of [[404, false], [403, true]]) {
+  test(`removing a review label with HTTP ${status} does not block an eligible update`, async () => {
+    const h = harness();
+    h.state.pr.labels = [{ name: 'dependabot-major-review' }];
+    h.state.removeLabelError = Object.assign(new Error('Cannot remove label'), { status });
+    await processDependabotQueue(h);
+
+    assert.equal(h.notices.some(message => message.includes('Could not remove the major-version review label')), warned);
+    assert.equal(h.effects.merges.length, 1);
+  });
+}
 
 test('a scheduled scan recovers dropped events using the latest eligible CI run', async () => {
   const h = harness();
