@@ -18,7 +18,7 @@ jobs:
           persist-credentials: false
           fetch-depth: 0 # Depth 0 required for branch-based versioning
       - name: Test
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: global.json
       - name: Run unit tests
@@ -55,7 +55,7 @@ jobs:
         with:
           fetch-depth: 0 # Depth 0 required for branch-based versioning
       - name: Publish Hot Fix
-        uses: DEFRA/cdp-build-action/build-hotfix@dfb527d1bca7591fbbfd32ac007557745e888cf2 # main
+        uses: DEFRA/cdp-build-action/build-hotfix@54ced5c5344c8b9620561a1628fe8f3d858e9871 # main
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
