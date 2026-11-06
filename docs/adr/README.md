@@ -27,6 +27,7 @@ This catalogue supersedes the earlier local eight-record synthesis. It uses [PR 
 | [0019](0019-declaration-route-body-identity.md) | Validate route/body identity before persistence |
 | [0020](0020-build-input-and-workflow-permissions.md) | Pin build inputs and separate workflow permissions |
 | [0021](0021-waste-organisations-record-identity.md) | Preserve Waste Organisations record identity across stored and background data |
+| [0022](0022-recycling-calculation-evidence.md) | Use legislation-derived examples to verify recycling calculations (proposed) |
 
 Each record distinguishes documented rationale, code/history corroboration, and inference. See [PR coverage and candidate disposition](pr-coverage.md) for accountable grouping, exclusions, and evidence limits.
 
