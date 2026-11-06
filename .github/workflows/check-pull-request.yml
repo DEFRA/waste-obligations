@@ -159,7 +159,7 @@ jobs:
 
   sonarcloud-scan:
     name: CDP SonarCloud Scan
-    needs: dependency-review
+    needs: [workflow-validation, dependency-review]
     permissions:
       contents: read
       pull-requests: read
@@ -169,7 +169,7 @@ jobs:
 
   journey-tests:
     name: Run journey tests
-    needs: dependency-review
+    needs: [workflow-validation, dependency-review]
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     permissions:
