@@ -20,8 +20,8 @@ test("the compliance awaiting count includes PERN458 before the accept and drops
   const after = mappingNamed(obligationMappings.obligationMappings, "journey-compliance-scheme-obligations-accepted.json");
   const aluminium = (mapping) => mapping.Response.BodyAsJson.obligationData.find((row) => row.materialName === "Aluminium");
 
-  assert.equal(before.Response.BodyAsJson.numberOfPrnsAwaitingAcceptance, 6);
-  assert.equal(after.Response.BodyAsJson.numberOfPrnsAwaitingAcceptance, 5);
+  assert.equal(before.Response.BodyAsJson.numberOfPrnsAwaitingAcceptance, 8);
+  assert.equal(after.Response.BodyAsJson.numberOfPrnsAwaitingAcceptance, 7);
   assert.equal(aluminium(before).tonnageAwaitingAcceptance, 140);
   assert.equal(aluminium(after).tonnageAwaitingAcceptance, 140);
 });
@@ -162,7 +162,7 @@ test("in the journey state the searches move the journey's PRNs from awaiting to
     assert.ok(!numbers(awaiting).includes(number), number);
     assert.ok(numbers(accepted).includes(number), number);
   }
-  assert.deepEqual(numbers(awaiting), ["PRN456", "PRN462"]);
+  assert.deepEqual(numbers(awaiting), ["PRN456", "PRN462", "PRN872", "PRN873"]);
   assert.equal(numbers(accepted)[0], "PERN457");
   assert.ok(accepted.Response.BodyAsJson.items.every((prn) => prn.prnStatus === "ACCEPTED"));
 });

@@ -62,10 +62,10 @@ test("generates Account, Notify and PRN mappings from the supplied scenario", as
     assert.equal(prnMapping.Priority, 10);
     assert.equal(prnMapping.Response.StatusCode, 200);
     const { items, totalItems } = prnMapping.Response.BodyAsJson;
-    assert.equal(totalItems, 9);
+    assert.equal(totalItems, 11);
     assert.deepEqual(
         items.map((item) => item.prnNumber),
-        ["PRN123", "PRN124", "PRN125", "PRN126", "PRN127", "PRN132", "PRN128", "PRN129", "PRN130"],
+        ["PRN123", "PRN124", "PRN125", "PRN126", "PRN127", "PRN132", "PRN128", "PRN129", "PRN130", "PRN870", "PRN871"],
     );
     for (const item of items) {
         assert.equal(item.organisationId, directProducerId);
@@ -94,7 +94,7 @@ test("generates Account, Notify and PRN mappings from the supplied scenario", as
         },
     ]);
     const [csoPrn, csoPern] = csoPrnsMapping.Response.BodyAsJson.items;
-    assert.equal(csoPrnsMapping.Response.BodyAsJson.totalItems, 6);
+    assert.equal(csoPrnsMapping.Response.BodyAsJson.totalItems, 8);
     assert.equal(csoPrn.organisationId, complianceSchemeId);
     assert.equal(csoPrn.prnNumber, "PRN456");
     assert.equal(csoPrn.prnStatus, "AWAITINGACCEPTANCE");
@@ -186,7 +186,7 @@ test("generates PRN search mappings that filter and sort like the common backend
     );
     assert.equal(tonnageDescending.Priority, 3);
     assert.deepEqual(prnNumbers(tonnageDescending), [
-        "PRN127", "PRN125", "PRN129", "PRN123", "PRN130", "PRN126", "PRN124", "PRN132", "PRN128",
+        "PRN127", "PRN125", "PRN129", "PRN123", "PRN870", "PRN871", "PRN130", "PRN126", "PRN124", "PRN132", "PRN128",
     ]);
 
     const materialAscending = await readMapping(
@@ -195,7 +195,7 @@ test("generates PRN search mappings that filter and sort like the common backend
     );
     assert.deepEqual(
         materialAscending.Response.BodyAsJson.items.map((item) => item.materialName),
-        ["Aluminium", "Aluminium", "Fibre", "Glass Other", "Glass Re-melt", "Paper/board", "Plastic", "Plastic", "Steel"],
+        ["Aluminium", "Aluminium", "Fibre", "Glass Other", "Glass Re-melt", "Paper/board", "Plastic", "Plastic", "Steel", "Steel", "Steel"],
     );
 
     const plasticByOldest = await readMapping(
@@ -264,6 +264,8 @@ test("generates accepted PRN mappings for the accepted confirmation view", async
             ["PRN460", false, "AWAITINGACCEPTANCE"],
             ["PRN461", false, "AWAITINGACCEPTANCE"],
             ["PRN462", false, "AWAITINGACCEPTANCE"],
+            ["PRN872", false, "AWAITINGACCEPTANCE"],
+            ["PRN873", false, "AWAITINGACCEPTANCE"],
         ],
     );
     const awaitingPern = await readMapping(
