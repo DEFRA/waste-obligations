@@ -20,7 +20,11 @@ Main and hotfix publishing jobs share `cdp-release-publish`, and the main workfl
 
 ## Stale PRs and image digests
 
-A stale PR needs CI against the new base. Re-running an old workflow does not replace its recorded base. Dependabot can be asked to rebase with `@dependabot rebase`; its new commit should trigger the normal PR workflow. Automatic requests from the Actions bot are not implemented: verify GitHub accepts the bot's command and deduplicate or rate-limit requests before relying on them.
+The queue log identifies each considered PR, its head, the CI run and tested base, and the decision or reason for skipping it. The Actions job summary lists considered PRs with links and decision counts. Publication, recovery requests and cooldowns are logged; a successful queue run can still mean that no PR was merged.
+
+A stale eligible PR needs CI against the new base, even if its previous run failed. The queue asks Dependabot to rebase, at most once per PR per 24 hours; the resulting commit should trigger the normal PR workflow. Verify Dependabot responds to the Actions bot's `@dependabot rebase` comment. Re-running an old workflow does not replace its recorded base.
+
+When a PR was tested against current main but its only failing job was the Sonar scan, the queue retries that workflow's failed jobs once. This can recover a run that started before a missing Dependabot secret was configured. A second failed attempt or failures in other jobs remain for inspection. The retry does not approve or merge the PR; all required checks and the Sonar quality gate must still pass.
 
 An image digest identifies content but does not inherently encode a release version. Registry labels and tags can help identify a version when a publisher supplies reliable metadata, but may be missing or mutable. Unknown updates remain manual rather than being assumed non-major. Versioned tags with digest pins are an option where the publisher and Dependabot support them; verify SonarCloud and Dependabot behaviour on the actual PR.
 

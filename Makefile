@@ -9,4 +9,8 @@ build: dependencies
 
 lint-openapi: build
 	docker compose -f $(CI_TOOLS_COMPOSE) pull vacuum
-	docker compose -f $(CI_TOOLS_COMPOSE) run --rm --no-deps -T -v "$(PWD):/work:ro" vacuum lint -d -r .vacuum.yml src/Api/openapi.json || true
+	mkdir -p TestResults
+	rm -f TestResults/openapi-vacuum.json
+	@status=0; docker compose -f $(CI_TOOLS_COMPOSE) run --rm --no-deps -T --user "$$(id -u):$$(id -g)" -v "$(PWD):/work:ro" -v "$(PWD)/TestResults:/reports" vacuum lint -r .vacuum.yml --format json --output /reports/openapi-vacuum.json src/Api/openapi.json || status=$$?; \
+	  if [ "$$status" -gt 1 ]; then exit "$$status"; fi; \
+	  python3 -c 'import json; r=json.load(open("TestResults/openapi-vacuum.json")); assert isinstance(r, list); print(json.dumps(r, indent=2))'

@@ -1,4 +1,5 @@
 import { readMinorOrPatchUpdates } from './dependabot-metadata.mjs';
+import { queueOutcome, scopedCandidateCore, writeQueueSummary } from './dependabot-queue-reporting.mjs';
 
 const requiredJobs = ['Dependency security review', 'Run Pull Request Checks', 'Run journey tests'];
 const sonarJob = 'CDP SonarCloud Scan / CDP SonarCloud coverage scan';
@@ -11,9 +12,11 @@ const githubActionsIntegrationId = 15368;
 const githubActionsBot = 'github-actions[bot]';
 const methodNotAllowedStatus = 405;
 const conflictStatus = 409;
+const notFoundStatus = 404;
+const unprocessableStatus = 422;
 const blockedMergeStatuses = new Set([methodNotAllowedStatus, conflictStatus]);
-const rebaseMarker = '<!-- dependabot-queue-rebase -->';
-const rebaseCooldownMs = 24 * 60 * 60 * 1000;
+const recoveryRequested = 'recovery-requested';
+const majorReviewLabel = 'dependabot-major-review';
 
 // Accept the canonical signed Dependabot metadata format; unfamiliar formats stay manual.
 export function hasOnlyMinorOrPatchUpdates(message) {
@@ -134,22 +137,30 @@ async function hasReleaseCapacity(github, repository, mainSha, core) {
 export async function processDependabotQueue({ github, context, core, pullNumber }) {
   if (pullNumber) {
     // Explicit recovery of an already merged PR must work while main is unpublished.
-    await mergeDependabotPullRequest({ github, context, core, pullNumber });
+    const candidateCore = scopedCandidateCore(core, context.repo, pullNumber);
+    await mergeDependabotPullRequest({ github, context, core: candidateCore, pullNumber });
 
     return;
   }
 
   const { data: main } = await github.rest.repos.getBranch({ ...context.repo, branch: mainBranch });
+  core.notice(`Scanning Dependabot updates against main ${main.commit.sha}.`);
   if (!await hasReleaseCapacity(github, context.repo, main.commit.sha, core)) {
+    await writeQueueSummary(core, context.repo, main.commit.sha, [], 'Waiting for publication capacity.');
     return;
   }
 
+  const candidates = await listCandidates(github, context.repo, core);
+  await scanCandidates({ github, context, core, candidates, mainSha: main.commit.sha });
+}
+
+async function listCandidates(github, repository, core) {
   const candidates = [];
   for (let page = 1; page <= maxQueuePages; page++) {
     const { data: prs } = await github.rest.pulls.list({
-      ...context.repo, state: 'open', base: mainBranch, sort: 'created', direction: 'asc', per_page: 100, page
+      ...repository, state: 'open', base: mainBranch, sort: 'created', direction: 'asc', per_page: 100, page
     });
-    candidates.push(...prs.filter(x => isDependabotPullRequest(x, `${context.repo.owner}/${context.repo.repo}`)));
+    candidates.push(...prs.filter(x => isDependabotPullRequest(x, `${repository.owner}/${repository.repo}`)));
     if (candidates.length >= maxQueueCandidates || prs.length < 100) {
       break;
     }
@@ -161,10 +172,32 @@ export async function processDependabotQueue({ github, context, core, pullNumber
     core.notice('Queue scan is limited to 50 Dependabot candidates; retry an omitted PR by number.');
   }
 
-  for (const pr of candidates.slice(0, maxQueueCandidates)) {
-    if (await mergeDependabotPullRequest({ github, context, core, pullNumber: pr.number })) {
-      return;
+  return candidates;
+}
+
+async function scanCandidates({ github, context, core, candidates, mainSha }) {
+  const results = [];
+  try {
+    for (const pr of candidates.slice(0, maxQueueCandidates)) {
+      const candidateCore = scopedCandidateCore(core, context.repo, pr.number);
+      candidateCore.notice(`Inspecting head ${pr.head.sha}.`);
+      let result;
+      try {
+        result = await mergeDependabotPullRequest({ github, context, core: candidateCore, pullNumber: pr.number });
+      } catch (error) {
+        candidateCore.notice('Processing failed; see the workflow error for details.');
+        results.push({ number: pr.number, head: pr.head.sha, outcome: 'Error', details: candidateCore.messages.slice(1) });
+        throw error;
+      }
+      const outcome = queueOutcome(result);
+      candidateCore.notice(`Decision: ${outcome}.`);
+      results.push({ number: pr.number, head: pr.head.sha, outcome, details: candidateCore.messages.slice(1, -1) });
+      if (result === true) {
+        break;
+      }
     }
+  } finally {
+    await writeQueueSummary(core, context.repo, mainSha, results);
   }
 }
 
@@ -184,7 +217,7 @@ function isCompletedPullRequestRun(run, latest, repository, pr) {
     && run.head_repository?.full_name === `${repository.owner}/${repository.repo}`;
 
   return expectedWorkflow && run.head_sha === pr.head.sha
-    && run.status === 'completed' && run.conclusion === 'success'
+    && run.status === 'completed'
     && run.run_attempt === latest.run_attempt;
 }
 
@@ -200,32 +233,42 @@ function hasSuccessfulChecks(checks, statuses) {
     && statuses.statuses.every(x => x.state === 'success');
 }
 
-async function getEligibleRun(github, repository, pr, runId, runAttempt, core) {
+async function getCurrentRun(github, repository, pr, runId, runAttempt, core) {
   const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
     ...repository, workflow_id: 'check-pull-request.yml', event: 'pull_request',
     head_sha: pr.head.sha, per_page: 100
   });
   const latest = runs.sort((a, b) => compareRunRecency(b, a))[0];
+  if (!latest) {
+    skip(core, 'No PR CI run exists for this head.');
+    return undefined;
+  }
   if (!matchesRunAttempt(latest, runId, runAttempt)) {
-    skip(core, 'No current CI run, or a newer run/attempt replaced this event.');
+    skip(core, 'A newer CI run or attempt replaced this event.');
 
     return undefined;
   }
 
   const { data: run } = await github.rest.actions.getWorkflowRun({ ...repository, run_id: latest.id });
+  core.notice(`CI run ${run.id}, attempt ${run.run_attempt}: ${run.status}, conclusion ${run.conclusion ?? 'pending'}.`);
   if (!isCompletedPullRequestRun(run, latest, repository, pr) || !recordsCurrentPullRequest(run, pr)) {
-    skip(core, 'CI has not completed for this PR and revision.');
+    skip(core, 'CI is pending or its workflow, head or PR association does not match.');
 
     return undefined;
   }
 
+  core.notice(`CI tested main ${run.pull_requests.find(x => x.number === pr.number).base.sha}.`);
+  return run;
+}
+
+async function hasGreenChecks(github, repository, pr, run, core) {
   const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
     ...repository, run_id: run.id, filter: 'latest', per_page: 100
   });
   if (!hasSuccessfulRequiredJobs(jobs)) {
     skip(core, 'Every required job must succeed; missing, skipped or failed jobs stay manual.');
 
-    return undefined;
+    return false;
   }
 
   const checks = await github.paginate(github.rest.checks.listForRef, {
@@ -235,25 +278,83 @@ async function getEligibleRun(github, repository, pr, runId, runAttempt, core) {
   if (!hasSuccessfulChecks(checks, statuses)) {
     skip(core, 'Another check or commit status is pending or unsuccessful.');
 
-    return undefined;
+    return false;
   }
 
-  return run;
+  return true;
 }
 
 async function verifyCommits(github, repository, pr, core) {
   const commits = await github.paginate(github.rest.pulls.listCommits, {
     ...repository, pull_number: pr.number, per_page: 100
   });
-  if (!commits.length || commits.at(-1).sha !== pr.head.sha || commits.some(x =>
-    x.author?.login !== 'dependabot[bot]' || x.commit.verification?.verified !== true
-    || !hasOnlyMinorOrPatchUpdates(x.commit.message))) {
-    skip(core, 'Every commit must be verified Dependabot metadata containing only minor/patch updates.');
+  if (!commits.length || commits.at(-1).sha !== pr.head.sha) {
+    skip(core, 'Commit list is empty or does not match the current head.');
+    return undefined;
+  }
+  if (commits.some(x => x.author?.login !== 'dependabot[bot]')) {
+    skip(core, 'A commit is not authored by Dependabot.');
+    return undefined;
+  }
+  if (commits.some(x => x.commit.verification?.verified !== true)) {
+    skip(core, 'A commit does not have a verified signature.');
+    return undefined;
+  }
+  if (commits.some(x => !hasOnlyMinorOrPatchUpdates(x.commit.message))) {
+    const major = commits.some(x => /^ {2}update-type: version-update:semver-major\r?$/m.test(x.commit.message));
+    if (major && pr.state === 'open') {
+      await labelMajorUpdate(github, repository, pr, core);
+    }
+    skip(core, major ? 'Update metadata includes a major version; manual review is required.'
+      : 'Update metadata is missing, malformed, mixed or not classified as minor or patch.');
 
     return undefined;
   }
 
+  await removeMajorLabel(github, repository, pr, core);
+
   return commits;
+}
+
+async function removeMajorLabel(github, repository, pr, core) {
+  if (pr.state !== 'open' || !pr.labels?.some(label => label.name === majorReviewLabel)) {
+    return;
+  }
+  try {
+    await github.rest.issues.removeLabel({ ...repository, issue_number: pr.number, name: majorReviewLabel });
+  } catch (error) {
+    if (error.status !== notFoundStatus) {
+      core.warning(`Could not remove the major-version review label from PR #${pr.number}: ${error.message}`);
+    }
+  }
+}
+
+async function labelMajorUpdate(github, repository, pr, core) {
+  try {
+    await ensureMajorLabel(github, repository);
+    await github.rest.issues.addLabels({ ...repository, issue_number: pr.number, labels: [majorReviewLabel] });
+  } catch (error) {
+    core.warning(`Could not label PR #${pr.number} for major-version review: ${error.message}`);
+  }
+}
+
+async function ensureMajorLabel(github, repository) {
+  try {
+    await github.rest.issues.getLabel({ ...repository, name: majorReviewLabel });
+    return;
+  } catch (error) {
+    if (error.status !== notFoundStatus) {
+      throw error;
+    }
+  }
+  try {
+    await github.rest.issues.createLabel({ ...repository, name: majorReviewLabel,
+      color: 'd93f0b', description: 'Dependabot major update requires manual review' });
+  } catch (error) {
+    if (error.status !== unprocessableStatus) {
+      throw error;
+    }
+  }
 }
 
 async function hasStrictMergeRules(github, repository, core) {
@@ -284,7 +385,9 @@ function isFreshPullRequest(currentPr, pr, repository, run, main) {
 export async function mergeDependabotPullRequest({ github, context, core, pullNumber, runId, runAttempt }) {
   const repository = context.repo;
   const { data: pr } = await github.rest.pulls.get({ ...repository, pull_number: pullNumber });
+  core.notice(`Current PR head ${pr.head.sha}.`);
   if (!isDependabotPullRequest(pr, `${repository.owner}/${repository.repo}`) || pr.draft) {
+    skip(core, 'PR is a draft or is not a same-repository Dependabot PR targeting main.');
     return undefined;
   }
 
@@ -304,12 +407,13 @@ export async function mergeDependabotPullRequest({ github, context, core, pullNu
     return true;
   }
   if (pr.state !== 'open') {
+    skip(core, 'PR is not open.');
     return undefined;
   }
 
   const eligibility = await isEligibleOpenPullRequest({ github, repository, pr, runId, runAttempt, core });
-  if (eligibility === 'rebase-requested') {
-    return true;
+  if (eligibility === recoveryRequested) {
+    return eligibility;
   }
   if (!eligibility) {
     return undefined;
@@ -319,7 +423,7 @@ export async function mergeDependabotPullRequest({ github, context, core, pullNu
 }
 
 async function isEligibleOpenPullRequest({ github, repository, pr, runId, runAttempt, core }) {
-  const run = await getEligibleRun(github, repository, pr, runId, runAttempt, core);
+  const run = await getCurrentRun(github, repository, pr, runId, runAttempt, core);
   if (!run || !await hasStrictMergeRules(github, repository, core)) {
     return false;
   }
@@ -327,11 +431,6 @@ async function isEligibleOpenPullRequest({ github, repository, pr, runId, runAtt
   const { data: currentPr } = await github.rest.pulls.get({ ...repository, pull_number: pr.number });
   const { data: main } = await github.rest.repos.getBranch({ ...repository, branch: mainBranch });
   if (!isFreshPullRequest(currentPr, pr, repository, run, main)) {
-    if (isCurrentDependabotPullRequest(currentPr, pr, repository)
-      && await hasReleaseCapacity(github, repository, main.commit.sha, core)
-      && await requestRebase(github, repository, currentPr, main.commit.sha, core)) {
-      return 'rebase-requested';
-    }
     skip(core, 'The PR or main changed since CI; wait for a rebase and a fresh CI run.');
 
     return false;
@@ -341,33 +440,44 @@ async function isEligibleOpenPullRequest({ github, repository, pr, runId, runAtt
     return false;
   }
 
-  return true;
+  if (run.conclusion !== 'success') {
+    if (await retryFailedSonar(github, repository, pr, run, main.commit.sha, core)) {
+      return recoveryRequested;
+    }
+    skip(core, 'CI failed or was cancelled and is not eligible for an automatic Sonar retry.');
+    return false;
+  }
+
+  return hasGreenChecks(github, repository, pr, run, core);
 }
 
-async function requestRebase(github, repository, pr, mainSha, core) {
-  const comments = await github.paginate(github.rest.issues.listComments, {
-    ...repository, issue_number: pr.number, per_page: 100
+function isSonarOnlyFailure(jobs) {
+  return [...requiredJobs, sonarJob].every(name => jobs.filter(job => job.name === name).length === 1)
+    && jobs.every(job => job.status === 'completed'
+      && (job.conclusion === 'success' || (job.name === sonarJob && job.conclusion === 'failure')))
+    && jobs.some(job => job.name === sonarJob && job.conclusion === 'failure');
+}
+
+async function retryFailedSonar(github, repository, pr, run, mainSha, core) {
+  if (run.conclusion !== 'failure' || run.run_attempt !== 1) {
+    return false;
+  }
+  const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
+    ...repository, run_id: run.id, filter: 'latest', per_page: 100
   });
-  const recentRequest = comments.some(comment => comment.user?.login === githubActionsBot
-    && comment.body?.includes(rebaseMarker)
-    && Date.now() - Date.parse(comment.created_at) < rebaseCooldownMs);
-  if (recentRequest) {
-    skip(core, 'A rebase was requested in the last 24 hours; wait before requesting another.');
+  if (!isSonarOnlyFailure(jobs)) {
     return false;
   }
 
   const { data: currentPr } = await github.rest.pulls.get({ ...repository, pull_number: pr.number });
-  const { data: currentMain } = await github.rest.repos.getBranch({ ...repository, branch: mainBranch });
-  if (!isCurrentDependabotPullRequest(currentPr, pr, repository)
-    || currentMain.commit.sha !== mainSha) {
+  const { data: main } = await github.rest.repos.getBranch({ ...repository, branch: mainBranch });
+  const latest = await getCurrentRun(github, repository, pr, run.id, run.run_attempt, core);
+  if (!latest || !isCurrentDependabotPullRequest(currentPr, pr, repository) || main.commit.sha !== mainSha) {
     return false;
   }
 
-  await github.rest.issues.createComment({
-    ...repository, issue_number: pr.number,
-    body: `@dependabot rebase\n\n${rebaseMarker}\nThe last successful checks used an older main revision. Please rebase so CI can test this update against the current main.`
-  });
-  core.notice('Requested a Dependabot rebase; wait for a new signed commit and fresh CI.');
+  await github.rest.actions.reRunWorkflowFailedJobs({ ...repository, run_id: run.id });
+  core.notice('Retried the failed Sonar job once; wait for CI and the quality gate.');
   return true;
 }
 
@@ -401,6 +511,7 @@ async function approveAndMerge(github, repository, pr, core) {
   }
 
   core.setOutput('merge_commit_sha', result.data.sha);
+  core.notice(`Merged head ${pr.head.sha} as ${result.data.sha}; publication will be dispatched.`);
 
   return true;
 }
@@ -432,14 +543,14 @@ export async function dispatchPublish({ github, context, core, mergeCommitSha })
   });
   for (const run of runs) {
     if (run.status !== 'completed' || await hasPublished(github, repository, run)) {
-      core.notice('Publish is already active or has published this main revision.');
+      core.notice(`Publish run ${run.id} is active or has published main ${main.commit.sha}.`);
 
       return;
     }
   }
 
   await github.rest.actions.createWorkflowDispatch({ ...repository, workflow_id: publishWorkflow, ref: mainBranch });
-  core.notice('Requested Publish on main. Check its result; rerun this workflow with the PR number if dispatch or publishing fails.');
+  core.notice(`Requested Publish on main ${main.commit.sha} after merge ${mergeCommitSha}. Check the result; rerun this workflow with the PR number if dispatch or publishing fails.`);
 }
 
 export async function shouldPublish({ github, context, core }) {
