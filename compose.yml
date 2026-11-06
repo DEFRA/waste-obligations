@@ -25,7 +25,7 @@ services:
     pull_policy: always
     environment:
       TZ: Europe/London
-    image: sheyenrath/wiremock.net:2.14.0@sha256:3d31cf7a0b5ad8062c9ae1ba36e2355f4b034102bd980217d5003da5effd0e10
+    image: sheyenrath/wiremock.net:2.20.0@sha256:6b938666b50310222e83eb5217941ddaf410518250b29f9290ffcf415fe0f26c
     ports:
       - "9090:80"
 
