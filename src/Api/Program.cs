@@ -71,6 +71,7 @@ try
         !integrationTest && !openApiBuild
     );
 
+    builder.Services.AddObligationCalculation();
     builder.Services.AddGovukNotify();
     builder.Services.AddAuditEvents(builder.Configuration, !integrationTest && !openApiBuild);
     builder.Services.AddConsumers(builder.Configuration, !integrationTest && !openApiBuild);
