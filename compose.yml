@@ -30,7 +30,7 @@ services:
       - "9090:80"
 
   floci:
-    image: floci/floci:2.1.0@sha256:f5aa8c18302cedb4f2385f5c4e455b3efc77fee6bf7b6e5d1712b2817ba102db
+    image: floci/floci:2.4.0@sha256:5ee85db604c4aa74ac76e07ea5cc83086f37bb472bf3dbb97e34019e48efae9c
     ports:
       - 4566:4566
     healthcheck:
