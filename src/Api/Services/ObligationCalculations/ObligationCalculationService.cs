@@ -34,12 +34,8 @@ public class ObligationCalculationService(IDbContext dbContext) : IObligationCal
         );
         // Capture the payload and expected version once, outside the transaction retry boundary.
         var previous = await currentCollection.Find(renderedIdentity).SingleOrDefaultAsync(cancellationToken);
-        if (previous is not null)
-        {
-            var current = BsonSerializer.Deserialize<ObligationCalculation>(previous);
-            if (!calculation.RequiresNewVersion(current))
-                return current;
-        }
+        if (GetUnchangedCalculation(previous, calculation) is { } current)
+            return current;
 
         var replacement = new ObligationCalculation
         {
@@ -111,6 +107,18 @@ public class ObligationCalculationService(IDbContext dbContext) : IObligationCal
                 "An obligation calculation already exists for this organisation and year. Reload and try again."
             );
         }
+    }
+
+    private static ObligationCalculation? GetUnchangedCalculation(
+        BsonDocument? previous,
+        ObligationCalculation incoming
+    )
+    {
+        if (previous is null)
+            return null;
+
+        var current = BsonSerializer.Deserialize<ObligationCalculation>(previous);
+        return incoming.RequiresNewVersion(current) ? null : current;
     }
 
     private static bool IsIdentityCollision(WriteError error) =>
