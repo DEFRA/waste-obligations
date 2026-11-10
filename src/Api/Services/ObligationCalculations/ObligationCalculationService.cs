@@ -9,6 +9,8 @@ namespace Defra.WasteObligations.Api.Services.ObligationCalculations;
 
 public class ObligationCalculationService(IDbContext dbContext) : IObligationCalculationService
 {
+    private const string VersionField = "version";
+
     public async Task<ObligationCalculation> Save(
         ObligationCalculation calculation,
         CancellationToken cancellationToken
@@ -41,7 +43,7 @@ public class ObligationCalculationService(IDbContext dbContext) : IObligationCal
         var replacement = new ObligationCalculation
         {
             Id = previous is null ? ObjectId.GenerateNewId() : previous["_id"].AsObjectId,
-            Version = previous is null ? 1 : checked(previous["version"].AsInt32 + 1),
+            Version = previous is null ? 1 : checked(previous[VersionField].AsInt32 + 1),
             SubmitterOrganisationId = calculation.SubmitterOrganisationId,
             SubmitterType = calculation.SubmitterType,
             ObligationYear = calculation.ObligationYear,
@@ -66,7 +68,7 @@ public class ObligationCalculationService(IDbContext dbContext) : IObligationCal
                         var expected = new BsonDocument
                         {
                             { "_id", previous["_id"] },
-                            { "version", previous["version"] },
+                            { VersionField, previous[VersionField] },
                         };
                         var stillCurrent = await currentCollection.Find(session, expected).AnyAsync(token);
                         if (!stillCurrent)
@@ -79,7 +81,7 @@ public class ObligationCalculationService(IDbContext dbContext) : IObligationCal
                             new ObligationCalculationHistory
                             {
                                 CalculationId = replacement.Id,
-                                Version = previous["version"].AsInt32,
+                                Version = previous[VersionField].AsInt32,
                                 Calculation = previous,
                             },
                             cancellationToken: token
