@@ -94,8 +94,8 @@ public class ObligationCalculationServiceTests : IntegrationTestBase
         third.Id.Should().Be(first.Id);
         third.Version.Should().Be(3);
         history.Select(x => x.Version).Should().Equal(1, 2);
-        history[0].Calculation.Should().Be(original);
-        history[1].Calculation.Should().Be(second.ToBsonDocument());
+        history[0].Calculation.Equals(original).Should().BeTrue();
+        history[1].Calculation.Equals(second.ToBsonDocument()).Should().BeTrue();
         second.Producers[0].Materials[0].InputTonnes.Should().Be(first.Producers[0].Materials[0].InputTonnes);
         second.Producers[0].Materials[0].ObligationTonnes.Should().Be(first.Producers[0].Materials[0].ObligationTonnes);
     }
@@ -165,8 +165,9 @@ public class ObligationCalculationServiceTests : IntegrationTestBase
 
         saved.Version.Should().Be(2);
         (await History.Find(x => x.CalculationId == first.Id).SingleAsync(TestContext.Current.CancellationToken))
-            .Calculation.Should()
-            .Be(first.ToBsonDocument());
+            .Calculation.Equals(first.ToBsonDocument())
+            .Should()
+            .BeTrue();
     }
 
     [Theory]
@@ -422,8 +423,9 @@ public class ObligationCalculationServiceTests : IntegrationTestBase
                 .ObligationCalculationHistory.Find(x => x.CalculationId == first.Id && x.Version == 1)
                 .SingleAsync(TestContext.Current.CancellationToken)
         )
-            .Calculation.Should()
-            .Be(first.ToBsonDocument());
+            .Calculation.Equals(first.ToBsonDocument())
+            .Should()
+            .BeTrue();
         (
             await application
                 .ObligationCalculationHistory.Find(x => x.CalculationId == first.Id)
@@ -434,16 +436,16 @@ public class ObligationCalculationServiceTests : IntegrationTestBase
             .ContainSingle();
     }
 
-    private IMongoCollection<ObligationCalculation> Current =>
+    private static IMongoCollection<ObligationCalculation> Current =>
         GetMongoDatabase().GetCollection<ObligationCalculation>(nameof(ObligationCalculation));
-    private IMongoCollection<BsonDocument> RawCurrent =>
+    private static IMongoCollection<BsonDocument> RawCurrent =>
         GetMongoDatabase().GetCollection<BsonDocument>(nameof(ObligationCalculation));
-    private IMongoCollection<ObligationCalculationHistory> History =>
+    private static IMongoCollection<ObligationCalculationHistory> History =>
         GetMongoDatabase().GetCollection<ObligationCalculationHistory>(nameof(ObligationCalculationHistory));
 
-    private ObligationCalculationService Subject() => new(Context());
+    private static ObligationCalculationService Subject() => new(Context());
 
-    private MongoDbContext Context() =>
+    private static MongoDbContext Context() =>
         new(
             GetMongoApplicationDatabase(),
             Options.Create(new MongoDbOptions()),
