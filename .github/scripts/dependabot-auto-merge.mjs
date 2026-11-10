@@ -301,28 +301,43 @@ async function verifyCommits(github, repository, pr, core) {
     skip(core, 'A commit does not have a verified signature.');
     return undefined;
   }
-  if (commits.some(x => !hasOnlyMinorOrPatchUpdates(x.commit.message))) {
-    const updates = commits.length === 1 ? readUpdates(commits[0].commit.message) : undefined;
-    const files = pr.state === 'open' && updates?.length === 1 && updates[0].types.length === 0
-      ? await github.paginate(github.rest.pulls.listFiles, { ...repository, pull_number: pr.number, per_page: 100 }) : [];
-    const imageUpdate = commits.length === 1 ? classifyImageUpdate(commits[0].commit.message, files) : undefined;
-    if (imageUpdate === 'minor' || imageUpdate === 'patch') {
-      await removeMajorLabel(github, repository, pr, core);
-      return commits;
-    }
-    const major = commits.some(x => /^ {2}update-type: version-update:semver-major\r?$/m.test(x.commit.message));
-    if (major && pr.state === 'open') {
-      await labelMajorUpdate(github, repository, pr, core);
-    }
-    skip(core, major ? 'Update metadata includes a major version; manual review is required.'
-      : 'Update metadata is missing, malformed, mixed or not classified as minor or patch.');
-
+  if (!await hasEligibleUpdates(github, repository, pr, commits, core)) {
     return undefined;
   }
 
   await removeMajorLabel(github, repository, pr, core);
 
   return commits;
+}
+
+async function hasEligibleUpdates(github, repository, pr, commits, core) {
+  if (commits.every(x => hasOnlyMinorOrPatchUpdates(x.commit.message))) {
+    return true;
+  }
+  if (await hasEligibleImageUpdate(github, repository, pr, commits)) {
+    return true;
+  }
+  const major = commits.some(x => /^ {2}update-type: version-update:semver-major\r?$/m.test(x.commit.message));
+  if (major && pr.state === 'open') {
+    await labelMajorUpdate(github, repository, pr, core);
+  }
+  skip(core, major ? 'Update metadata includes a major version; manual review is required.'
+    : 'Update metadata is missing, malformed, mixed or not classified as minor or patch.');
+  return false;
+}
+
+async function hasEligibleImageUpdate(github, repository, pr, commits) {
+  if (commits.length !== 1 || pr.state !== 'open') {
+    return false;
+  }
+  const message = commits[0].commit.message;
+  const updates = readUpdates(message);
+  if (updates?.length !== 1 || updates[0].types.length !== 0) {
+    return false;
+  }
+  const files = await github.paginate(github.rest.pulls.listFiles, { ...repository, pull_number: pr.number, per_page: 100 });
+  const imageUpdate = classifyImageUpdate(message, files);
+  return imageUpdate === 'minor' || imageUpdate === 'patch';
 }
 
 async function removeMajorLabel(github, repository, pr, core) {
