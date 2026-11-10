@@ -34,7 +34,9 @@ public class ObligationCalculationIndexesTests : IntegrationTestBase
                 await history.Indexes.ListAsync(TestContext.Current.CancellationToken)
             ).ToListAsync(TestContext.Current.CancellationToken);
             var historicalIdentity = historicalIndexes.Single(x => x["name"] == "CalculationId_Version");
-            historicalIdentity["key"].Should().Be(new BsonDocument { { "calculationId", 1 }, { "version", 1 } });
+            historicalIdentity["key"]
+                .Should()
+                .Be(new BsonDocument { { "calculation._id", 1 }, { "calculation.version", 1 } });
             historicalIdentity["unique"].AsBoolean.Should().BeTrue();
 
             await subject.DownAsync(context);

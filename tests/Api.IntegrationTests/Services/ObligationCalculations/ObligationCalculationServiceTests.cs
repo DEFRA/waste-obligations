@@ -87,20 +87,22 @@ public class ObligationCalculationServiceTests : IntegrationTestBase
             TestContext.Current.CancellationToken
         );
         var history = await History
-            .Find(x => x.CalculationId == first.Id)
-            .SortBy(x => x.Version)
+            .Find(x => x.Calculation.Id == first.Id)
+            .SortBy(x => x.Calculation.Version)
             .ToListAsync(TestContext.Current.CancellationToken);
 
         third.Id.Should().Be(first.Id);
         third.Version.Should().Be(3);
-        history.Select(x => x.Version).Should().Equal(1, 2);
+        history.Select(x => x.Calculation.Version).Should().Equal(1, 2);
         history[0].Calculation.SchemaVersion.Should().Be("v0.9");
         history[1].Calculation.SchemaVersion.Should().Be("v1.0");
         var rawHistory = await GetMongoDatabase()
             .GetCollection<BsonDocument>(nameof(ObligationCalculationHistory))
-            .Find(new BsonDocument("calculationId", first.Id))
-            .Sort(new BsonDocument("version", 1))
+            .Find(new BsonDocument("calculation._id", first.Id))
+            .Sort(new BsonDocument("calculation.version", 1))
             .ToListAsync(TestContext.Current.CancellationToken);
+        rawHistory[0].Contains("calculationId").Should().BeFalse();
+        rawHistory[0].Contains("version").Should().BeFalse();
         rawHistory[0]["calculation"].AsBsonDocument.Equals(original).Should().BeTrue();
         rawHistory[1]["calculation"].AsBsonDocument.Equals(second.ToBsonDocument()).Should().BeTrue();
         second.Producers[0].Materials[0].InputTonnes.Should().Be(first.Producers[0].Materials[0].InputTonnes);
@@ -171,7 +173,7 @@ public class ObligationCalculationServiceTests : IntegrationTestBase
         var saved = await subject.Save(changed, TestContext.Current.CancellationToken);
 
         saved.Version.Should().Be(2);
-        (await History.Find(x => x.CalculationId == first.Id).SingleAsync(TestContext.Current.CancellationToken))
+        (await History.Find(x => x.Calculation.Id == first.Id).SingleAsync(TestContext.Current.CancellationToken))
             .Calculation.Should()
             .BeEquivalentTo(first);
     }
@@ -373,12 +375,7 @@ public class ObligationCalculationServiceTests : IntegrationTestBase
     {
         var first = await Subject().Save(Calculation(), TestContext.Current.CancellationToken);
         await History.InsertOneAsync(
-            new ObligationCalculationHistory
-            {
-                CalculationId = first.Id,
-                Version = first.Version,
-                Calculation = first,
-            },
+            new ObligationCalculationHistory { Calculation = first },
             cancellationToken: TestContext.Current.CancellationToken
         );
         Func<Task> save = () => Subject().Save(ChangeKilograms(first), TestContext.Current.CancellationToken);
@@ -426,15 +423,15 @@ public class ObligationCalculationServiceTests : IntegrationTestBase
             .Be(2);
         (
             await application
-                .ObligationCalculationHistory.Find(x => x.CalculationId == first.Id && x.Version == 1)
+                .ObligationCalculationHistory.Find(x => x.Calculation.Id == first.Id && x.Calculation.Version == 1)
                 .SingleAsync(TestContext.Current.CancellationToken)
         )
             .Calculation.Should()
             .BeEquivalentTo(first);
         (
             await application
-                .ObligationCalculationHistory.Find(x => x.CalculationId == first.Id)
-                .SortBy(x => x.Version)
+                .ObligationCalculationHistory.Find(x => x.Calculation.Id == first.Id)
+                .SortBy(x => x.Calculation.Version)
                 .ToListAsync(TestContext.Current.CancellationToken)
         )
             .Should()

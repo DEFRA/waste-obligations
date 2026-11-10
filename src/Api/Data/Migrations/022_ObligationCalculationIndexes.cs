@@ -36,7 +36,7 @@ public class ObligationCalculationIndexes : MongoMigration
             .Database.GetCollection<BsonDocument>(nameof(ObligationCalculationHistory))
             .Indexes.CreateOneAsync(
                 new CreateIndexModel<BsonDocument>(
-                    new BsonDocument { { "calculationId", 1 }, { "version", 1 } },
+                    new BsonDocument { { "calculation._id", 1 }, { "calculation.version", 1 } },
                     new CreateIndexOptions { Name = HistoryIndexName, Unique = true }
                 ),
                 cancellationToken: context.CancellationToken

@@ -83,13 +83,7 @@ public class ObligationCalculationService(IDbContext dbContext) : IObligationCal
                         );
                         await rawHistory.InsertOneAsync(
                             session,
-                            new BsonDocument
-                            {
-                                { "_id", ObjectId.GenerateNewId() },
-                                { "calculationId", replacement.Id },
-                                { VersionField, previous[VersionField] },
-                                { "calculation", previous },
-                            },
+                            new BsonDocument { { "_id", ObjectId.GenerateNewId() }, { "calculation", previous } },
                             cancellationToken: token
                         );
                         var result = await currentCollection.ReplaceOneAsync(

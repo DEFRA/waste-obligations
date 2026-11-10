@@ -7,7 +7,5 @@ namespace Defra.WasteObligations.Api.Data.Entities;
 public record ObligationCalculationHistory
 {
     public ObjectId Id { get; init; } = ObjectId.GenerateNewId();
-    public required ObjectId CalculationId { get; init; }
-    public required int Version { get; init; }
     public required ObligationCalculation Calculation { get; init; }
 }
