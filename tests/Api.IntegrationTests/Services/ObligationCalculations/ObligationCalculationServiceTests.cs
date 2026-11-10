@@ -60,6 +60,34 @@ public class ObligationCalculationServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Save_WhenIncomingIdentityAndVersionAreStale_ShouldUseCurrentStoredVersion()
+    {
+        var subject = Subject();
+        var first = await subject.Save(Calculation(), TestContext.Current.CancellationToken);
+        var second = await subject.Save(ChangeKilograms(first), TestContext.Current.CancellationToken);
+        var stale = ChangeKilograms(ChangeKilograms(first)) with { Id = ObjectId.GenerateNewId() };
+
+        var saved = await subject.Save(stale, TestContext.Current.CancellationToken);
+
+        saved.Id.Should().Be(first.Id);
+        saved.Version.Should().Be(3);
+        (
+            await History
+                .Find(x => x.Calculation.Id == first.Id)
+                .SortBy(x => x.Calculation.Version)
+                .ToListAsync(TestContext.Current.CancellationToken)
+        )
+            .Select(x => x.Calculation.Version)
+            .Should()
+            .Equal(1, 2);
+        saved
+            .Producers[0]
+            .Materials[0]
+            .InputKilograms.Should()
+            .Be(second.Producers[0].Materials[0].InputKilograms + 100);
+    }
+
+    [Fact]
     public async Task Save_ShouldArchiveExactPreviousPayloadAndOnlySupersededVersions()
     {
         var subject = Subject();

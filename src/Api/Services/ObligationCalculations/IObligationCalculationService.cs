@@ -4,5 +4,10 @@ namespace Defra.WasteObligations.Api.Services.ObligationCalculations;
 
 public interface IObligationCalculationService
 {
+    /// <summary>
+    /// Saves calculation data using the current version read during this save attempt.
+    /// The incoming ID and version are ignored; they do not enforce caller-side concurrency.
+    /// A conflict must be retried by the caller with a fresh save attempt.
+    /// </summary>
     Task<ObligationCalculation> Save(ObligationCalculation calculation, CancellationToken cancellationToken);
 }
