@@ -34,11 +34,12 @@ public class ObligationCalculationService(IDbContext dbContext) : IObligationCal
         );
         // Capture the payload and expected version once, outside the transaction retry boundary.
         var previous = await currentCollection.Find(renderedIdentity).SingleOrDefaultAsync(cancellationToken);
-        if (
-            previous is not null
-            && Equivalent(BsonSerializer.Deserialize<ObligationCalculation>(previous), calculation)
-        )
-            return BsonSerializer.Deserialize<ObligationCalculation>(previous);
+        if (previous is not null)
+        {
+            var current = BsonSerializer.Deserialize<ObligationCalculation>(previous);
+            if (!calculation.RequiresNewVersion(current))
+                return current;
+        }
 
         var replacement = new ObligationCalculation
         {
@@ -124,17 +125,4 @@ public class ObligationCalculationService(IDbContext dbContext) : IObligationCal
                 StringComparison.Ordinal
             )
         );
-
-    private static bool Equivalent(ObligationCalculation current, ObligationCalculation incoming) =>
-        current.SubmitterType == incoming.SubmitterType
-        && current.Producers.Count == incoming.Producers.Count
-        && current
-            .Producers.OrderBy(x => x.ProducerOrganisationId)
-            .Zip(incoming.Producers.OrderBy(x => x.ProducerOrganisationId))
-            .All(pair =>
-                pair.First.ProducerOrganisationId == pair.Second.ProducerOrganisationId
-                && pair.First.Materials.Count == pair.Second.Materials.Count
-                && pair.First.Materials.OrderBy(x => x.MaterialCode, StringComparer.Ordinal)
-                    .SequenceEqual(pair.Second.Materials.OrderBy(x => x.MaterialCode, StringComparer.Ordinal))
-            );
 }
