@@ -29,8 +29,12 @@ public class ObligationCalculatorTests(ApiWebApplicationFactory factory) : IClas
             .Materials.Select(x => x.MaterialCode)
             .Should()
             .Equal("PL", "PC", "FC", "AL", "ST", "WD", "GL", "GR");
-        result.Producers.Single().Materials.Select(x => x.Obligation).Should().Equal(expected.Select(x => (long)x));
-        result.Producers.Single().Materials.Should().OnlyContain(x => x.InputTonnage == 100);
+        result
+            .Producers.Single()
+            .Materials.Select(x => x.ObligationTonnes)
+            .Should()
+            .Equal(expected.Select(x => (long)x));
+        result.Producers.Single().Materials.Should().OnlyContain(x => x.InputTonnes == 100);
     }
 
     [Theory]
@@ -45,7 +49,7 @@ public class ObligationCalculatorTests(ApiWebApplicationFactory factory) : IClas
     {
         var result = Calculator().Calculate(Submission([material], kilograms), 2025);
 
-        result.Producers.Single().Materials.Single().Obligation.Should().Be(expected);
+        result.Producers.Single().Materials.Single().ObligationTonnes.Should().Be(expected);
     }
 
     [Theory]
@@ -57,7 +61,8 @@ public class ObligationCalculatorTests(ApiWebApplicationFactory factory) : IClas
     {
         var result = Calculator().Calculate(Submission(["GL"], kilograms), 2025);
 
-        result.Producers.Single().Materials.Select(x => x.Obligation).Should().Equal(remainder, remelt);
+        result.Producers.Single().Materials.Select(x => x.ObligationTonnes).Should().Equal(remainder, remelt);
+        result.Producers.Single().Materials.Should().OnlyContain(x => x.InputKilograms == kilograms);
     }
 
     [Theory]
@@ -70,8 +75,9 @@ public class ObligationCalculatorTests(ApiWebApplicationFactory factory) : IClas
     {
         var result = Calculator().Calculate(Submission(["PL"], kilograms), 2025);
 
-        result.Producers.Single().Materials.Single().InputTonnage.Should().Be(tonnes);
-        result.Producers.Single().Materials.Single().Obligation.Should().Be(obligation);
+        result.Producers.Single().Materials.Single().InputKilograms.Should().Be(kilograms);
+        result.Producers.Single().Materials.Single().InputTonnes.Should().Be(tonnes);
+        result.Producers.Single().Materials.Single().ObligationTonnes.Should().Be(obligation);
     }
 
     [Fact]
@@ -123,18 +129,20 @@ public class ObligationCalculatorTests(ApiWebApplicationFactory factory) : IClas
                     new()
                     {
                         MaterialCode = "GL",
-                        InputTonnage = 3,
-                        Obligation = 1,
+                        InputKilograms = 3_000,
+                        InputTonnes = 3,
+                        ObligationTonnes = 1,
                     },
                     new()
                     {
                         MaterialCode = "GR",
-                        InputTonnage = 3,
-                        Obligation = 2,
+                        InputKilograms = 3_000,
+                        InputTonnes = 3,
+                        ObligationTonnes = 2,
                     },
                 }
             );
-        result.Producers[1].Materials.Single().Obligation.Should().Be(56);
+        result.Producers[1].Materials.Single().ObligationTonnes.Should().Be(56);
     }
 
     [Fact]

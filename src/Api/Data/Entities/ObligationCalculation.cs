@@ -6,6 +6,11 @@ namespace Defra.WasteObligations.Api.Data.Entities;
 [BsonIgnoreExtraElements]
 public record ObligationCalculation
 {
+    public const string SchemaVersionValue = "v1.0";
+    public ObjectId Id { get; init; }
+    public int Version { get; init; } = 1;
+    public string SchemaVersion { get; private init; } = SchemaVersionValue;
+
     [BsonGuidRepresentation(GuidRepresentation.Standard)]
     public required Guid SubmitterOrganisationId { get; init; }
 

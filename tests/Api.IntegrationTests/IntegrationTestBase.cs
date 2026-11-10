@@ -90,6 +90,8 @@ public abstract class IntegrationTestBase : IAsyncLifetime
             OrganisationObligationRequestPacingState.CollectionName
         );
 
+        await DeleteMany(GetMongoCollection<ObligationCalculation>());
+        await DeleteMany(GetMongoCollection<ObligationCalculationHistory>());
         await DeleteMany(ComplianceDeclarations);
         await DeleteMany(AuditEventCounters);
         await DeleteMany(AuditEvents);
