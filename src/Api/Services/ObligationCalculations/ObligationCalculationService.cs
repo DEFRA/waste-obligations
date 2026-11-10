@@ -1,5 +1,6 @@
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
+using Defra.WasteObligations.Api.Data.Migrations;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
@@ -111,8 +112,16 @@ public class ObligationCalculationService(IDbContext dbContext) : IObligationCal
 
     private static bool IsIdentityCollision(WriteError error) =>
         error.Category == ServerErrorCategory.DuplicateKey
-        && error.Details?.GetValue("keyPattern", BsonNull.Value) is BsonDocument pattern
-        && pattern.Equals(new BsonDocument { { "submitterOrganisationId", 1 }, { "obligationYear", 1 } });
+        && (
+            (
+                error.Details?.GetValue("keyPattern", BsonNull.Value) is BsonDocument pattern
+                && pattern.Equals(new BsonDocument { { "submitterOrganisationId", 1 }, { "obligationYear", 1 } })
+            )
+            || error.Message.Contains(
+                $" index: {ObligationCalculationIndexes.IdentityIndexName} dup key:",
+                StringComparison.Ordinal
+            )
+        );
 
     private static bool Equivalent(ObligationCalculation current, ObligationCalculation incoming) =>
         current.SubmitterType == incoming.SubmitterType
