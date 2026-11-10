@@ -94,8 +94,15 @@ public class ObligationCalculationServiceTests : IntegrationTestBase
         third.Id.Should().Be(first.Id);
         third.Version.Should().Be(3);
         history.Select(x => x.Version).Should().Equal(1, 2);
-        history[0].Calculation.Equals(original).Should().BeTrue();
-        history[1].Calculation.Equals(second.ToBsonDocument()).Should().BeTrue();
+        history[0].Calculation.SchemaVersion.Should().Be("v0.9");
+        history[1].Calculation.SchemaVersion.Should().Be("v1.0");
+        var rawHistory = await GetMongoDatabase()
+            .GetCollection<BsonDocument>(nameof(ObligationCalculationHistory))
+            .Find(new BsonDocument("calculationId", first.Id))
+            .Sort(new BsonDocument("version", 1))
+            .ToListAsync(TestContext.Current.CancellationToken);
+        rawHistory[0]["calculation"].AsBsonDocument.Equals(original).Should().BeTrue();
+        rawHistory[1]["calculation"].AsBsonDocument.Equals(second.ToBsonDocument()).Should().BeTrue();
         second.Producers[0].Materials[0].InputTonnes.Should().Be(first.Producers[0].Materials[0].InputTonnes);
         second.Producers[0].Materials[0].ObligationTonnes.Should().Be(first.Producers[0].Materials[0].ObligationTonnes);
     }
@@ -165,9 +172,8 @@ public class ObligationCalculationServiceTests : IntegrationTestBase
 
         saved.Version.Should().Be(2);
         (await History.Find(x => x.CalculationId == first.Id).SingleAsync(TestContext.Current.CancellationToken))
-            .Calculation.Equals(first.ToBsonDocument())
-            .Should()
-            .BeTrue();
+            .Calculation.Should()
+            .BeEquivalentTo(first);
     }
 
     [Theory]
@@ -371,7 +377,7 @@ public class ObligationCalculationServiceTests : IntegrationTestBase
             {
                 CalculationId = first.Id,
                 Version = first.Version,
-                Calculation = first.ToBsonDocument(),
+                Calculation = first,
             },
             cancellationToken: TestContext.Current.CancellationToken
         );
@@ -423,9 +429,8 @@ public class ObligationCalculationServiceTests : IntegrationTestBase
                 .ObligationCalculationHistory.Find(x => x.CalculationId == first.Id && x.Version == 1)
                 .SingleAsync(TestContext.Current.CancellationToken)
         )
-            .Calculation.Equals(first.ToBsonDocument())
-            .Should()
-            .BeTrue();
+            .Calculation.Should()
+            .BeEquivalentTo(first);
         (
             await application
                 .ObligationCalculationHistory.Find(x => x.CalculationId == first.Id)

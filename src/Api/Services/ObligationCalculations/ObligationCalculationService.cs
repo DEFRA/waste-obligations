@@ -76,13 +76,19 @@ public class ObligationCalculationService(IDbContext dbContext) : IObligationCal
                                 "The obligation calculation has changed. Reload and try again."
                             );
 
-                        await dbContext.ObligationCalculationHistory.InsertOneAsync(
+                        var history = dbContext.ObligationCalculationHistory;
+                        var rawHistory = history.Database.GetCollection<BsonDocument>(
+                            history.CollectionNamespace.CollectionName,
+                            history.Settings
+                        );
+                        await rawHistory.InsertOneAsync(
                             session,
-                            new ObligationCalculationHistory
+                            new BsonDocument
                             {
-                                CalculationId = replacement.Id,
-                                Version = previous[VersionField].AsInt32,
-                                Calculation = previous,
+                                { "_id", ObjectId.GenerateNewId() },
+                                { "calculationId", replacement.Id },
+                                { VersionField, previous[VersionField] },
+                                { "calculation", previous },
                             },
                             cancellationToken: token
                         );
