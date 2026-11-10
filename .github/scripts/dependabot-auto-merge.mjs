@@ -1,4 +1,5 @@
-import { readMinorOrPatchUpdates } from './dependabot-metadata.mjs';
+import { readMinorOrPatchUpdates, readUpdates } from './dependabot-metadata.mjs';
+import { classifyImageUpdate } from './dependabot-image-update.mjs';
 import { queueOutcome, scopedCandidateCore, writeQueueSummary } from './dependabot-queue-reporting.mjs';
 
 const requiredJobs = ['Dependency security review', 'Run Pull Request Checks', 'Run journey tests'];
@@ -301,6 +302,14 @@ async function verifyCommits(github, repository, pr, core) {
     return undefined;
   }
   if (commits.some(x => !hasOnlyMinorOrPatchUpdates(x.commit.message))) {
+    const updates = commits.length === 1 ? readUpdates(commits[0].commit.message) : undefined;
+    const files = pr.state === 'open' && updates?.length === 1 && updates[0].types.length === 0
+      ? await github.paginate(github.rest.pulls.listFiles, { ...repository, pull_number: pr.number, per_page: 100 }) : [];
+    const imageUpdate = commits.length === 1 ? classifyImageUpdate(commits[0].commit.message, files) : undefined;
+    if (imageUpdate === 'minor' || imageUpdate === 'patch') {
+      await removeMajorLabel(github, repository, pr, core);
+      return commits;
+    }
     const major = commits.some(x => /^ {2}update-type: version-update:semver-major\r?$/m.test(x.commit.message));
     if (major && pr.state === 'open') {
       await labelMajorUpdate(github, repository, pr, core);
