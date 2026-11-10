@@ -6,11 +6,11 @@ function readImageMetadata(message) {
     return undefined;
   }
   const { name, versions: [version] } = updates[0];
-  const title = /^Bump (\S+) from (v?\d+\.\d+\.\d+) to (v?\d+\.\d+\.\d+) in \S+$/m.exec(message);
-  if (title?.[1] !== name || title?.[3] !== version) {
+  const title = /^Bump (?<name>\S+) from (?<oldTag>v?\d+\.\d+\.\d+) to (?<newTag>v?\d+\.\d+\.\d+) in \S+$/m.exec(message)?.groups;
+  if (title?.name !== name || title?.newTag !== version) {
     return undefined;
   }
-  return { name, oldTag: title[2], newTag: version };
+  return { name, oldTag: title.oldTag, newTag: version };
 }
 
 function matchesImageChange(files, update) {
@@ -46,4 +46,18 @@ export function classifyImageUpdate(message, files) {
     return undefined;
   }
   return classifyVersions(update.oldTag, update.newTag);
+}
+
+export async function hasEligibleImageUpdate(github, repository, pr, commits) {
+  if (commits.length !== 1 || pr.state !== 'open') {
+    return false;
+  }
+  const message = commits[0].commit.message;
+  const updates = readUpdates(message);
+  if (updates?.length !== 1 || updates[0].types.length !== 0) {
+    return false;
+  }
+  const files = await github.paginate(github.rest.pulls.listFiles, { ...repository, pull_number: pr.number, per_page: 100 });
+  const imageUpdate = classifyImageUpdate(message, files);
+  return imageUpdate === 'minor' || imageUpdate === 'patch';
 }

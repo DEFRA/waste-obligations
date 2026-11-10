@@ -1,5 +1,5 @@
-import { readMinorOrPatchUpdates, readUpdates } from './dependabot-metadata.mjs';
-import { classifyImageUpdate } from './dependabot-image-update.mjs';
+import { readMinorOrPatchUpdates } from './dependabot-metadata.mjs';
+import { hasEligibleImageUpdate } from './dependabot-image-update.mjs';
 import { queueOutcome, scopedCandidateCore, writeQueueSummary } from './dependabot-queue-reporting.mjs';
 
 const requiredJobs = ['Dependency security review', 'Run Pull Request Checks', 'Run journey tests'];
@@ -324,20 +324,6 @@ async function hasEligibleUpdates(github, repository, pr, commits, core) {
   skip(core, major ? 'Update metadata includes a major version; manual review is required.'
     : 'Update metadata is missing, malformed, mixed or not classified as minor or patch.');
   return false;
-}
-
-async function hasEligibleImageUpdate(github, repository, pr, commits) {
-  if (commits.length !== 1 || pr.state !== 'open') {
-    return false;
-  }
-  const message = commits[0].commit.message;
-  const updates = readUpdates(message);
-  if (updates?.length !== 1 || updates[0].types.length !== 0) {
-    return false;
-  }
-  const files = await github.paginate(github.rest.pulls.listFiles, { ...repository, pull_number: pr.number, per_page: 100 });
-  const imageUpdate = classifyImageUpdate(message, files);
-  return imageUpdate === 'minor' || imageUpdate === 'patch';
 }
 
 async function removeMajorLabel(github, repository, pr, core) {

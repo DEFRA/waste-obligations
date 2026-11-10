@@ -207,6 +207,24 @@ test('image update with a mismatched target version remains ineligible', async (
   assert.equal(h.effects.merges.length, 0);
 });
 
+for (const [description, change] of [
+  ['mismatched dependency name', update => { update.message = update.message.replace('Bump dshanley/vacuum', 'Bump other/image'); }],
+  ['missing version metadata', update => { update.message = update.message.replace('  dependency-version: v0.36.3\n', ''); }],
+  ['missing patch', update => { delete update.file.patch; }],
+  ['major version', update => Object.assign(update, imageUpdate('v0.36.2', 'v1.0.0'))],
+  ['downgrade', update => Object.assign(update, imageUpdate('v0.36.2', 'v0.36.1'))]
+]) {
+  test(`image update with ${description} remains ineligible`, async () => {
+    const h = harness();
+    const update = imageUpdate('v0.36.2', 'v0.36.3');
+    change(update);
+    h.state.commits[0].commit.message = update.message;
+    h.state.files = [update.file];
+    await merge(h);
+    assert.equal(h.effects.merges.length, 0);
+  });
+}
+
 function assertUntouched(h) {
   assert.deepEqual(h.effects, { reviews: [], merges: [], dispatches: [] });
   assert.equal(h.output.merge_commit_sha, undefined);
