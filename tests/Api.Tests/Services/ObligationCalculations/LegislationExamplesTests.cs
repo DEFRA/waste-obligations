@@ -26,10 +26,10 @@ public class LegislationExamplesTests(ApiWebApplicationFactory factory) : IClass
 
         var materials = Calculator().Calculate(submission, 2026).Producers.Single().Materials;
 
-        materials.Single(x => x.MaterialCode == "PL").Obligation.Should().Be(57);
-        materials.Single(x => x.MaterialCode == "PC").Obligation.Should().Be(154);
-        var glass = materials.Single(x => x.MaterialCode == "GL").Obligation;
-        var remelt = materials.Single(x => x.MaterialCode == "GR").Obligation;
+        materials.Single(x => x.MaterialCode == "PL").ObligationTonnes.Should().Be(57);
+        materials.Single(x => x.MaterialCode == "PC").ObligationTonnes.Should().Be(154);
+        var glass = materials.Single(x => x.MaterialCode == "GL").ObligationTonnes;
+        var remelt = materials.Single(x => x.MaterialCode == "GR").ObligationTonnes;
         (glass + remelt).Should().Be(76);
         // C01: statutory arithmetic gives 57.76; the EA method rounds up to 58.
         remelt.Should().Be(58);
@@ -43,7 +43,7 @@ public class LegislationExamplesTests(ApiWebApplicationFactory factory) : IClass
         var materials = Calculator().Calculate(submission, 2026).Producers.Single().Materials;
 
         materials.Select(x => x.MaterialCode).Should().BeEquivalentTo("PL", "PC", "FC", "AL", "ST", "WD", "GL", "GR");
-        materials.Should().OnlyContain(x => x.InputTonnage == 0 && x.Obligation == 0);
+        materials.Should().OnlyContain(x => x.InputTonnes == 0 && x.ObligationTonnes == 0);
     }
 
     [Fact]
@@ -59,13 +59,17 @@ public class LegislationExamplesTests(ApiWebApplicationFactory factory) : IClass
         var producers = Calculator().Calculate(submission, 2026).Producers;
 
         producers.Should().HaveCount(2);
-        producers.Single(x => x.ProducerOrganisationId == SubmitterId).Materials.Single().Obligation.Should().Be(57);
+        producers
+            .Single(x => x.ProducerOrganisationId == SubmitterId)
+            .Materials.Single()
+            .ObligationTonnes.Should()
+            .Be(57);
         producers
             .Single(x => x.ProducerOrganisationId == OtherProducerId)
             .Materials.Single()
-            .Obligation.Should()
+            .ObligationTonnes.Should()
             .Be(57);
-        producers.Sum(x => x.Materials.Single().Obligation).Should().Be(114);
+        producers.Sum(x => x.Materials.Single().ObligationTonnes).Should().Be(114);
     }
 
     [Fact]
@@ -87,12 +91,12 @@ public class LegislationExamplesTests(ApiWebApplicationFactory factory) : IClass
         result
             .Producers.Single(x => x.ProducerOrganisationId == OtherProducerId)
             .Materials.Single()
-            .Obligation.Should()
+            .ObligationTonnes.Should()
             .Be(57);
         result
             .Producers.Single(x => x.ProducerOrganisationId == thirdProducerId)
             .Materials.Single()
-            .Obligation.Should()
+            .ObligationTonnes.Should()
             .Be(114);
     }
 
@@ -111,8 +115,8 @@ public class LegislationExamplesTests(ApiWebApplicationFactory factory) : IClass
 
         var materials = Calculator().Calculate(submission, 2026).Producers.Single().Materials;
 
-        materials.Where(x => x.MaterialCode != "GL").Should().OnlyContain(x => x.Obligation == 1);
-        materials.Single(x => x.MaterialCode == "GL").Obligation.Should().Be(0);
+        materials.Where(x => x.MaterialCode != "GL").Should().OnlyContain(x => x.ObligationTonnes == 1);
+        materials.Single(x => x.MaterialCode == "GL").ObligationTonnes.Should().Be(0);
         materials.Should().HaveCount(8);
     }
 
@@ -129,9 +133,9 @@ public class LegislationExamplesTests(ApiWebApplicationFactory factory) : IClass
 
         var producers = Calculator().Calculate(submission, 2026).Producers;
 
-        producers.Select(x => x.Materials.Single().InputTonnage).Should().Equal(1, 1);
-        producers.Select(x => x.Materials.Single().Obligation).Should().Equal(1, 1);
-        producers.Sum(x => x.Materials.Single().Obligation).Should().Be(2);
+        producers.Select(x => x.Materials.Single().InputTonnes).Should().Equal(1, 1);
+        producers.Select(x => x.Materials.Single().ObligationTonnes).Should().Equal(1, 1);
+        producers.Sum(x => x.Materials.Single().ObligationTonnes).Should().Be(2);
     }
 
     [Fact]
@@ -142,8 +146,8 @@ public class LegislationExamplesTests(ApiWebApplicationFactory factory) : IClass
             .Producers.Single()
             .Materials;
 
-        materials.Select(x => x.Obligation).Should().Equal(3, 3);
-        materials.Sum(x => x.Obligation).Should().Be(6);
+        materials.Select(x => x.ObligationTonnes).Should().Equal(3, 3);
+        materials.Sum(x => x.ObligationTonnes).Should().Be(6);
     }
 
     [Fact]
@@ -152,8 +156,8 @@ public class LegislationExamplesTests(ApiWebApplicationFactory factory) : IClass
         // Schedule 5 rounds L to tonnes; the EA workbook example appears to use unrounded L.
         var materials = Calculator().Calculate(DirectSubmission(("GL", 23_400)), 2027).Producers.Single().Materials;
 
-        materials.Single(x => x.MaterialCode == "GR").Obligation.Should().Be(14);
-        materials.Single(x => x.MaterialCode == "GL").Obligation.Should().Be(4);
+        materials.Single(x => x.MaterialCode == "GR").ObligationTonnes.Should().Be(14);
+        materials.Single(x => x.MaterialCode == "GL").ObligationTonnes.Should().Be(4);
     }
 
     [Theory]
@@ -166,8 +170,8 @@ public class LegislationExamplesTests(ApiWebApplicationFactory factory) : IClass
             .Producers.Single()
             .Materials.Single();
 
-        material.InputTonnage.Should().Be(inputTonnes);
-        material.Obligation.Should().Be(obligation);
+        material.InputTonnes.Should().Be(inputTonnes);
+        material.ObligationTonnes.Should().Be(obligation);
     }
 
     [Theory]

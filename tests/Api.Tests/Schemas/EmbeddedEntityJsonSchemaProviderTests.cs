@@ -6,6 +6,16 @@ namespace Defra.WasteObligations.Api.Tests.Schemas;
 public class EmbeddedEntityJsonSchemaProviderTests
 {
     [Fact]
+    public void Get_WhenObligationCalculationV1_0_ShouldLoadSchema()
+    {
+        var subject = new EmbeddedEntityJsonSchemaProvider();
+
+        var schema = subject.Get("obligation_calculation", "v1.0");
+
+        schema.Should().NotBeNull();
+    }
+
+    [Fact]
     public void Get_WhenSchemaCannotBeFound_ShouldThrow()
     {
         var subject = new EmbeddedEntityJsonSchemaProvider();
