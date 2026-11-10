@@ -33,14 +33,18 @@ public class ObligationCalculationService(IDbContext dbContext) : IObligationCal
             )
         );
         // Capture the payload and expected version once, outside the transaction retry boundary.
-        var previous = await currentCollection.Find(renderedIdentity).SingleOrDefaultAsync(cancellationToken);
-        if (GetUnchangedCalculation(previous, calculation) is { } current)
+        var previous = await currentCollection
+            .WithReadPreference(ReadPreference.Primary)
+            .Find(renderedIdentity)
+            .SingleOrDefaultAsync(cancellationToken);
+        var current = DeserializeCurrent(previous);
+        if (current is not null && !calculation.RequiresNewVersion(current))
             return current;
 
         var replacement = new ObligationCalculation
         {
             Id = previous is null ? ObjectId.GenerateNewId() : previous["_id"].AsObjectId,
-            Version = previous is null ? 1 : checked(previous[VersionField].AsInt32 + 1),
+            Version = current is null ? 1 : checked(current.Version + 1),
             SubmitterOrganisationId = calculation.SubmitterOrganisationId,
             SubmitterType = calculation.SubmitterType,
             ObligationYear = calculation.ObligationYear,
@@ -104,22 +108,14 @@ public class ObligationCalculationService(IDbContext dbContext) : IObligationCal
         catch (MongoWriteException exception) when (previous is null && IsIdentityCollision(exception.WriteError))
         {
             throw new ConcurrencyException(
-                "An obligation calculation already exists for this organisation and year. Reload and try again."
+                "An obligation calculation already exists for this organisation and year. Reload and try again.",
+                exception
             );
         }
     }
 
-    private static ObligationCalculation? GetUnchangedCalculation(
-        BsonDocument? previous,
-        ObligationCalculation incoming
-    )
-    {
-        if (previous is null)
-            return null;
-
-        var current = BsonSerializer.Deserialize<ObligationCalculation>(previous);
-        return incoming.RequiresNewVersion(current) ? null : current;
-    }
+    private static ObligationCalculation? DeserializeCurrent(BsonDocument? previous) =>
+        previous is null ? null : BsonSerializer.Deserialize<ObligationCalculation>(previous);
 
     private static bool IsIdentityCollision(WriteError error) =>
         error.Category == ServerErrorCategory.DuplicateKey

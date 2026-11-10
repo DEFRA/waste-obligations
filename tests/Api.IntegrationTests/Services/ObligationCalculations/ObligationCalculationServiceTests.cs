@@ -137,6 +137,69 @@ public class ObligationCalculationServiceTests : IntegrationTestBase
         second.Producers[0].Materials[0].ObligationTonnes.Should().Be(first.Producers[0].Materials[0].ObligationTonnes);
     }
 
+    [Fact]
+    public async Task Save_WhenStoredVersionIsInt64_ShouldIncrementAndArchiveOriginalPayload()
+    {
+        var subject = Subject();
+        var first = await subject.Save(Calculation(), TestContext.Current.CancellationToken);
+        await RawCurrent.UpdateOneAsync(
+            new BsonDocument("_id", first.Id),
+            new BsonDocument("$set", new BsonDocument("version", new BsonInt64(2))),
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        var original = await RawCurrent
+            .Find(new BsonDocument("_id", first.Id))
+            .SingleAsync(TestContext.Current.CancellationToken);
+
+        var saved = await subject.Save(ChangeKilograms(first), TestContext.Current.CancellationToken);
+
+        saved.Id.Should().Be(first.Id);
+        saved.Version.Should().Be(3);
+        (await Current.Find(x => x.Id == first.Id).SingleAsync(TestContext.Current.CancellationToken))
+            .Version.Should()
+            .Be(3);
+        var archived = await GetMongoDatabase()
+            .GetCollection<BsonDocument>(nameof(ObligationCalculationHistory))
+            .Find(new BsonDocument("calculation._id", first.Id))
+            .SingleAsync(TestContext.Current.CancellationToken);
+        archived["calculation"]["version"].BsonType.Should().Be(BsonType.Int64);
+        archived["calculation"].AsBsonDocument.Equals(original).Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Save_WhenStoredVersionIsInvalid_ShouldNotWrite(bool outOfRange)
+    {
+        var subject = Subject();
+        var first = await subject.Save(Calculation(), TestContext.Current.CancellationToken);
+        BsonValue version = outOfRange ? new BsonInt64((long)int.MaxValue + 1) : new BsonDouble(2.5);
+        await RawCurrent.UpdateOneAsync(
+            new BsonDocument("_id", first.Id),
+            new BsonDocument("$set", new BsonDocument("version", version)),
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        var original = await RawCurrent
+            .Find(new BsonDocument("_id", first.Id))
+            .SingleAsync(TestContext.Current.CancellationToken);
+
+        Func<Task> save = () => subject.Save(ChangeKilograms(first), TestContext.Current.CancellationToken);
+
+        await save.Should().ThrowAsync<Exception>();
+        (await RawCurrent.Find(new BsonDocument("_id", first.Id)).SingleAsync(TestContext.Current.CancellationToken))
+            .Equals(original)
+            .Should()
+            .BeTrue();
+        (
+            await History.CountDocumentsAsync(
+                FilterDefinition<ObligationCalculationHistory>.Empty,
+                cancellationToken: TestContext.Current.CancellationToken
+            )
+        )
+            .Should()
+            .Be(0);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -186,7 +249,9 @@ public class ObligationCalculationServiceTests : IntegrationTestBase
         release.SetResult();
         Func<Task> finish = async () => await losing;
 
-        await finish.Should().ThrowAsync<ConcurrencyException>();
+        var conflict = await finish.Should().ThrowAsync<ConcurrencyException>();
+        if (firstInsert)
+            conflict.Which.InnerException.Should().BeOfType<MongoWriteException>();
         var retried = await Subject().Save(competing, TestContext.Current.CancellationToken);
         retried.Should().BeEquivalentTo(winner);
         (
