@@ -54,14 +54,16 @@ public class ObligationCalculator(IOptions<ObligationCalculationOptions> options
                 new()
                 {
                     MaterialCode = ObligationMaterials.Glass,
-                    InputTonnage = tonnes,
-                    Obligation = total - remelt,
+                    InputKilograms = material.Kilograms,
+                    InputTonnes = tonnes,
+                    ObligationTonnes = total - remelt,
                 },
                 new()
                 {
                     MaterialCode = ObligationMaterials.GlassRemelt,
-                    InputTonnage = tonnes,
-                    Obligation = remelt,
+                    InputKilograms = material.Kilograms,
+                    InputTonnes = tonnes,
+                    ObligationTonnes = remelt,
                 },
             ];
         }
@@ -71,8 +73,9 @@ public class ObligationCalculator(IOptions<ObligationCalculationOptions> options
             new()
             {
                 MaterialCode = material.MaterialCode,
-                InputTonnage = tonnes,
-                Obligation = total,
+                InputKilograms = material.Kilograms,
+                InputTonnes = tonnes,
+                ObligationTonnes = total,
             },
         ];
     }

@@ -29,6 +29,12 @@ public class MongoDbContext(
     public IMongoCollection<OrganisationObligationSummary> OrganisationObligationSummaries { get; } =
         database.GetCollection<OrganisationObligationSummary>(nameof(OrganisationObligationSummary));
 
+    public IMongoCollection<ObligationCalculation> ObligationCalculations { get; } =
+        database.GetCollection<ObligationCalculation>(nameof(ObligationCalculation));
+
+    public IMongoCollection<ObligationCalculationHistory> ObligationCalculationHistory { get; } =
+        database.GetCollection<ObligationCalculationHistory>(nameof(ObligationCalculationHistory));
+
     public async Task<TResult> ExecuteTransaction<TResult>(
         Func<IClientSessionHandle, CancellationToken, Task<TResult>> callback,
         string transactionName,

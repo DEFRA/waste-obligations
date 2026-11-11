@@ -93,8 +93,8 @@ public class FullYearParityTests
         };
         var maximum = calculator.Calculate(submission, 2025);
 
-        Flatten(maximum).Single().InputTonnage.Should().Be(int.MaxValue);
-        Flatten(maximum).Single().Obligation.Should().Be(int.MaxValue);
+        Flatten(maximum).Single().InputTonnes.Should().Be(int.MaxValue);
+        Flatten(maximum).Single().ObligationTonnes.Should().Be(int.MaxValue);
 
         var larger = calculator.Calculate(
             submission with
@@ -114,7 +114,7 @@ public class FullYearParityTests
         );
         var map = () => Flatten(larger).ToArray();
 
-        larger.Producers.Single().Materials.Single().InputTonnage.Should().Be((long)int.MaxValue + 1);
+        larger.Producers.Single().Materials.Single().InputTonnes.Should().Be((long)int.MaxValue + 1);
         map.Should().Throw<OverflowException>();
     }
 
@@ -126,8 +126,8 @@ public class FullYearParityTests
                 calculation.SubmitterType.ToString(),
                 calculation.ObligationYear,
                 material.MaterialCode,
-                checked((int)material.InputTonnage),
-                checked((int)material.Obligation),
+                checked((int)material.InputTonnes),
+                checked((int)material.ObligationTonnes),
                 calculation.CalculatedOn
             ))
         );
@@ -254,8 +254,8 @@ public class FullYearParityTests
         string SubmitterType,
         int Year,
         string MaterialCode,
-        int InputTonnage,
-        int Obligation,
+        int InputTonnes,
+        int ObligationTonnes,
         DateTime CalculatedOn
     );
 }

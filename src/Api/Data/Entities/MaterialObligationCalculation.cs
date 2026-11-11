@@ -6,6 +6,7 @@ namespace Defra.WasteObligations.Api.Data.Entities;
 public record MaterialObligationCalculation
 {
     public required string MaterialCode { get; init; }
-    public required long InputTonnage { get; init; }
-    public required long Obligation { get; init; }
+    public required long InputKilograms { get; init; }
+    public required long InputTonnes { get; init; }
+    public required long ObligationTonnes { get; init; }
 }
