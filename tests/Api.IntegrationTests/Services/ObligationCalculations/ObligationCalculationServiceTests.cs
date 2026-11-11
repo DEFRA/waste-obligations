@@ -1,7 +1,9 @@
+using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.ObligationCalculations;
+using Defra.WasteObligations.Testing.Fixtures.Entities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
@@ -509,56 +511,5 @@ public class ObligationCalculationServiceTests : IntegrationTestBase
         };
 
     private static ObligationCalculation Calculation() =>
-        new()
-        {
-            SubmitterOrganisationId = Guid.NewGuid(),
-            SubmitterType = ObligationSubmitterType.DirectRegistrant,
-            ObligationYear = 2025,
-            CalculatedOn = new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc),
-            Producers =
-            [
-                new()
-                {
-                    ProducerOrganisationId = Guid.NewGuid(),
-                    Materials =
-                    [
-                        new()
-                        {
-                            MaterialCode = "PL",
-                            InputKilograms = 50_100,
-                            InputTonnes = 50,
-                            ObligationTonnes = 28,
-                        },
-                        new()
-                        {
-                            MaterialCode = "GL",
-                            InputKilograms = 3_000,
-                            InputTonnes = 3,
-                            ObligationTonnes = 1,
-                        },
-                        new()
-                        {
-                            MaterialCode = "GR",
-                            InputKilograms = 3_000,
-                            InputTonnes = 3,
-                            ObligationTonnes = 2,
-                        },
-                    ],
-                },
-                new()
-                {
-                    ProducerOrganisationId = Guid.NewGuid(),
-                    Materials =
-                    [
-                        new()
-                        {
-                            MaterialCode = "PL",
-                            InputKilograms = 50_100,
-                            InputTonnes = 50,
-                            ObligationTonnes = 28,
-                        },
-                    ],
-                },
-            ],
-        };
+        ObligationCalculationFixture.Default().With(x => x.Id, ObjectId.Empty).Create();
 }

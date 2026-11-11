@@ -1,4 +1,5 @@
 import { readMinorOrPatchUpdates } from './dependabot-metadata.mjs';
+import { hasEligibleImageUpdate } from './dependabot-image-update.mjs';
 import { queueOutcome, scopedCandidateCore, writeQueueSummary } from './dependabot-queue-reporting.mjs';
 
 const requiredJobs = ['Dependency security review', 'Run Pull Request Checks', 'Run journey tests'];
@@ -300,20 +301,29 @@ async function verifyCommits(github, repository, pr, core) {
     skip(core, 'A commit does not have a verified signature.');
     return undefined;
   }
-  if (commits.some(x => !hasOnlyMinorOrPatchUpdates(x.commit.message))) {
-    const major = commits.some(x => /^ {2}update-type: version-update:semver-major\r?$/m.test(x.commit.message));
-    if (major && pr.state === 'open') {
-      await labelMajorUpdate(github, repository, pr, core);
-    }
-    skip(core, major ? 'Update metadata includes a major version; manual review is required.'
-      : 'Update metadata is missing, malformed, mixed or not classified as minor or patch.');
-
+  if (!await hasEligibleUpdates(github, repository, pr, commits, core)) {
     return undefined;
   }
 
   await removeMajorLabel(github, repository, pr, core);
 
   return commits;
+}
+
+async function hasEligibleUpdates(github, repository, pr, commits, core) {
+  if (commits.every(x => hasOnlyMinorOrPatchUpdates(x.commit.message))) {
+    return true;
+  }
+  if (await hasEligibleImageUpdate(github, repository, pr, commits)) {
+    return true;
+  }
+  const major = commits.some(x => /^ {2}update-type: version-update:semver-major\r?$/m.test(x.commit.message));
+  if (major && pr.state === 'open') {
+    await labelMajorUpdate(github, repository, pr, core);
+  }
+  skip(core, major ? 'Update metadata includes a major version; manual review is required.'
+    : 'Update metadata is missing, malformed, mixed or not classified as minor or patch.');
+  return false;
 }
 
 async function removeMajorLabel(github, repository, pr, core) {

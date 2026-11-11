@@ -1,5 +1,7 @@
+using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data.Entities;
+using Defra.WasteObligations.Testing.Fixtures.Entities;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 
@@ -10,7 +12,7 @@ public class ObligationCalculationTests
     [Fact]
     public void RequiresNewVersion_WhenDataIsEquivalentAndReordered_ShouldBeFalse()
     {
-        var current = Calculation();
+        var current = ObligationCalculationFixture.Default().Create();
         var incoming = current with
         {
             Producers = current
@@ -29,7 +31,7 @@ public class ObligationCalculationTests
     [InlineData("schemaVersion")]
     public void RequiresNewVersion_WhenOnlyIgnoredFieldsChange_ShouldBeFalse(string change)
     {
-        var current = Calculation();
+        var current = ObligationCalculationFixture.Default().Create();
         var incoming = change switch
         {
             "calculatedOn" => current with { CalculatedOn = current.CalculatedOn.AddDays(1) },
@@ -54,7 +56,7 @@ public class ObligationCalculationTests
     [InlineData("obligationTonnes")]
     public void RequiresNewVersion_WhenCalculationDataChanges_ShouldBeTrue(string change)
     {
-        var current = Calculation();
+        var current = ObligationCalculationFixture.Default().Create();
         var producer = current.Producers[0];
         var material = producer.Materials[0];
         var incoming = change switch
@@ -117,60 +119,4 @@ public class ObligationCalculationTests
 
         return BsonSerializer.Deserialize<ObligationCalculation>(document);
     }
-
-    private static ObligationCalculation Calculation() =>
-        new()
-        {
-            Id = ObjectId.GenerateNewId(),
-            Version = 1,
-            SubmitterOrganisationId = Guid.NewGuid(),
-            SubmitterType = ObligationSubmitterType.DirectRegistrant,
-            ObligationYear = 2025,
-            CalculatedOn = new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc),
-            Producers =
-            [
-                new()
-                {
-                    ProducerOrganisationId = Guid.NewGuid(),
-                    Materials =
-                    [
-                        new()
-                        {
-                            MaterialCode = "PL",
-                            InputKilograms = 50_100,
-                            InputTonnes = 50,
-                            ObligationTonnes = 28,
-                        },
-                        new()
-                        {
-                            MaterialCode = "GL",
-                            InputKilograms = 3_000,
-                            InputTonnes = 3,
-                            ObligationTonnes = 1,
-                        },
-                        new()
-                        {
-                            MaterialCode = "GR",
-                            InputKilograms = 3_000,
-                            InputTonnes = 3,
-                            ObligationTonnes = 2,
-                        },
-                    ],
-                },
-                new()
-                {
-                    ProducerOrganisationId = Guid.NewGuid(),
-                    Materials =
-                    [
-                        new()
-                        {
-                            MaterialCode = "PL",
-                            InputKilograms = 50_100,
-                            InputTonnes = 50,
-                            ObligationTonnes = 28,
-                        },
-                    ],
-                },
-            ],
-        };
 }
