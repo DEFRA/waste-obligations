@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://defra.gov.uk/schemas/waste-obligations/obligation-calculation.v1.0.schema.json",
+  "title": "ObligationCalculation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "version",
+    "schemaVersion",
+    "submitterOrganisationId",
+    "submitterType",
+    "obligationYear",
+    "calculatedOn",
+    "producers"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "x-bson-name": "_id",
+      "pattern": "^[a-fA-F0-9]{24}$"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "schemaVersion": {
+      "const": "v1.0"
+    },
+    "submitterOrganisationId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "submitterType": {
+      "type": "string",
+      "enum": [
+        "DirectRegistrant",
+        "ComplianceScheme"
+      ]
+    },
+    "obligationYear": {
+      "type": "integer"
+    },
+    "calculatedOn": {
+      "type": "string",
+      "format": "date-time",
+      "x-date-serialization": "date-time-offset"
+    },
+    "producers": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/producer"
+      }
+    }
+  },
+  "$defs": {
+    "producer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "producerOrganisationId",
+        "materials"
+      ],
+      "properties": {
+        "producerOrganisationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "materials": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/material"
+          }
+        }
+      }
+    },
+    "material": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "materialCode",
+        "inputKilograms",
+        "inputTonnes",
+        "obligationTonnes"
+      ],
+      "properties": {
+        "materialCode": {
+          "type": "string",
+          "enum": [
+            "PL",
+            "PC",
+            "FC",
+            "AL",
+            "ST",
+            "WD",
+            "GL",
+            "GR"
+          ]
+        },
+        "inputKilograms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "inputTonnes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "obligationTonnes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

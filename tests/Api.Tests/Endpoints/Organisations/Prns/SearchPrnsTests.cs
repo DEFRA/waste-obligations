@@ -288,6 +288,120 @@ public class SearchPrnsTests(ApiWebApplicationFactory factory, ITestOutputHelper
             .SearchPrns(Arg.Any<Guid>(), Arg.Any<PrnSearchRequest>(), Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task WhenAcceptableIntoYearSpecified_ShouldPassItToTheBackend()
+    {
+        const int year = 2027;
+        StubSearchResponse([]);
+        var client = CreateClient(testUser: TestUser.ReadOnly);
+
+        var response = await client.GetAsync(
+            Testing.Endpoints.Organisations.Prns.Search(
+                FakeWasteOrganisationsService.OrganisationId,
+                EndpointQuery
+                    .New.Where(EndpointFilter.Status("AwaitingAcceptance"))
+                    .Where(EndpointFilter.AcceptableIntoYear(year))
+            ),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        await PrnCommonBackendService
+            .Received(1)
+            .SearchPrns(
+                FakeWasteOrganisationsService.OrganisationId,
+                Arg.Is<PrnSearchRequest>(x => x.AcceptableIntoYear == year && x.FilterBy == "awaiting-all"),
+                Arg.Any<CancellationToken>()
+            );
+    }
+
+    [Fact]
+    public async Task WhenAcceptableIntoYearNotSpecified_ShouldNotFilterByYear()
+    {
+        StubSearchResponse([]);
+        var client = CreateClient(testUser: TestUser.ReadOnly);
+
+        var response = await client.GetAsync(
+            Testing.Endpoints.Organisations.Prns.Search(
+                FakeWasteOrganisationsService.OrganisationId,
+                EndpointQuery.New.Where(EndpointFilter.Status("AwaitingAcceptance"))
+            ),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        await PrnCommonBackendService
+            .Received(1)
+            .SearchPrns(
+                FakeWasteOrganisationsService.OrganisationId,
+                Arg.Is<PrnSearchRequest>(x => x.AcceptableIntoYear == null),
+                Arg.Any<CancellationToken>()
+            );
+    }
+
+    [Theory]
+    [InlineData(2022)]
+    [InlineData(2051)]
+    public async Task Validation_WhenAcceptableIntoYearOutOfRange_ShouldBeBadRequest(int year)
+    {
+        var client = CreateClient(testUser: TestUser.ReadOnly);
+
+        var response = await client.GetAsync(
+            Testing.Endpoints.Organisations.Prns.Search(
+                FakeWasteOrganisationsService.OrganisationId,
+                EndpointQuery
+                    .New.Where(EndpointFilter.Status("AwaitingAcceptance"))
+                    .Where(EndpointFilter.AcceptableIntoYear(year))
+            ),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        await PrnCommonBackendService
+            .DidNotReceive()
+            .SearchPrns(Arg.Any<Guid>(), Arg.Any<PrnSearchRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData("Accepted")]
+    [InlineData("Rejected")]
+    [InlineData("Cancelled")]
+    public async Task Validation_WhenAcceptableIntoYearSpecifiedWithNonAwaitingAcceptanceStatus_ShouldBeBadRequest(
+        string status
+    )
+    {
+        var client = CreateClient(testUser: TestUser.ReadOnly);
+
+        var response = await client.GetAsync(
+            Testing.Endpoints.Organisations.Prns.Search(
+                FakeWasteOrganisationsService.OrganisationId,
+                EndpointQuery.New.Where(EndpointFilter.Status(status)).Where(EndpointFilter.AcceptableIntoYear(2026))
+            ),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        await PrnCommonBackendService
+            .DidNotReceive()
+            .SearchPrns(Arg.Any<Guid>(), Arg.Any<PrnSearchRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Validation_WhenAcceptableIntoYearSpecifiedWithoutStatus_ShouldBeBadRequest()
+    {
+        var client = CreateClient(testUser: TestUser.ReadOnly);
+
+        var response = await client.GetAsync(
+            Testing.Endpoints.Organisations.Prns.Search(
+                FakeWasteOrganisationsService.OrganisationId,
+                EndpointQuery.New.Where(EndpointFilter.AcceptableIntoYear(2026))
+            ),
+            TestContext.Current.CancellationToken
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]

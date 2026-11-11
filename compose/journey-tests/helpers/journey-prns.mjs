@@ -64,7 +64,7 @@ export const PRN_MATERIAL_PLASTIC = "Plastic"
 export const PRN_MATERIAL_STEEL = "Steel"
 export const PRN_MATERIAL_WOOD = "Wood"
 
-export const producerPrns = [
+const producerStandardPrns = [
     prnFixture(
         "PRN123",
         journeyPrnExternalId,
@@ -129,6 +129,28 @@ export const producerPrns = [
         "2026-04-02T13:00:00Z",
     ),
 ];
+
+// December waste notes for the year-filter journeys. One is from the journey year, which can also be accepted
+// into the next year from 1 December; the other is from the year before, which can only go into the journey year. They
+// are the oldest notes (fixed issue dates before every standard note, so the order does not move when the journey
+// year does), so the date-ordered journeys keep their order, and both are Steel, which the other
+// journeys do not assert on. Numbers match the local seed in waste-obligations-journey-tests/data/prns.data.js.
+const PRN_PREVIOUS_OBLIGATION_YEAR = String(Number(PRN_OBLIGATION_YEAR) - 1);
+
+export const decemberWastePrn = (prnNumber, externalId, noteObligationYear, issueDate) => ({
+    ...prnFixture(prnNumber, externalId, "Steel", 100, issueDate),
+    issuerNotes: "Journey December waste fixture",
+    decemberWaste: true,
+    accreditationYear: noteObligationYear,
+    obligationYear: noteObligationYear,
+});
+
+export const producerDecemberWastePrns = [
+    decemberWastePrn("PRN870", "d1a40b61-3e7c-4f0a-8c52-6b9e0a7d1870", PRN_OBLIGATION_YEAR, "2026-01-05T10:00:00Z"),
+    decemberWastePrn("PRN871", "d1a40b61-3e7c-4f0a-8c52-6b9e0a7d1871", PRN_PREVIOUS_OBLIGATION_YEAR, "2025-12-10T10:00:00Z"),
+];
+
+export const producerPrns = [...producerStandardPrns, ...producerDecemberWastePrns];
 
 export const compliancePrn = {
     ...prnFixture(
@@ -240,10 +262,20 @@ export const awaitingCompliancePern = {
 
 // Everything the CSO awaiting search returns, in the order the journeys rely on.
 // The obligation calculation counts the same PRNs, so both read this list.
+export const complianceDecemberWastePrns = [
+    decemberWastePrn("PRN872", "d1a40b61-3e7c-4f0a-8c52-6b9e0a7d1872", PRN_OBLIGATION_YEAR, "2026-01-05T10:00:00Z"),
+    decemberWastePrn("PRN873", "d1a40b61-3e7c-4f0a-8c52-6b9e0a7d1873", PRN_PREVIOUS_OBLIGATION_YEAR, "2025-12-10T10:00:00Z"),
+].map((prn) => ({
+    ...prn,
+    organisationId: complianceSchemeId,
+    organisationName: compliancePrn.organisationName,
+}));
+
 export const complianceAwaitingSearchItems = [
     compliancePrn,
     awaitingCompliancePern,
     ...complianceAwaitingPrns.slice(1),
+    ...complianceDecemberWastePrns,
 ];
 
 export const rejectedCompliancePrn = rejectedPrn({

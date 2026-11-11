@@ -15,6 +15,8 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton(TimeProvider.System);
         services.AddTransient<IObligationCalculator, ObligationCalculator>();
 
+        services.AddTransient<IObligationCalculationService, ObligationCalculationService>();
+
         return services;
     }
 }

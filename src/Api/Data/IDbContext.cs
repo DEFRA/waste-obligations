@@ -10,6 +10,9 @@ public interface IDbContext
     IMongoCollection<OrganisationEligibilitySnapshot> OrganisationEligibilitySnapshots { get; }
     IMongoCollection<OrganisationObligationSummary> OrganisationObligationSummaries { get; }
 
+    IMongoCollection<ObligationCalculation> ObligationCalculations { get; }
+    IMongoCollection<ObligationCalculationHistory> ObligationCalculationHistory { get; }
+
     Task<TResult> ExecuteTransaction<TResult>(
         Func<IClientSessionHandle, CancellationToken, Task<TResult>> callback,
         string transactionName,
