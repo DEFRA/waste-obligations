@@ -88,6 +88,19 @@ enabled; the service does not coordinate migration completion. These `$in` parti
 filters require MongoDB 6.0 or later. Local Compose uses MongoDB 7.0; the deployed
 server version must be confirmed before enabling the job. The work source uses migration 021 for active-work selection, then starts and completes instructions by ID under a renewable processing lease. These queries are profiled in real MongoDB integration tests.
 
+## Obligation calculation index inventory
+
+Migration 022 adds the following indexes. The save service reads the current record from the primary before entering the transaction; history insertion and current replacement are transactional.
+
+| Collection | Predicate / operation | Index |
+| --- | --- | --- |
+| `ObligationCalculation` | Save decision by submitter organisation ID and obligation year | `SubmitterOrganisationId_ObligationYear`, unique; also supports organisation-only reads |
+| `ObligationCalculation` | Optimistic version check and replacement by `_id` and version | `_id_`; version is a residual check |
+| `ObligationCalculation` | Insert current calculation | No predicate; `SubmitterOrganisationId_ObligationYear` enforces unique submitter/year identity |
+| `ObligationCalculation` | Future producer lookup by `producers.producerOrganisationId` | `ProducerOrganisationId`, created ahead of its reader |
+| `ObligationCalculationHistory` | Insert superseded calculation | No predicate; `CalculationId_Version` enforces unique nested calculation ID/version |
+| `ObligationCalculationHistory` | Future lookup by nested calculation ID and version, including version order | `CalculationId_Version`, created ahead of its reader; integration tests exercise the query shape |
+
 ## How to add coverage
 
 Add one focused integration scenario for each query shape, rather than one broad test that hides a failing plan. For dynamic search and sort endpoints, use a theory over every documented combination. A direct service test must derive from `IntegrationTestBase` and construct its real `MongoDbContext` from `GetMongoApplicationDatabase()`; the base class then profiles it automatically. Keep setup and assertions on `GetMongoDatabase()`, whose fixture application name is excluded. Docker Compose API scenarios are deliberately excluded because their `waste-obligations-api` operations never enter the profile collection. A standalone direct-Mongo test that cannot derive from the base class must start `MongoQueryProfiler` with the application client name and call `AssertIndexesUsed` itself.
