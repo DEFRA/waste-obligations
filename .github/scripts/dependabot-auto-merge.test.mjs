@@ -161,6 +161,70 @@ async function merge(h) {
   await mergeDependabotPullRequest({ ...h, pullNumber: 123, runId: 10, runAttempt: 1 });
 }
 
+function imageUpdate(oldVersion, newVersion) {
+  const name = 'dshanley/vacuum';
+  return {
+    message: `Bump ${name} from ${oldVersion} to ${newVersion} in /compose\n\n---\nupdated-dependencies:\n- dependency-name: ${name}\n  dependency-version: ${newVersion}\n  dependency-type: direct:production\n...`,
+    file: { filename: 'compose/compose.ci-tools.yml', status: 'modified', patch:
+      `@@ -1 +1 @@\n-    image: ${name}:${oldVersion}@sha256:${'a'.repeat(64)}\n+    image: ${name}:${newVersion}@sha256:${'b'.repeat(64)}` }
+  };
+}
+
+test('verified pre-1.0 minor image update can be merged', async () => {
+  const h = harness();
+  const update = imageUpdate('v0.36.2', 'v0.39.3');
+  h.state.commits[0].commit.message = update.message;
+  h.state.files = [update.file];
+  await merge(h);
+  assert.equal(h.effects.merges.length, 1);
+  assert.equal(h.state.labelAssignments.length, 0);
+});
+
+test('verified pre-1.0 image patch can be merged', async () => {
+  const h = harness();
+  const update = imageUpdate('v0.36.2', 'v0.36.3');
+  h.state.commits[0].commit.message = update.message;
+  h.state.files = [update.file];
+  await merge(h);
+  assert.equal(h.effects.merges.length, 1);
+});
+
+test('image update with unrelated changes remains ineligible', async () => {
+  const h = harness();
+  const update = imageUpdate('v0.36.2', 'v0.36.3');
+  h.state.commits[0].commit.message = update.message;
+  h.state.files = [{ ...update.file, patch: `${update.file.patch}\n+    privileged: true` }];
+  await merge(h);
+  assert.equal(h.effects.merges.length, 0);
+});
+
+test('image update with a mismatched target version remains ineligible', async () => {
+  const h = harness();
+  const update = imageUpdate('v0.36.2', 'v0.36.3');
+  h.state.commits[0].commit.message = update.message;
+  h.state.files = [{ ...update.file, patch: update.file.patch.replace('v0.36.3', 'v0.36.4') }];
+  await merge(h);
+  assert.equal(h.effects.merges.length, 0);
+});
+
+for (const [description, change] of [
+  ['mismatched dependency name', update => { update.message = update.message.replace('Bump dshanley/vacuum', 'Bump other/image'); }],
+  ['missing version metadata', update => { update.message = update.message.replace('  dependency-version: v0.36.3\n', ''); }],
+  ['missing patch', update => { delete update.file.patch; }],
+  ['major version', update => Object.assign(update, imageUpdate('v0.36.2', 'v1.0.0'))],
+  ['downgrade', update => Object.assign(update, imageUpdate('v0.36.2', 'v0.36.1'))]
+]) {
+  test(`image update with ${description} remains ineligible`, async () => {
+    const h = harness();
+    const update = imageUpdate('v0.36.2', 'v0.36.3');
+    change(update);
+    h.state.commits[0].commit.message = update.message;
+    h.state.files = [update.file];
+    await merge(h);
+    assert.equal(h.effects.merges.length, 0);
+  });
+}
+
 function assertUntouched(h) {
   assert.deepEqual(h.effects, { reviews: [], merges: [], dispatches: [] });
   assert.equal(h.output.merge_commit_sha, undefined);

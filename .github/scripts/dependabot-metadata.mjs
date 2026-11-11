@@ -33,7 +33,7 @@ function readDependencyLines(lines) {
   return updates;
 }
 
-export function readMinorOrPatchUpdates(message) {
+export function readUpdates(message) {
   const blocks = [...message.matchAll(/^---\r?\n([\s\S]*?)^\.\.\.\r?$/gm)];
   if (blocks.length !== 1) {
     return undefined;
@@ -45,10 +45,15 @@ export function readMinorOrPatchUpdates(message) {
   }
 
   const updates = readDependencyLines(lines);
-  if (!updates?.length || updates.some(x => x.types.length !== 1 || !allowedUpdates.has(x.types[0]))) {
+  if (!updates?.length) {
     return undefined;
   }
 
   return updates;
+}
+
+export function readMinorOrPatchUpdates(message) {
+  const updates = readUpdates(message);
+  return updates?.every(x => x.types.length === 1 && allowedUpdates.has(x.types[0])) ? updates : undefined;
 }
 
