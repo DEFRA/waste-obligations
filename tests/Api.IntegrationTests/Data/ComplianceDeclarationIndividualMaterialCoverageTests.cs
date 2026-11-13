@@ -183,8 +183,12 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
             .Equal(document);
     }
 
-    [Fact]
-    public async Task Run_WhenCorrectionFails_ShouldRetryWithoutDuplicateUpdatesAndCompleteOnlyAfterSuccess()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Run_WhenCorrectionFails_ShouldRetryWithoutDuplicateUpdatesAndCompleteOnlyAfterSuccess(
+        bool glassCorrection
+    )
     {
         var original = Declaration();
         var malformed = Declaration() with { Obligations = null! };
@@ -192,7 +196,7 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
             [original, malformed],
             cancellationToken: TestContext.Current.CancellationToken
         );
-        var coverage = CreateSubject();
+        var coverage = CreateSubject(glassCorrection: glassCorrection);
         var correction = Substitute.For<IApplicationDataCorrection>();
         correction.Id.Returns("coverage-retry-test");
         correction.Version.Returns(coverage.Version);
@@ -238,8 +242,10 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
             .Be(s_correctedAt.UtcDateTime);
     }
 
-    [Fact]
-    public async Task Apply_WhenAuditFails_ShouldRollBackTheServiceUpdateAndAllowRetry()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Apply_WhenAuditFails_ShouldRollBackTheServiceUpdateAndAllowRetry(bool glassCorrection)
     {
         var original = Declaration();
         await ComplianceDeclarations.InsertOneAsync(original, cancellationToken: TestContext.Current.CancellationToken);
@@ -247,7 +253,8 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
         failing
             .RecordEvent(Arg.Any<IClientSessionHandle>(), Arg.Any<AuditEventRequest>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromException(new InvalidOperationException("Audit storage unavailable")));
-        var action = () => CreateSubject(failing).Apply(TestContext.Current.CancellationToken);
+        var action = () =>
+            CreateSubject(failing, glassCorrection: glassCorrection).Apply(TestContext.Current.CancellationToken);
 
         (await action.Should().ThrowAsync<InvalidOperationException>())
             .Which.InnerException.Should()
@@ -262,7 +269,7 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
             .Should()
             .Be(0);
 
-        await CreateSubject().Apply(TestContext.Current.CancellationToken);
+        await CreateSubject(glassCorrection: glassCorrection).Apply(TestContext.Current.CancellationToken);
 
         (await Read(original)).Should().BeEquivalentTo(Corrected(original));
         (

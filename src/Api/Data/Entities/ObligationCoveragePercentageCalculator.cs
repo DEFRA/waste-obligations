@@ -40,11 +40,15 @@ public static class ObligationCoveragePercentageCalculator
             else
             {
                 AddCoverage(material.Accepted, material.Obligated, material.Status == ObligationStatus.Met);
+                count++;
             }
         }
 
         if (hasGlass)
+        {
             AddCoverage(glassAccepted, glassObligated, glassAllMet);
+            count++;
+        }
 
         void AddCoverage(BigInteger accepted, BigInteger obligated, bool met)
         {
@@ -59,7 +63,6 @@ public static class ObligationCoveragePercentageCalculator
             var divisor = BigInteger.GreatestCommonDivisor(totalNumerator, totalDenominator);
             totalNumerator /= divisor;
             totalDenominator /= divisor;
-            count++;
         }
         if (count == 0)
             return 0m;
