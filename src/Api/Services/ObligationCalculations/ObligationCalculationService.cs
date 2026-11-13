@@ -16,6 +16,14 @@ public class ObligationCalculationService(IDbContext dbContext) : IObligationCal
         CancellationToken cancellationToken
     )
     {
+        return (await SaveWithOutcome(calculation, cancellationToken)).Calculation;
+    }
+
+    public async Task<CalculationSaveResult> SaveWithOutcome(
+        ObligationCalculation calculation,
+        CancellationToken cancellationToken
+    )
+    {
         ArgumentNullException.ThrowIfNull(calculation);
         var currentCollection = dbContext.ObligationCalculations.Database.GetCollection<BsonDocument>(
             dbContext.ObligationCalculations.CollectionNamespace.CollectionName,
@@ -39,7 +47,7 @@ public class ObligationCalculationService(IDbContext dbContext) : IObligationCal
             .SingleOrDefaultAsync(cancellationToken);
         var current = DeserializeCurrent(previous);
         if (current is not null && !calculation.RequiresNewVersion(current))
-            return current;
+            return new CalculationSaveResult(current, CalculationSaveOutcome.Unchanged);
 
         var replacement = new ObligationCalculation
         {
@@ -53,7 +61,7 @@ public class ObligationCalculationService(IDbContext dbContext) : IObligationCal
         };
         try
         {
-            return await dbContext.ExecuteTransaction(
+            var saved = await dbContext.ExecuteTransaction(
                 async (session, token) =>
                 {
                     if (previous is null)
@@ -103,6 +111,10 @@ public class ObligationCalculationService(IDbContext dbContext) : IObligationCal
                 },
                 "Save obligation calculation",
                 cancellationToken
+            );
+            return new CalculationSaveResult(
+                saved,
+                previous is null ? CalculationSaveOutcome.Created : CalculationSaveOutcome.Updated
             );
         }
         catch (MongoWriteException exception) when (previous is null && IsIdentityCollision(exception.WriteError))
