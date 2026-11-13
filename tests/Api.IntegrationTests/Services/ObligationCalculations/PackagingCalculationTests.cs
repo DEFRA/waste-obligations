@@ -263,7 +263,7 @@ public class PackagingCalculationTests : IntegrationTestBase
     private static IMongoCollection<ObligationCalculation> Calculations =>
         GetMongoDatabase().GetCollection<ObligationCalculation>(nameof(ObligationCalculation));
 
-    private Task<ObligationCalculation> Read(Guid id) =>
+    private static Task<ObligationCalculation> Read(Guid id) =>
         Calculations
             .Find(x => x.SubmitterOrganisationId == id && x.ObligationYear == 2026)
             .SingleAsync(TestContext.Current.CancellationToken);

@@ -144,7 +144,8 @@ public class ScheduledJobTests : IntegrationTestBase
                     }
                 );
             var requests = await WireMockContext.WireMockAdminApi.FindRequestsAsync(
-                new RequestModel { Methods = ["GET"], Path = path }
+                new RequestModel { Methods = ["GET"], Path = path },
+                TestContext.Current.CancellationToken
             );
             requests.Should().ContainSingle();
         }
