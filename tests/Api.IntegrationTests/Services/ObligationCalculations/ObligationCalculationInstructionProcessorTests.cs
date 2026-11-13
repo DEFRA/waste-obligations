@@ -4,6 +4,7 @@ using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.ScheduledJobs;
 using Defra.WasteObligations.Api.Services.ObligationCalculations;
+using Defra.WasteObligations.Api.Services.Packaging;
 using Defra.WasteObligations.Api.Services.Scheduling;
 using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
@@ -40,7 +41,13 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
         );
         var source = new ObligationCalculationWorkSource(GetMongoApplicationDatabase());
         var logger = new RecordingLogger<ObligationCalculationProcessor>();
-        var processor = new ObligationCalculationProcessor(logger);
+        var packaging = EmptyPackaging();
+        var processor = new ObligationCalculationProcessor(
+            packaging,
+            Substitute.For<IObligationCalculator>(),
+            Substitute.For<IObligationCalculationService>(),
+            logger
+        );
 
         var work = await source.GetNext([], TestContext.Current.CancellationToken);
         work.Should().NotBeNull();
@@ -58,7 +65,7 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
         (await Read(terminal)).Should().BeEquivalentTo(terminal);
         logger
             .Entries.Should()
-            .ContainSingle(x => x.Level == LogLevel.Information && x.Message.Contains("no calculation performed"));
+            .ContainSingle(x => x.Level == LogLevel.Information && x.Message.Contains("No packaging data"));
         (await source.TryStart(work, TestContext.Current.CancellationToken)).Should().BeFalse();
     }
 
@@ -170,7 +177,7 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
     }
 
     [Fact]
-    public async Task Worker_WhenProcessorFails_ShouldKeepSameInstructionAndRetryBeforeCompleting()
+    public async Task Worker_WhenPackagingFetchFails_ShouldKeepSameInstructionAndRetryBeforeCompleting()
     {
         var instruction = ObligationCalculationInstructionFixture.Default().Create();
         await ObligationCalculationInstructions.InsertOneAsync(
@@ -180,17 +187,24 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
         var retryStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var finish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var attempts = 0;
-        var processor = Substitute.For<IScheduledJobProcessor<ObligationCalculationInstruction>>();
-        processor
-            .Process(Arg.Any<ObligationCalculationInstruction>(), Arg.Any<CancellationToken>())
-            .Returns(_ =>
+        var packaging = Substitute.For<IPackagingSource>();
+        packaging
+            .GetFullYear(instruction.ObligationYear - 1, Arg.Any<CancellationToken>())
+            .Returns(async _ =>
             {
                 if (Interlocked.Increment(ref attempts) == 1)
-                    return Task.FromException(new InvalidOperationException("Retry this instruction"));
+                    throw new HttpRequestException("Packaging API unavailable");
                 retryStarted.TrySetResult();
+                await finish.Task;
 
-                return finish.Task;
+                return new PackagingResponse { Items = [] };
             });
+        var processor = new ObligationCalculationProcessor(
+            packaging,
+            Substitute.For<IObligationCalculator>(),
+            Substitute.For<IObligationCalculationService>(),
+            new RecordingLogger<ObligationCalculationProcessor>()
+        );
         await using var services = Services(processor);
         var worker = services.GetRequiredService<IHostedService>();
         try
@@ -420,6 +434,9 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
         var services = new ServiceCollection()
             .AddLogging()
             .AddSingleton(GetMongoApplicationDatabase())
+            .AddSingleton(EmptyPackaging())
+            .AddSingleton(Substitute.For<IObligationCalculator>())
+            .AddSingleton(Substitute.For<IObligationCalculationService>())
             .AddScheduledJobs(configuration);
         if (processor is not null)
             services.AddScoped(_ => processor);
@@ -427,6 +444,16 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
             services.AddSingleton(logger);
 
         return services.BuildServiceProvider();
+    }
+
+    private static IPackagingSource EmptyPackaging()
+    {
+        var packaging = Substitute.For<IPackagingSource>();
+        packaging
+            .GetFullYear(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(new PackagingResponse { Items = [] });
+
+        return packaging;
     }
 
     private Task<ObligationCalculationInstruction> Read(ObligationCalculationInstruction instruction) =>

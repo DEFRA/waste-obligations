@@ -15,6 +15,7 @@ using Defra.WasteObligations.Api.Services.GovukNotify;
 using Defra.WasteObligations.Api.Services.ObligationCalculations;
 using Defra.WasteObligations.Api.Services.OrganisationEligibility;
 using Defra.WasteObligations.Api.Services.OrganisationObligations;
+using Defra.WasteObligations.Api.Services.Packaging;
 using Defra.WasteObligations.Api.Services.PrnCommonBackend;
 using Defra.WasteObligations.Api.Services.Scheduling;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
@@ -64,6 +65,7 @@ try
     builder.Services.AddPrnCommonBackendService();
     builder.Services.AddAccountBackendService();
     builder.Services.AddWasteOrganisationsService();
+    builder.Services.AddPackagingService();
     builder.Services.AddOrganisationEligibility(!integrationTest && !openApiBuild);
     builder.Services.AddOrganisationObligationHydration(!integrationTest && !openApiBuild);
     builder.Services.AddScheduledJobs(

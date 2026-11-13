@@ -5,6 +5,7 @@ using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.ObligationCalculations;
+using Defra.WasteObligations.Api.Services.Packaging;
 using Defra.WasteObligations.Api.Services.Scheduling;
 using Defra.WasteObligations.Testing;
 using Microsoft.Extensions.Configuration;
@@ -16,6 +17,8 @@ using Microsoft.Extensions.Time.Testing;
 using MongoDB.Bson;
 using MongoDB.Driver;
 using NSubstitute;
+using WireMock.Admin.Requests;
+using WireMock.Client.Extensions;
 
 namespace Defra.WasteObligations.Api.IntegrationTests.Services.Scheduling;
 
@@ -25,6 +28,138 @@ public class ScheduledJobTests : IntegrationTestBase
     private const string LeaseCollection = "_scheduled_job_leases";
     private const string StateCollection = "_scheduled_job_state";
     private readonly FakeTimeProvider _clock = new(new DateTimeOffset(2026, 10, 30, 0, 59, 0, TimeSpan.Zero));
+
+    [Fact]
+    public async Task ConfiguredJob_ShouldFetchPreviousPackagingYearAndPersistCalculatedMaterials()
+    {
+        await Reset();
+        const string path = "/packaging/2025/producer-material-totals-by-submitter";
+        var submitterId = Guid.NewGuid();
+        var producerId = Guid.NewGuid();
+        var mapping = WireMockContext.WireMockAdminApi.GetMappingBuilder();
+        mapping.Given(x =>
+            x.WithRequest(r => r.UsingGet().WithPath(path).WithHeader("Authorization", "Basic Y2xpZW50OnNlY3JldA=="))
+                .WithResponse(r =>
+                    r.WithStatusCode(200)
+                        .WithBodyAsJson(
+                            new
+                            {
+                                items = new[]
+                                {
+                                    new
+                                    {
+                                        submitterOrganisationId = submitterId,
+                                        submitterType = "ComplianceScheme",
+                                        producers = new[]
+                                        {
+                                            new
+                                            {
+                                                producerOrganisationId = producerId,
+                                                materials = new[] { new { materialCode = "PL", kilograms = 10000L } },
+                                            },
+                                        },
+                                    },
+                                },
+                            }
+                        )
+                )
+        );
+        var registered = await mapping.BuildAndPostAsync(TestContext.Current.CancellationToken);
+        registered.Guid.Should().NotBeNull();
+        var time = new SchedulerTimeProvider(_clock);
+        var settings = new Dictionary<string, string?>
+        {
+            ["ScheduledJobs:ObligationCalculation:Enabled"] = "true",
+            ["ScheduledJobs:ObligationCalculation:Cron"] = "0 1 * * *",
+            ["ScheduledJobs:ObligationCalculation:Processing:Enabled"] = "true",
+            ["Packaging:BaseAddress"] = "http://localhost:9090/",
+            ["Packaging:ClientId"] = "client",
+            ["Packaging:ClientSecret"] = "secret",
+            ["ObligationCalculation:Targets:2026:PL"] = "0.57",
+            ["ObligationCalculation:Targets:2026:PC"] = "0.77",
+            ["ObligationCalculation:Targets:2026:FC"] = "0.77",
+            ["ObligationCalculation:Targets:2026:AL"] = "0.62",
+            ["ObligationCalculation:Targets:2026:ST"] = "0.81",
+            ["ObligationCalculation:Targets:2026:WD"] = "0.46",
+            ["ObligationCalculation:Targets:2026:GL"] = "0.76",
+            ["ObligationCalculation:Targets:2026:GR"] = "0.76",
+        };
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
+        await using var host = new ServiceCollection()
+            .AddLogging()
+            .AddSingleton<IConfiguration>(configuration)
+            .AddSingleton(GetMongoApplicationDatabase())
+            .AddSingleton<TimeProvider>(time)
+            .AddOptions()
+            .AddScoped<IDbContext, MongoDbContext>()
+            .AddSingleton<ICurrentObligationYearProvider, CurrentObligationYearProvider>()
+            .AddTransient<IObligationCalculationInstructionService, ObligationCalculationInstructionService>()
+            .AddPackagingService(false)
+            .AddObligationCalculation()
+            .AddScheduledJobs(configuration.GetSection("ScheduledJobs"))
+            .BuildServiceProvider();
+        var workers = host.GetServices<IHostedService>().ToArray();
+        var scheduler = workers[0];
+        var processor = workers[1];
+        try
+        {
+            await scheduler.StartAsync(TestContext.Current.CancellationToken);
+            await time.WaitForTimer(TimeSpan.FromMinutes(1));
+            _clock.Advance(TimeSpan.FromMinutes(1));
+            await time.WaitForTimer(TimeSpan.FromDays(1));
+            var instruction = await ObligationCalculationInstructions
+                .Find(x => x.ObligationYear == 2026)
+                .SingleAsync(TestContext.Current.CancellationToken);
+            instruction.SubmitterId.Should().BeNull();
+            await processor.StartAsync(TestContext.Current.CancellationToken);
+            await WaitForAsync(async () =>
+                (
+                    await ObligationCalculationInstructions
+                        .Find(x => x.Id == instruction.Id)
+                        .SingleAsync(TestContext.Current.CancellationToken)
+                )
+                    .Status.Should()
+                    .Be(ObligationCalculationInstructionStatus.Completed)
+            );
+
+            var calculation = await GetMongoDatabase()
+                .GetCollection<ObligationCalculation>(nameof(ObligationCalculation))
+                .Find(x => x.SubmitterOrganisationId == submitterId && x.ObligationYear == 2026)
+                .SingleAsync(TestContext.Current.CancellationToken);
+            calculation.SubmitterType.Should().Be(ObligationSubmitterType.ComplianceScheme);
+            var producer = calculation.Producers.Should().ContainSingle().Which;
+            producer.ProducerOrganisationId.Should().Be(producerId);
+            producer
+                .Materials.Should()
+                .ContainSingle()
+                .Which.Should()
+                .BeEquivalentTo(
+                    new
+                    {
+                        MaterialCode = "PL",
+                        InputKilograms = 10000L,
+                        InputTonnes = 10L,
+                        ObligationTonnes = 6L,
+                    }
+                );
+            var requests = await WireMockContext.WireMockAdminApi.FindRequestsAsync(
+                new RequestModel { Methods = ["GET"], Path = path }
+            );
+            requests.Should().ContainSingle();
+        }
+        finally
+        {
+            await processor.StopAsync(TestContext.Current.CancellationToken);
+            await scheduler.StopAsync(TestContext.Current.CancellationToken);
+            using var admin = new HttpClient();
+            using var deleted = await admin.DeleteAsync(
+                $"http://localhost:9090/__admin/mappings/{registered.Guid}",
+                TestContext.Current.CancellationToken
+            );
+            deleted.EnsureSuccessStatusCode();
+            await Reset();
+        }
+    }
 
     [Theory]
     [InlineData(2027, 1, 31, 2026)]

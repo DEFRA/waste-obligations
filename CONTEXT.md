@@ -20,7 +20,15 @@ Use the language below across code, tests and discussions. The linked sources de
 
 **Obligation year**: The year against which recycling obligations, declarations and eligibility are considered. “Current obligation year” follows a service policy that retains the previous year through January and changes on 1 February in Europe/London time. See the [year provider](src/Api/Services/CurrentObligationYearProvider.cs).
 
-**Recycling obligation**: A material-specific recycling requirement and its associated tonnages and status, supplied by the PRN Common Backend. See the [integration boundary](docs/adr/0001-obligations-response-boundary.md) and [obligation mapping](src/Api/Services/PrnCommonBackend/Mappers.cs).
+**Packaging year**: The submission-data year, one year before the obligation year. The [calculation processor](src/Api/ScheduledJobs/ObligationCalculationProcessor.cs) requests that year's approved full-year totals from the [Packaging API client](src/Api/Services/Packaging/PackagingSource.cs).
+
+**Submitter**: The direct producer or compliance scheme reporting packaging data. A compliance scheme's submission contains its member producers; submitter identity and producer identity remain distinct. See the [calculator input](src/Api/Services/ObligationCalculations/ApprovedSubmission.cs) and [producer input](src/Api/Services/ObligationCalculations/ProducerPackaging.cs).
+
+**Obligation calculation**: A locally calculated recycling requirement for a submitter and obligation year, containing producer and material results. These shadow calculations are [stored with version history](src/Api/Services/ObligationCalculations/ObligationCalculationService.cs); they do not supply current public obligation reads.
+
+**Daily obligation calculation job**: Scheduled work that creates an instruction for the current obligation year so approved packaging totals can be recalculated and saved. Its [schedule and processing settings](src/Api/appsettings.json) default to 01:00 UTC daily, with scheduling and processing disabled. The [job](src/Api/ScheduledJobs/ObligationCalculationJob.cs) selects the obligation year and the [processor](src/Api/ScheduledJobs/ObligationCalculationProcessor.cs) requests the preceding packaging year.
+
+**Recycling obligation**: A material-specific recycling requirement, presented with PRN information to show its associated tonnages and status. Local obligation calculations compute requirements, while current public obligation amounts and status are supplied by the PRN Common Backend. See the [integration boundary](docs/adr/0001-obligations-response-boundary.md) and [obligation mapping](src/Api/Services/PrnCommonBackend/Mappers.cs).
 
 **Compliance declaration**: A submitted record for an organisation and obligation year, preserving selected organisation, obligation and user facts as they were submitted. Its organisation snapshot is submission evidence, rather than a live organisation profile. See the [snapshot decision](docs/adr/0003-declaration-submission-snapshots.md).
 
