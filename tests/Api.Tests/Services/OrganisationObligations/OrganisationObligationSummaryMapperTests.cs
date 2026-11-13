@@ -32,6 +32,26 @@ public class OrganisationObligationSummaryMapperTests
     }
 
     [Fact]
+    public void Map_WhenGlassObligationsAreMetTogether_ShouldReturnFullCoverage()
+    {
+        var result = OrganisationObligationSummaryMapper.Map(
+            ObligationFixture.OrganisationId,
+            ObligationYear,
+            [
+                CreateObligation("Plastic", 1, 1, ObligationStatus.Met),
+                CreateObligation("Wood", 0, 0, ObligationStatus.NoDataYet),
+                CreateObligation("Aluminium", 2, 2, ObligationStatus.Met),
+                CreateObligation("Steel", 0, 0, ObligationStatus.Met),
+                CreateObligation("Glass", 0, 36, ObligationStatus.Met),
+                CreateObligation("GlassRemelt", 149, 113, ObligationStatus.Met),
+                CreateObligation("Paper", 10, 10, ObligationStatus.Met),
+            ]
+        );
+
+        result.ObligationCoveragePercentage.Should().Be(100);
+    }
+
+    [Fact]
     public void Map_WhenNoObligationsAreReturned_ShouldCreateAnEmptySuccessfulSummary()
     {
         var result = OrganisationObligationSummaryMapper.Map(ObligationFixture.OrganisationId, ObligationYear, []);

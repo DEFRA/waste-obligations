@@ -197,6 +197,51 @@ public class ObligationCoveragePercentageCalculatorTests
         ObligationCoveragePercentageCalculator.CalculateFromObligations(obligations).Should().Be(expected);
     }
 
+    [Theory]
+    [InlineData(149, 36, 113, ObligationStatus.Met, 100)]
+    [InlineData(75, 36, 113, ObligationStatus.NotMet, 50)]
+    [InlineData(149, 36, 113, ObligationStatus.NotMet, 99)]
+    public void CalculateFromObligations_WhenGlassAndRemeltArePresent_ShouldCombineTheirTonnages(
+        int remeltAccepted,
+        int glassObligated,
+        int remeltObligated,
+        string status,
+        decimal expected
+    )
+    {
+        Obligation[] obligations =
+        [
+            CreateObligation(0, glassObligated, status) with
+            {
+                Material = Material.Glass,
+            },
+            CreateObligation(remeltAccepted, remeltObligated, status) with
+            {
+                Material = Material.GlassRemelt,
+            },
+        ];
+
+        ObligationCoveragePercentageCalculator.CalculateFromObligations(obligations).Should().Be(expected);
+    }
+
+    [Fact]
+    public void CalculateFromObligations_WhenGlassHasNoData_ShouldExcludeItFromTheGroup()
+    {
+        Obligation[] obligations =
+        [
+            CreateObligation(0, 36, ObligationStatus.NoDataYet) with
+            {
+                Material = Material.Glass,
+            },
+            CreateObligation(75, 150, ObligationStatus.NotMet) with
+            {
+                Material = Material.GlassRemelt,
+            },
+        ];
+
+        ObligationCoveragePercentageCalculator.CalculateFromObligations(obligations).Should().Be(50);
+    }
+
     [Fact]
     public void CalculateFromObligations_WhenExactAverageIsHalfAPercent_ShouldRoundUpWithoutDecimalDrift()
     {

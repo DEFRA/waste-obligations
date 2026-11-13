@@ -53,9 +53,7 @@ public class ComplianceDeclarationCoverageCorrection(
             {
                 try
                 {
-                    var percentage = ObligationCoveragePercentageCalculator.CalculateFromObligations(
-                        current.Obligations
-                    );
+                    var percentage = IndividualMaterialCoverageCalculator.CalculateFromObligations(current.Obligations);
                     if (current.ObligationCoveragePercentage != percentage)
                     {
                         await BackgroundOperationWatchdog.Run(

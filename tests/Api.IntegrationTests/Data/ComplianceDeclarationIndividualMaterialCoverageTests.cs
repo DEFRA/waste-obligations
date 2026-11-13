@@ -109,6 +109,57 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
         metrics.Received(1).Updated(status);
     }
 
+    [Fact]
+    public async Task GlassCorrection_ShouldUpdateStoredCoverageOnceAndAuditTheChange()
+    {
+        var original = Declaration() with
+        {
+            ObligationCoveragePercentage = 50m,
+            Obligations =
+            [
+                ObligationFixture
+                    .Default()
+                    .With(x => x.Material, "Glass")
+                    .With(x => x.Status, "Met")
+                    .With(
+                        x => x.Tonnages,
+                        ObligationTonnagesFixture.Default().With(x => x.Accepted, 0).With(x => x.Obligated, 36).Create()
+                    )
+                    .Create(),
+                ObligationFixture
+                    .Default()
+                    .With(x => x.Material, "GlassRemelt")
+                    .With(x => x.Status, "Met")
+                    .With(
+                        x => x.Tonnages,
+                        ObligationTonnagesFixture
+                            .Default()
+                            .With(x => x.Accepted, 149)
+                            .With(x => x.Obligated, 113)
+                            .Create()
+                    )
+                    .Create(),
+            ],
+        };
+        await ComplianceDeclarations.InsertOneAsync(original, cancellationToken: TestContext.Current.CancellationToken);
+        var correction = CreateSubject(glassCorrection: true);
+
+        await correction.Apply(TestContext.Current.CancellationToken);
+        await correction.Apply(TestContext.Current.CancellationToken);
+
+        (await Read(original)).ObligationCoveragePercentage.Should().Be(100);
+        var events = await AuditEvents
+            .Find(x => x.EntityId == original.Id.ToString())
+            .ToListAsync(TestContext.Current.CancellationToken);
+        events.Should().ContainSingle();
+        var before = events[0].Before;
+        var after = events[0].After;
+        before.Should().NotBeNull();
+        after.Should().NotBeNull();
+        before["obligationCoveragePercentage"].ToDecimal().Should().Be(50);
+        after["obligationCoveragePercentage"].ToDecimal().Should().Be(100);
+    }
+
     [Theory]
     [InlineData("v1.2")]
     [InlineData("v1.4")]
@@ -329,10 +380,11 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
         auditEvent.After.Should().Equal(expected.ToBsonDocument());
     }
 
-    private static ComplianceDeclarationCoverageCorrection CreateSubject(
+    private static IApplicationDataCorrection CreateSubject(
         IAuditEventService? auditEventService = null,
         IDbContext? contextOverride = null,
-        IComplianceDeclarationMetrics? metrics = null
+        IComplianceDeclarationMetrics? metrics = null,
+        bool glassCorrection = false
     )
     {
         var database = GetMongoApplicationDatabase();
@@ -355,6 +407,14 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
             ),
             new UnsubmittedEligibilityVisibilityService(context)
         );
+
+        if (glassCorrection)
+            return new GlassCoverageCorrection(
+                contextOverride ?? context,
+                service,
+                Options.Create(new ApplicationDataCorrectionOptions { BatchSize = 1 }),
+                Substitute.For<ILogger<GlassCoverageCorrection>>()
+            );
 
         return new ComplianceDeclarationCoverageCorrection(
             contextOverride ?? context,
