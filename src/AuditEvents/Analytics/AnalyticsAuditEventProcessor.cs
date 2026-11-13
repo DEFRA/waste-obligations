@@ -1,3 +1,4 @@
+using Defra.WasteObligations.AuditEvents.Logging;
 using Defra.WasteObligations.AuditEvents.Metrics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -82,6 +83,7 @@ public class AnalyticsAuditEventProcessor(
 
             foreach (var auditEvent in auditEvents)
             {
+                using var correlation = CorrelationContext.Begin(logger, auditEvent.TraceId);
                 if (!await auditEventLeaseService.TryRenew(processName, leaseDuration, cancellationToken))
                 {
                     auditEventMetrics.DispatchLeaseRenewalFailed(processName);
@@ -111,10 +113,9 @@ public class AnalyticsAuditEventProcessor(
                     );
                     logger.LogError(
                         exception,
-                        "Failed to process audit event {EventId} for {ProcessName} with trace id {TraceId}",
+                        "Failed to process audit event {EventId} for {ProcessName}",
                         auditEvent.EventId,
-                        processName,
-                        auditEvent.TraceId
+                        processName
                     );
                 }
             }
@@ -134,11 +135,10 @@ public class AnalyticsAuditEventProcessor(
             return;
 
         logger.LogInformation(
-            "Retrying failed audit event {EventId} for {ProcessName} after {AttemptCount} failed dispatch attempt(s) with trace id {TraceId}",
+            "Retrying failed audit event {EventId} for {ProcessName} after {AttemptCount} failed dispatch attempt(s)",
             auditEvent.EventId,
             processName,
-            dispatch.AttemptCount,
-            auditEvent.TraceId
+            dispatch.AttemptCount
         );
     }
 

@@ -15,6 +15,8 @@ public record ObligationCalculationInstruction
     [BsonGuidRepresentation(GuidRepresentation.Standard)]
     public Guid? SubmitterId { get; init; }
 
+    public string? CorrelationId { get; init; }
+
     [BsonRepresentation(BsonType.String)]
     public ObligationCalculationInstructionStatus Status { get; init; } =
         ObligationCalculationInstructionStatus.Pending;

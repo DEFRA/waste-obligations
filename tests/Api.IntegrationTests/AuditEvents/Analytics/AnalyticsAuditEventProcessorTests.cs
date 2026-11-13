@@ -1,9 +1,11 @@
+using System.Collections.Concurrent;
 using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.AuditEvents;
 using Defra.WasteObligations.AuditEvents.Analytics;
 using Defra.WasteObligations.AuditEvents.Data;
 using Defra.WasteObligations.AuditEvents.Entities;
+using Defra.WasteObligations.AuditEvents.Logging;
 using Defra.WasteObligations.AuditEvents.Metrics;
 using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
@@ -100,7 +102,7 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
         var sentAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
         var timeProvider = new FakeTimeProvider(sentAt);
         var sender = new RecordingAnalyticsEventSender();
-        var logger = new RecordingLogger<AnalyticsAuditEventProcessor>();
+        var logger = new ScopedLogger();
         var auditEvent = CreateAuditEvent(
             "event-1",
             1,
@@ -120,18 +122,27 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
             TraceId = TraceId,
         };
         await AuditEvents.InsertOneAsync(auditEvent, cancellationToken: TestContext.Current.CancellationToken);
+        string? dispatchedCorrelation = null;
+        sender.OnSend = (_, _) =>
+        {
+            dispatchedCorrelation = CorrelationContext.Current;
+
+            return Task.CompletedTask;
+        };
         var subject = CreateSubject(GetMongoApplicationDatabase(), timeProvider, sender, logger: logger);
 
         await subject.StartAsync(TestContext.Current.CancellationToken);
         await sender.WaitForSend(TestContext.Current.CancellationToken);
         await subject.StopAsync(TestContext.Current.CancellationToken);
 
+        dispatchedCorrelation.Should().Be(TraceId);
+        CorrelationContext.Current.Should().BeNull();
         logger
             .Entries.Should()
             .Contain(x =>
                 x.Level == LogLevel.Information
                 && x.Message.Contains("Retrying failed audit event event-1 for analytics-test")
-                && x.Message.Contains(TraceId)
+                && x.CorrelationId == TraceId
             );
         await AsyncWaiter.WaitForAsync(
             async () =>
@@ -178,23 +189,25 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
         const string message = "Sender failed";
 
         var failedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
-        var firstAuditEvent = CreateAuditEvent("event-1", 1);
-        var secondAuditEvent = CreateAuditEvent("event-2", 2);
+        var firstAuditEvent = CreateAuditEvent("event-1", 1) with { TraceId = TraceId };
+        var secondAuditEvent = CreateAuditEvent("event-2", 2) with { TraceId = null };
         await AuditEvents.InsertManyAsync(
             [firstAuditEvent, secondAuditEvent],
             cancellationToken: TestContext.Current.CancellationToken
         );
+        var correlations = new ConcurrentQueue<(string EventId, string? CorrelationId)>();
         var sender = new RecordingAnalyticsEventSender
         {
             OnSend = (x, _) =>
             {
+                correlations.Enqueue((x.EventId, CorrelationContext.Current));
                 if (x.EventId == firstAuditEvent.EventId)
                     throw new InvalidOperationException(message);
 
                 return Task.CompletedTask;
             },
         };
-        var logger = new RecordingLogger<AnalyticsAuditEventProcessor>();
+        var logger = new ScopedLogger();
         var subject = CreateSubject(
             GetMongoApplicationDatabase(),
             new FakeTimeProvider(failedAt),
@@ -246,6 +259,18 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
             delay: TimeSpan.FromMilliseconds(50)
         );
         await subject.StopAsync(TestContext.Current.CancellationToken);
+
+        correlations
+            .Should()
+            .BeEquivalentTo(
+                new[] { (firstAuditEvent.EventId, (string?)TraceId), (secondAuditEvent.EventId, (string?)null) }
+            );
+        logger
+            .Entries.Should()
+            .Contain(x =>
+                x.Level == LogLevel.Error && x.CorrelationId == TraceId && x.Message.Contains(firstAuditEvent.EventId)
+            );
+        CorrelationContext.Current.Should().BeNull();
     }
 
     [Fact]
@@ -394,6 +419,40 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
             .With(x => x.Actor, "service:waste-obligations")
             .With(x => x.Dispatches, dispatches ?? [])
             .Create();
+
+    private sealed class ScopedLogger : ILogger<AnalyticsAuditEventProcessor>
+    {
+        private readonly LoggerExternalScopeProvider _scopes = new();
+
+        public ConcurrentQueue<(LogLevel Level, string Message, string? CorrelationId)> Entries { get; } = new();
+
+        public IDisposable BeginScope<TState>(TState state)
+            where TState : notnull => _scopes.Push(state);
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter
+        )
+        {
+            var properties = new Dictionary<string, object?>();
+            _scopes.ForEachScope(
+                (scope, values) =>
+                {
+                    if (scope is IEnumerable<KeyValuePair<string, object?>> entries)
+                        foreach (var entry in entries)
+                            values[entry.Key] = entry.Value;
+                },
+                properties
+            );
+            properties.TryGetValue(CorrelationContext.PropertyName, out var correlationId);
+            Entries.Enqueue((logLevel, formatter(state, exception), correlationId as string));
+        }
+    }
 
     private sealed class RecordingAnalyticsEventSender : IAnalyticsEventSender
     {

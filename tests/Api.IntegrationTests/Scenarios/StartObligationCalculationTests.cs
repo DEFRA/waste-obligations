@@ -1,7 +1,13 @@
 using System.Net;
 using System.Text.Json;
+using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data.Entities;
+using Defra.WasteObligations.Api.Services.ObligationCalculations;
+using Defra.WasteObligations.Api.Services.WastePackaging;
+using Defra.WasteObligations.Testing;
+using Defra.WasteObligations.Testing.Extensions.WireMock;
+using Defra.WasteObligations.Testing.Fixtures.WastePackaging;
 using MongoDB.Bson;
 using MongoDB.Driver;
 
@@ -14,7 +20,9 @@ public class StartObligationCalculationTests : IntegrationTestBase
     {
         using var client = CreateClient();
         var response = await client.PostAsync(
-            "/admin/obligation-calculations?obligationYear=2026",
+            Testing.Endpoints.Admin.ObligationCalculations(
+                EndpointQuery.New.Where(EndpointFilter.ObligationYear(2026))
+            ),
             null,
             TestContext.Current.CancellationToken
         );
@@ -31,14 +39,43 @@ public class StartObligationCalculationTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task AdminInstruction_ShouldBeProcessedByComposeService()
+    public async Task AdminInstruction_ShouldPersistCalculationThroughComposeService()
     {
         const int obligationYear = 2026;
         var submitterId = Guid.NewGuid();
-        using var client = CreateClient();
-        client.BaseAddress = new Uri("http://localhost:8081");
+        var producerId = Guid.NewGuid();
+        await WireMockContext.WireMockAdminApi.StubWastePackagingRequest(
+            2025,
+            new PackagingResponse
+            {
+                Items =
+                [
+                    ApprovedSubmissionFixture
+                        .Default()
+                        .With(x => x.SubmitterOrganisationId, submitterId)
+                        .With(x => x.SubmitterType, ObligationSubmitterType.ComplianceScheme)
+                        .With(
+                            x => x.Producers,
+                            [
+                                ProducerPackagingFixture
+                                    .Default()
+                                    .With(x => x.ProducerOrganisationId, producerId)
+                                    .Create(),
+                            ]
+                        )
+                        .Create(),
+                ],
+            },
+            traceId: TraceId
+        );
+        using var client = CreateClient(ClientType.ScheduledJobs);
+        client.DefaultRequestHeaders.Add(TraceHeaderName, TraceId);
         var response = await client.PostAsync(
-            $"/admin/obligation-calculations?obligationYear={obligationYear}&submitterId={submitterId}",
+            Testing.Endpoints.Admin.ObligationCalculations(
+                EndpointQuery
+                    .New.Where(EndpointFilter.ObligationYear(obligationYear))
+                    .Where(EndpointFilter.Query("submitterId", submitterId.ToString()))
+            ),
             null,
             TestContext.Current.CancellationToken
         );
@@ -48,29 +85,39 @@ public class StartObligationCalculationTests : IntegrationTestBase
             await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)
         );
         var instructionId = ObjectId.Parse(body.RootElement.GetProperty("id").GetString());
-        var instructions = GetMongoDatabase()
-            .Client.GetDatabase("waste-obligations-scheduled-job-test")
-            .GetCollection<ObligationCalculationInstruction>(ObligationCalculationInstruction.CollectionName);
+        await WaitForAsync(
+            async () =>
+            {
+                var instruction = await ScheduledJobObligationCalculationInstructions
+                    .Find(x => x.Id == instructionId)
+                    .SingleAsync(TestContext.Current.CancellationToken);
+                instruction.Status.Should().Be(ObligationCalculationInstructionStatus.Completed);
+                instruction.ObligationYear.Should().Be(obligationYear);
+                instruction.SubmitterId.Should().Be(submitterId);
+                instruction.CorrelationId.Should().Be(TraceId);
+            },
+            timeout: 30,
+            delay: TimeSpan.FromMilliseconds(200)
+        );
 
-        try
-        {
-            await WaitForAsync(
-                async () =>
+        var calculation = await ScheduledJobObligationCalculations
+            .Find(x => x.SubmitterOrganisationId == submitterId && x.ObligationYear == obligationYear)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        calculation.SubmitterType.Should().Be(ObligationSubmitterType.ComplianceScheme);
+        var producer = calculation.Producers.Should().ContainSingle().Which;
+        producer.ProducerOrganisationId.Should().Be(producerId);
+        producer
+            .Materials.Should()
+            .ContainSingle()
+            .Which.Should()
+            .BeEquivalentTo(
+                new
                 {
-                    var instruction = await instructions
-                        .Find(x => x.Id == instructionId)
-                        .SingleAsync(TestContext.Current.CancellationToken);
-                    instruction.Status.Should().Be(ObligationCalculationInstructionStatus.Completed);
-                    instruction.ObligationYear.Should().Be(obligationYear);
-                    instruction.SubmitterId.Should().Be(submitterId);
-                },
-                timeout: 30,
-                delay: TimeSpan.FromMilliseconds(200)
+                    MaterialCode = ObligationMaterials.Plastic,
+                    InputKilograms = 10000L,
+                    InputTonnes = 10L,
+                    ObligationTonnes = 6L,
+                }
             );
-        }
-        finally
-        {
-            await instructions.DeleteOneAsync(x => x.Id == instructionId, TestContext.Current.CancellationToken);
-        }
     }
 }

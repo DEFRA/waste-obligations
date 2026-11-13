@@ -92,6 +92,7 @@ services:
       AccountBackend__ClientId: account-backend
       WasteOrganisations__BaseAddress: http://wiremock/
       WasteOrganisations__ClientId: waste-organisations
+      WastePackaging__BaseAddress: http://wiremock/
       OrganisationEligibility__RefreshPollingEnabled: false
       OrganisationObligationHydration__PollingEnabled: false
       GovukNotify__BaseAddress: http://wiremock/

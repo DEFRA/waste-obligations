@@ -44,7 +44,10 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     public required IMongoCollection<OrganisationComplianceDeclarationEligibility> OrganisationComplianceDeclarationEligibilities { get; set; }
     public required IMongoCollection<OrganisationEligibilitySnapshot> OrganisationEligibilitySnapshots { get; set; }
     public required IMongoCollection<BackgroundWorkerLease> OrganisationWorkerLeases { get; set; }
+    public required IMongoCollection<ObligationCalculation> ObligationCalculations { get; set; }
     public required IMongoCollection<ObligationCalculationInstruction> ObligationCalculationInstructions { get; set; }
+    public required IMongoCollection<ObligationCalculation> ScheduledJobObligationCalculations { get; set; }
+    public required IMongoCollection<ObligationCalculationInstruction> ScheduledJobObligationCalculationInstructions { get; set; }
     public required IMongoCollection<OrganisationObligationSummary> OrganisationObligationSummaries { get; set; }
     public required IMongoCollection<OrganisationObligationHistoricalBackfill> OrganisationObligationHistoricalBackfills { get; set; }
     public required IMongoCollection<OrganisationObligationRequestPacingState> OrganisationObligationRequestPacingStates { get; set; }
@@ -79,9 +82,18 @@ public abstract class IntegrationTestBase : IAsyncLifetime
             GetMongoCollection<OrganisationComplianceDeclarationEligibility>();
         OrganisationEligibilitySnapshots = GetMongoCollection<OrganisationEligibilitySnapshot>();
         OrganisationWorkerLeases = GetMongoCollection<BackgroundWorkerLease>(BackgroundWorkerLease.CollectionName);
+        ObligationCalculations = GetMongoCollection<ObligationCalculation>();
         ObligationCalculationInstructions = GetMongoCollection<ObligationCalculationInstruction>(
             ObligationCalculationInstruction.CollectionName
         );
+        var scheduledJobDatabase = GetMongoDatabase().Client.GetDatabase("waste-obligations-scheduled-job-test");
+        ScheduledJobObligationCalculations = scheduledJobDatabase.GetCollection<ObligationCalculation>(
+            nameof(ObligationCalculation)
+        );
+        ScheduledJobObligationCalculationInstructions =
+            scheduledJobDatabase.GetCollection<ObligationCalculationInstruction>(
+                ObligationCalculationInstruction.CollectionName
+            );
         OrganisationObligationSummaries = GetMongoCollection<OrganisationObligationSummary>();
         OrganisationObligationHistoricalBackfills = GetMongoCollection<OrganisationObligationHistoricalBackfill>(
             OrganisationObligationHistoricalBackfill.CollectionName
@@ -90,7 +102,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
             OrganisationObligationRequestPacingState.CollectionName
         );
 
-        await DeleteMany(GetMongoCollection<ObligationCalculation>());
+        await DeleteMany(ObligationCalculations);
         await DeleteMany(GetMongoCollection<ObligationCalculationHistory>());
         await DeleteMany(ComplianceDeclarations);
         await DeleteMany(AuditEventCounters);
@@ -100,6 +112,11 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         await DeleteMany(OrganisationEligibilitySnapshots);
         await DeleteMany(OrganisationWorkerLeases);
         await DeleteMany(ObligationCalculationInstructions);
+        await DeleteMany(ScheduledJobObligationCalculationInstructions);
+        await DeleteMany(ScheduledJobObligationCalculations);
+        await DeleteMany(
+            scheduledJobDatabase.GetCollection<ObligationCalculationHistory>(nameof(ObligationCalculationHistory))
+        );
         await DeleteMany(GetMongoCollection<BackgroundWorkerLease>("_scheduled_job_processing_leases"));
         await DeleteMany(OrganisationObligationSummaries);
         await DeleteMany(OrganisationObligationHistoricalBackfills);
@@ -121,9 +138,15 @@ public abstract class IntegrationTestBase : IAsyncLifetime
             _mongoQueryAllowances.Add(allowance);
     }
 
-    protected static HttpClient CreateClient()
+    protected static HttpClient CreateClient(ClientType clientType = ClientType.Default)
     {
-        var client = new HttpClient { BaseAddress = new Uri("http://localhost:8080") };
+        var baseAddress = clientType switch
+        {
+            ClientType.Default => "http://localhost:8080",
+            ClientType.ScheduledJobs => "http://localhost:8081",
+            _ => throw new ArgumentOutOfRangeException(nameof(clientType), clientType, null),
+        };
+        var client = new HttpClient { BaseAddress = new Uri(baseAddress) };
 
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
             JwtAuthenticationHandler.SchemeName,
