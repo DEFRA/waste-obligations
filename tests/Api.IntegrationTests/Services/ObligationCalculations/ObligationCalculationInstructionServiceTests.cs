@@ -56,10 +56,7 @@ public class ObligationCalculationInstructionServiceTests : IntegrationTestBase
     public async Task Create_ShouldPersistPendingInstructionForExplicitYear()
     {
         var subject = CreateSubject();
-        using var session = await GetMongoApplicationDatabase()
-            .Client.StartSessionAsync(cancellationToken: TestContext.Current.CancellationToken);
-
-        var instruction = await subject.Create(session, 2025, null, TestContext.Current.CancellationToken);
+        var instruction = await subject.Create(2025, null, TestContext.Current.CancellationToken);
 
         instruction.Id.Should().NotBe(ObjectId.Empty);
         instruction.ObligationYear.Should().Be(2025);

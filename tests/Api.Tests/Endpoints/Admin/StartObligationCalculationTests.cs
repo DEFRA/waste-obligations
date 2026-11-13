@@ -8,7 +8,6 @@ using Defra.WasteObligations.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
-using MongoDB.Driver;
 using NSubstitute;
 
 namespace Defra.WasteObligations.Api.Tests.Endpoints.Admin;
@@ -19,18 +18,11 @@ public class StartObligationCalculationTests(ApiWebApplicationFactory factory, I
     private IObligationCalculationInstructionService Instructions { get; } =
         Substitute.For<IObligationCalculationInstructionService>();
 
-    private IClientSessionHandle Session { get; } = Substitute.For<IClientSessionHandle>();
-
     private bool ProcessingEnabled { get; set; } = true;
 
     protected override void ConfigureTestServices(IServiceCollection services)
     {
         services.AddTransient<IObligationCalculationInstructionService>(_ => Instructions);
-        var database = Substitute.For<IMongoDatabase>();
-        var mongoClient = Substitute.For<IMongoClient>();
-        mongoClient.StartSessionAsync(Arg.Any<ClientSessionOptions>(), Arg.Any<CancellationToken>()).Returns(Session);
-        database.Client.Returns(mongoClient);
-        services.AddSingleton(database);
         var options = Substitute.For<IOptionsMonitor<ScheduledJobProcessingOptions>>();
         options
             .Get("ObligationCalculation")
@@ -47,7 +39,7 @@ public class StartObligationCalculationTests(ApiWebApplicationFactory factory, I
         Guid? selectedSubmitter = includeSubmitter ? submitterId : null;
         string? capturedCorrelationId = null;
         Instructions
-            .Create(Session, 2026, selectedSubmitter, Arg.Any<CancellationToken>())
+            .Create(2026, selectedSubmitter, Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
                 capturedCorrelationId = CorrelationContext.Current;
@@ -75,9 +67,8 @@ public class StartObligationCalculationTests(ApiWebApplicationFactory factory, I
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         await VerifyJson(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken))
             .UseParameters(includeSubmitter);
-        await Instructions.Received(1).Create(Session, 2026, selectedSubmitter, Arg.Any<CancellationToken>());
+        await Instructions.Received(1).Create(2026, selectedSubmitter, Arg.Any<CancellationToken>());
         capturedCorrelationId.Should().Be("request-123");
-        Session.DidNotReceive().StartTransaction(Arg.Any<TransactionOptions>());
     }
 
     [Theory]
@@ -94,9 +85,7 @@ public class StartObligationCalculationTests(ApiWebApplicationFactory factory, I
         );
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        await Instructions
-            .DidNotReceiveWithAnyArgs()
-            .Create(default!, default, default, TestContext.Current.CancellationToken);
+        await Instructions.DidNotReceiveWithAnyArgs().Create(default, default, TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -114,9 +103,7 @@ public class StartObligationCalculationTests(ApiWebApplicationFactory factory, I
 
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
         (await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).Should().BeEmpty();
-        await Instructions
-            .DidNotReceiveWithAnyArgs()
-            .Create(default!, default, default, TestContext.Current.CancellationToken);
+        await Instructions.DidNotReceiveWithAnyArgs().Create(default, default, TestContext.Current.CancellationToken);
     }
 
     [Fact]

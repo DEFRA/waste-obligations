@@ -16,6 +16,16 @@ public class ObligationCalculationInstructionService(IMongoDatabase database, Ti
         database.GetCollection<ObligationCalculationInstruction>(ObligationCalculationInstruction.CollectionName);
 
     public async Task<ObligationCalculationInstruction> Create(
+        int obligationYear,
+        Guid? submitterId,
+        CancellationToken cancellationToken
+    )
+    {
+        using var session = await database.Client.StartSessionAsync(cancellationToken: cancellationToken);
+        return await Create(session, obligationYear, submitterId, cancellationToken);
+    }
+
+    public async Task<ObligationCalculationInstruction> Create(
         IClientSessionHandle session,
         int obligationYear,
         Guid? submitterId,

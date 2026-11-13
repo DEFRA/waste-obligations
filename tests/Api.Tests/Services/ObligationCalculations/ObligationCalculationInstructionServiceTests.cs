@@ -34,10 +34,24 @@ public class ObligationCalculationInstructionServiceTests
                 _ => Task.FromResult(existing)
             );
 
-        var result = await CreateSubject(collection)
-            .Create(session, existing.ObligationYear, existing.SubmitterId, TestContext.Current.CancellationToken);
+        var database = Substitute.For<IMongoDatabase>();
+        var client = Substitute.For<IMongoClient>();
+        database.Client.Returns(client);
+        database
+            .GetCollection<ObligationCalculationInstruction>(ObligationCalculationInstruction.CollectionName)
+            .Returns(collection);
+        client.StartSessionAsync(Arg.Any<ClientSessionOptions>(), Arg.Any<CancellationToken>()).Returns(session);
+        var subject = new ObligationCalculationInstructionService(database, TimeProvider.System);
+
+        var result = await subject.Create(
+            existing.ObligationYear,
+            existing.SubmitterId,
+            TestContext.Current.CancellationToken
+        );
 
         result.Should().BeSameAs(existing);
+        session.Received(1).Dispose();
+        session.DidNotReceive().StartTransaction(Arg.Any<TransactionOptions>());
         await collection
             .Received(2)
             .FindOneAndUpdateAsync(
