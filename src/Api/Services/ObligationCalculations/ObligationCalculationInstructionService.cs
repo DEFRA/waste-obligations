@@ -20,7 +20,7 @@ public class ObligationCalculationInstructionService(IMongoDatabase database, Ti
         string? traceId = null
     )
     {
-        return await CreateCore(null, obligationYear, submitterId, cancellationToken, traceId);
+        return await CreateCore(null, obligationYear, submitterId, traceId, cancellationToken);
     }
 
     public async Task<ObligationCalculationInstruction> Create(
@@ -33,15 +33,15 @@ public class ObligationCalculationInstructionService(IMongoDatabase database, Ti
     {
         ArgumentNullException.ThrowIfNull(session);
 
-        return await CreateCore(session, obligationYear, submitterId, cancellationToken, traceId);
+        return await CreateCore(session, obligationYear, submitterId, traceId, cancellationToken);
     }
 
     private async Task<ObligationCalculationInstruction> CreateCore(
         IClientSessionHandle? session,
         int obligationYear,
         Guid? submitterId,
-        CancellationToken cancellationToken,
-        string? traceId
+        string? traceId,
+        CancellationToken cancellationToken
     )
     {
         var instruction = new ObligationCalculationInstruction
