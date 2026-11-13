@@ -72,6 +72,7 @@ public class ScheduledJobTests : IntegrationTestBase
             .AddSingleton<ICurrentObligationYearProvider, CurrentObligationYearProvider>()
             .AddTransient<IObligationCalculationInstructionService, ObligationCalculationInstructionService>()
             .AddWastePackagingService(false)
+            .AddRequestMetrics()
             .AddObligationCalculation()
             .AddScheduledJobs(configuration.GetSection("ScheduledJobs"))
             .BuildServiceProvider();
