@@ -21,7 +21,9 @@ using Microsoft.Extensions.Time.Testing;
 using MongoDB.Bson;
 using MongoDB.Driver;
 using NSubstitute;
+using WireMock.Admin.Mappings;
 using WireMock.Admin.Requests;
+using WireMock.Client.Extensions;
 
 namespace Defra.WasteObligations.Api.IntegrationTests.Services.Scheduling;
 
