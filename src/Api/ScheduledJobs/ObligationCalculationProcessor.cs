@@ -30,6 +30,10 @@ public class ObligationCalculationProcessor(
                 var calculation = calculator.Calculate(item, work.ObligationYear);
                 await calculationService.Save(calculation, cancellationToken);
             }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
             catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
             {
                 logger.LogError(

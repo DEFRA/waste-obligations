@@ -14,6 +14,7 @@ public static class CorrelationContext
     {
         var current = TraceId.Value;
         var correlationId = string.IsNullOrWhiteSpace(id) ? null : id;
+        // A null nested scope suppresses the outer trace in ECS output for uncorrelated work.
         var logScope =
             correlationId is null && current is null
                 ? null

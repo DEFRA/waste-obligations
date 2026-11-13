@@ -75,8 +75,8 @@ public class ScheduledJobTests : IntegrationTestBase
             .AddScheduledJobs(configuration.GetSection("ScheduledJobs"))
             .BuildServiceProvider();
         var workers = host.GetServices<IHostedService>().ToArray();
-        var scheduler = workers[0];
-        var processor = workers[1];
+        var scheduler = workers.OfType<ScheduledJobWorker>().Single();
+        var processor = workers.OfType<ScheduledJobProcessingWorker<ObligationCalculationInstruction>>().Single();
         try
         {
             await scheduler.StartAsync(TestContext.Current.CancellationToken);

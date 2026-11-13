@@ -58,6 +58,29 @@ public class PackagingCalculationTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Process_WhenSaveCancelsIndependently_ShouldPropagateWithoutProcessingLaterSubmitters()
+    {
+        var source = Source(
+            ApprovedSubmissionFixture.Default().With(x => x.SubmitterOrganisationId, SubmitterId).Create(),
+            ApprovedSubmissionFixture.Default().With(x => x.SubmitterOrganisationId, Guid.NewGuid()).Create()
+        );
+        var service = Substitute.For<IObligationCalculationService>();
+        service
+            .Save(Arg.Any<ObligationCalculation>(), Arg.Any<CancellationToken>())
+            .Returns<Task<ObligationCalculation>>(_ => throw new OperationCanceledException());
+        var action = () =>
+            Processor(source, service)
+                .Process(
+                    ObligationCalculationInstructionFixture.Default().Create(),
+                    TestContext.Current.CancellationToken
+                );
+
+        await action.Should().ThrowAsync<OperationCanceledException>();
+        await service.Received(1).Save(Arg.Any<ObligationCalculation>(), Arg.Any<CancellationToken>());
+        _logger.Entries.Should().NotContain(x => x.Level == LogLevel.Error);
+    }
+
+    [Fact]
     public async Task Process_ShouldOnlySaveRequestedSubmitter()
     {
         var otherId = Guid.NewGuid();

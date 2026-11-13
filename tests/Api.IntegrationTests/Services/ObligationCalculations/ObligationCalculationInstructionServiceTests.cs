@@ -147,14 +147,7 @@ public class ObligationCalculationInstructionServiceTests : IntegrationTestBase
         var results = await Task.WhenAll(
             Enumerable
                 .Range(0, 20)
-                .Select(async _ =>
-                {
-                    using var session = await GetMongoApplicationDatabase()
-                        .Client.StartSessionAsync(cancellationToken: TestContext.Current.CancellationToken);
-
-                    return await CreateSubject()
-                        .Create(session, 2026, submitterId, TestContext.Current.CancellationToken);
-                })
+                .Select(_ => CreateSubject().Create(2026, submitterId, TestContext.Current.CancellationToken))
         );
 
         results.Select(x => x.Id).Distinct().Should().ContainSingle();
