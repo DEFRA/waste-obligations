@@ -352,6 +352,44 @@ public class ObligationCoveragePercentageCalculatorTests
     }
 
     [Fact]
+    public void CalculateFromObligations_WhenRemainingGlassHasSurplus_ShouldNotCoverRemeltShortfall()
+    {
+        Obligation[] obligations =
+        [
+            CreateObligation(76, 18, ObligationStatus.Met) with
+            {
+                Material = Material.Glass,
+            },
+            CreateObligation(0, 58, ObligationStatus.NotMet) with
+            {
+                Material = Material.GlassRemelt,
+            },
+            CreateObligation(1, 1, ObligationStatus.Met) with
+            {
+                Material = Material.Plastic,
+            },
+            CreateObligation(1, 1, ObligationStatus.Met) with
+            {
+                Material = Material.Wood,
+            },
+            CreateObligation(1, 1, ObligationStatus.Met) with
+            {
+                Material = Material.Aluminium,
+            },
+            CreateObligation(1, 1, ObligationStatus.Met) with
+            {
+                Material = Material.Steel,
+            },
+            CreateObligation(1, 1, ObligationStatus.Met) with
+            {
+                Material = Material.Paper,
+            },
+        ];
+
+        ObligationCoveragePercentageCalculator.CalculateFromObligations(obligations).Should().Be(87);
+    }
+
+    [Fact]
     public void CalculateFromObligations_WhenGlassHasNoData_ShouldExcludeItFromTheGroup()
     {
         Obligation[] obligations =
