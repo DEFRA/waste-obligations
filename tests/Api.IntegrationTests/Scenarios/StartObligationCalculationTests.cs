@@ -32,15 +32,37 @@ public class StartObligationCalculationTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task AdminInstruction_ShouldBeProcessedByComposeService()
+    public async Task AdminInstruction_ShouldPersistCalculationThroughComposeService()
     {
         const int obligationYear = 2026;
         var submitterId = Guid.NewGuid();
+        var producerId = Guid.NewGuid();
         var mapping = WireMockContext.WireMockAdminApi.GetMappingBuilder();
         mapping.Given(x =>
             x.WithRequest(r => r.UsingGet().WithPath("/packaging/2025/producer-material-totals-by-submitter"))
                 .WithResponse(r =>
-                    r.WithStatusCode(HttpStatusCode.OK).WithBodyAsJson(new { items = Array.Empty<object>() })
+                    r.WithStatusCode(HttpStatusCode.OK)
+                        .WithBodyAsJson(
+                            new
+                            {
+                                items = new[]
+                                {
+                                    new
+                                    {
+                                        submitterOrganisationId = submitterId,
+                                        submitterType = "ComplianceScheme",
+                                        producers = new[]
+                                        {
+                                            new
+                                            {
+                                                producerOrganisationId = producerId,
+                                                materials = new[] { new { materialCode = "PL", kilograms = 10000L } },
+                                            },
+                                        },
+                                    },
+                                },
+                            }
+                        )
                 )
         );
         var registered = await mapping.BuildAndPostAsync(TestContext.Current.CancellationToken);
@@ -58,9 +80,11 @@ public class StartObligationCalculationTests : IntegrationTestBase
             await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)
         );
         var instructionId = ObjectId.Parse(body.RootElement.GetProperty("id").GetString());
-        var instructions = GetMongoDatabase()
-            .Client.GetDatabase("waste-obligations-scheduled-job-test")
-            .GetCollection<ObligationCalculationInstruction>(ObligationCalculationInstruction.CollectionName);
+        var database = GetMongoDatabase().Client.GetDatabase("waste-obligations-scheduled-job-test");
+        var instructions = database.GetCollection<ObligationCalculationInstruction>(
+            ObligationCalculationInstruction.CollectionName
+        );
+        var calculations = database.GetCollection<ObligationCalculation>(nameof(ObligationCalculation));
 
         try
         {
@@ -77,10 +101,40 @@ public class StartObligationCalculationTests : IntegrationTestBase
                 timeout: 30,
                 delay: TimeSpan.FromMilliseconds(200)
             );
+
+            var calculation = await calculations
+                .Find(x => x.SubmitterOrganisationId == submitterId && x.ObligationYear == obligationYear)
+                .SingleAsync(TestContext.Current.CancellationToken);
+            calculation.SubmitterType.Should().Be(ObligationSubmitterType.ComplianceScheme);
+            var producer = calculation.Producers.Should().ContainSingle().Which;
+            producer.ProducerOrganisationId.Should().Be(producerId);
+            producer
+                .Materials.Should()
+                .ContainSingle()
+                .Which.Should()
+                .BeEquivalentTo(
+                    new
+                    {
+                        MaterialCode = "PL",
+                        InputKilograms = 10000L,
+                        InputTonnes = 10L,
+                        ObligationTonnes = 6L,
+                    }
+                );
         }
         finally
         {
             await instructions.DeleteOneAsync(x => x.Id == instructionId, TestContext.Current.CancellationToken);
+            await calculations.DeleteOneAsync(
+                x => x.SubmitterOrganisationId == submitterId && x.ObligationYear == obligationYear,
+                TestContext.Current.CancellationToken
+            );
+            using var admin = new HttpClient();
+            using var deleted = await admin.DeleteAsync(
+                $"http://localhost:9090/__admin/mappings/{registered.Guid}",
+                TestContext.Current.CancellationToken
+            );
+            deleted.EnsureSuccessStatusCode();
         }
     }
 }

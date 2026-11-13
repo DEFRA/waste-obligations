@@ -5,8 +5,8 @@ using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.ObligationCalculations;
-using Defra.WasteObligations.Api.Services.Packaging;
 using Defra.WasteObligations.Api.Services.Scheduling;
+using Defra.WasteObligations.Api.Services.WastePackaging;
 using Defra.WasteObligations.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -73,9 +73,9 @@ public class ScheduledJobTests : IntegrationTestBase
             ["ScheduledJobs:ObligationCalculation:Enabled"] = "true",
             ["ScheduledJobs:ObligationCalculation:Cron"] = "0 1 * * *",
             ["ScheduledJobs:ObligationCalculation:Processing:Enabled"] = "true",
-            ["Packaging:BaseAddress"] = "http://localhost:9090/",
-            ["Packaging:ClientId"] = "client",
-            ["Packaging:ClientSecret"] = "secret",
+            ["WastePackaging:BaseAddress"] = "http://localhost:9090/",
+            ["WastePackaging:ClientId"] = "client",
+            ["WastePackaging:ClientSecret"] = "secret",
             ["ObligationCalculation:Targets:2026:PL"] = "0.57",
             ["ObligationCalculation:Targets:2026:PC"] = "0.77",
             ["ObligationCalculation:Targets:2026:FC"] = "0.77",
@@ -95,7 +95,7 @@ public class ScheduledJobTests : IntegrationTestBase
             .AddScoped<IDbContext, MongoDbContext>()
             .AddSingleton<ICurrentObligationYearProvider, CurrentObligationYearProvider>()
             .AddTransient<IObligationCalculationInstructionService, ObligationCalculationInstructionService>()
-            .AddPackagingService(false)
+            .AddWastePackagingService(false)
             .AddObligationCalculation()
             .AddScheduledJobs(configuration.GetSection("ScheduledJobs"))
             .BuildServiceProvider();

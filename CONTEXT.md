@@ -20,7 +20,7 @@ Use the language below across code, tests and discussions. The linked sources de
 
 **Obligation year**: The year against which recycling obligations, declarations and eligibility are considered. “Current obligation year” follows a service policy that retains the previous year through January and changes on 1 February in Europe/London time. See the [year provider](src/Api/Services/CurrentObligationYearProvider.cs).
 
-**Packaging year**: The submission-data year, one year before the obligation year. The [calculation processor](src/Api/ScheduledJobs/ObligationCalculationProcessor.cs) requests that year's approved full-year totals from the [Packaging API client](src/Api/Services/Packaging/PackagingSource.cs).
+**Packaging year**: The submission-data year, one year before the obligation year. The [calculation processor](src/Api/ScheduledJobs/ObligationCalculationProcessor.cs) requests that year's approved full-year totals from the [Packaging API client](src/Api/Services/WastePackaging/WastePackagingService.cs).
 
 **Submitter**: The direct producer or compliance scheme reporting packaging data. A compliance scheme's submission contains its member producers; submitter identity and producer identity remain distinct. See the [calculator input](src/Api/Services/ObligationCalculations/ApprovedSubmission.cs) and [producer input](src/Api/Services/ObligationCalculations/ProducerPackaging.cs).
 

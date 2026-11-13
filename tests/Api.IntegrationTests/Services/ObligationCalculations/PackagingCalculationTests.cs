@@ -1,10 +1,9 @@
-using System.Text.Json;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.ScheduledJobs;
 using Defra.WasteObligations.Api.Services.ObligationCalculations;
-using Defra.WasteObligations.Api.Services.Packaging;
+using Defra.WasteObligations.Api.Services.WastePackaging;
 using Defra.WasteObligations.Testing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -21,20 +20,17 @@ public class PackagingCalculationTests : IntegrationTestBase
     private readonly RecordingLogger<ObligationCalculationProcessor> _logger = new();
 
     [Theory]
-    [InlineData("DirectRegistrant", ObligationSubmitterType.DirectRegistrant)]
-    [InlineData("ComplianceScheme", ObligationSubmitterType.ComplianceScheme)]
-    public async Task Process_ShouldCalculateAndSaveMappedProducerMaterials(
-        string type,
-        ObligationSubmitterType expectedType
-    )
+    [InlineData(ObligationSubmitterType.DirectRegistrant)]
+    [InlineData(ObligationSubmitterType.ComplianceScheme)]
+    public async Task Process_ShouldCalculateAndSaveProducerMaterials(ObligationSubmitterType type)
     {
         var source = Source(Submission(SubmitterId, type));
 
         await Processor(source).Process(Instruction(), TestContext.Current.CancellationToken);
 
-        await source.Received(1).GetFullYear(2025, TestContext.Current.CancellationToken);
+        await source.Received(1).Read(2025, TestContext.Current.CancellationToken);
         var saved = await Read(SubmitterId);
-        saved.SubmitterType.Should().Be(expectedType);
+        saved.SubmitterType.Should().Be(type);
         saved.ObligationYear.Should().Be(2026);
         var producer = saved.Producers.Should().ContainSingle().Which;
         producer.ProducerOrganisationId.Should().Be(ProducerId);
@@ -102,20 +98,15 @@ public class PackagingCalculationTests : IntegrationTestBase
         (await Read(laterId)).ObligationYear.Should().Be(2026);
     }
 
-    [Theory]
-    [InlineData("Unknown", "PL")]
-    [InlineData("DirectRegistrant", "INVALID")]
-    public async Task Process_WhenMappingOrCalculationFails_ShouldPreservePreviousAndContinue(
-        string type,
-        string material
-    )
+    [Fact]
+    public async Task Process_WhenCalculationFails_ShouldPreservePreviousAndContinue()
     {
         await Processor(Source(Submission(SubmitterId))).Process(Instruction(), TestContext.Current.CancellationToken);
         var before = await Read(SubmitterId);
         var laterId = Guid.NewGuid();
         var instruction = Instruction();
 
-        await Processor(Source(Submission(SubmitterId, type, material), Submission(laterId)))
+        await Processor(Source(Submission(SubmitterId, material: "INVALID"), Submission(laterId)))
             .Process(instruction, TestContext.Current.CancellationToken);
 
         (await Read(SubmitterId)).Should().BeEquivalentTo(before);
@@ -128,30 +119,6 @@ public class PackagingCalculationTests : IntegrationTestBase
                 && x.Message.Contains(instruction.Id.ToString())
                 && x.Message.Contains("2026")
             );
-    }
-
-    [Fact]
-    public async Task Process_WhenGroupIsMalformed_ShouldContinueWithLaterSubmitter()
-    {
-        await Processor(
-                Source(
-                    JsonSerializer.SerializeToElement(new { submitterOrganisationId = SubmitterId }),
-                    Submission(Guid.NewGuid())
-                )
-            )
-            .Process(Instruction(), TestContext.Current.CancellationToken);
-
-        (
-            await Calculations.CountDocumentsAsync(
-                FilterDefinition<ObligationCalculation>.Empty,
-                cancellationToken: TestContext.Current.CancellationToken
-            )
-        )
-            .Should()
-            .Be(1);
-        _logger
-            .Entries.Should()
-            .ContainSingle(x => x.Level == LogLevel.Error && x.Message.Contains(SubmitterId.ToString()));
     }
 
     [Fact]
@@ -237,9 +204,9 @@ public class PackagingCalculationTests : IntegrationTestBase
     public async Task Process_WhenCancelledDuringFetch_ShouldPropagateCancellationWithoutSaving()
     {
         using var cancellation = new CancellationTokenSource();
-        var source = Substitute.For<IPackagingSource>();
+        var source = Substitute.For<IWastePackagingService>();
         source
-            .GetFullYear(2025, cancellation.Token)
+            .Read(2025, cancellation.Token)
             .Returns(_ =>
             {
                 cancellation.Cancel();
@@ -269,7 +236,7 @@ public class PackagingCalculationTests : IntegrationTestBase
             .SingleAsync(TestContext.Current.CancellationToken);
 
     private ObligationCalculationProcessor Processor(
-        IPackagingSource source,
+        IWastePackagingService source,
         IObligationCalculationService? service = null
     ) =>
         new(
@@ -295,33 +262,31 @@ public class PackagingCalculationTests : IntegrationTestBase
             CreatedAt = DateTime.UtcNow,
         };
 
-    private static IPackagingSource Source(params JsonElement[] items)
+    private static IWastePackagingService Source(params ApprovedSubmission[] items)
     {
-        var source = Substitute.For<IPackagingSource>();
-        source.GetFullYear(2025, Arg.Any<CancellationToken>()).Returns(new PackagingResponse { Items = items });
+        var source = Substitute.For<IWastePackagingService>();
+        source.Read(2025, Arg.Any<CancellationToken>()).Returns(new PackagingResponse { Items = items });
 
         return source;
     }
 
-    private static JsonElement Submission(
+    private static ApprovedSubmission Submission(
         Guid id,
-        string type = "DirectRegistrant",
+        ObligationSubmitterType type = ObligationSubmitterType.DirectRegistrant,
         string material = "PL",
         long kilograms = 10000
     ) =>
-        JsonSerializer.SerializeToElement(
-            new
-            {
-                submitterOrganisationId = id,
-                submitterType = type,
-                producers = new[]
+        new()
+        {
+            SubmitterOrganisationId = id,
+            SubmitterType = type,
+            Producers =
+            [
+                new ProducerPackaging
                 {
-                    new
-                    {
-                        producerOrganisationId = ProducerId,
-                        materials = new[] { new { materialCode = material, kilograms } },
-                    },
+                    ProducerOrganisationId = ProducerId,
+                    Materials = [new MaterialWeight { MaterialCode = material, Kilograms = kilograms }],
                 },
-            }
-        );
+            ],
+        };
 }

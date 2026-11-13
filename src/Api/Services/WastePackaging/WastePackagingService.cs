@@ -1,10 +1,10 @@
 using Defra.WasteObligations.Api.Utils.Http;
 
-namespace Defra.WasteObligations.Api.Services.Packaging;
+namespace Defra.WasteObligations.Api.Services.WastePackaging;
 
-public class PackagingSource(HttpClient httpClient) : IPackagingSource
+public class WastePackagingService(HttpClient httpClient) : IWastePackagingService
 {
-    public async Task<PackagingResponse> GetFullYear(int packagingYear, CancellationToken cancellationToken)
+    public async Task<PackagingResponse> Read(int packagingYear, CancellationToken cancellationToken)
     {
         using var request = httpClient.CreateRequest(
             HttpMethod.Get,

@@ -4,8 +4,8 @@ using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.ScheduledJobs;
 using Defra.WasteObligations.Api.Services.ObligationCalculations;
-using Defra.WasteObligations.Api.Services.Packaging;
 using Defra.WasteObligations.Api.Services.Scheduling;
+using Defra.WasteObligations.Api.Services.WastePackaging;
 using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
 using Microsoft.Extensions.Configuration;
@@ -187,9 +187,9 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
         var retryStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var finish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var attempts = 0;
-        var packaging = Substitute.For<IPackagingSource>();
+        var packaging = Substitute.For<IWastePackagingService>();
         packaging
-            .GetFullYear(instruction.ObligationYear - 1, Arg.Any<CancellationToken>())
+            .Read(instruction.ObligationYear - 1, Arg.Any<CancellationToken>())
             .Returns(async _ =>
             {
                 if (Interlocked.Increment(ref attempts) == 1)
@@ -446,12 +446,10 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
         return services.BuildServiceProvider();
     }
 
-    private static IPackagingSource EmptyPackaging()
+    private static IWastePackagingService EmptyPackaging()
     {
-        var packaging = Substitute.For<IPackagingSource>();
-        packaging
-            .GetFullYear(Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(new PackagingResponse { Items = [] });
+        var packaging = Substitute.For<IWastePackagingService>();
+        packaging.Read(Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(new PackagingResponse { Items = [] });
 
         return packaging;
     }

@@ -3,11 +3,11 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 
-namespace Defra.WasteObligations.Api.Services.Packaging;
+namespace Defra.WasteObligations.Api.Services.WastePackaging;
 
-public class PackagingOptions
+public class WastePackagingOptions
 {
-    public const string SectionName = "Packaging";
+    public const string SectionName = "WastePackaging";
 
     [Required]
     public required string BaseAddress { get; init; }
