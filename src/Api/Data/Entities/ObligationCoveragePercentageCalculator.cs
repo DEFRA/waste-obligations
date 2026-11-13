@@ -9,48 +9,36 @@ public static class ObligationCoveragePercentageCalculator
 
     public static decimal CalculateFromObligations(IEnumerable<Obligation> obligations)
     {
-        return CalculateFromMaterials(
-            obligations.Select(x => (x.Material, x.Tonnages.Accepted, x.Tonnages.Obligated, x.Status))
-        );
+        return CalculateFromMaterials(obligations.Select(x => (x.Tonnages.Accepted, x.Tonnages.Obligated, x.Status)));
     }
 
-    public static decimal CalculateFromMaterials(
-        IEnumerable<(string Material, int Accepted, int Obligated, string Status)> materials
-    )
+    public static decimal CalculateFromMaterials(IEnumerable<(int Accepted, int Obligated, string Status)> materials)
     {
         var totalNumerator = BigInteger.Zero;
         var totalDenominator = BigInteger.One;
         var count = 0;
         var anyNotMet = false;
-        var glassMaterials = new List<(string Material, int Accepted, int Obligated, string Status)>();
-
         foreach (var material in materials.Where(x => x.Status != ObligationStatus.NoDataYet))
         {
             anyNotMet |= material.Status == ObligationStatus.NotMet;
-            if (material.Material is Material.Glass or Material.GlassRemelt)
+            BigInteger numerator;
+            int denominator;
+            // Met can include remelt surplus that is not shown in accepted tonnage.
+            if (material.Status == ObligationStatus.Met)
             {
-                glassMaterials.Add(material);
+                numerator = MaxPercentage;
+                denominator = 1;
+            }
+            else if (material.Obligated > 0)
+            {
+                numerator = (BigInteger)Math.Min(material.Accepted, material.Obligated) * MaxPercentage;
+                denominator = material.Obligated;
             }
             else
             {
-                AddCoverage(material.Accepted, material.Obligated, material.Status == ObligationStatus.Met);
-                count++;
+                numerator = 0;
+                denominator = 1;
             }
-        }
-
-        if (glassMaterials.Count > 0)
-        {
-            var glass = CalculateGlassCoverage(glassMaterials);
-            AddCoverage(glass.Accepted, glass.Obligated, glass.AllMet);
-            count++;
-        }
-
-        void AddCoverage(BigInteger accepted, BigInteger obligated, bool met)
-        {
-            var numerator = met ? new BigInteger(MaxPercentage) : BigInteger.Zero;
-            if (obligated > 0)
-                numerator = BigInteger.Min(accepted, obligated) * MaxPercentage;
-            var denominator = obligated > 0 ? obligated : BigInteger.One;
 
             // Keep exact fractions so decimal division cannot move a true midpoint below its rounding boundary.
             totalNumerator = totalNumerator * denominator + numerator * totalDenominator;
@@ -58,6 +46,7 @@ public static class ObligationCoveragePercentageCalculator
             var divisor = BigInteger.GreatestCommonDivisor(totalNumerator, totalDenominator);
             totalNumerator /= divisor;
             totalDenominator /= divisor;
+            count++;
         }
         if (count == 0)
             return 0m;
@@ -68,37 +57,5 @@ public static class ObligationCoveragePercentageCalculator
             rounded += totalNumerator.Sign;
 
         return (decimal)(anyNotMet ? BigInteger.Min(rounded, MaxPercentage - 1) : rounded);
-    }
-
-    private static (BigInteger Accepted, BigInteger Obligated, bool AllMet) CalculateGlassCoverage(
-        IEnumerable<(string Material, int Accepted, int Obligated, string Status)> materials
-    )
-    {
-        var glassAccepted = BigInteger.Zero;
-        var glassObligated = BigInteger.Zero;
-        var remeltAccepted = BigInteger.Zero;
-        var remeltObligated = BigInteger.Zero;
-        var allMet = true;
-        foreach (var material in materials)
-        {
-            if (material.Material == Material.GlassRemelt)
-            {
-                remeltAccepted += material.Accepted;
-                remeltObligated += material.Obligated;
-            }
-            else
-            {
-                glassAccepted += material.Accepted;
-                glassObligated += material.Obligated;
-            }
-            allMet &= material.Status == ObligationStatus.Met;
-        }
-
-        // Remelt surplus can meet remaining glass; remaining-glass surplus cannot meet remelt.
-        var remeltCovered = BigInteger.Min(remeltAccepted, remeltObligated);
-        var remeltSurplus = BigInteger.Max(BigInteger.Zero, remeltAccepted - remeltObligated);
-        var glassCovered = BigInteger.Min(glassAccepted + remeltSurplus, glassObligated);
-
-        return (remeltCovered + glassCovered, remeltObligated + glassObligated, allMet);
     }
 }

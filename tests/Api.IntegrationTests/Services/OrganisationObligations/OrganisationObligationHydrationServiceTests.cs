@@ -142,7 +142,7 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
         summary.LastSuccessfulReadAt.Should().Be(requestedAt);
         summary.IsHydrationActive.Should().BeFalse();
         summary.RecyclingObligationsMet.Should().BeTrue();
-        summary.ObligationCoveragePercentage.Should().Be(75);
+        summary.ObligationCoveragePercentage.Should().Be(100);
     }
 
     [Fact]
@@ -523,7 +523,7 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
         summary.TotalAcceptedTonnage.Should().Be(35);
         summary.TotalObligatedTonnage.Should().Be(40);
         summary.RecyclingObligationsMet.Should().BeFalse();
-        summary.ObligationCoveragePercentage.Should().Be(88);
+        summary.ObligationCoveragePercentage.Should().Be(99);
         summary.RefreshState.Should().Be(OrganisationObligationRefreshState.Ready);
         summary.LastSuccessfulReadAt.Should().Be(_timeProvider.GetUtcNow().UtcDateTime);
         summary.NextRefreshAt.Should().BeAfter(_timeProvider.GetUtcNow().UtcDateTime);
@@ -535,7 +535,7 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
             )
             .SingleAsync(TestContext.Current.CancellationToken);
         eligibility.RecyclingObligationsMet.Should().BeFalse();
-        eligibility.ObligationCoveragePercentage.Should().Be(88);
+        eligibility.ObligationCoveragePercentage.Should().Be(99);
         var retainedEligibility = await OrganisationComplianceDeclarationEligibilities
             .Find(x =>
                 x.Generation == "retained" && x.OrganisationId == organisationId && x.ObligationYear == ObligationYear

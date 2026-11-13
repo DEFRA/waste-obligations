@@ -301,9 +301,9 @@ public class ObligationCoveragePercentageCalculatorTests
 
     [Theory]
     [InlineData(ObligationStatus.Met, ObligationStatus.Met, 100)]
-    [InlineData(ObligationStatus.Met, ObligationStatus.NotMet, 0)]
+    [InlineData(ObligationStatus.Met, ObligationStatus.NotMet, 50)]
     [InlineData(ObligationStatus.Met, ObligationStatus.NoDataYet, 100)]
-    public void CalculateFromObligations_WhenGlassHasZeroObligation_ShouldUseParticipatingStatuses(
+    public void CalculateFromObligations_WhenGlassHasZeroObligation_ShouldAverageParticipatingStatuses(
         string glassStatus,
         string remeltStatus,
         decimal expected
@@ -326,9 +326,9 @@ public class ObligationCoveragePercentageCalculatorTests
 
     [Theory]
     [InlineData(149, 36, 113, ObligationStatus.Met, 100)]
-    [InlineData(75, 36, 113, ObligationStatus.NotMet, 50)]
-    [InlineData(149, 36, 113, ObligationStatus.NotMet, 99)]
-    public void CalculateFromObligations_WhenGlassAndRemeltArePresent_ShouldCombineTheirTonnages(
+    [InlineData(75, 36, 113, ObligationStatus.NotMet, 33)]
+    [InlineData(149, 36, 113, ObligationStatus.NotMet, 50)]
+    public void CalculateFromObligations_WhenGlassAndRemeltArePresent_ShouldCalculateEachMaterialIndependently(
         int remeltAccepted,
         int glassObligated,
         int remeltObligated,
@@ -349,6 +349,28 @@ public class ObligationCoveragePercentageCalculatorTests
         ];
 
         ObligationCoveragePercentageCalculator.CalculateFromObligations(obligations).Should().Be(expected);
+    }
+
+    [Fact]
+    public void CalculateFromObligations_WhenGlassIsMetViaRemeltAndPlasticIsNotMet_ShouldReturn67()
+    {
+        Obligation[] obligations =
+        [
+            CreateObligation(0, 36, ObligationStatus.Met) with
+            {
+                Material = Material.Glass,
+            },
+            CreateObligation(149, 113, ObligationStatus.Met) with
+            {
+                Material = Material.GlassRemelt,
+            },
+            CreateObligation(0, 100, ObligationStatus.NotMet) with
+            {
+                Material = Material.Plastic,
+            },
+        ];
+
+        ObligationCoveragePercentageCalculator.CalculateFromObligations(obligations).Should().Be(67);
     }
 
     [Fact]
@@ -386,11 +408,11 @@ public class ObligationCoveragePercentageCalculatorTests
             },
         ];
 
-        ObligationCoveragePercentageCalculator.CalculateFromObligations(obligations).Should().Be(87);
+        ObligationCoveragePercentageCalculator.CalculateFromObligations(obligations).Should().Be(86);
     }
 
     [Fact]
-    public void CalculateFromObligations_WhenGlassHasNoData_ShouldExcludeItFromTheGroup()
+    public void CalculateFromObligations_WhenGlassHasNoData_ShouldExcludeItFromTheAverage()
     {
         Obligation[] obligations =
         [

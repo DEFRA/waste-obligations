@@ -32,7 +32,7 @@ public class OrganisationObligationSummaryMapperTests
     }
 
     [Fact]
-    public void Map_WhenGlassObligationsAreMetTogether_ShouldReturnFullCoverage()
+    public void Map_WhenGlassObligationsAreMetViaRemelt_ShouldReturnFullCoverage()
     {
         var result = OrganisationObligationSummaryMapper.Map(
             ObligationFixture.OrganisationId,
@@ -80,7 +80,7 @@ public class OrganisationObligationSummaryMapperTests
         result.TotalAcceptedTonnage.Should().Be(35);
         result.TotalObligatedTonnage.Should().Be(40);
         result.RecyclingObligationsMet.Should().BeFalse();
-        result.ObligationCoveragePercentage.Should().Be(88);
+        result.ObligationCoveragePercentage.Should().Be(99);
     }
 
     [Fact]

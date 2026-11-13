@@ -39,7 +39,7 @@ public static class OrganisationObligationSummaryMapper
             TotalObligatedTonnage = totalObligatedTonnage,
             RecyclingObligationsMet = CalculateRecyclingObligationsMet(obligationArray),
             ObligationCoveragePercentage = ObligationCoveragePercentageCalculator.CalculateFromMaterials(
-                obligationArray.Select(x => (x.MaterialName, x.TonnageAccepted, x.ObligationToMeet ?? 0, x.Status))
+                obligationArray.Select(x => (x.TonnageAccepted, x.ObligationToMeet ?? 0, x.Status))
             ),
             SourceFingerprint = CreateSourceFingerprint(organisationId, obligationYear, obligationArray),
         };
