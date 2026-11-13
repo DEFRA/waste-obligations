@@ -2,6 +2,7 @@ using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.ObligationCalculations;
 using Defra.WasteObligations.Api.Services.Scheduling;
 using Defra.WasteObligations.Api.Services.WastePackaging;
+using Defra.WasteObligations.Api.Utils.Metrics;
 using Microsoft.Extensions.Logging;
 
 namespace Defra.WasteObligations.Api.ScheduledJobs;
@@ -10,13 +11,30 @@ public class ObligationCalculationProcessor(
     IWastePackagingService wastePackagingService,
     IObligationCalculator calculator,
     IObligationCalculationService calculationService,
+    IObligationCalculationMetrics metrics,
+    TimeProvider timeProvider,
     ILogger<ObligationCalculationProcessor> logger
 ) : IScheduledJobProcessor<ObligationCalculationInstruction>
 {
     public async Task Process(ObligationCalculationInstruction work, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var response = await wastePackagingService.Read(work.ObligationYear - 1, cancellationToken);
+        PackagingResponse response;
+        var start = timeProvider.GetTimestamp();
+        try
+        {
+            response = await wastePackagingService.Read(work.ObligationYear - 1, cancellationToken);
+        }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            metrics.Instruction(CalculationInstructionOutcome.PackagingFailure);
+            throw;
+        }
+        finally
+        {
+            metrics.FetchDuration(timeProvider.GetElapsedTime(start));
+        }
+        var hasErrors = false;
         var matched = false;
         foreach (var item in response.Items)
         {
@@ -28,7 +46,8 @@ public class ObligationCalculationProcessor(
 
                 matched = true;
                 var calculation = calculator.Calculate(item, work.ObligationYear);
-                await calculationService.Save(calculation, cancellationToken);
+                var result = await calculationService.SaveWithOutcome(calculation, cancellationToken);
+                metrics.Submitter(result.Outcome);
             }
             catch (OperationCanceledException)
             {
@@ -36,6 +55,8 @@ public class ObligationCalculationProcessor(
             }
             catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
             {
+                hasErrors = true;
+                metrics.SubmitterFailed();
                 logger.LogError(
                     exception,
                     "Obligation calculation failed for instruction {InstructionId}, obligation year {ObligationYear} and submitter {SubmitterId}",
@@ -47,6 +68,9 @@ public class ObligationCalculationProcessor(
         }
 
         cancellationToken.ThrowIfCancellationRequested();
+        metrics.Instruction(
+            hasErrors ? CalculationInstructionOutcome.SubmitterErrors : CalculationInstructionOutcome.Success
+        );
         if (response.Items.Count == 0)
             logger.LogInformation(
                 "No packaging data for instruction {InstructionId} and obligation year {ObligationYear}",

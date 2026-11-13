@@ -11,6 +11,7 @@ public static class ServiceCollectionExtensions
         services.AddMetrics();
         services.AddTransient<MetricsMiddleware>();
         services.AddSingleton<IRequestMetrics, RequestMetrics>();
+        services.AddSingleton<IObligationCalculationMetrics, ObligationCalculationMetrics>();
         services.AddSingleton<IComplianceDeclarationMetrics, ComplianceDeclarationMetrics>();
         services.AddSingleton<IEmailMetrics, EmailMetrics>();
         services.AddSingleton<IOrganisationEligibilityRefreshMetrics, OrganisationEligibilityRefreshMetrics>();

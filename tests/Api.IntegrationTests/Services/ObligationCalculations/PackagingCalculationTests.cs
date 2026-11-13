@@ -5,6 +5,7 @@ using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.ScheduledJobs;
 using Defra.WasteObligations.Api.Services.ObligationCalculations;
 using Defra.WasteObligations.Api.Services.WastePackaging;
+using Defra.WasteObligations.Api.Utils.Metrics;
 using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
 using Defra.WasteObligations.Testing.Fixtures.WastePackaging;
@@ -66,8 +67,8 @@ public class PackagingCalculationTests : IntegrationTestBase
         );
         var service = Substitute.For<IObligationCalculationService>();
         service
-            .Save(Arg.Any<ObligationCalculation>(), Arg.Any<CancellationToken>())
-            .Returns<Task<ObligationCalculation>>(_ => throw new OperationCanceledException());
+            .SaveWithOutcome(Arg.Any<ObligationCalculation>(), Arg.Any<CancellationToken>())
+            .Returns<Task<CalculationSaveResult>>(_ => throw new OperationCanceledException());
         var action = () =>
             Processor(source, service)
                 .Process(
@@ -76,8 +77,29 @@ public class PackagingCalculationTests : IntegrationTestBase
                 );
 
         await action.Should().ThrowAsync<OperationCanceledException>();
-        await service.Received(1).Save(Arg.Any<ObligationCalculation>(), Arg.Any<CancellationToken>());
+        await service.Received(1).SaveWithOutcome(Arg.Any<ObligationCalculation>(), Arg.Any<CancellationToken>());
         _logger.Entries.Should().NotContain(x => x.Level == LogLevel.Error);
+    }
+
+    [Fact]
+    public async Task Process_ShouldReportActualOutcomesAndIsolatedErrors()
+    {
+        var metrics = Substitute.For<IObligationCalculationMetrics>();
+        await Processor(Source(Submission(SubmitterId)), metrics: metrics)
+            .Process(Instruction(), TestContext.Current.CancellationToken);
+        await Processor(Source(Submission(SubmitterId)), metrics: metrics)
+            .Process(Instruction(), TestContext.Current.CancellationToken);
+        await Processor(Source(Submission(SubmitterId, kilograms: 20000)), metrics: metrics)
+            .Process(Instruction(), TestContext.Current.CancellationToken);
+        await Processor(Source(Submission(SubmitterId, material: "INVALID")), metrics: metrics)
+            .Process(Instruction(), TestContext.Current.CancellationToken);
+
+        metrics.Received(1).Submitter(CalculationSaveOutcome.Created);
+        metrics.Received(1).Submitter(CalculationSaveOutcome.Unchanged);
+        metrics.Received(1).Submitter(CalculationSaveOutcome.Updated);
+        metrics.Received(1).SubmitterFailed();
+        metrics.Received(3).Instruction(CalculationInstructionOutcome.Success);
+        metrics.Received(1).Instruction(CalculationInstructionOutcome.SubmitterErrors);
     }
 
     [Fact]
@@ -353,7 +375,8 @@ public class PackagingCalculationTests : IntegrationTestBase
 
     private ObligationCalculationProcessor Processor(
         IWastePackagingService source,
-        IObligationCalculationService? service = null
+        IObligationCalculationService? service = null,
+        IObligationCalculationMetrics? metrics = null
     ) =>
         new(
             source,
@@ -367,6 +390,8 @@ public class PackagingCalculationTests : IntegrationTestBase
                 TimeProvider.System
             ),
             service ?? new ObligationCalculationService(Context()),
+            metrics ?? Substitute.For<IObligationCalculationMetrics>(),
+            TimeProvider.System,
             _logger
         );
 
