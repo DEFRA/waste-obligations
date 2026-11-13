@@ -475,6 +475,7 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
             .AddSingleton(EmptyPackaging())
             .AddSingleton(Substitute.For<IObligationCalculator>())
             .AddSingleton(Substitute.For<IObligationCalculationService>())
+            .AddRequestMetrics()
             .AddScheduledJobs(configuration);
         if (processor is not null)
             services.AddScoped(_ => processor);
