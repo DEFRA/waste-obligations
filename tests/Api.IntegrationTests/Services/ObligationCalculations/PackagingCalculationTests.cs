@@ -260,7 +260,7 @@ public class PackagingCalculationTests : IntegrationTestBase
         _logger.Entries.Should().NotContain(x => x.Level == LogLevel.Error);
     }
 
-    private IMongoCollection<ObligationCalculation> Calculations =>
+    private static IMongoCollection<ObligationCalculation> Calculations =>
         GetMongoDatabase().GetCollection<ObligationCalculation>(nameof(ObligationCalculation));
 
     private Task<ObligationCalculation> Read(Guid id) =>
