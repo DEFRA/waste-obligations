@@ -320,7 +320,8 @@ public class PackagingCalculationTests : IntegrationTestBase
                         changedSubmission,
                         ApprovedSubmissionFixture.Default().With(x => x.SubmitterOrganisationId, laterId).Create()
                     ),
-                    service
+                    service,
+                    metrics
                 )
                 .Process(
                     ObligationCalculationInstructionFixture.Default().Create(),
