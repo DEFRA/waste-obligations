@@ -232,6 +232,17 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
             finish.TrySetResult();
             await worker.StopAsync(TestContext.Current.CancellationToken);
         }
+        workerLogger
+            .Received()
+            .Log(
+                LogLevel.Error,
+                Arg.Any<EventId>(),
+                Arg.Any<object>(),
+                Arg.Is<Exception>(exception =>
+                    exception is HttpRequestException && exception.Message == "Packaging API unavailable"
+                ),
+                Arg.Any<Func<object, Exception?, string>>()
+            );
         attempts.Should().Be(2);
         await packaging.Received(2).Read(instruction.ObligationYear - 1, Arg.Any<CancellationToken>());
         observedTraceIds.Should().HaveCount(2).And.OnlyContain(x => x == traceId);
