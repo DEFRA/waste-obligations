@@ -28,7 +28,9 @@ public class ObligationCalculationWorkSource(IMongoDatabase database)
             .ThenBy(x => x.Id)
             .FirstOrDefaultAsync(cancellationToken);
 
-        return instruction is null ? null : new(instruction.Id.ToString(), instruction);
+        return instruction is null
+            ? null
+            : new(instruction.Id.ToString(), instruction, instruction.TraceId ?? instruction.Id.ToString());
     }
 
     public async Task<bool> TryStart(

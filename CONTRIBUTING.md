@@ -17,6 +17,7 @@
 - When a background process needs different integration-client behaviour, add an explicitly named or typed background client for that purpose and keep the request-path client unchanged. Add regression tests that exercise the real HTTP handler pipeline to prove both the retained request behaviour and the deliberate background-client behaviour.
 - Store a background-worker lease in a private operational Mongo collection with the established leading-underscore, snake-case convention (for example `_audit_event_dispatch_lease`). Access that collection directly from the lease service through `IMongoDatabase`; do not add process-coordination collections to `IDbContext` or `MongoDbContext`.
 - In tests, prefer the fixtures in the Testing support project for repeated valid entity, DTO, and service response shapes; direct instantiation is fine for intentionally malformed/null payloads or small one-off values where a fixture would add noise
+- Keep repeated valid test builders in shared fixtures rather than private test-class factory helpers; customise cases with the fixture composer.
 - Fixture location should follow the `tests/Testing/Fixtures` folder taxonomy: DTO fixtures in `Dtos`, entity fixtures in `Entities`, and service integration response fixtures in folders named for that integration
 - Attempt to mask use of ToString where possible
 - When the full Compose/test cycle is required, it includes the build, API tests, and integration tests above.
@@ -64,8 +65,12 @@ Follow this order for a persisted entity shape change:
 - In the sandbox environment, Api.Tests may need escalation because the test application can bind local sockets
 
 ## Integration tests
+- Model application URLs in `Testing.Endpoints` and select the Compose application through `IntegrationTestBase.CreateClient(ClientType)` rather than changing a client's base address in a scenario.
+- Keep reusable downstream API stubs in `Testing.Extensions.WireMock`, accepting typed response models for valid payloads. Keep deliberately malformed payloads local to the test that exercises them.
+- Clear Mongo test data and WireMock mappings before each test. The shared fixture resets its database and mappings; a scenario using a separate database must clear its own collections before exercising the service. Do not add matching teardown for those resources. Stop workers started by the test so they cannot write into the next test's data.
 - Keep integration tests focused on integration boundaries. Use them to prove real components are wired together and observable side effects happen; put detailed formatting, serialisation, and field-by-field assertions in fast unit tests where possible.
 - Every new MongoDB query shape must have integration-test evidence that its executed plan uses an index. A collection scan or other unindexed plan is permitted only with an explicit, narrowly matched and documented accepted exception that states the reason and review ticket; do not add broad collection-level allowances.
+- Declare shared Mongo test collections on `IntegrationTestBase` and initialise and purge them there before each test; reuse those properties in setup and assertions. Keep explicitly isolated collections local when a test needs its own validator, indexes or collection settings, and clean them up in that test.
 - Direct MongoDB service tests must derive from `IntegrationTestBase` and construct their real contexts with `GetMongoApplicationDatabase()` so the automatic profiler observes them. Keep test setup and assertions on `GetMongoDatabase()`; Docker Compose API scenarios are intentionally excluded from this profiling scope.
 - Do not change shared infrastructure settings, such as queue attributes or database-level configuration, from integration tests unless the test owns an isolated resource created specifically for that test.
 - Run the local environment with `docker compose up --build -d --wait`

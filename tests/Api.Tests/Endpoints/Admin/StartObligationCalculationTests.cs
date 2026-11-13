@@ -37,7 +37,7 @@ public class StartObligationCalculationTests(ApiWebApplicationFactory factory, I
         var submitterId = Guid.Parse("3a67e998-ebd2-4dcc-9982-a12ef6db10a5");
         Guid? selectedSubmitter = includeSubmitter ? submitterId : null;
         Instructions
-            .Create(2026, selectedSubmitter, Arg.Any<CancellationToken>())
+            .Create(2026, selectedSubmitter, Arg.Any<CancellationToken>(), "request-123")
             .Returns(
                 new ObligationCalculationInstruction
                 {
@@ -48,8 +48,12 @@ public class StartObligationCalculationTests(ApiWebApplicationFactory factory, I
                 }
             );
         var client = CreateClient(testUser: TestUser.Admin);
+        client.DefaultRequestHeaders.Add("x-cdp-request-id", "request-123");
+        var query = EndpointQuery.New.Where(EndpointFilter.ObligationYear(2026));
+        if (selectedSubmitter is not null)
+            query = query.Where(EndpointFilter.Query("submitterId", selectedSubmitter.Value.ToString()));
         var response = await client.PostAsync(
-            $"/admin/obligation-calculations?obligationYear=2026{(includeSubmitter ? $"&submitterId={submitterId}" : "")}",
+            Testing.Endpoints.Admin.ObligationCalculations(query),
             null,
             TestContext.Current.CancellationToken
         );
@@ -57,7 +61,7 @@ public class StartObligationCalculationTests(ApiWebApplicationFactory factory, I
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         await VerifyJson(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken))
             .UseParameters(includeSubmitter);
-        await Instructions.Received(1).Create(2026, selectedSubmitter, Arg.Any<CancellationToken>());
+        await Instructions.Received(1).Create(2026, selectedSubmitter, Arg.Any<CancellationToken>(), "request-123");
     }
 
     [Theory]
@@ -68,7 +72,7 @@ public class StartObligationCalculationTests(ApiWebApplicationFactory factory, I
     {
         var client = CreateClient(testUser: TestUser.Admin);
         var response = await client.PostAsync(
-            $"/admin/obligation-calculations{query}",
+            Testing.Endpoints.Admin.ObligationCalculations() + query,
             null,
             TestContext.Current.CancellationToken
         );
@@ -83,7 +87,9 @@ public class StartObligationCalculationTests(ApiWebApplicationFactory factory, I
         ProcessingEnabled = false;
         var client = CreateClient(testUser: TestUser.Admin);
         var response = await client.PostAsync(
-            "/admin/obligation-calculations?obligationYear=2026",
+            Testing.Endpoints.Admin.ObligationCalculations(
+                EndpointQuery.New.Where(EndpointFilter.ObligationYear(2026))
+            ),
             null,
             TestContext.Current.CancellationToken
         );
@@ -98,7 +104,9 @@ public class StartObligationCalculationTests(ApiWebApplicationFactory factory, I
     {
         var client = CreateClient();
         var response = await client.PostAsync(
-            "/admin/obligation-calculations?obligationYear=2026",
+            Testing.Endpoints.Admin.ObligationCalculations(
+                EndpointQuery.New.Where(EndpointFilter.ObligationYear(2026))
+            ),
             null,
             TestContext.Current.CancellationToken
         );

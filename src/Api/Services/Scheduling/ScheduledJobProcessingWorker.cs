@@ -53,6 +53,9 @@ public class ScheduledJobProcessingWorker<TWork>(
         if (work is null)
             return false;
 
+        using var logScope = work.TraceId is null
+            ? null
+            : logger.BeginScope(new Dictionary<string, object> { ["CorrelationId"] = work.TraceId });
         var completed = false;
         try
         {

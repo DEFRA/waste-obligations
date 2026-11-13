@@ -16,35 +16,39 @@ public class ObligationCalculationInstructionService(IMongoDatabase database, Ti
     public async Task<ObligationCalculationInstruction> Create(
         int obligationYear,
         Guid? submitterId,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        string? traceId = null
     )
     {
-        return await CreateCore(null, obligationYear, submitterId, cancellationToken);
+        return await CreateCore(null, obligationYear, submitterId, cancellationToken, traceId);
     }
 
     public async Task<ObligationCalculationInstruction> Create(
         IClientSessionHandle session,
         int obligationYear,
         Guid? submitterId,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        string? traceId = null
     )
     {
         ArgumentNullException.ThrowIfNull(session);
 
-        return await CreateCore(session, obligationYear, submitterId, cancellationToken);
+        return await CreateCore(session, obligationYear, submitterId, cancellationToken, traceId);
     }
 
     private async Task<ObligationCalculationInstruction> CreateCore(
         IClientSessionHandle? session,
         int obligationYear,
         Guid? submitterId,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        string? traceId
     )
     {
         var instruction = new ObligationCalculationInstruction
         {
             ObligationYear = obligationYear,
             SubmitterId = submitterId,
+            TraceId = string.IsNullOrWhiteSpace(traceId) ? Guid.NewGuid().ToString() : traceId,
             CreatedAt = timeProvider.GetUtcNowWithoutMicroseconds(),
         };
         var filter = Builders<ObligationCalculationInstruction>.Filter.And(
@@ -59,6 +63,7 @@ public class ObligationCalculationInstructionService(IMongoDatabase database, Ti
             .Update.SetOnInsert(x => x.Id, instruction.Id)
             .SetOnInsert(x => x.ObligationYear, instruction.ObligationYear)
             .SetOnInsert(x => x.SubmitterId, instruction.SubmitterId)
+            .SetOnInsert(x => x.TraceId, instruction.TraceId)
             .SetOnInsert(x => x.Status, instruction.Status)
             .SetOnInsert(x => x.FailureCount, instruction.FailureCount)
             .SetOnInsert(x => x.CreatedAt, instruction.CreatedAt);

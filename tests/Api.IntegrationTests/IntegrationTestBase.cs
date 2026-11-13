@@ -44,6 +44,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     public required IMongoCollection<OrganisationComplianceDeclarationEligibility> OrganisationComplianceDeclarationEligibilities { get; set; }
     public required IMongoCollection<OrganisationEligibilitySnapshot> OrganisationEligibilitySnapshots { get; set; }
     public required IMongoCollection<BackgroundWorkerLease> OrganisationWorkerLeases { get; set; }
+    public required IMongoCollection<ObligationCalculation> ObligationCalculations { get; set; }
     public required IMongoCollection<ObligationCalculationInstruction> ObligationCalculationInstructions { get; set; }
     public required IMongoCollection<OrganisationObligationSummary> OrganisationObligationSummaries { get; set; }
     public required IMongoCollection<OrganisationObligationHistoricalBackfill> OrganisationObligationHistoricalBackfills { get; set; }
@@ -79,6 +80,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
             GetMongoCollection<OrganisationComplianceDeclarationEligibility>();
         OrganisationEligibilitySnapshots = GetMongoCollection<OrganisationEligibilitySnapshot>();
         OrganisationWorkerLeases = GetMongoCollection<BackgroundWorkerLease>(BackgroundWorkerLease.CollectionName);
+        ObligationCalculations = GetMongoCollection<ObligationCalculation>();
         ObligationCalculationInstructions = GetMongoCollection<ObligationCalculationInstruction>(
             ObligationCalculationInstruction.CollectionName
         );
@@ -90,7 +92,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
             OrganisationObligationRequestPacingState.CollectionName
         );
 
-        await DeleteMany(GetMongoCollection<ObligationCalculation>());
+        await DeleteMany(ObligationCalculations);
         await DeleteMany(GetMongoCollection<ObligationCalculationHistory>());
         await DeleteMany(ComplianceDeclarations);
         await DeleteMany(AuditEventCounters);
@@ -121,9 +123,15 @@ public abstract class IntegrationTestBase : IAsyncLifetime
             _mongoQueryAllowances.Add(allowance);
     }
 
-    protected static HttpClient CreateClient()
+    protected static HttpClient CreateClient(ClientType clientType = ClientType.Default)
     {
-        var client = new HttpClient { BaseAddress = new Uri("http://localhost:8080") };
+        var baseAddress = clientType switch
+        {
+            ClientType.Default => "http://localhost:8080",
+            ClientType.ScheduledJobs => "http://localhost:8081",
+            _ => throw new ArgumentOutOfRangeException(nameof(clientType), clientType, null),
+        };
+        var client = new HttpClient { BaseAddress = new Uri(baseAddress) };
 
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
             JwtAuthenticationHandler.SchemeName,

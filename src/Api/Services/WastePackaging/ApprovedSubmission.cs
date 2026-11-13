@@ -1,6 +1,6 @@
 using Defra.WasteObligations.Api.Data.Entities;
 
-namespace Defra.WasteObligations.Api.Services.ObligationCalculations;
+namespace Defra.WasteObligations.Api.Services.WastePackaging;
 
 public record ApprovedSubmission
 {

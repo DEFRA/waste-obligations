@@ -8,12 +8,14 @@ public interface IObligationCalculationInstructionService
     Task<ObligationCalculationInstruction> Create(
         int obligationYear,
         Guid? submitterId,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        string? traceId = null
     );
     Task<ObligationCalculationInstruction> Create(
         IClientSessionHandle session,
         int obligationYear,
         Guid? submitterId,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        string? traceId = null
     );
 }

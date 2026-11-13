@@ -40,6 +40,7 @@ public class ObligationCalculationInstructionServiceTests : IntegrationTestBase
         instruction.Id.Should().NotBe(ObjectId.Empty);
         instruction.ObligationYear.Should().Be(2025);
         instruction.SubmitterId.Should().BeNull();
+        instruction.TraceId.Should().NotBeNullOrWhiteSpace();
         instruction.Status.Should().Be(ObligationCalculationInstructionStatus.Pending);
         instruction.CreatedAt.Should().Be(_timeProvider.GetUtcNow().UtcDateTime);
         var stored = await GetMongoDatabase()
@@ -54,11 +55,25 @@ public class ObligationCalculationInstructionServiceTests : IntegrationTestBase
                     { "_id", instruction.Id },
                     { "obligationYear", 2025 },
                     { "submitterId", BsonNull.Value },
+                    { "traceId", instruction.TraceId },
                     { "status", "Pending" },
                     { "failureCount", 0 },
                     { "createdAt", _timeProvider.GetUtcNow().UtcDateTime },
                 }
             );
+    }
+
+    [Fact]
+    public async Task Create_WhenActiveInstructionExists_ShouldRetainItsOriginalTraceId()
+    {
+        var subject = CreateSubject();
+        var first = await subject.Create(2026, null, TestContext.Current.CancellationToken, "first-request");
+
+        var duplicate = await subject.Create(2026, null, TestContext.Current.CancellationToken, "later-request");
+
+        first.TraceId.Should().Be("first-request");
+        duplicate.Id.Should().Be(first.Id);
+        duplicate.TraceId.Should().Be("first-request");
     }
 
     [Theory]

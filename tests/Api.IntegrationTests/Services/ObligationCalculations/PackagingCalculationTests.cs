@@ -1,3 +1,4 @@
+using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
@@ -5,6 +6,8 @@ using Defra.WasteObligations.Api.ScheduledJobs;
 using Defra.WasteObligations.Api.Services.ObligationCalculations;
 using Defra.WasteObligations.Api.Services.WastePackaging;
 using Defra.WasteObligations.Testing;
+using Defra.WasteObligations.Testing.Fixtures.Entities;
+using Defra.WasteObligations.Testing.Fixtures.WastePackaging;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -16,7 +19,6 @@ namespace Defra.WasteObligations.Api.IntegrationTests.Services.ObligationCalcula
 public class PackagingCalculationTests : IntegrationTestBase
 {
     private static readonly Guid SubmitterId = Guid.Parse("11111111-1111-1111-1111-111111111111");
-    private static readonly Guid ProducerId = Guid.Parse("22222222-2222-2222-2222-222222222222");
     private readonly RecordingLogger<ObligationCalculationProcessor> _logger = new();
 
     [Theory]
@@ -24,16 +26,22 @@ public class PackagingCalculationTests : IntegrationTestBase
     [InlineData(ObligationSubmitterType.ComplianceScheme)]
     public async Task Process_ShouldCalculateAndSaveProducerMaterials(ObligationSubmitterType type)
     {
-        var source = Source(Submission(SubmitterId, type));
+        var submission = ApprovedSubmissionFixture
+            .Default()
+            .With(x => x.SubmitterOrganisationId, SubmitterId)
+            .With(x => x.SubmitterType, type)
+            .Create();
+        var source = Source(submission);
 
-        await Processor(source).Process(Instruction(), TestContext.Current.CancellationToken);
+        await Processor(source)
+            .Process(ObligationCalculationInstructionFixture.Default().Create(), TestContext.Current.CancellationToken);
 
-        await source.Received(1).Read(2025, TestContext.Current.CancellationToken);
+        await source.Received(1).Read(2025, TestContext.Current.CancellationToken, Arg.Any<string?>());
         var saved = await Read(SubmitterId);
         saved.SubmitterType.Should().Be(type);
         saved.ObligationYear.Should().Be(2026);
         var producer = saved.Producers.Should().ContainSingle().Which;
-        producer.ProducerOrganisationId.Should().Be(ProducerId);
+        producer.ProducerOrganisationId.Should().Be(submission.Producers.Single().ProducerOrganisationId);
         producer
             .Materials.Should()
             .ContainSingle()
@@ -53,13 +61,20 @@ public class PackagingCalculationTests : IntegrationTestBase
     public async Task Process_ShouldOnlySaveRequestedSubmitter()
     {
         var otherId = Guid.NewGuid();
-        var source = Source(Submission(otherId), Submission(SubmitterId));
+        var source = Source(
+            ApprovedSubmissionFixture.Default().With(x => x.SubmitterOrganisationId, otherId).Create(),
+            ApprovedSubmissionFixture.Default().With(x => x.SubmitterOrganisationId, SubmitterId).Create()
+        );
 
-        await Processor(source).Process(Instruction(SubmitterId), TestContext.Current.CancellationToken);
+        await Processor(source)
+            .Process(
+                ObligationCalculationInstructionFixture.Default().With(x => x.SubmitterId, SubmitterId).Create(),
+                TestContext.Current.CancellationToken
+            );
 
         (await Read(SubmitterId)).Producers.Should().ContainSingle();
         (
-            await Calculations
+            await ObligationCalculations
                 .Find(x => x.SubmitterOrganisationId == otherId)
                 .AnyAsync(TestContext.Current.CancellationToken)
         )
@@ -72,12 +87,23 @@ public class PackagingCalculationTests : IntegrationTestBase
     [InlineData(true)]
     public async Task Process_WhenNoDataOrNoMatch_ShouldKeepPreviousCalculation(bool targeted)
     {
-        await Processor(Source(Submission(SubmitterId))).Process(Instruction(), TestContext.Current.CancellationToken);
+        await Processor(
+                Source(ApprovedSubmissionFixture.Default().With(x => x.SubmitterOrganisationId, SubmitterId).Create())
+            )
+            .Process(ObligationCalculationInstructionFixture.Default().Create(), TestContext.Current.CancellationToken);
         var before = await Read(SubmitterId);
-        var source = targeted ? Source(Submission(Guid.NewGuid())) : Source();
+        var source = targeted
+            ? Source(ApprovedSubmissionFixture.Default().With(x => x.SubmitterOrganisationId, Guid.NewGuid()).Create())
+            : Source();
 
         await Processor(source)
-            .Process(Instruction(targeted ? SubmitterId : null), TestContext.Current.CancellationToken);
+            .Process(
+                ObligationCalculationInstructionFixture
+                    .Default()
+                    .With(x => x.SubmitterId, targeted ? SubmitterId : (Guid?)null)
+                    .Create(),
+                TestContext.Current.CancellationToken
+            );
 
         (await Read(SubmitterId)).Should().BeEquivalentTo(before);
         _logger
@@ -88,11 +114,17 @@ public class PackagingCalculationTests : IntegrationTestBase
     [Fact]
     public async Task Process_WhenSubmitterDisappears_ShouldRetainItsPreviousCalculation()
     {
-        await Processor(Source(Submission(SubmitterId))).Process(Instruction(), TestContext.Current.CancellationToken);
+        await Processor(
+                Source(ApprovedSubmissionFixture.Default().With(x => x.SubmitterOrganisationId, SubmitterId).Create())
+            )
+            .Process(ObligationCalculationInstructionFixture.Default().Create(), TestContext.Current.CancellationToken);
         var before = await Read(SubmitterId);
         var laterId = Guid.NewGuid();
 
-        await Processor(Source(Submission(laterId))).Process(Instruction(), TestContext.Current.CancellationToken);
+        await Processor(
+                Source(ApprovedSubmissionFixture.Default().With(x => x.SubmitterOrganisationId, laterId).Create())
+            )
+            .Process(ObligationCalculationInstructionFixture.Default().Create(), TestContext.Current.CancellationToken);
 
         (await Read(SubmitterId)).Should().BeEquivalentTo(before);
         (await Read(laterId)).ObligationYear.Should().Be(2026);
@@ -101,12 +133,37 @@ public class PackagingCalculationTests : IntegrationTestBase
     [Fact]
     public async Task Process_WhenCalculationFails_ShouldPreservePreviousAndContinue()
     {
-        await Processor(Source(Submission(SubmitterId))).Process(Instruction(), TestContext.Current.CancellationToken);
+        await Processor(
+                Source(ApprovedSubmissionFixture.Default().With(x => x.SubmitterOrganisationId, SubmitterId).Create())
+            )
+            .Process(ObligationCalculationInstructionFixture.Default().Create(), TestContext.Current.CancellationToken);
         var before = await Read(SubmitterId);
         var laterId = Guid.NewGuid();
-        var instruction = Instruction();
+        var instruction = ObligationCalculationInstructionFixture.Default().Create();
 
-        await Processor(Source(Submission(SubmitterId, material: "INVALID"), Submission(laterId)))
+        var invalidSubmission = ApprovedSubmissionFixture
+            .Default()
+            .With(x => x.SubmitterOrganisationId, SubmitterId)
+            .With(
+                x => x.Producers,
+                [
+                    ProducerPackagingFixture
+                        .Default()
+                        .With(
+                            x => x.Materials,
+                            [MaterialWeightFixture.Default().With(x => x.MaterialCode, "INVALID").Create()]
+                        )
+                        .Create(),
+                ]
+            )
+            .Create();
+
+        await Processor(
+                Source(
+                    invalidSubmission,
+                    ApprovedSubmissionFixture.Default().With(x => x.SubmitterOrganisationId, laterId).Create()
+                )
+            )
             .Process(instruction, TestContext.Current.CancellationToken);
 
         (await Read(SubmitterId)).Should().BeEquivalentTo(before);
@@ -164,15 +221,47 @@ public class PackagingCalculationTests : IntegrationTestBase
                     )
                 );
             var service = new ObligationCalculationService(context);
-            var first = Processor(Source(Submission(SubmitterId)), service);
-            await first.Process(Instruction(), TestContext.Current.CancellationToken);
+            var first = Processor(
+                Source(ApprovedSubmissionFixture.Default().With(x => x.SubmitterOrganisationId, SubmitterId).Create()),
+                service
+            );
+            await first.Process(
+                ObligationCalculationInstructionFixture.Default().Create(),
+                TestContext.Current.CancellationToken
+            );
             var before = await collection
                 .Find(x => x.SubmitterOrganisationId == SubmitterId && x.ObligationYear == 2026)
                 .SingleAsync(TestContext.Current.CancellationToken);
             var laterId = Guid.NewGuid();
 
-            await Processor(Source(Submission(SubmitterId, kilograms: 20000), Submission(laterId)), service)
-                .Process(Instruction(), TestContext.Current.CancellationToken);
+            var changedSubmission = ApprovedSubmissionFixture
+                .Default()
+                .With(x => x.SubmitterOrganisationId, SubmitterId)
+                .With(
+                    x => x.Producers,
+                    [
+                        ProducerPackagingFixture
+                            .Default()
+                            .With(
+                                x => x.Materials,
+                                [MaterialWeightFixture.Default().With(x => x.Kilograms, 20000L).Create()]
+                            )
+                            .Create(),
+                    ]
+                )
+                .Create();
+
+            await Processor(
+                    Source(
+                        changedSubmission,
+                        ApprovedSubmissionFixture.Default().With(x => x.SubmitterOrganisationId, laterId).Create()
+                    ),
+                    service
+                )
+                .Process(
+                    ObligationCalculationInstructionFixture.Default().Create(),
+                    TestContext.Current.CancellationToken
+                );
 
             (
                 await collection
@@ -206,18 +295,25 @@ public class PackagingCalculationTests : IntegrationTestBase
         using var cancellation = new CancellationTokenSource();
         var source = Substitute.For<IWastePackagingService>();
         source
-            .Read(2025, cancellation.Token)
+            .Read(2025, cancellation.Token, Arg.Any<string?>())
             .Returns(_ =>
             {
                 cancellation.Cancel();
 
-                return new PackagingResponse { Items = [Submission(SubmitterId)] };
+                return new PackagingResponse
+                {
+                    Items =
+                    [
+                        ApprovedSubmissionFixture.Default().With(x => x.SubmitterOrganisationId, SubmitterId).Create(),
+                    ],
+                };
             });
-        Func<Task> process = () => Processor(source).Process(Instruction(), cancellation.Token);
+        Func<Task> process = () =>
+            Processor(source).Process(ObligationCalculationInstructionFixture.Default().Create(), cancellation.Token);
 
         await process.Should().ThrowAsync<OperationCanceledException>();
         (
-            await Calculations.CountDocumentsAsync(
+            await ObligationCalculations.CountDocumentsAsync(
                 FilterDefinition<ObligationCalculation>.Empty,
                 cancellationToken: TestContext.Current.CancellationToken
             )
@@ -227,11 +323,8 @@ public class PackagingCalculationTests : IntegrationTestBase
         _logger.Entries.Should().NotContain(x => x.Level == LogLevel.Error);
     }
 
-    private static IMongoCollection<ObligationCalculation> Calculations =>
-        GetMongoDatabase().GetCollection<ObligationCalculation>(nameof(ObligationCalculation));
-
-    private static Task<ObligationCalculation> Read(Guid id) =>
-        Calculations
+    private Task<ObligationCalculation> Read(Guid id) =>
+        ObligationCalculations
             .Find(x => x.SubmitterOrganisationId == id && x.ObligationYear == 2026)
             .SingleAsync(TestContext.Current.CancellationToken);
 
@@ -254,39 +347,13 @@ public class PackagingCalculationTests : IntegrationTestBase
     private static MongoDbContext Context() =>
         new(GetMongoApplicationDatabase(), Options.Create(new MongoDbOptions()), NullLogger<MongoDbContext>.Instance);
 
-    private static ObligationCalculationInstruction Instruction(Guid? id = null) =>
-        new()
-        {
-            ObligationYear = 2026,
-            SubmitterId = id,
-            CreatedAt = DateTime.UtcNow,
-        };
-
     private static IWastePackagingService Source(params ApprovedSubmission[] items)
     {
         var source = Substitute.For<IWastePackagingService>();
-        source.Read(2025, Arg.Any<CancellationToken>()).Returns(new PackagingResponse { Items = items });
+        source
+            .Read(2025, Arg.Any<CancellationToken>(), Arg.Any<string?>())
+            .Returns(new PackagingResponse { Items = items });
 
         return source;
     }
-
-    private static ApprovedSubmission Submission(
-        Guid id,
-        ObligationSubmitterType type = ObligationSubmitterType.DirectRegistrant,
-        string material = "PL",
-        long kilograms = 10000
-    ) =>
-        new()
-        {
-            SubmitterOrganisationId = id,
-            SubmitterType = type,
-            Producers =
-            [
-                new ProducerPackaging
-                {
-                    ProducerOrganisationId = ProducerId,
-                    Materials = [new MaterialWeight { MaterialCode = material, Kilograms = kilograms }],
-                },
-            ],
-        };
 }

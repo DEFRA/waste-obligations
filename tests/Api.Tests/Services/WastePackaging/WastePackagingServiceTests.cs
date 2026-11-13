@@ -1,8 +1,8 @@
 using System.Net;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data.Entities;
-using Defra.WasteObligations.Api.Services.ObligationCalculations;
 using Defra.WasteObligations.Api.Services.WastePackaging;
+using Defra.WasteObligations.Api.Utils.Logging;
 using Defra.WasteObligations.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -35,7 +35,7 @@ public class WastePackagingServiceTests(WireMockContext context) : WireMockTestB
 
         var result = await services
             .GetRequiredService<IWastePackagingService>()
-            .Read(2025, TestContext.Current.CancellationToken);
+            .Read(2025, TestContext.Current.CancellationToken, "request-123");
 
         var item = result.Items.Should().ContainSingle().Which;
         item.SubmitterOrganisationId.Should().Be(Guid.Parse("11111111-1111-1111-1111-111111111111"));
@@ -51,7 +51,7 @@ public class WastePackagingServiceTests(WireMockContext context) : WireMockTestB
         material.Kilograms.Should().Be(10000);
         var request = WireMock.LogEntries.Should().ContainSingle().Which.RequestMessage;
         request.Should().NotBeNull();
-        request.Headers.Should().NotContainKey("x-cdp-request-id");
+        request.Headers.Should().ContainKey("x-cdp-request-id").WhoseValue.Should().Contain("request-123");
     }
 
     [Theory]
@@ -120,6 +120,7 @@ public class WastePackagingServiceTests(WireMockContext context) : WireMockTestB
                     )
                     .Build()
             )
+            .Configure<TraceHeader>(x => x.Name = "x-cdp-request-id")
             .AddWastePackagingService(false)
             .BuildServiceProvider();
 }

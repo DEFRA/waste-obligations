@@ -16,7 +16,11 @@ public class ObligationCalculationProcessor(
     public async Task Process(ObligationCalculationInstruction work, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var response = await wastePackagingService.Read(work.ObligationYear - 1, cancellationToken);
+        var response = await wastePackagingService.Read(
+            work.ObligationYear - 1,
+            cancellationToken,
+            work.TraceId ?? work.Id.ToString()
+        );
         var matched = false;
         foreach (var item in response.Items)
         {

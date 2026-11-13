@@ -20,6 +20,9 @@ public sealed class ObligationCalculationJob(
             null,
             cancellationToken
         );
+        using var scope = logger.BeginScope(
+            new Dictionary<string, object> { ["CorrelationId"] = instruction.TraceId ?? instruction.Id.ToString() }
+        );
         logger.LogInformation(
             "Preparing obligation calculation instruction {InstructionId} for obligation year {ObligationYear} in scheduled handoff transaction",
             instruction.Id,

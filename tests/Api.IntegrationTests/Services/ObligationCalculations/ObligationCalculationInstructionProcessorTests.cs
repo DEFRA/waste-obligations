@@ -179,7 +179,7 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
     [Fact]
     public async Task Worker_WhenPackagingFetchFails_ShouldKeepSameInstructionAndRetryBeforeCompleting()
     {
-        var instruction = ObligationCalculationInstructionFixture.Default().Create();
+        var instruction = ObligationCalculationInstructionFixture.Default().With(x => x.TraceId, "trace-123").Create();
         await ObligationCalculationInstructions.InsertOneAsync(
             instruction,
             cancellationToken: TestContext.Current.CancellationToken
@@ -189,7 +189,7 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
         var attempts = 0;
         var packaging = Substitute.For<IWastePackagingService>();
         packaging
-            .Read(instruction.ObligationYear - 1, Arg.Any<CancellationToken>())
+            .Read(instruction.ObligationYear - 1, Arg.Any<CancellationToken>(), Arg.Any<string?>())
             .Returns(async _ =>
             {
                 if (Interlocked.Increment(ref attempts) == 1)
@@ -205,7 +205,8 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
             Substitute.For<IObligationCalculationService>(),
             new RecordingLogger<ObligationCalculationProcessor>()
         );
-        await using var services = Services(processor);
+        var workerLogger = Substitute.For<ILogger<ScheduledJobProcessingWorker<ObligationCalculationInstruction>>>();
+        await using var services = Services(processor, workerLogger);
         var worker = services.GetRequiredService<IHostedService>();
         try
         {
@@ -223,6 +224,10 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
             await worker.StopAsync(TestContext.Current.CancellationToken);
         }
         attempts.Should().Be(2);
+        await packaging.Received(2).Read(instruction.ObligationYear - 1, Arg.Any<CancellationToken>(), "trace-123");
+        workerLogger
+            .Received()
+            .BeginScope(Arg.Is<Dictionary<string, object>>(x => (string)x["CorrelationId"] == "trace-123"));
         (await Read(instruction)).FailureCount.Should().Be(1);
         (
             await ObligationCalculationInstructions.CountDocumentsAsync(
@@ -449,7 +454,9 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
     private static IWastePackagingService EmptyPackaging()
     {
         var packaging = Substitute.For<IWastePackagingService>();
-        packaging.Read(Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(new PackagingResponse { Items = [] });
+        packaging
+            .Read(Arg.Any<int>(), Arg.Any<CancellationToken>(), Arg.Any<string?>())
+            .Returns(new PackagingResponse { Items = [] });
 
         return packaging;
     }

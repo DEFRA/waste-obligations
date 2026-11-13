@@ -22,7 +22,7 @@ Use the language below across code, tests and discussions. The linked sources de
 
 **Packaging year**: The submission-data year, one year before the obligation year. The [calculation processor](src/Api/ScheduledJobs/ObligationCalculationProcessor.cs) requests that year's approved full-year totals from the [Packaging API client](src/Api/Services/WastePackaging/WastePackagingService.cs).
 
-**Submitter**: The direct producer or compliance scheme reporting packaging data. A compliance scheme's submission contains its member producers; submitter identity and producer identity remain distinct. See the [calculator input](src/Api/Services/ObligationCalculations/ApprovedSubmission.cs) and [producer input](src/Api/Services/ObligationCalculations/ProducerPackaging.cs).
+**Submitter**: The direct producer or compliance scheme reporting packaging data. A compliance scheme's submission contains its member producers; submitter identity and producer identity remain distinct. See the [calculator input](src/Api/Services/WastePackaging/ApprovedSubmission.cs) and [producer input](src/Api/Services/WastePackaging/ProducerPackaging.cs).
 
 **Obligation calculation**: A locally calculated recycling requirement for a submitter and obligation year, containing producer and material results. These shadow calculations are [stored with version history](src/Api/Services/ObligationCalculations/ObligationCalculationService.cs); they do not supply current public obligation reads.
 

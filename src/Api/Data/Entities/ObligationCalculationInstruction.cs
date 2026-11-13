@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
@@ -14,6 +15,9 @@ public record ObligationCalculationInstruction
 
     [BsonGuidRepresentation(GuidRepresentation.Standard)]
     public Guid? SubmitterId { get; init; }
+
+    [JsonIgnore]
+    public string? TraceId { get; init; }
 
     [BsonRepresentation(BsonType.String)]
     public ObligationCalculationInstructionStatus Status { get; init; } =
