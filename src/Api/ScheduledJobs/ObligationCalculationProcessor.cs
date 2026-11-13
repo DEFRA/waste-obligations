@@ -1,3 +1,4 @@
+using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.ObligationCalculations;
 using Defra.WasteObligations.Api.Services.Scheduling;
 using Defra.WasteObligations.Api.Services.WastePackaging;
