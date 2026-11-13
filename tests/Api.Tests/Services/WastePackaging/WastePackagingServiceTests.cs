@@ -1,6 +1,7 @@
 using System.Net;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data.Entities;
+using Defra.WasteObligations.Api.Services.ObligationCalculations;
 using Defra.WasteObligations.Api.Services.WastePackaging;
 using Defra.WasteObligations.Testing;
 using Microsoft.Extensions.Configuration;
@@ -25,7 +26,7 @@ public class WastePackagingServiceTests(WireMockContext context) : WireMockTestB
                     .WithStatusCode(HttpStatusCode.OK)
                     .WithBody(
                         """
-                        {"items":[{"submitterOrganisationId":"11111111-1111-1111-1111-111111111111","submitterType":"DirectRegistrant","producers":[{"producerOrganisationId":"22222222-2222-2222-2222-222222222222","materials":[{"materialCode":"PL","kilograms":10000}]}]}]}
+                        {"items":[{"submitterOrganisationId":"11111111-1111-1111-1111-111111111111","submitterType":"DirectRegistrant","producers":[{"producerOrganisationId":"22222222-2222-2222-2222-222222222222","events":[{"code":1,"action":"Joined","date":"2025-03-03"}],"materials":[{"materialCode":"PL","kilograms":10000}]}]}]}
                         """
                     )
                     .WithHeader("Content-Type", "application/json")
@@ -41,6 +42,10 @@ public class WastePackagingServiceTests(WireMockContext context) : WireMockTestB
         item.SubmitterType.Should().Be(ObligationSubmitterType.DirectRegistrant);
         var producer = item.Producers.Should().ContainSingle().Which;
         producer.ProducerOrganisationId.Should().Be(Guid.Parse("22222222-2222-2222-2222-222222222222"));
+        var packagingEvent = producer.Events.Should().ContainSingle().Which;
+        packagingEvent.Code.Should().Be(1);
+        packagingEvent.Action.Should().Be(EventAction.Joined);
+        packagingEvent.Date.Should().Be(new DateOnly(2025, 3, 3));
         var material = producer.Materials.Should().ContainSingle().Which;
         material.MaterialCode.Should().Be("PL");
         material.Kilograms.Should().Be(10000);
