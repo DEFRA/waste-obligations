@@ -1,8 +1,12 @@
+using System.Net;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.ScheduledJobs;
 using Defra.WasteObligations.Api.Services.ObligationCalculations;
 using Defra.WasteObligations.Api.Services.WastePackaging;
 using Defra.WasteObligations.Api.Utils.Metrics;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -11,6 +15,70 @@ namespace Defra.WasteObligations.Api.Tests.Services.ObligationCalculations;
 
 public class ObligationCalculationProcessorMetricsTests
 {
+    [Fact]
+    public async Task FetchDuration_IncludesResilienceRetryAndResponseReading()
+    {
+        var time = new FakeTimeProvider();
+        var handler = new RecoveringHandler(time);
+        var settings = new Dictionary<string, string?>
+        {
+            ["WastePackaging:BaseAddress"] = "http://localhost",
+            ["WastePackaging:ClientId"] = "client",
+            ["WastePackaging:ClientSecret"] = "secret",
+            ["WastePackaging:Retry:MaxRetryAttempts"] = "1",
+            ["WastePackaging:Retry:Delay"] = "00:00:00.01",
+            ["WastePackaging:Retry:BackoffType"] = "Constant",
+            ["WastePackaging:Retry:UseJitter"] = "false",
+        };
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(settings).Build());
+        services.AddWastePackagingService();
+        services.Configure<HttpStandardResilienceOptions>(
+            "WastePackaging",
+            options =>
+                options.Retry.OnRetry = _ =>
+                {
+                    time.Advance(TimeSpan.FromSeconds(5));
+                    return ValueTask.CompletedTask;
+                }
+        );
+        services
+            .AddHttpClient<IWastePackagingService, WastePackagingService>()
+            .ConfigurePrimaryHttpMessageHandler(() => handler);
+        using var provider = services.BuildServiceProvider();
+        var metrics = Substitute.For<IObligationCalculationMetrics>();
+        var subject = Processor(provider.GetRequiredService<IWastePackagingService>(), metrics, time);
+
+        await subject.Process(Instruction(), CancellationToken.None);
+
+        Assert.Equal(2, handler.RequestCount);
+        metrics.Received(1).FetchDuration(TimeSpan.FromSeconds(7));
+        metrics.Received(1).Instruction(CalculationInstructionOutcome.Success);
+        metrics.DidNotReceive().Submitter(Arg.Any<CalculationSaveOutcome>());
+    }
+
+    private sealed class RecoveringHandler(FakeTimeProvider time) : HttpMessageHandler
+    {
+        public int RequestCount { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken
+        )
+        {
+            time.Advance(TimeSpan.FromSeconds(1));
+            RequestCount++;
+            return Task.FromResult(
+                RequestCount == 1
+                    ? new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
+                    : new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new StringContent("{\"items\":[]}", System.Text.Encoding.UTF8, "application/json"),
+                    }
+            );
+        }
+    }
+
     [Fact]
     public async Task FetchFailure_RecordsDurationAndFailureWithoutSubmitterOutcomes()
     {
