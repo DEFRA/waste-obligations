@@ -25,6 +25,10 @@ public class ObligationCalculationProcessor(
         {
             response = await wastePackagingService.Read(work.ObligationYear - 1, cancellationToken);
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception) when (!cancellationToken.IsCancellationRequested)
         {
             metrics.Instruction(CalculationInstructionOutcome.PackagingFailure);

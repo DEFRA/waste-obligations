@@ -66,11 +66,12 @@ public class PackagingCalculationTests : IntegrationTestBase
             ApprovedSubmissionFixture.Default().With(x => x.SubmitterOrganisationId, Guid.NewGuid()).Create()
         );
         var service = Substitute.For<IObligationCalculationService>();
+        var metrics = Substitute.For<IObligationCalculationMetrics>();
         service
             .SaveWithOutcome(Arg.Any<ObligationCalculation>(), Arg.Any<CancellationToken>())
             .Returns<Task<CalculationSaveResult>>(_ => throw new OperationCanceledException());
         var action = () =>
-            Processor(source, service)
+            Processor(source, service, metrics)
                 .Process(
                     ObligationCalculationInstructionFixture.Default().Create(),
                     TestContext.Current.CancellationToken
@@ -78,6 +79,9 @@ public class PackagingCalculationTests : IntegrationTestBase
 
         await action.Should().ThrowAsync<OperationCanceledException>();
         await service.Received(1).SaveWithOutcome(Arg.Any<ObligationCalculation>(), Arg.Any<CancellationToken>());
+        metrics.DidNotReceive().SubmitterFailed();
+        metrics.DidNotReceive().Submitter(Arg.Any<CalculationSaveOutcome>());
+        metrics.DidNotReceive().Instruction(Arg.Any<CalculationInstructionOutcome>());
         _logger.Entries.Should().NotContain(x => x.Level == LogLevel.Error);
     }
 
