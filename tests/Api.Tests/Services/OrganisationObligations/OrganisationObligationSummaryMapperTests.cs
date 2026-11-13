@@ -32,6 +32,47 @@ public class OrganisationObligationSummaryMapperTests
     }
 
     [Fact]
+    public void Map_WhenGlassObligationsAreMetViaRemelt_ShouldReturnFullCoverage()
+    {
+        var result = OrganisationObligationSummaryMapper.Map(
+            ObligationFixture.OrganisationId,
+            ObligationYear,
+            [
+                CreateObligation("Plastic", 1, 1, ObligationStatus.Met),
+                CreateObligation("Wood", 0, 0, ObligationStatus.NoDataYet),
+                CreateObligation("Aluminium", 2, 2, ObligationStatus.Met),
+                CreateObligation("Steel", 0, 0, ObligationStatus.Met),
+                CreateObligation("Glass", 0, 36, ObligationStatus.Met) with
+                {
+                    TonnageOutstanding = 0,
+                },
+                CreateObligation("GlassRemelt", 149, 113, ObligationStatus.Met),
+                CreateObligation("Paper", 10, 10, ObligationStatus.Met),
+            ]
+        );
+
+        result.ObligationCoveragePercentage.Should().Be(100);
+    }
+
+    [Fact]
+    public void Map_WhenRemeltSurplusPartiallyMeetsGlass_ShouldUseOutstandingTonnage()
+    {
+        var result = OrganisationObligationSummaryMapper.Map(
+            ObligationFixture.OrganisationId,
+            ObligationYear,
+            [
+                CreateObligation("Glass", 0, 4, ObligationStatus.NotMet) with
+                {
+                    TonnageOutstanding = 2,
+                },
+                CreateObligation("GlassRemelt", 5, 3, ObligationStatus.Met),
+            ]
+        );
+
+        result.ObligationCoveragePercentage.Should().Be(75);
+    }
+
+    [Fact]
     public void Map_WhenNoObligationsAreReturned_ShouldCreateAnEmptySuccessfulSummary()
     {
         var result = OrganisationObligationSummaryMapper.Map(ObligationFixture.OrganisationId, ObligationYear, []);
@@ -175,6 +216,7 @@ public class OrganisationObligationSummaryMapperTests
             .Default()
             .With(x => x.MaterialName, materialName)
             .With(x => x.TonnageAccepted, accepted)
+            .With(x => x.TonnageOutstanding, (int?)Math.Max(0, obligated - accepted))
             .With(x => x.ObligationToMeet, obligated)
             .With(x => x.Status, status)
             .Create();

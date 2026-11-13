@@ -17,7 +17,26 @@ public class ComplianceDeclarationCoverageCorrection(
     public int Version => 1;
     public string Id => "compliance-declaration-individual-material-coverage";
 
-    public async Task Apply(CancellationToken cancellationToken)
+    public Task Apply(CancellationToken cancellationToken) =>
+        ApplyCoverageCorrection(
+            dbContext,
+            declarations,
+            options,
+            logger,
+            Id,
+            Correction001CoverageCalculator.CalculateFromObligations,
+            cancellationToken
+        );
+
+    internal static async Task ApplyCoverageCorrection(
+        IDbContext dbContext,
+        IComplianceDeclarationService declarations,
+        IOptions<ApplicationDataCorrectionOptions> options,
+        ILogger logger,
+        string id,
+        Func<IEnumerable<Obligation>, decimal> calculate,
+        CancellationToken cancellationToken
+    )
     {
         var lastId = ObjectId.Empty;
         while (true)
@@ -53,9 +72,7 @@ public class ComplianceDeclarationCoverageCorrection(
             {
                 try
                 {
-                    var percentage = ObligationCoveragePercentageCalculator.CalculateFromObligations(
-                        current.Obligations
-                    );
+                    var percentage = calculate(current.Obligations);
                     if (current.ObligationCoveragePercentage != percentage)
                     {
                         await BackgroundOperationWatchdog.Run(
@@ -82,7 +99,7 @@ public class ComplianceDeclarationCoverageCorrection(
                 catch (Exception exception) when (exception is not OperationCanceledException)
                 {
                     throw new InvalidOperationException(
-                        $"Application data correction '{Id}' failed for compliance declaration '{current.Id}'.",
+                        $"Application data correction '{id}' failed for compliance declaration '{current.Id}'.",
                         exception
                     );
                 }

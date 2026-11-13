@@ -32,7 +32,7 @@
         "material": 100,
         "awaitingAcceptance": 10,
         "accepted": 90,
-        "outstanding": 20,
+        "outstanding": 0,
         "obligated": 90
       },
       "status": "Met"
@@ -44,7 +44,7 @@
         "material": 100,
         "awaitingAcceptance": 10,
         "accepted": 0,
-        "outstanding": 20,
+        "outstanding": 10,
         "obligated": 10
       },
       "status": "NotMet"

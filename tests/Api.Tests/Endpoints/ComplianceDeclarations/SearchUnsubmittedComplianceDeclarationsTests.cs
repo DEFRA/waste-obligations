@@ -39,12 +39,14 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
                     .Default()
                     .With(x => x.TonnageAccepted, 90)
                     .With(x => x.ObligationToMeet, (int?)90)
+                    .With(x => x.TonnageOutstanding, (int?)0)
                     .With(x => x.Status, ObligationStatus.Met)
                     .Create(),
                 ObligationFixture
                     .Default()
                     .With(x => x.TonnageAccepted, 0)
                     .With(x => x.ObligationToMeet, (int?)10)
+                    .With(x => x.TonnageOutstanding, (int?)10)
                     .With(x => x.Status, ObligationStatus.NotMet)
                     .Create(),
             ]
