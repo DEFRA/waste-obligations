@@ -3,6 +3,7 @@ using Defra.WasteObligations.Api.Data.Entities;
 
 namespace Defra.WasteObligations.Api.Data.Corrections;
 
+// Correction 001 must retain its original formula even if the active calculator changes.
 internal static class IndividualMaterialCoverageCalculator
 {
     private const int MaxPercentage = 100;

@@ -22,27 +22,36 @@ public static class ObligationCoveragePercentageCalculator
         var totalDenominator = BigInteger.One;
         var count = 0;
         var anyNotMet = false;
-        var participating = materials.Where(x => x.Status != ObligationStatus.NoDataYet).ToArray();
-        anyNotMet = participating.Any(x => x.Status == ObligationStatus.NotMet);
-        var groups = participating
-            .Select((x, index) => (Value: x, Key: x.Material is Material.Glass or Material.GlassRemelt ? -1 : index))
-            .GroupBy(x => x.Key, x => x.Value);
-        foreach (var group in groups)
+        var hasGlass = false;
+        var glassAccepted = BigInteger.Zero;
+        var glassObligated = BigInteger.Zero;
+        var glassAllMet = true;
+
+        foreach (var material in materials.Where(x => x.Status != ObligationStatus.NoDataYet))
         {
-            var accepted = group.Aggregate(BigInteger.Zero, (sum, x) => sum + x.Accepted);
-            var obligated = group.Aggregate(BigInteger.Zero, (sum, x) => sum + x.Obligated);
-            BigInteger numerator;
-            BigInteger denominator;
-            if (obligated > 0)
+            anyNotMet |= material.Status == ObligationStatus.NotMet;
+            if (material.Material is Material.Glass or Material.GlassRemelt)
             {
-                numerator = BigInteger.Min(accepted, obligated) * MaxPercentage;
-                denominator = obligated;
+                hasGlass = true;
+                glassAccepted += material.Accepted;
+                glassObligated += material.Obligated;
+                glassAllMet &= material.Status == ObligationStatus.Met;
             }
             else
             {
-                numerator = group.All(x => x.Status == ObligationStatus.Met) ? MaxPercentage : 0;
-                denominator = 1;
+                AddCoverage(material.Accepted, material.Obligated, material.Status == ObligationStatus.Met);
             }
+        }
+
+        if (hasGlass)
+            AddCoverage(glassAccepted, glassObligated, glassAllMet);
+
+        void AddCoverage(BigInteger accepted, BigInteger obligated, bool met)
+        {
+            var numerator = met ? new BigInteger(MaxPercentage) : BigInteger.Zero;
+            if (obligated > 0)
+                numerator = BigInteger.Min(accepted, obligated) * MaxPercentage;
+            var denominator = obligated > 0 ? obligated : BigInteger.One;
 
             // Keep exact fractions so decimal division cannot move a true midpoint below its rounding boundary.
             totalNumerator = totalNumerator * denominator + numerator * totalDenominator;

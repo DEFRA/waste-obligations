@@ -4,6 +4,7 @@ using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
 using Obligation = Defra.WasteObligations.Api.Data.Entities.Obligation;
+using ObligationTonnages = Defra.WasteObligations.Api.Data.Entities.ObligationTonnages;
 
 namespace Defra.WasteObligations.Api.Tests.Data.Entities;
 
@@ -193,6 +194,132 @@ public class ObligationCoveragePercentageCalculatorTests
         ];
         if (includeFibre)
             obligations.Add(CreateObligation(0, 10) with { Material = "Fibre" });
+
+        ObligationCoveragePercentageCalculator.CalculateFromObligations(obligations).Should().Be(expected);
+    }
+
+    [Fact]
+    public void CalculateFromObligations_WhenGlassRemeltSurplusMeetsGlass_ShouldReturn100()
+    {
+        Obligation[] obligations =
+        [
+            CreateObligation(1, 1, ObligationStatus.Met) with
+            {
+                Material = Material.Plastic,
+                RecyclingTarget = 0.57m,
+                Tonnages = new ObligationTonnages
+                {
+                    Material = 1,
+                    Accepted = 1,
+                    Obligated = 1,
+                    AwaitingAcceptance = 0,
+                    Outstanding = 0,
+                },
+            },
+            CreateObligation(0, 0, ObligationStatus.NoDataYet) with
+            {
+                Material = Material.Wood,
+                RecyclingTarget = 0.46m,
+                Tonnages = new ObligationTonnages
+                {
+                    Material = 0,
+                    Accepted = 0,
+                    Obligated = 0,
+                    AwaitingAcceptance = 0,
+                    Outstanding = 0,
+                },
+            },
+            CreateObligation(2, 2, ObligationStatus.Met) with
+            {
+                Material = Material.Aluminium,
+                RecyclingTarget = 0.62m,
+                Tonnages = new ObligationTonnages
+                {
+                    Material = 2,
+                    Accepted = 2,
+                    Obligated = 2,
+                    AwaitingAcceptance = 0,
+                    Outstanding = 0,
+                },
+            },
+            CreateObligation(0, 0, ObligationStatus.Met) with
+            {
+                Material = Material.Steel,
+                RecyclingTarget = 0.81m,
+                Tonnages = new ObligationTonnages
+                {
+                    Material = 0,
+                    Accepted = 0,
+                    Obligated = 0,
+                    AwaitingAcceptance = 0,
+                    Outstanding = 0,
+                },
+            },
+            CreateObligation(0, 36, ObligationStatus.Met) with
+            {
+                Material = Material.Glass,
+                RecyclingTarget = 0.76m,
+                Tonnages = new ObligationTonnages
+                {
+                    Material = 195,
+                    Accepted = 0,
+                    Obligated = 36,
+                    AwaitingAcceptance = 0,
+                    Outstanding = 0,
+                },
+            },
+            CreateObligation(149, 113, ObligationStatus.Met) with
+            {
+                Material = Material.GlassRemelt,
+                RecyclingTarget = 0.76m,
+                Tonnages = new ObligationTonnages
+                {
+                    Material = 195,
+                    Accepted = 149,
+                    Obligated = 113,
+                    AwaitingAcceptance = 0,
+                    Outstanding = 0,
+                },
+            },
+            CreateObligation(10, 10, ObligationStatus.Met) with
+            {
+                Material = Material.Paper,
+                RecyclingTarget = 0.77m,
+                Tonnages = new ObligationTonnages
+                {
+                    Material = 12,
+                    Accepted = 10,
+                    Obligated = 10,
+                    AwaitingAcceptance = 0,
+                    Outstanding = 0,
+                },
+            },
+        ];
+
+        ObligationCoveragePercentageCalculator.CalculateFromObligations(obligations).Should().Be(100);
+    }
+
+    [Theory]
+    [InlineData(ObligationStatus.Met, ObligationStatus.Met, 100)]
+    [InlineData(ObligationStatus.Met, ObligationStatus.NotMet, 0)]
+    [InlineData(ObligationStatus.Met, ObligationStatus.NoDataYet, 100)]
+    public void CalculateFromObligations_WhenGlassHasZeroObligation_ShouldUseParticipatingStatuses(
+        string glassStatus,
+        string remeltStatus,
+        decimal expected
+    )
+    {
+        Obligation[] obligations =
+        [
+            CreateObligation(0, 0, glassStatus) with
+            {
+                Material = Material.Glass,
+            },
+            CreateObligation(0, 0, remeltStatus) with
+            {
+                Material = Material.GlassRemelt,
+            },
+        ];
 
         ObligationCoveragePercentageCalculator.CalculateFromObligations(obligations).Should().Be(expected);
     }
