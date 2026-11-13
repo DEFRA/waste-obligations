@@ -162,6 +162,82 @@ public class ScheduledJobTests : IntegrationTestBase
         }
     }
 
+    [Fact]
+    public async Task ConfiguredJob_WhenPackagingFails_ShouldCreateNewInstructionOnNextDay()
+    {
+        await Reset();
+        var time = new SchedulerTimeProvider(_clock);
+        var settings = new Dictionary<string, string?>
+        {
+            ["ObligationCalculation:Enabled"] = "true",
+            ["ObligationCalculation:Cron"] = "0 1 * * *",
+            ["ObligationCalculation:Processing:Enabled"] = "true",
+            ["ObligationCalculation:Processing:MaximumAttempts"] = "1",
+        };
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
+        var packaging = Substitute.For<IWastePackagingService>();
+        packaging
+            .Read(2025, Arg.Any<CancellationToken>())
+            .Returns(_ => Task.FromException<PackagingResponse>(new HttpRequestException("Packaging API unavailable")));
+        await using var host = new ServiceCollection()
+            .AddLogging()
+            .AddSingleton(GetMongoApplicationDatabase())
+            .AddSingleton<TimeProvider>(time)
+            .AddOptions()
+            .AddScoped<IDbContext, MongoDbContext>()
+            .AddSingleton<ICurrentObligationYearProvider, CurrentObligationYearProvider>()
+            .AddTransient<IObligationCalculationInstructionService, ObligationCalculationInstructionService>()
+            .AddSingleton(packaging)
+            .AddSingleton(Substitute.For<IObligationCalculator>())
+            .AddSingleton(Substitute.For<IObligationCalculationService>())
+            .AddScheduledJobs(configuration)
+            .BuildServiceProvider();
+        var workers = host.GetServices<IHostedService>().ToArray();
+        var scheduler = workers.OfType<ScheduledJobWorker>().Single();
+        var processor = workers.OfType<ScheduledJobProcessingWorker<ObligationCalculationInstruction>>().Single();
+        try
+        {
+            await scheduler.StartAsync(TestContext.Current.CancellationToken);
+            await time.WaitForTimer(TimeSpan.FromMinutes(1));
+            _clock.Advance(TimeSpan.FromMinutes(1));
+            await time.WaitForTimer(TimeSpan.FromDays(1));
+            var first = await ObligationCalculationInstructions
+                .Find(x => x.ObligationYear == 2026)
+                .SingleAsync(TestContext.Current.CancellationToken);
+            await processor.StartAsync(TestContext.Current.CancellationToken);
+            await WaitForAsync(async () =>
+                (
+                    await ObligationCalculationInstructions
+                        .Find(x => x.Id == first.Id)
+                        .SingleAsync(TestContext.Current.CancellationToken)
+                )
+                    .Status.Should()
+                    .Be(ObligationCalculationInstructionStatus.Failed)
+            );
+            await processor.StopAsync(TestContext.Current.CancellationToken);
+            _clock.Advance(TimeSpan.FromDays(1));
+            await WaitForAsync(async () =>
+                (
+                    await ObligationCalculationInstructions.CountDocumentsAsync(
+                        FilterDefinition<ObligationCalculationInstruction>.Empty,
+                        cancellationToken: TestContext.Current.CancellationToken
+                    )
+                )
+                    .Should()
+                    .Be(2)
+            );
+            var next = await ObligationCalculationInstructions
+                .Find(x => x.Id != first.Id)
+                .SingleAsync(TestContext.Current.CancellationToken);
+            next.Status.Should().Be(ObligationCalculationInstructionStatus.Pending);
+        }
+        finally
+        {
+            await processor.StopAsync(CancellationToken.None);
+            await scheduler.StopAsync(CancellationToken.None);
+        }
+    }
+
     [Theory]
     [InlineData(2027, 1, 31, 2026)]
     [InlineData(2027, 2, 1, 2027)]
