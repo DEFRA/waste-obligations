@@ -7,6 +7,7 @@ using Defra.WasteObligations.Api.Services.ObligationCalculations;
 using Defra.WasteObligations.Api.Services.Scheduling;
 using Defra.WasteObligations.Api.Services.WastePackaging;
 using Defra.WasteObligations.Api.Utils.Logging;
+using Defra.WasteObligations.Api.Utils.Metrics;
 using Defra.WasteObligations.AuditEvents.Logging;
 using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
@@ -48,6 +49,8 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
             packaging,
             Substitute.For<IObligationCalculator>(),
             Substitute.For<IObligationCalculationService>(),
+            Substitute.For<IObligationCalculationMetrics>(),
+            TimeProvider.System,
             logger
         );
 
@@ -212,6 +215,8 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
             packaging,
             Substitute.For<IObligationCalculator>(),
             Substitute.For<IObligationCalculationService>(),
+            Substitute.For<IObligationCalculationMetrics>(),
+            TimeProvider.System,
             new RecordingLogger<ObligationCalculationProcessor>()
         );
         var workerLogger = Substitute.For<ILogger<ScheduledJobProcessingWorker<ObligationCalculationInstruction>>>();
@@ -470,6 +475,7 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
             .AddSingleton(EmptyPackaging())
             .AddSingleton(Substitute.For<IObligationCalculator>())
             .AddSingleton(Substitute.For<IObligationCalculationService>())
+            .AddRequestMetrics()
             .AddScheduledJobs(configuration);
         if (processor is not null)
             services.AddScoped(_ => processor);

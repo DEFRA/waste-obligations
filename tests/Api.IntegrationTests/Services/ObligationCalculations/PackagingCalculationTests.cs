@@ -5,6 +5,7 @@ using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.ScheduledJobs;
 using Defra.WasteObligations.Api.Services.ObligationCalculations;
 using Defra.WasteObligations.Api.Services.WastePackaging;
+using Defra.WasteObligations.Api.Utils.Metrics;
 using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
 using Defra.WasteObligations.Testing.Fixtures.WastePackaging;
@@ -65,19 +66,54 @@ public class PackagingCalculationTests : IntegrationTestBase
             ApprovedSubmissionFixture.Default().With(x => x.SubmitterOrganisationId, Guid.NewGuid()).Create()
         );
         var service = Substitute.For<IObligationCalculationService>();
+        var metrics = Substitute.For<IObligationCalculationMetrics>();
         service
-            .Save(Arg.Any<ObligationCalculation>(), Arg.Any<CancellationToken>())
-            .Returns<Task<ObligationCalculation>>(_ => throw new OperationCanceledException());
+            .SaveWithOutcome(Arg.Any<ObligationCalculation>(), Arg.Any<CancellationToken>())
+            .Returns<Task<CalculationSaveResult>>(_ => throw new OperationCanceledException());
         var action = () =>
-            Processor(source, service)
+            Processor(source, service, metrics)
                 .Process(
                     ObligationCalculationInstructionFixture.Default().Create(),
                     TestContext.Current.CancellationToken
                 );
 
         await action.Should().ThrowAsync<OperationCanceledException>();
-        await service.Received(1).Save(Arg.Any<ObligationCalculation>(), Arg.Any<CancellationToken>());
+        await service.Received(1).SaveWithOutcome(Arg.Any<ObligationCalculation>(), Arg.Any<CancellationToken>());
+        metrics.DidNotReceive().SubmitterFailed();
+        metrics.DidNotReceive().Submitter(Arg.Any<CalculationSaveOutcome>());
+        metrics.DidNotReceive().Instruction(Arg.Any<CalculationInstructionOutcome>());
         _logger.Entries.Should().NotContain(x => x.Level == LogLevel.Error);
+    }
+
+    [Fact]
+    public async Task Process_ShouldReportActualOutcomesAndIsolatedErrors()
+    {
+        var metrics = Substitute.For<IObligationCalculationMetrics>();
+        var submission = ApprovedSubmissionFixture.Default().With(x => x.SubmitterOrganisationId, SubmitterId).Create();
+        var producer = submission.Producers.Single();
+        var material = producer.Materials.Single();
+        var changed = submission with
+        {
+            Producers = [producer with { Materials = [material with { Kilograms = 20000 }] }],
+        };
+        var invalid = submission with
+        {
+            Producers = [producer with { Materials = [material with { MaterialCode = "INVALID" }] }],
+        };
+        var instruction = ObligationCalculationInstructionFixture.Default().Create();
+        await Processor(Source(submission), metrics: metrics)
+            .Process(instruction, TestContext.Current.CancellationToken);
+        await Processor(Source(submission), metrics: metrics)
+            .Process(instruction, TestContext.Current.CancellationToken);
+        await Processor(Source(changed), metrics: metrics).Process(instruction, TestContext.Current.CancellationToken);
+        await Processor(Source(invalid), metrics: metrics).Process(instruction, TestContext.Current.CancellationToken);
+
+        metrics.Received(1).Submitter(CalculationSaveOutcome.Created);
+        metrics.Received(1).Submitter(CalculationSaveOutcome.Unchanged);
+        metrics.Received(1).Submitter(CalculationSaveOutcome.Updated);
+        metrics.Received(1).SubmitterFailed();
+        metrics.Received(3).Instruction(CalculationInstructionOutcome.Success);
+        metrics.Received(1).Instruction(CalculationInstructionOutcome.SubmitterErrors);
     }
 
     [Fact]
@@ -89,11 +125,14 @@ public class PackagingCalculationTests : IntegrationTestBase
             ApprovedSubmissionFixture.Default().With(x => x.SubmitterOrganisationId, SubmitterId).Create()
         );
 
-        await Processor(source)
+        var metrics = Substitute.For<IObligationCalculationMetrics>();
+        await Processor(source, metrics: metrics)
             .Process(
                 ObligationCalculationInstructionFixture.Default().With(x => x.SubmitterId, SubmitterId).Create(),
                 TestContext.Current.CancellationToken
             );
+        metrics.Received(1).Submitter(CalculationSaveOutcome.Created);
+        metrics.Received(1).Instruction(CalculationInstructionOutcome.Success);
 
         (await Read(SubmitterId)).Producers.Should().ContainSingle();
         (
@@ -119,7 +158,8 @@ public class PackagingCalculationTests : IntegrationTestBase
             ? Source(ApprovedSubmissionFixture.Default().With(x => x.SubmitterOrganisationId, Guid.NewGuid()).Create())
             : Source();
 
-        await Processor(source)
+        var metrics = Substitute.For<IObligationCalculationMetrics>();
+        await Processor(source, metrics: metrics)
             .Process(
                 ObligationCalculationInstructionFixture
                     .Default()
@@ -127,6 +167,9 @@ public class PackagingCalculationTests : IntegrationTestBase
                     .Create(),
                 TestContext.Current.CancellationToken
             );
+        metrics.DidNotReceive().Submitter(Arg.Any<CalculationSaveOutcome>());
+        metrics.DidNotReceive().SubmitterFailed();
+        metrics.Received(1).Instruction(CalculationInstructionOutcome.Success);
 
         (await Read(SubmitterId)).Should().BeEquivalentTo(before);
         _logger
@@ -244,9 +287,11 @@ public class PackagingCalculationTests : IntegrationTestBase
                     )
                 );
             var service = new ObligationCalculationService(context);
+            var metrics = Substitute.For<IObligationCalculationMetrics>();
             var first = Processor(
                 Source(ApprovedSubmissionFixture.Default().With(x => x.SubmitterOrganisationId, SubmitterId).Create()),
-                service
+                service,
+                metrics
             );
             await first.Process(
                 ObligationCalculationInstructionFixture.Default().Create(),
@@ -279,7 +324,8 @@ public class PackagingCalculationTests : IntegrationTestBase
                         changedSubmission,
                         ApprovedSubmissionFixture.Default().With(x => x.SubmitterOrganisationId, laterId).Create()
                     ),
-                    service
+                    service,
+                    metrics
                 )
                 .Process(
                     ObligationCalculationInstructionFixture.Default().Create(),
@@ -302,6 +348,10 @@ public class PackagingCalculationTests : IntegrationTestBase
                 .Materials.Single()
                 .ObligationTonnes.Should()
                 .Be(6);
+            metrics.Received(2).Submitter(CalculationSaveOutcome.Created);
+            metrics.DidNotReceive().Submitter(CalculationSaveOutcome.Updated);
+            metrics.Received(1).SubmitterFailed();
+            metrics.Received(1).Instruction(CalculationInstructionOutcome.SubmitterErrors);
             _logger
                 .Entries.Should()
                 .ContainSingle(x => x.Level == LogLevel.Error && x.Message.Contains(SubmitterId.ToString()));
@@ -353,7 +403,8 @@ public class PackagingCalculationTests : IntegrationTestBase
 
     private ObligationCalculationProcessor Processor(
         IWastePackagingService source,
-        IObligationCalculationService? service = null
+        IObligationCalculationService? service = null,
+        IObligationCalculationMetrics? metrics = null
     ) =>
         new(
             source,
@@ -367,6 +418,8 @@ public class PackagingCalculationTests : IntegrationTestBase
                 TimeProvider.System
             ),
             service ?? new ObligationCalculationService(Context()),
+            metrics ?? Substitute.For<IObligationCalculationMetrics>(),
+            TimeProvider.System,
             _logger
         );
 

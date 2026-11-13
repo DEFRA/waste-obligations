@@ -15,6 +15,31 @@ namespace Defra.WasteObligations.Api.IntegrationTests.Services.ObligationCalcula
 public class ObligationCalculationServiceTests : IntegrationTestBase
 {
     [Fact]
+    public async Task SaveWithOutcome_ShouldReportCommittedWritesAndEquivalentReplay()
+    {
+        var subject = Subject();
+        var created = await subject.SaveWithOutcome(Calculation(), TestContext.Current.CancellationToken);
+        var unchanged = await subject.SaveWithOutcome(created.Calculation, TestContext.Current.CancellationToken);
+        var updated = await subject.SaveWithOutcome(
+            ChangeKilograms(created.Calculation),
+            TestContext.Current.CancellationToken
+        );
+
+        created.Outcome.Should().Be(CalculationSaveOutcome.Created);
+        unchanged.Outcome.Should().Be(CalculationSaveOutcome.Unchanged);
+        updated.Outcome.Should().Be(CalculationSaveOutcome.Updated);
+        updated.Calculation.Version.Should().Be(2);
+        (
+            await History.CountDocumentsAsync(
+                FilterDefinition<ObligationCalculationHistory>.Empty,
+                cancellationToken: TestContext.Current.CancellationToken
+            )
+        )
+            .Should()
+            .Be(1);
+    }
+
+    [Fact]
     public async Task Save_ShouldPersistWholeCalculationAndKeepEquivalentDataUnchanged()
     {
         var input = Calculation();
