@@ -66,100 +66,118 @@ public class ScheduledJobTests : IntegrationTestBase
                 )
         );
         var registered = await mapping.BuildAndPostAsync(TestContext.Current.CancellationToken);
-        registered.Guid.Should().NotBeNull();
-        var time = new SchedulerTimeProvider(_clock);
-        var settings = new Dictionary<string, string?>
-        {
-            ["ScheduledJobs:ObligationCalculation:Enabled"] = "true",
-            ["ScheduledJobs:ObligationCalculation:Cron"] = "0 1 * * *",
-            ["ScheduledJobs:ObligationCalculation:Processing:Enabled"] = "true",
-            ["WastePackaging:BaseAddress"] = "http://localhost:9090/",
-            ["WastePackaging:ClientId"] = "client",
-            ["WastePackaging:ClientSecret"] = "secret",
-            ["ObligationCalculation:Targets:2026:PL"] = "0.57",
-            ["ObligationCalculation:Targets:2026:PC"] = "0.77",
-            ["ObligationCalculation:Targets:2026:FC"] = "0.77",
-            ["ObligationCalculation:Targets:2026:AL"] = "0.62",
-            ["ObligationCalculation:Targets:2026:ST"] = "0.81",
-            ["ObligationCalculation:Targets:2026:WD"] = "0.46",
-            ["ObligationCalculation:Targets:2026:GL"] = "0.76",
-            ["ObligationCalculation:Targets:2026:GR"] = "0.76",
-        };
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
-        await using var host = new ServiceCollection()
-            .AddLogging()
-            .AddSingleton<IConfiguration>(configuration)
-            .AddSingleton(GetMongoApplicationDatabase())
-            .AddSingleton<TimeProvider>(time)
-            .AddOptions()
-            .AddScoped<IDbContext, MongoDbContext>()
-            .AddSingleton<ICurrentObligationYearProvider, CurrentObligationYearProvider>()
-            .AddTransient<IObligationCalculationInstructionService, ObligationCalculationInstructionService>()
-            .AddWastePackagingService(false)
-            .AddObligationCalculation()
-            .AddScheduledJobs(configuration.GetSection("ScheduledJobs"))
-            .BuildServiceProvider();
-        var workers = host.GetServices<IHostedService>().ToArray();
-        var scheduler = workers[0];
-        var processor = workers[1];
         try
         {
-            await scheduler.StartAsync(TestContext.Current.CancellationToken);
-            await time.WaitForTimer(TimeSpan.FromMinutes(1));
-            _clock.Advance(TimeSpan.FromMinutes(1));
-            await time.WaitForTimer(TimeSpan.FromDays(1));
-            var instruction = await ObligationCalculationInstructions
-                .Find(x => x.ObligationYear == 2026)
-                .SingleAsync(TestContext.Current.CancellationToken);
-            instruction.SubmitterId.Should().BeNull();
-            await processor.StartAsync(TestContext.Current.CancellationToken);
-            await WaitForAsync(async () =>
-                (
-                    await ObligationCalculationInstructions
-                        .Find(x => x.Id == instruction.Id)
-                        .SingleAsync(TestContext.Current.CancellationToken)
-                )
-                    .Status.Should()
-                    .Be(ObligationCalculationInstructionStatus.Completed)
-            );
-
-            var calculation = await GetMongoDatabase()
-                .GetCollection<ObligationCalculation>(nameof(ObligationCalculation))
-                .Find(x => x.SubmitterOrganisationId == submitterId && x.ObligationYear == 2026)
-                .SingleAsync(TestContext.Current.CancellationToken);
-            calculation.SubmitterType.Should().Be(ObligationSubmitterType.ComplianceScheme);
-            var producer = calculation.Producers.Should().ContainSingle().Which;
-            producer.ProducerOrganisationId.Should().Be(producerId);
-            producer
-                .Materials.Should()
-                .ContainSingle()
-                .Which.Should()
-                .BeEquivalentTo(
-                    new
-                    {
-                        MaterialCode = "PL",
-                        InputKilograms = 10000L,
-                        InputTonnes = 10L,
-                        ObligationTonnes = 6L,
-                    }
+            registered.Guid.Should().NotBeNull();
+            var time = new SchedulerTimeProvider(_clock);
+            var settings = new Dictionary<string, string?>
+            {
+                ["ScheduledJobs:ObligationCalculation:Enabled"] = "true",
+                ["ScheduledJobs:ObligationCalculation:Cron"] = "0 1 * * *",
+                ["ScheduledJobs:ObligationCalculation:Processing:Enabled"] = "true",
+                ["WastePackaging:BaseAddress"] = "http://localhost:9090/",
+                ["WastePackaging:ClientId"] = "client",
+                ["WastePackaging:ClientSecret"] = "secret",
+                ["ObligationCalculation:Targets:2026:PL"] = "0.57",
+                ["ObligationCalculation:Targets:2026:PC"] = "0.77",
+                ["ObligationCalculation:Targets:2026:FC"] = "0.77",
+                ["ObligationCalculation:Targets:2026:AL"] = "0.62",
+                ["ObligationCalculation:Targets:2026:ST"] = "0.81",
+                ["ObligationCalculation:Targets:2026:WD"] = "0.46",
+                ["ObligationCalculation:Targets:2026:GL"] = "0.76",
+                ["ObligationCalculation:Targets:2026:GR"] = "0.76",
+            };
+            var configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
+            await using var host = new ServiceCollection()
+                .AddLogging()
+                .AddSingleton<IConfiguration>(configuration)
+                .AddSingleton(GetMongoApplicationDatabase())
+                .AddSingleton<TimeProvider>(time)
+                .AddOptions()
+                .AddScoped<IDbContext, MongoDbContext>()
+                .AddSingleton<ICurrentObligationYearProvider, CurrentObligationYearProvider>()
+                .AddTransient<IObligationCalculationInstructionService, ObligationCalculationInstructionService>()
+                .AddWastePackagingService(false)
+                .AddObligationCalculation()
+                .AddScheduledJobs(configuration.GetSection("ScheduledJobs"))
+                .BuildServiceProvider();
+            var workers = host.GetServices<IHostedService>().ToArray();
+            var scheduler = workers[0];
+            var processor = workers[1];
+            try
+            {
+                await scheduler.StartAsync(TestContext.Current.CancellationToken);
+                await time.WaitForTimer(TimeSpan.FromMinutes(1));
+                _clock.Advance(TimeSpan.FromMinutes(1));
+                await time.WaitForTimer(TimeSpan.FromDays(1));
+                var instruction = await ObligationCalculationInstructions
+                    .Find(x => x.ObligationYear == 2026)
+                    .SingleAsync(TestContext.Current.CancellationToken);
+                instruction.SubmitterId.Should().BeNull();
+                await processor.StartAsync(TestContext.Current.CancellationToken);
+                await WaitForAsync(async () =>
+                    (
+                        await ObligationCalculationInstructions
+                            .Find(x => x.Id == instruction.Id)
+                            .SingleAsync(TestContext.Current.CancellationToken)
+                    )
+                        .Status.Should()
+                        .Be(ObligationCalculationInstructionStatus.Completed)
                 );
-            var requests = await WireMockContext.WireMockAdminApi.FindRequestsAsync(
-                new RequestModel { Methods = ["GET"], Path = path },
-                TestContext.Current.CancellationToken
-            );
-            requests.Should().ContainSingle();
+
+                var calculation = await GetMongoDatabase()
+                    .GetCollection<ObligationCalculation>(nameof(ObligationCalculation))
+                    .Find(x => x.SubmitterOrganisationId == submitterId && x.ObligationYear == 2026)
+                    .SingleAsync(TestContext.Current.CancellationToken);
+                calculation.SubmitterType.Should().Be(ObligationSubmitterType.ComplianceScheme);
+                var producer = calculation.Producers.Should().ContainSingle().Which;
+                producer.ProducerOrganisationId.Should().Be(producerId);
+                producer
+                    .Materials.Should()
+                    .ContainSingle()
+                    .Which.Should()
+                    .BeEquivalentTo(
+                        new
+                        {
+                            MaterialCode = "PL",
+                            InputKilograms = 10000L,
+                            InputTonnes = 10L,
+                            ObligationTonnes = 6L,
+                        }
+                    );
+                var requests = await WireMockContext.WireMockAdminApi.FindRequestsAsync(
+                    new RequestModel { Methods = ["GET"], Path = path },
+                    TestContext.Current.CancellationToken
+                );
+                requests.Should().ContainSingle();
+            }
+            finally
+            {
+                try
+                {
+                    await processor.StopAsync(CancellationToken.None);
+                }
+                finally
+                {
+                    await scheduler.StopAsync(CancellationToken.None);
+                }
+            }
         }
         finally
         {
-            await processor.StopAsync(TestContext.Current.CancellationToken);
-            await scheduler.StopAsync(TestContext.Current.CancellationToken);
-            using var admin = new HttpClient();
-            using var deleted = await admin.DeleteAsync(
-                $"http://localhost:9090/__admin/mappings/{registered.Guid}",
-                TestContext.Current.CancellationToken
-            );
-            deleted.EnsureSuccessStatusCode();
-            await Reset();
+            try
+            {
+                using var admin = new HttpClient();
+                using var deleted = await admin.DeleteAsync(
+                    $"http://localhost:9090/__admin/mappings/{registered.Guid}",
+                    CancellationToken.None
+                );
+                deleted.EnsureSuccessStatusCode();
+            }
+            finally
+            {
+                await Reset();
+            }
         }
     }
 

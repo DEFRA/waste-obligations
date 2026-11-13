@@ -65,29 +65,29 @@ public class StartObligationCalculationTests : IntegrationTestBase
                         )
                 )
         );
-        var registered = await mapping.BuildAndPostAsync(TestContext.Current.CancellationToken);
-        registered.Guid.Should().NotBeNull();
-        using var client = CreateClient();
-        client.BaseAddress = new Uri("http://localhost:8081");
-        var response = await client.PostAsync(
-            $"/admin/obligation-calculations?obligationYear={obligationYear}&submitterId={submitterId}",
-            null,
-            TestContext.Current.CancellationToken
-        );
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        using var body = JsonDocument.Parse(
-            await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)
-        );
-        var instructionId = ObjectId.Parse(body.RootElement.GetProperty("id").GetString());
         var database = GetMongoDatabase().Client.GetDatabase("waste-obligations-scheduled-job-test");
         var instructions = database.GetCollection<ObligationCalculationInstruction>(
             ObligationCalculationInstruction.CollectionName
         );
         var calculations = database.GetCollection<ObligationCalculation>(nameof(ObligationCalculation));
 
+        var registered = await mapping.BuildAndPostAsync(TestContext.Current.CancellationToken);
         try
         {
+            registered.Guid.Should().NotBeNull();
+            using var client = CreateClient();
+            client.BaseAddress = new Uri("http://localhost:8081");
+            var response = await client.PostAsync(
+                $"/admin/obligation-calculations?obligationYear={obligationYear}&submitterId={submitterId}",
+                null,
+                TestContext.Current.CancellationToken
+            );
+
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+            using var body = JsonDocument.Parse(
+                await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)
+            );
+            var instructionId = ObjectId.Parse(body.RootElement.GetProperty("id").GetString());
             await WaitForAsync(
                 async () =>
                 {
@@ -124,17 +124,28 @@ public class StartObligationCalculationTests : IntegrationTestBase
         }
         finally
         {
-            await instructions.DeleteOneAsync(x => x.Id == instructionId, TestContext.Current.CancellationToken);
-            await calculations.DeleteOneAsync(
-                x => x.SubmitterOrganisationId == submitterId && x.ObligationYear == obligationYear,
-                TestContext.Current.CancellationToken
-            );
-            using var admin = new HttpClient();
-            using var deleted = await admin.DeleteAsync(
-                $"http://localhost:9090/__admin/mappings/{registered.Guid}",
-                TestContext.Current.CancellationToken
-            );
-            deleted.EnsureSuccessStatusCode();
+            try
+            {
+                await Task.WhenAll(
+                    instructions.DeleteOneAsync(
+                        x => x.SubmitterId == submitterId && x.ObligationYear == obligationYear,
+                        CancellationToken.None
+                    ),
+                    calculations.DeleteOneAsync(
+                        x => x.SubmitterOrganisationId == submitterId && x.ObligationYear == obligationYear,
+                        CancellationToken.None
+                    )
+                );
+            }
+            finally
+            {
+                using var admin = new HttpClient();
+                using var deleted = await admin.DeleteAsync(
+                    $"http://localhost:9090/__admin/mappings/{registered.Guid}",
+                    CancellationToken.None
+                );
+                deleted.EnsureSuccessStatusCode();
+            }
         }
     }
 }
