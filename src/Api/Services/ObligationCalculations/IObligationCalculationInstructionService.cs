@@ -10,6 +10,7 @@ public interface IObligationCalculationInstructionService
         Guid? submitterId,
         CancellationToken cancellationToken
     );
+
     Task<ObligationCalculationInstruction> Create(
         IClientSessionHandle session,
         int obligationYear,

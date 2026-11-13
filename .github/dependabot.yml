@@ -9,6 +9,11 @@ updates:
       time: '10:30'
       timezone: 'Europe/London'
     ignore:
+      # Keep .NET 11 packages out until the service upgrades from .NET 10.
+      - dependency-name: 'Microsoft.AspNetCore.*'
+        versions: ['[11.0.0, 12.0.0)']
+      - dependency-name: 'Microsoft.Extensions.*'
+        versions: ['[11.0.0, 12.0.0)']
       # Microsoft.OpenApi 3.x has breaking API changes; keep routine updates on 2.x.
       - dependency-name: 'Microsoft.OpenApi'
         update-types:
@@ -110,6 +115,9 @@ updates:
   # The standalone healthcheck solution is not part of the root solution.
   - package-ecosystem: nuget
     directory: /tools/healthcheck
+    ignore:
+      - dependency-name: 'Microsoft.Extensions.*'
+        versions: ['[11.0.0, 12.0.0)']
     schedule:
       interval: daily
       time: '10:30'
@@ -140,6 +148,9 @@ updates:
   # Track the SDK baseline used by local development and CI.
   - package-ecosystem: dotnet-sdk
     directory: /
+    ignore:
+      - dependency-name: '*'
+        versions: ['~> 11.0']
     schedule:
       interval: weekly
       time: '10:30'
@@ -148,6 +159,9 @@ updates:
   # Keep Dockerfile and Compose digest pins receiving reviewed updates.
   - package-ecosystem: docker
     directory: /
+    ignore:
+      - dependency-name: 'mcr.microsoft.com/dotnet/*'
+        versions: ['11.x']
     schedule:
       interval: weekly
       time: '10:30'

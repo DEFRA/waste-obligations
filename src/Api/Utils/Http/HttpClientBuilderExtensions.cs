@@ -6,6 +6,13 @@ namespace Defra.WasteObligations.Api.Utils.Http;
 
 public static class HttpClientBuilderExtensions
 {
+    public static IHttpClientBuilder AddCorrelationIdHandler(this IHttpClientBuilder httpClientBuilder)
+    {
+        httpClientBuilder.Services.AddTransient<CorrelationIdHandler>();
+
+        return httpClientBuilder.AddHttpMessageHandler<CorrelationIdHandler>();
+    }
+
     public static IHttpClientBuilder AddResiliencePipeline(
         this IHttpClientBuilder httpClientBuilder,
         bool addResiliencePipeline,

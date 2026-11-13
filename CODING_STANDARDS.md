@@ -1,6 +1,7 @@
 # Coding standards
 
 ## Coding conventions
+- Name main service implementations with the `Service` suffix and their interfaces with the matching `I` prefix.
 - Do not use the `Async` suffix for asynchronous methods
 - Add blank line before return statement
 - Prefer typed `Results.[method]()` helpers over `Results.Problem()` for endpoint responses; reserve `Results.Problem()` for cases without an appropriate typed helper

@@ -26,6 +26,9 @@ public static class Endpoints
 
     public static class Admin
     {
+        public static string ObligationCalculations(EndpointQuery? query = null) =>
+            $"admin/obligation-calculations{query}";
+
         public static string OrganisationComplianceDeclarations(Guid organisationId, EndpointQuery? query = null) =>
             $"admin/organisations/{organisationId}/compliance-declarations{query}";
 
