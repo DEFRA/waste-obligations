@@ -11,9 +11,9 @@ updates:
     ignore:
       # Keep .NET 11 packages out until the service upgrades from .NET 10.
       - dependency-name: 'Microsoft.AspNetCore.*'
-        versions: ['[11.0.0, 12.0.0)']
+        versions: ['>= 11.0.0-0, < 12.0.0-0']
       - dependency-name: 'Microsoft.Extensions.*'
-        versions: ['[11.0.0, 12.0.0)']
+        versions: ['>= 11.0.0-0, < 12.0.0-0']
       # Microsoft.OpenApi 3.x has breaking API changes; keep routine updates on 2.x.
       - dependency-name: 'Microsoft.OpenApi'
         update-types:
@@ -117,7 +117,7 @@ updates:
     directory: /tools/healthcheck
     ignore:
       - dependency-name: 'Microsoft.Extensions.*'
-        versions: ['[11.0.0, 12.0.0)']
+        versions: ['>= 11.0.0-0, < 12.0.0-0']
     schedule:
       interval: daily
       time: '10:30'
@@ -160,8 +160,8 @@ updates:
   - package-ecosystem: docker
     directory: /
     ignore:
-      - dependency-name: 'mcr.microsoft.com/dotnet/*'
-        versions: ['11.x']
+      - dependency-name: 'dotnet/*'
+        versions: ['~> 11.0']
     schedule:
       interval: weekly
       time: '10:30'
@@ -169,7 +169,7 @@ updates:
     groups:
       dotnet-images:
         patterns:
-          - 'mcr.microsoft.com/dotnet/*'
+          - 'dotnet/*'
         update-types:
           - 'minor'
           - 'patch'
