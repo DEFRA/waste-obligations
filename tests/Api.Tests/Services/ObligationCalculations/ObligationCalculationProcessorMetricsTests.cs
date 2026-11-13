@@ -22,7 +22,7 @@ public class ObligationCalculationProcessorMetricsTests
             .Returns(_ =>
             {
                 time.Advance(TimeSpan.FromSeconds(3));
-                throw new HttpRequestException();
+                return Task.FromException<PackagingResponse>(new HttpRequestException());
             });
         var subject = Processor(source, metrics, time);
 
@@ -47,7 +47,7 @@ public class ObligationCalculationProcessorMetricsTests
             {
                 time.Advance(TimeSpan.FromSeconds(4));
                 cancellation.Cancel();
-                throw new OperationCanceledException(cancellation.Token);
+                return Task.FromCanceled<PackagingResponse>(cancellation.Token);
             });
         var subject = Processor(source, metrics, time);
 
