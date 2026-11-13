@@ -14,48 +14,53 @@ public static class ObligationCoveragePercentageCalculator
 
     public static decimal CalculateFromMaterials(IEnumerable<(int Accepted, int Obligated, string Status)> materials)
     {
-        var totalNumerator = BigInteger.Zero;
-        var totalDenominator = BigInteger.One;
+        var total = (Numerator: BigInteger.Zero, Denominator: BigInteger.One);
         var count = 0;
         var anyNotMet = false;
         foreach (var material in materials.Where(x => x.Status != ObligationStatus.NoDataYet))
         {
             anyNotMet |= material.Status == ObligationStatus.NotMet;
-            BigInteger numerator;
-            int denominator;
-            // Met can include remelt surplus that is not shown in accepted tonnage.
-            if (material.Status == ObligationStatus.Met)
-            {
-                numerator = MaxPercentage;
-                denominator = 1;
-            }
-            else if (material.Obligated > 0)
-            {
-                numerator = (BigInteger)Math.Min(material.Accepted, material.Obligated) * MaxPercentage;
-                denominator = material.Obligated;
-            }
-            else
-            {
-                numerator = 0;
-                denominator = 1;
-            }
-
-            // Keep exact fractions so decimal division cannot move a true midpoint below its rounding boundary.
-            totalNumerator = totalNumerator * denominator + numerator * totalDenominator;
-            totalDenominator *= denominator;
-            var divisor = BigInteger.GreatestCommonDivisor(totalNumerator, totalDenominator);
-            totalNumerator /= divisor;
-            totalDenominator /= divisor;
+            total = Add(total, MaterialShare(material.Accepted, material.Obligated, material.Status));
             count++;
         }
+
         if (count == 0)
             return 0m;
 
-        var averageDenominator = totalDenominator * count;
-        var rounded = BigInteger.DivRem(totalNumerator, averageDenominator, out var remainder);
-        if (BigInteger.Abs(remainder) * 2 >= averageDenominator)
-            rounded += totalNumerator.Sign;
+        var denominator = total.Denominator * count;
+        var rounded = BigInteger.DivRem(total.Numerator, denominator, out var remainder);
+        if (BigInteger.Abs(remainder) * 2 >= denominator)
+            rounded += total.Numerator.Sign;
 
         return (decimal)(anyNotMet ? BigInteger.Min(rounded, MaxPercentage - 1) : rounded);
+    }
+
+    private static (BigInteger Numerator, BigInteger Denominator) MaterialShare(
+        int accepted,
+        int obligated,
+        string status
+    )
+    {
+        // Met can include remelt surplus not shown in accepted tonnage.
+        if (status == ObligationStatus.Met)
+            return (MaxPercentage, 1);
+
+        if (obligated <= 0)
+            return (0, 1);
+
+        return ((BigInteger)Math.Min(accepted, obligated) * MaxPercentage, obligated);
+    }
+
+    private static (BigInteger Numerator, BigInteger Denominator) Add(
+        (BigInteger Numerator, BigInteger Denominator) total,
+        (BigInteger Numerator, BigInteger Denominator) share
+    )
+    {
+        // Preserve exact fractions so division cannot move a midpoint below its rounding boundary.
+        var numerator = total.Numerator * share.Denominator + share.Numerator * total.Denominator;
+        var denominator = total.Denominator * share.Denominator;
+        var divisor = BigInteger.GreatestCommonDivisor(numerator, denominator);
+
+        return (numerator / divisor, denominator / divisor);
     }
 }

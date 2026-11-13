@@ -109,6 +109,27 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
         metrics.Received(1).Updated(status);
     }
 
+    [Theory]
+    [InlineData(15, 20, "Met", 75)]
+    [InlineData(0, 0, "Met", 100)]
+    [InlineData(0, 0, "NotMet", 0)]
+    [InlineData(0, 0, "NoDataYet", 0)]
+    [InlineData(107, 200, "NotMet", 54)]
+    public async Task OriginalCorrection_ShouldPreserveItsHistoricalCalculation(
+        int accepted,
+        int obligated,
+        string status,
+        decimal expected
+    )
+    {
+        var original = Declaration() with { Obligations = [Obligation(accepted, obligated, status)] };
+        await ComplianceDeclarations.InsertOneAsync(original, cancellationToken: TestContext.Current.CancellationToken);
+
+        await CreateSubject().Apply(TestContext.Current.CancellationToken);
+
+        (await Read(original)).ObligationCoveragePercentage.Should().Be(expected);
+    }
+
     [Fact]
     public async Task GlassCorrection_ShouldUpdateStoredCoverageOnceAndAuditTheChange()
     {
