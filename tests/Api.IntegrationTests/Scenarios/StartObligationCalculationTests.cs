@@ -4,6 +4,7 @@ using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data.Entities;
 using MongoDB.Bson;
 using MongoDB.Driver;
+using WireMock.Client.Extensions;
 
 namespace Defra.WasteObligations.Api.IntegrationTests.Scenarios;
 
@@ -35,6 +36,15 @@ public class StartObligationCalculationTests : IntegrationTestBase
     {
         const int obligationYear = 2026;
         var submitterId = Guid.NewGuid();
+        var mapping = WireMockContext.WireMockAdminApi.GetMappingBuilder();
+        mapping.Given(x =>
+            x.WithRequest(r => r.UsingGet().WithPath("/packaging/2025/producer-material-totals-by-submitter"))
+                .WithResponse(r =>
+                    r.WithStatusCode(HttpStatusCode.OK).WithBodyAsJson(new { items = Array.Empty<object>() })
+                )
+        );
+        var registered = await mapping.BuildAndPostAsync(TestContext.Current.CancellationToken);
+        registered.Guid.Should().NotBeNull();
         using var client = CreateClient();
         client.BaseAddress = new Uri("http://localhost:8081");
         var response = await client.PostAsync(
