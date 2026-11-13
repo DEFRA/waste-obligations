@@ -10,6 +10,8 @@
     <PackageReference Include="AwesomeAssertions" Version="9.6.0" />
     <PackageReference Include="MartinCostello.Logging.XUnit.v3" Version="0.7.1" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.15" />
+    <!-- Override transitive dependency for GHSA-6527-9fp8-r4x6. -->
+    <PackageReference Include="Microsoft.AspNetCore.WebUtilities" Version="2.3.14" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.11.0" />
     <!-- added due to https://github.com/advisories/GHSA-6q7j-xr26-3h2c -->
     <PackageReference Include="Scriban.Signed" Version="7.6.1" />
