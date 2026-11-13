@@ -144,7 +144,12 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
                     .With(x => x.Status, "Met")
                     .With(
                         x => x.Tonnages,
-                        ObligationTonnagesFixture.Default().With(x => x.Accepted, 0).With(x => x.Obligated, 36).Create()
+                        ObligationTonnagesFixture
+                            .Default()
+                            .With(x => x.Accepted, 0)
+                            .With(x => x.Obligated, 36)
+                            .With(x => x.Outstanding, 0)
+                            .Create()
                     )
                     .Create(),
                 ObligationFixture
@@ -157,6 +162,7 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
                             .Default()
                             .With(x => x.Accepted, 149)
                             .With(x => x.Obligated, 113)
+                            .With(x => x.Outstanding, 0)
                             .Create()
                     )
                     .Create(),
@@ -179,6 +185,46 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
         after.Should().NotBeNull();
         before["obligationCoveragePercentage"].ToDecimal().Should().Be(50);
         after["obligationCoveragePercentage"].ToDecimal().Should().Be(100);
+    }
+
+    [Fact]
+    public async Task GlassCorrection_WhenRemeltPartiallyMeetsGlass_ShouldAuditSeventyFivePercent()
+    {
+        var original = Declaration() with
+        {
+            ObligationCoveragePercentage = 50,
+            Obligations =
+            [
+                Obligation(0, 4, "NotMet") with
+                {
+                    Material = "Glass",
+                    Tonnages = new ObligationTonnages
+                    {
+                        Accepted = 0,
+                        Obligated = 4,
+                        Outstanding = 2,
+                    },
+                },
+                Obligation(5, 3, "Met") with
+                {
+                    Material = "GlassRemelt",
+                },
+            ],
+        };
+        await ComplianceDeclarations.InsertOneAsync(original, cancellationToken: TestContext.Current.CancellationToken);
+
+        await CreateSubject(glassCorrection: true).Apply(TestContext.Current.CancellationToken);
+
+        (await Read(original)).ObligationCoveragePercentage.Should().Be(75);
+        var auditEvent = await AuditEvents
+            .Find(x => x.EntityId == original.Id.ToString())
+            .SingleAsync(TestContext.Current.CancellationToken);
+        var before = auditEvent.Before;
+        var after = auditEvent.After;
+        before.Should().NotBeNull();
+        after.Should().NotBeNull();
+        before["obligationCoveragePercentage"].ToDecimal().Should().Be(50);
+        after["obligationCoveragePercentage"].ToDecimal().Should().Be(75);
     }
 
     [Theory]
@@ -483,6 +529,7 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
                     .Default()
                     .With(x => x.Accepted, accepted)
                     .With(x => x.Obligated, obligated)
+                    .With(x => x.Outstanding, Math.Max(0, obligated - accepted))
                     .Create()
             )
             .Create();

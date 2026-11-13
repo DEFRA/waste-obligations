@@ -9,10 +9,12 @@ public static class ObligationCoveragePercentageCalculator
 
     public static decimal CalculateFromObligations(IEnumerable<Obligation> obligations)
     {
-        return CalculateFromMaterials(obligations.Select(x => (x.Tonnages.Accepted, x.Tonnages.Obligated, x.Status)));
+        return CalculateFromMaterials(
+            obligations.Select(x => (x.Tonnages.Outstanding, x.Tonnages.Obligated, x.Status))
+        );
     }
 
-    public static decimal CalculateFromMaterials(IEnumerable<(int Accepted, int Obligated, string Status)> materials)
+    public static decimal CalculateFromMaterials(IEnumerable<(int Outstanding, int Obligated, string Status)> materials)
     {
         var total = (Numerator: BigInteger.Zero, Denominator: BigInteger.One);
         var count = 0;
@@ -20,7 +22,7 @@ public static class ObligationCoveragePercentageCalculator
         foreach (var material in materials.Where(x => x.Status != ObligationStatus.NoDataYet))
         {
             anyNotMet |= material.Status == ObligationStatus.NotMet;
-            total = Add(total, MaterialShare(material.Accepted, material.Obligated, material.Status));
+            total = Add(total, MaterialShare(material.Outstanding, material.Obligated, material.Status));
             count++;
         }
 
@@ -36,19 +38,18 @@ public static class ObligationCoveragePercentageCalculator
     }
 
     private static (BigInteger Numerator, BigInteger Denominator) MaterialShare(
-        int accepted,
+        int outstanding,
         int obligated,
         string status
     )
     {
-        // Met can include remelt surplus not shown in accepted tonnage.
-        if (status == ObligationStatus.Met)
-            return (MaxPercentage, 1);
-
         if (obligated <= 0)
-            return (0, 1);
+            return (status == ObligationStatus.Met ? MaxPercentage : 0, 1);
 
-        return ((BigInteger)Math.Min(accepted, obligated) * MaxPercentage, obligated);
+        // Outstanding already includes any remelt surplus applied by the PRN backend.
+        var covered = BigInteger.Clamp((BigInteger)obligated - outstanding, BigInteger.Zero, obligated);
+
+        return (covered * MaxPercentage, obligated);
     }
 
     private static (BigInteger Numerator, BigInteger Denominator) Add(

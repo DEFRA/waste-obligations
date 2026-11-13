@@ -69,7 +69,12 @@ public class ObligationCoveragePercentageCalculatorTests
                 .With(x => x.Status, ObligationStatus.NotMet)
                 .With(
                     x => x.Tonnages,
-                    ObligationTonnagesFixture.Default().With(t => t.Accepted, 100).With(t => t.Obligated, 50).Create()
+                    ObligationTonnagesFixture
+                        .Default()
+                        .With(t => t.Accepted, 100)
+                        .With(t => t.Obligated, 50)
+                        .With(t => t.Outstanding, 0)
+                        .Create()
                 )
                 .Create(),
             ObligationFixture
@@ -78,7 +83,12 @@ public class ObligationCoveragePercentageCalculatorTests
                 .With(x => x.Material, Material.Glass)
                 .With(
                     x => x.Tonnages,
-                    ObligationTonnagesFixture.Default().With(t => t.Accepted, 0).With(t => t.Obligated, 50).Create()
+                    ObligationTonnagesFixture
+                        .Default()
+                        .With(t => t.Accepted, 0)
+                        .With(t => t.Obligated, 50)
+                        .With(t => t.Outstanding, 50)
+                        .Create()
                 )
                 .Create(),
         };
@@ -96,7 +106,12 @@ public class ObligationCoveragePercentageCalculatorTests
                 .With(x => x.Status, ObligationStatus.NotMet)
                 .With(
                     x => x.Tonnages,
-                    ObligationTonnagesFixture.Default().With(t => t.Accepted, 2).With(t => t.Obligated, 5).Create()
+                    ObligationTonnagesFixture
+                        .Default()
+                        .With(t => t.Accepted, 2)
+                        .With(t => t.Obligated, 5)
+                        .With(t => t.Outstanding, 3)
+                        .Create()
                 )
                 .Create(),
         };
@@ -341,6 +356,11 @@ public class ObligationCoveragePercentageCalculatorTests
             CreateObligation(0, glassObligated, status) with
             {
                 Material = Material.Glass,
+                Tonnages = new ObligationTonnages
+                {
+                    Obligated = glassObligated,
+                    Outstanding = status == ObligationStatus.Met ? 0 : glassObligated,
+                },
             },
             CreateObligation(remeltAccepted, remeltObligated, status) with
             {
@@ -359,6 +379,12 @@ public class ObligationCoveragePercentageCalculatorTests
             CreateObligation(0, 36, ObligationStatus.Met) with
             {
                 Material = Material.Glass,
+                Tonnages = new ObligationTonnages
+                {
+                    Accepted = 0,
+                    Obligated = 36,
+                    Outstanding = 0,
+                },
             },
             CreateObligation(149, 113, ObligationStatus.Met) with
             {
@@ -371,6 +397,48 @@ public class ObligationCoveragePercentageCalculatorTests
         ];
 
         ObligationCoveragePercentageCalculator.CalculateFromObligations(obligations).Should().Be(67);
+    }
+
+    [Fact]
+    public void CalculateFromObligations_WhenRemeltSurplusPartiallyMeetsGlass_ShouldReturn75()
+    {
+        Obligation[] obligations =
+        [
+            CreateObligation(0, 4, ObligationStatus.NotMet) with
+            {
+                Material = Material.Glass,
+                Tonnages = new ObligationTonnages
+                {
+                    Accepted = 0,
+                    Obligated = 4,
+                    Outstanding = 2,
+                },
+            },
+            CreateObligation(5, 3, ObligationStatus.Met) with
+            {
+                Material = Material.GlassRemelt,
+            },
+        ];
+
+        ObligationCoveragePercentageCalculator.CalculateFromObligations(obligations).Should().Be(75);
+    }
+
+    [Theory]
+    [InlineData(-1, 100)]
+    [InlineData(0, 100)]
+    [InlineData(4, 0)]
+    [InlineData(5, 0)]
+    public void CalculateFromObligations_WhenOutstandingExceedsBounds_ShouldClampCoverage(
+        int outstanding,
+        decimal expected
+    )
+    {
+        var obligation = CreateObligation(0, 4, ObligationStatus.Met) with
+        {
+            Tonnages = new ObligationTonnages { Obligated = 4, Outstanding = outstanding },
+        };
+
+        ObligationCoveragePercentageCalculator.CalculateFromObligations([obligation]).Should().Be(expected);
     }
 
     [Fact]
@@ -447,6 +515,7 @@ public class ObligationCoveragePercentageCalculatorTests
                     .Default()
                     .With(x => x.Accepted, accepted)
                     .With(x => x.Obligated, obligated)
+                    .With(x => x.Outstanding, Math.Max(0, obligated - accepted))
                     .Create()
             )
             .Create();

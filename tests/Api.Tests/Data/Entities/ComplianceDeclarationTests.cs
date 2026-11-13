@@ -113,7 +113,12 @@ public class ComplianceDeclarationTests
                 .With(x => x.Status, Defra.WasteObligations.Api.Dtos.ObligationStatus.NotMet)
                 .With(
                     x => x.Tonnages,
-                    ObligationTonnagesFixture.Default().With(t => t.Accepted, 2).With(t => t.Obligated, 5).Create()
+                    ObligationTonnagesFixture
+                        .Default()
+                        .With(t => t.Accepted, 2)
+                        .With(t => t.Obligated, 5)
+                        .With(t => t.Outstanding, 3)
+                        .Create()
                 )
                 .Create()
         );
@@ -146,6 +151,7 @@ public class ComplianceDeclarationTests
                                 .Default()
                                 .With(y => y.Accepted, x.Accepted)
                                 .With(y => y.Obligated, x.Obligated)
+                                .With(y => y.Outstanding, Math.Max(0, x.Obligated - x.Accepted))
                                 .Create()
                         )
                         .Create()
@@ -158,6 +164,7 @@ public class ComplianceDeclarationTests
                 .With(y => y.MaterialName, x.Material)
                 .With(y => y.TonnageAccepted, x.Accepted)
                 .With(y => y.ObligationToMeet, (int?)x.Obligated)
+                .With(y => y.TonnageOutstanding, (int?)Math.Max(0, x.Obligated - x.Accepted))
                 .With(y => y.Status, x.Status)
                 .Create()
         );
@@ -182,7 +189,12 @@ public class ComplianceDeclarationTests
                 .With(x => x.Status, Defra.WasteObligations.Api.Dtos.ObligationStatus.NotMet)
                 .With(
                     x => x.Tonnages,
-                    ObligationTonnagesFixture.Default().With(t => t.Accepted, 1).With(t => t.Obligated, 3).Create()
+                    ObligationTonnagesFixture
+                        .Default()
+                        .With(t => t.Accepted, 1)
+                        .With(t => t.Obligated, 3)
+                        .With(t => t.Outstanding, 2)
+                        .Create()
                 )
                 .Create()
         );
@@ -219,7 +231,12 @@ public class ComplianceDeclarationTests
                 .With(x => x.Status, Defra.WasteObligations.Api.Dtos.ObligationStatus.NotMet)
                 .With(
                     x => x.Tonnages,
-                    ObligationTonnagesFixture.Default().With(t => t.Accepted, 1).With(t => t.Obligated, 200).Create()
+                    ObligationTonnagesFixture
+                        .Default()
+                        .With(t => t.Accepted, 1)
+                        .With(t => t.Obligated, 200)
+                        .With(t => t.Outstanding, 199)
+                        .Create()
                 )
                 .Create()
         );
