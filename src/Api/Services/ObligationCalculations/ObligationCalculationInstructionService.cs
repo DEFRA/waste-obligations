@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
+using Defra.WasteObligations.AuditEvents.Logging;
 using MongoDB.Driver;
 
 namespace Defra.WasteObligations.Api.Services.ObligationCalculations;
@@ -14,41 +16,19 @@ public class ObligationCalculationInstructionService(IMongoDatabase database, Ti
         database.GetCollection<ObligationCalculationInstruction>(ObligationCalculationInstruction.CollectionName);
 
     public async Task<ObligationCalculationInstruction> Create(
-        int obligationYear,
-        Guid? submitterId,
-        CancellationToken cancellationToken,
-        string? traceId = null
-    )
-    {
-        return await CreateCore(null, obligationYear, submitterId, traceId, cancellationToken);
-    }
-
-    public async Task<ObligationCalculationInstruction> Create(
         IClientSessionHandle session,
         int obligationYear,
         Guid? submitterId,
-        CancellationToken cancellationToken,
-        string? traceId = null
+        CancellationToken cancellationToken
     )
     {
         ArgumentNullException.ThrowIfNull(session);
 
-        return await CreateCore(session, obligationYear, submitterId, traceId, cancellationToken);
-    }
-
-    private async Task<ObligationCalculationInstruction> CreateCore(
-        IClientSessionHandle? session,
-        int obligationYear,
-        Guid? submitterId,
-        string? traceId,
-        CancellationToken cancellationToken
-    )
-    {
         var instruction = new ObligationCalculationInstruction
         {
             ObligationYear = obligationYear,
             SubmitterId = submitterId,
-            TraceId = string.IsNullOrWhiteSpace(traceId) ? Guid.NewGuid().ToString() : traceId,
+            CorrelationId = CorrelationContext.Current ?? ActivityTraceId.CreateRandom().ToString(),
             CreatedAt = timeProvider.GetUtcNowWithoutMicroseconds(),
         };
         var filter = Builders<ObligationCalculationInstruction>.Filter.And(
@@ -63,7 +43,7 @@ public class ObligationCalculationInstructionService(IMongoDatabase database, Ti
             .Update.SetOnInsert(x => x.Id, instruction.Id)
             .SetOnInsert(x => x.ObligationYear, instruction.ObligationYear)
             .SetOnInsert(x => x.SubmitterId, instruction.SubmitterId)
-            .SetOnInsert(x => x.TraceId, instruction.TraceId)
+            .SetOnInsert(x => x.CorrelationId, instruction.CorrelationId)
             .SetOnInsert(x => x.Status, instruction.Status)
             .SetOnInsert(x => x.FailureCount, instruction.FailureCount)
             .SetOnInsert(x => x.CreatedAt, instruction.CreatedAt);
@@ -80,12 +60,13 @@ public class ObligationCalculationInstructionService(IMongoDatabase database, Ti
                     ReturnDocument = ReturnDocument.After,
                 };
 
-                return session is null
-                    ? await _instructions.FindOneAndUpdateAsync(filter, update, options, cancellationToken)
-                    : await _instructions.FindOneAndUpdateAsync(session, filter, update, options, cancellationToken);
+                return await _instructions.FindOneAndUpdateAsync(session, filter, update, options, cancellationToken);
             }
             catch (MongoCommandException exception)
-                when (session is null && exception.Code == DuplicateKeyErrorCode && attempt < MaximumCreationAttempts)
+                when (!session.IsInTransaction
+                    && exception.Code == DuplicateKeyErrorCode
+                    && attempt < MaximumCreationAttempts
+                )
             {
                 // Another host inserted first. Retry to return its active instruction.
             }

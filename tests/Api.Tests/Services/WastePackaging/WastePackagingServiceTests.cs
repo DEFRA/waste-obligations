@@ -3,9 +3,11 @@ using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.WastePackaging;
 using Defra.WasteObligations.Api.Utils.Logging;
+using Defra.WasteObligations.AuditEvents.Logging;
 using Defra.WasteObligations.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
 
@@ -32,10 +34,11 @@ public class WastePackagingServiceTests(WireMockContext context) : WireMockTestB
                     .WithHeader("Content-Type", "application/json")
             );
         await using var services = Services();
+        using var correlation = CorrelationContext.Begin(NullLogger.Instance, "request-123");
 
         var result = await services
             .GetRequiredService<IWastePackagingService>()
-            .Read(2025, TestContext.Current.CancellationToken, "request-123");
+            .Read(2025, TestContext.Current.CancellationToken);
 
         var item = result.Items.Should().ContainSingle().Which;
         item.SubmitterOrganisationId.Should().Be(Guid.Parse("11111111-1111-1111-1111-111111111111"));

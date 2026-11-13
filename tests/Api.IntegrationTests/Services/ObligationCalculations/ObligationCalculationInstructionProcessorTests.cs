@@ -6,6 +6,8 @@ using Defra.WasteObligations.Api.ScheduledJobs;
 using Defra.WasteObligations.Api.Services.ObligationCalculations;
 using Defra.WasteObligations.Api.Services.Scheduling;
 using Defra.WasteObligations.Api.Services.WastePackaging;
+using Defra.WasteObligations.Api.Utils.Logging;
+using Defra.WasteObligations.AuditEvents.Logging;
 using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
 using Microsoft.Extensions.Configuration;
@@ -176,10 +178,15 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
         }
     }
 
-    [Fact]
-    public async Task Worker_WhenPackagingFetchFails_ShouldKeepSameInstructionAndRetryBeforeCompleting()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("trace-123")]
+    public async Task Worker_WhenPackagingFetchFails_ShouldKeepSameInstructionAndRetryBeforeCompleting(string? traceId)
     {
-        var instruction = ObligationCalculationInstructionFixture.Default().With(x => x.TraceId, "trace-123").Create();
+        var instruction = ObligationCalculationInstructionFixture
+            .Default()
+            .With(x => x.CorrelationId, traceId)
+            .Create();
         await ObligationCalculationInstructions.InsertOneAsync(
             instruction,
             cancellationToken: TestContext.Current.CancellationToken
@@ -187,11 +194,13 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
         var retryStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var finish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var attempts = 0;
+        var observedTraceIds = new ConcurrentBag<string?>();
         var packaging = Substitute.For<IWastePackagingService>();
         packaging
-            .Read(instruction.ObligationYear - 1, Arg.Any<CancellationToken>(), Arg.Any<string?>())
+            .Read(instruction.ObligationYear - 1, Arg.Any<CancellationToken>())
             .Returns(async _ =>
             {
+                observedTraceIds.Add(CorrelationContext.Current);
                 if (Interlocked.Increment(ref attempts) == 1)
                     throw new HttpRequestException("Packaging API unavailable");
                 retryStarted.TrySetResult();
@@ -224,10 +233,14 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
             await worker.StopAsync(TestContext.Current.CancellationToken);
         }
         attempts.Should().Be(2);
-        await packaging.Received(2).Read(instruction.ObligationYear - 1, Arg.Any<CancellationToken>(), "trace-123");
-        workerLogger
-            .Received()
-            .BeginScope(Arg.Is<Dictionary<string, object>>(x => (string)x["CorrelationId"] == "trace-123"));
+        await packaging.Received(2).Read(instruction.ObligationYear - 1, Arg.Any<CancellationToken>());
+        observedTraceIds.Should().HaveCount(2).And.OnlyContain(x => x == traceId);
+        if (traceId is not null)
+            workerLogger
+                .Received()
+                .BeginScope(Arg.Is<Dictionary<string, object?>>(x => (string?)x["TraceId"] == traceId));
+        else
+            workerLogger.DidNotReceive().BeginScope(Arg.Any<Dictionary<string, object?>>());
         (await Read(instruction)).FailureCount.Should().Be(1);
         (
             await ObligationCalculationInstructions.CountDocumentsAsync(
@@ -350,10 +363,12 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
         (await source.TryStart(new(instruction.Id.ToString(), instruction), TestContext.Current.CancellationToken))
             .Should()
             .BeFalse();
+        using var session = await GetMongoDatabase()
+            .Client.StartSessionAsync(cancellationToken: TestContext.Current.CancellationToken);
         var next = await new ObligationCalculationInstructionService(
             GetMongoApplicationDatabase(),
             TimeProvider.System
-        ).Create(instruction.ObligationYear, instruction.SubmitterId, TestContext.Current.CancellationToken);
+        ).Create(session, instruction.ObligationYear, instruction.SubmitterId, TestContext.Current.CancellationToken);
         next.Id.Should().NotBe(instruction.Id);
         next.FailureCount.Should().Be(0);
         (await Read(instruction)).Status.Should().Be(ObligationCalculationInstructionStatus.Failed);
@@ -401,7 +416,9 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
     {
         Guid? submitterId = submitterSpecific ? Guid.NewGuid() : null;
         var creation = new ObligationCalculationInstructionService(GetMongoApplicationDatabase(), TimeProvider.System);
-        var first = await creation.Create(2026, submitterId, TestContext.Current.CancellationToken);
+        using var session = await GetMongoDatabase()
+            .Client.StartSessionAsync(cancellationToken: TestContext.Current.CancellationToken);
+        var first = await creation.Create(session, 2026, submitterId, TestContext.Current.CancellationToken);
         await using var services = Services();
         var worker = services.GetRequiredService<IHostedService>();
         try
@@ -415,7 +432,7 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
         {
             await worker.StopAsync(TestContext.Current.CancellationToken);
         }
-        var next = await creation.Create(2026, submitterId, TestContext.Current.CancellationToken);
+        var next = await creation.Create(session, 2026, submitterId, TestContext.Current.CancellationToken);
         next.Id.Should().NotBe(first.Id);
         next.Status.Should().Be(ObligationCalculationInstructionStatus.Pending);
     }
@@ -454,9 +471,7 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
     private static IWastePackagingService EmptyPackaging()
     {
         var packaging = Substitute.For<IWastePackagingService>();
-        packaging
-            .Read(Arg.Any<int>(), Arg.Any<CancellationToken>(), Arg.Any<string?>())
-            .Returns(new PackagingResponse { Items = [] });
+        packaging.Read(Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(new PackagingResponse { Items = [] });
 
         return packaging;
     }

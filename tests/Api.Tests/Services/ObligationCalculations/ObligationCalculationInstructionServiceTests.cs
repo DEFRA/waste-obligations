@@ -18,10 +18,12 @@ public class ObligationCalculationInstructionServiceTests
     [Fact]
     public async Task Create_WhenDuplicateCollisionOccurs_ShouldRetryAndReturnExistingInstruction()
     {
+        var session = Substitute.For<IClientSessionHandle>();
         var collection = Substitute.For<IMongoCollection<ObligationCalculationInstruction>>();
         var existing = ObligationCalculationInstructionFixture.Default().Create();
         collection
             .FindOneAndUpdateAsync(
+                session,
                 Arg.Any<FilterDefinition<ObligationCalculationInstruction>>(),
                 Arg.Any<UpdateDefinition<ObligationCalculationInstruction>>(),
                 Arg.Any<FindOneAndUpdateOptions<ObligationCalculationInstruction, ObligationCalculationInstruction>>(),
@@ -33,12 +35,13 @@ public class ObligationCalculationInstructionServiceTests
             );
 
         var result = await CreateSubject(collection)
-            .Create(existing.ObligationYear, existing.SubmitterId, TestContext.Current.CancellationToken);
+            .Create(session, existing.ObligationYear, existing.SubmitterId, TestContext.Current.CancellationToken);
 
         result.Should().BeSameAs(existing);
         await collection
             .Received(2)
             .FindOneAndUpdateAsync(
+                session,
                 Arg.Any<FilterDefinition<ObligationCalculationInstruction>>(),
                 Arg.Any<UpdateDefinition<ObligationCalculationInstruction>>(),
                 Arg.Any<FindOneAndUpdateOptions<ObligationCalculationInstruction, ObligationCalculationInstruction>>(),
@@ -47,17 +50,22 @@ public class ObligationCalculationInstructionServiceTests
     }
 
     [Theory]
-    [InlineData(11000, 5)]
-    [InlineData(12345, 1)]
+    [InlineData(11000, false, 5)]
+    [InlineData(11000, true, 1)]
+    [InlineData(12345, false, 1)]
     public async Task Create_WhenCommandKeepsFailing_ShouldPropagateAfterApplicableAttemptLimit(
         int code,
+        bool inTransaction,
         int expectedAttempts
     )
     {
+        var session = Substitute.For<IClientSessionHandle>();
+        session.IsInTransaction.Returns(inTransaction);
         var collection = Substitute.For<IMongoCollection<ObligationCalculationInstruction>>();
         var failure = CommandFailure(code);
         collection
             .FindOneAndUpdateAsync(
+                session,
                 Arg.Any<FilterDefinition<ObligationCalculationInstruction>>(),
                 Arg.Any<UpdateDefinition<ObligationCalculationInstruction>>(),
                 Arg.Any<FindOneAndUpdateOptions<ObligationCalculationInstruction, ObligationCalculationInstruction>>(),
@@ -65,12 +73,13 @@ public class ObligationCalculationInstructionServiceTests
             )
             .Returns(Task.FromException<ObligationCalculationInstruction>(failure));
 
-        var action = () => CreateSubject(collection).Create(2026, null, TestContext.Current.CancellationToken);
+        var action = () => CreateSubject(collection).Create(session, 2026, null, TestContext.Current.CancellationToken);
 
         (await action.Should().ThrowAsync<MongoCommandException>()).Which.Should().BeSameAs(failure);
         await collection
             .Received(expectedAttempts)
             .FindOneAndUpdateAsync(
+                session,
                 Arg.Any<FilterDefinition<ObligationCalculationInstruction>>(),
                 Arg.Any<UpdateDefinition<ObligationCalculationInstruction>>(),
                 Arg.Any<FindOneAndUpdateOptions<ObligationCalculationInstruction, ObligationCalculationInstruction>>(),

@@ -68,26 +68,6 @@ public class StartObligationCalculationTests : IntegrationTestBase
             },
             traceId: TraceId
         );
-        var database = GetMongoDatabase().Client.GetDatabase("waste-obligations-scheduled-job-test");
-        var instructions = database.GetCollection<ObligationCalculationInstruction>(
-            ObligationCalculationInstruction.CollectionName
-        );
-        var calculations = database.GetCollection<ObligationCalculation>(nameof(ObligationCalculation));
-
-        await instructions.DeleteManyAsync(
-            FilterDefinition<ObligationCalculationInstruction>.Empty,
-            TestContext.Current.CancellationToken
-        );
-        await calculations.DeleteManyAsync(
-            FilterDefinition<ObligationCalculation>.Empty,
-            TestContext.Current.CancellationToken
-        );
-        await database
-            .GetCollection<ObligationCalculationHistory>(nameof(ObligationCalculationHistory))
-            .DeleteManyAsync(
-                FilterDefinition<ObligationCalculationHistory>.Empty,
-                TestContext.Current.CancellationToken
-            );
         using var client = CreateClient(ClientType.ScheduledJobs);
         client.DefaultRequestHeaders.Add(TraceHeaderName, TraceId);
         var response = await client.PostAsync(
@@ -108,19 +88,19 @@ public class StartObligationCalculationTests : IntegrationTestBase
         await WaitForAsync(
             async () =>
             {
-                var instruction = await instructions
+                var instruction = await ScheduledJobObligationCalculationInstructions
                     .Find(x => x.Id == instructionId)
                     .SingleAsync(TestContext.Current.CancellationToken);
                 instruction.Status.Should().Be(ObligationCalculationInstructionStatus.Completed);
                 instruction.ObligationYear.Should().Be(obligationYear);
                 instruction.SubmitterId.Should().Be(submitterId);
-                instruction.TraceId.Should().Be(TraceId);
+                instruction.CorrelationId.Should().Be(TraceId);
             },
             timeout: 30,
             delay: TimeSpan.FromMilliseconds(200)
         );
 
-        var calculation = await calculations
+        var calculation = await ScheduledJobObligationCalculations
             .Find(x => x.SubmitterOrganisationId == submitterId && x.ObligationYear == obligationYear)
             .SingleAsync(TestContext.Current.CancellationToken);
         calculation.SubmitterType.Should().Be(ObligationSubmitterType.ComplianceScheme);

@@ -87,7 +87,7 @@ public class ScheduledJobTests : IntegrationTestBase
                 .Find(x => x.ObligationYear == 2026)
                 .SingleAsync(TestContext.Current.CancellationToken);
             instruction.SubmitterId.Should().BeNull();
-            instruction.TraceId.Should().NotBeNullOrWhiteSpace();
+            instruction.CorrelationId.Should().NotBeNullOrWhiteSpace();
             await WireMockContext.WireMockAdminApi.StubWastePackagingRequest(
                 2025,
                 new PackagingResponse
@@ -111,7 +111,7 @@ public class ScheduledJobTests : IntegrationTestBase
                     ],
                 },
                 basicAuthToken: "Y2xpZW50OnNlY3JldA==",
-                traceId: instruction.TraceId
+                traceId: instruction.CorrelationId
             );
             await processor.StartAsync(TestContext.Current.CancellationToken);
             await WaitForAsync(async () =>

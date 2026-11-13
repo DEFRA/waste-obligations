@@ -36,7 +36,7 @@ public class PackagingCalculationTests : IntegrationTestBase
         await Processor(source)
             .Process(ObligationCalculationInstructionFixture.Default().Create(), TestContext.Current.CancellationToken);
 
-        await source.Received(1).Read(2025, TestContext.Current.CancellationToken, Arg.Any<string?>());
+        await source.Received(1).Read(2025, TestContext.Current.CancellationToken);
         var saved = await Read(SubmitterId);
         saved.SubmitterType.Should().Be(type);
         saved.ObligationYear.Should().Be(2026);
@@ -295,7 +295,7 @@ public class PackagingCalculationTests : IntegrationTestBase
         using var cancellation = new CancellationTokenSource();
         var source = Substitute.For<IWastePackagingService>();
         source
-            .Read(2025, cancellation.Token, Arg.Any<string?>())
+            .Read(2025, cancellation.Token)
             .Returns(_ =>
             {
                 cancellation.Cancel();
@@ -353,9 +353,7 @@ public class PackagingCalculationTests : IntegrationTestBase
     private static IWastePackagingService Source(params ApprovedSubmission[] items)
     {
         var source = Substitute.For<IWastePackagingService>();
-        source
-            .Read(2025, Arg.Any<CancellationToken>(), Arg.Any<string?>())
-            .Returns(new PackagingResponse { Items = items });
+        source.Read(2025, Arg.Any<CancellationToken>()).Returns(new PackagingResponse { Items = items });
 
         return source;
     }

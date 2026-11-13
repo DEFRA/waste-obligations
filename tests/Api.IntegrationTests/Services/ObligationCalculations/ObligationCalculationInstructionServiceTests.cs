@@ -3,7 +3,9 @@ using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.ObligationCalculations;
+using Defra.WasteObligations.AuditEvents.Logging;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using MongoDB.Bson;
 using MongoDB.Driver;
@@ -17,13 +19,17 @@ public class ObligationCalculationInstructionServiceTests : IntegrationTestBase
     [Theory]
     [InlineData(null)]
     [InlineData("request-123")]
-    public void CorrelationId_ShouldUseTraceOrInstructionIdWithoutChangingStoredOrResponseShape(string? traceId)
+    public void CorrelationId_ShouldRetainStoredFieldNameAndAppearInResponse(string? traceId)
     {
-        var instruction = ObligationCalculationInstructionFixture.Default().With(x => x.TraceId, traceId).Create();
+        var instruction = ObligationCalculationInstructionFixture
+            .Default()
+            .With(x => x.CorrelationId, traceId)
+            .Create();
 
-        instruction.CorrelationId.Should().Be(traceId ?? instruction.Id.ToString());
+        instruction.CorrelationId.Should().Be(traceId);
         instruction.ToBsonDocument().Contains("correlationId").Should().BeFalse();
-        JsonSerializer.SerializeToElement(instruction).TryGetProperty("CorrelationId", out _).Should().BeFalse();
+        instruction.ToBsonDocument()["traceId"].Should().Be(traceId is null ? BsonNull.Value : new BsonString(traceId));
+        JsonSerializer.SerializeToElement(instruction).GetProperty("CorrelationId").GetString().Should().Be(traceId);
     }
 
     [Fact]
@@ -47,13 +53,15 @@ public class ObligationCalculationInstructionServiceTests : IntegrationTestBase
     public async Task Create_ShouldPersistPendingInstructionForExplicitYear()
     {
         var subject = CreateSubject();
+        using var session = await GetMongoApplicationDatabase()
+            .Client.StartSessionAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        var instruction = await subject.Create(2025, null, TestContext.Current.CancellationToken);
+        var instruction = await subject.Create(session, 2025, null, TestContext.Current.CancellationToken);
 
         instruction.Id.Should().NotBe(ObjectId.Empty);
         instruction.ObligationYear.Should().Be(2025);
         instruction.SubmitterId.Should().BeNull();
-        instruction.TraceId.Should().NotBeNullOrWhiteSpace();
+        instruction.CorrelationId.Should().MatchRegex("^[0-9a-f]{32}$");
         instruction.Status.Should().Be(ObligationCalculationInstructionStatus.Pending);
         instruction.CreatedAt.Should().Be(_timeProvider.GetUtcNow().UtcDateTime);
         var stored = await GetMongoDatabase()
@@ -68,7 +76,7 @@ public class ObligationCalculationInstructionServiceTests : IntegrationTestBase
                     { "_id", instruction.Id },
                     { "obligationYear", 2025 },
                     { "submitterId", BsonNull.Value },
-                    { "traceId", instruction.TraceId },
+                    { "traceId", instruction.CorrelationId },
                     { "status", "Pending" },
                     { "failureCount", 0 },
                     { "createdAt", _timeProvider.GetUtcNow().UtcDateTime },
@@ -77,16 +85,22 @@ public class ObligationCalculationInstructionServiceTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task Create_WhenActiveInstructionExists_ShouldRetainItsOriginalTraceId()
+    public async Task Create_WhenActiveInstructionExists_ShouldRetainItsOriginalCorrelationId()
     {
         var subject = CreateSubject();
-        var first = await subject.Create(2026, null, TestContext.Current.CancellationToken, "first-request");
+        using var session = await GetMongoApplicationDatabase()
+            .Client.StartSessionAsync(cancellationToken: TestContext.Current.CancellationToken);
+        ObligationCalculationInstruction first;
+        using (CorrelationContext.Begin(NullLogger.Instance, "first-request"))
+            first = await subject.Create(session, 2026, null, TestContext.Current.CancellationToken);
 
-        var duplicate = await subject.Create(2026, null, TestContext.Current.CancellationToken, "later-request");
+        ObligationCalculationInstruction duplicate;
+        using (CorrelationContext.Begin(NullLogger.Instance, "later-request"))
+            duplicate = await subject.Create(session, 2026, null, TestContext.Current.CancellationToken);
 
-        first.TraceId.Should().Be("first-request");
+        first.CorrelationId.Should().Be("first-request");
         duplicate.Id.Should().Be(first.Id);
-        duplicate.TraceId.Should().Be("first-request");
+        duplicate.CorrelationId.Should().Be("first-request");
     }
 
     [Theory]
@@ -107,8 +121,10 @@ public class ObligationCalculationInstructionServiceTests : IntegrationTestBase
         );
         _timeProvider.Advance(TimeSpan.FromDays(1));
 
+        using var session = await GetMongoApplicationDatabase()
+            .Client.StartSessionAsync(cancellationToken: TestContext.Current.CancellationToken);
         var result = await CreateSubject()
-            .Create(existing.ObligationYear, existing.SubmitterId, TestContext.Current.CancellationToken);
+            .Create(session, existing.ObligationYear, existing.SubmitterId, TestContext.Current.CancellationToken);
 
         result.Should().BeEquivalentTo(existing);
         (
@@ -131,7 +147,14 @@ public class ObligationCalculationInstructionServiceTests : IntegrationTestBase
         var results = await Task.WhenAll(
             Enumerable
                 .Range(0, 20)
-                .Select(_ => CreateSubject().Create(2026, submitterId, TestContext.Current.CancellationToken))
+                .Select(async _ =>
+                {
+                    using var session = await GetMongoApplicationDatabase()
+                        .Client.StartSessionAsync(cancellationToken: TestContext.Current.CancellationToken);
+
+                    return await CreateSubject()
+                        .Create(session, 2026, submitterId, TestContext.Current.CancellationToken);
+                })
         );
 
         results.Select(x => x.Id).Distinct().Should().ContainSingle();
@@ -159,11 +182,13 @@ public class ObligationCalculationInstructionServiceTests : IntegrationTestBase
         var subject = CreateSubject();
         var submitterId = Guid.NewGuid();
 
-        var wholeYear = await subject.Create(2026, null, TestContext.Current.CancellationToken);
-        var submitter = await subject.Create(2026, submitterId, TestContext.Current.CancellationToken);
-        var otherSubmitter = await subject.Create(2026, Guid.NewGuid(), TestContext.Current.CancellationToken);
-        var otherYear = await subject.Create(2025, submitterId, TestContext.Current.CancellationToken);
-        var duplicate = await subject.Create(2026, null, TestContext.Current.CancellationToken);
+        using var session = await GetMongoApplicationDatabase()
+            .Client.StartSessionAsync(cancellationToken: TestContext.Current.CancellationToken);
+        var wholeYear = await subject.Create(session, 2026, null, TestContext.Current.CancellationToken);
+        var submitter = await subject.Create(session, 2026, submitterId, TestContext.Current.CancellationToken);
+        var otherSubmitter = await subject.Create(session, 2026, Guid.NewGuid(), TestContext.Current.CancellationToken);
+        var otherYear = await subject.Create(session, 2025, submitterId, TestContext.Current.CancellationToken);
+        var duplicate = await subject.Create(session, 2026, null, TestContext.Current.CancellationToken);
 
         new[] { wholeYear.Id, submitter.Id, otherSubmitter.Id, otherYear.Id }.Should().OnlyHaveUniqueItems();
         duplicate.Should().BeEquivalentTo(wholeYear);
@@ -190,8 +215,10 @@ public class ObligationCalculationInstructionServiceTests : IntegrationTestBase
             cancellationToken: TestContext.Current.CancellationToken
         );
 
+        using var session = await GetMongoApplicationDatabase()
+            .Client.StartSessionAsync(cancellationToken: TestContext.Current.CancellationToken);
         var result = await CreateSubject()
-            .Create(previous.ObligationYear, previous.SubmitterId, TestContext.Current.CancellationToken);
+            .Create(session, previous.ObligationYear, previous.SubmitterId, TestContext.Current.CancellationToken);
 
         result.Id.Should().NotBe(previous.Id);
         result.Status.Should().Be(ObligationCalculationInstructionStatus.Pending);

@@ -16,6 +16,7 @@ public static class ServiceCollectionExtensions
         services.AddOptions<HttpStandardResilienceOptions>(name).BindConfiguration(name);
         services
             .AddHttpClient<IWastePackagingService, WastePackagingService>()
+            .AddCorrelationIdHandler()
             .ConfigureHttpClient(
                 (sp, httpClient) =>
                 {

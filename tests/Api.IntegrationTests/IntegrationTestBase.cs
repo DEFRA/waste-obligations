@@ -46,6 +46,8 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     public required IMongoCollection<BackgroundWorkerLease> OrganisationWorkerLeases { get; set; }
     public required IMongoCollection<ObligationCalculation> ObligationCalculations { get; set; }
     public required IMongoCollection<ObligationCalculationInstruction> ObligationCalculationInstructions { get; set; }
+    public required IMongoCollection<ObligationCalculation> ScheduledJobObligationCalculations { get; set; }
+    public required IMongoCollection<ObligationCalculationInstruction> ScheduledJobObligationCalculationInstructions { get; set; }
     public required IMongoCollection<OrganisationObligationSummary> OrganisationObligationSummaries { get; set; }
     public required IMongoCollection<OrganisationObligationHistoricalBackfill> OrganisationObligationHistoricalBackfills { get; set; }
     public required IMongoCollection<OrganisationObligationRequestPacingState> OrganisationObligationRequestPacingStates { get; set; }
@@ -84,6 +86,14 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         ObligationCalculationInstructions = GetMongoCollection<ObligationCalculationInstruction>(
             ObligationCalculationInstruction.CollectionName
         );
+        var scheduledJobDatabase = GetMongoDatabase().Client.GetDatabase("waste-obligations-scheduled-job-test");
+        ScheduledJobObligationCalculations = scheduledJobDatabase.GetCollection<ObligationCalculation>(
+            nameof(ObligationCalculation)
+        );
+        ScheduledJobObligationCalculationInstructions =
+            scheduledJobDatabase.GetCollection<ObligationCalculationInstruction>(
+                ObligationCalculationInstruction.CollectionName
+            );
         OrganisationObligationSummaries = GetMongoCollection<OrganisationObligationSummary>();
         OrganisationObligationHistoricalBackfills = GetMongoCollection<OrganisationObligationHistoricalBackfill>(
             OrganisationObligationHistoricalBackfill.CollectionName
@@ -102,6 +112,11 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         await DeleteMany(OrganisationEligibilitySnapshots);
         await DeleteMany(OrganisationWorkerLeases);
         await DeleteMany(ObligationCalculationInstructions);
+        await DeleteMany(ScheduledJobObligationCalculationInstructions);
+        await DeleteMany(ScheduledJobObligationCalculations);
+        await DeleteMany(
+            scheduledJobDatabase.GetCollection<ObligationCalculationHistory>(nameof(ObligationCalculationHistory))
+        );
         await DeleteMany(GetMongoCollection<BackgroundWorkerLease>("_scheduled_job_processing_leases"));
         await DeleteMany(OrganisationObligationSummaries);
         await DeleteMany(OrganisationObligationHistoricalBackfills);
