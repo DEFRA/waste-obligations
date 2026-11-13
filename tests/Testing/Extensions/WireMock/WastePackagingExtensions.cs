@@ -30,7 +30,7 @@ public static class WastePackagingExtensions
                 })
                 .WithResponse(r =>
                     r.WithStatusCode(HttpStatusCode.OK)
-                        .WithHeader("Content-Type", "application/json")
+                        .WithHeaders(new Dictionary<string, object> { ["Content-Type"] = "application/json" })
                         .WithBody(JsonSerializer.Serialize(response, JsonSerializerOptions.Web))
                 )
         );
