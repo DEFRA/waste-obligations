@@ -2,7 +2,7 @@ using System.Collections.Frozen;
 
 namespace Defra.WasteObligations.Api.Services.ObligationCalculations;
 
-internal static class ObligationMaterials
+public static class ObligationMaterials
 {
     public const string Plastic = "PL";
     public const string PaperCard = "PC";

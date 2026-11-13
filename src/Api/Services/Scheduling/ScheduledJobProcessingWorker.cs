@@ -1,3 +1,4 @@
+using Defra.WasteObligations.Api.Utils.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -55,7 +56,9 @@ public class ScheduledJobProcessingWorker<TWork>(
 
         using var logScope = work.TraceId is null
             ? null
-            : logger.BeginScope(new Dictionary<string, object> { ["CorrelationId"] = work.TraceId });
+            : logger.BeginScope(
+                new Dictionary<string, object> { [TraceHeader.CorrelationIdPropertyName] = work.TraceId }
+            );
         var completed = false;
         try
         {

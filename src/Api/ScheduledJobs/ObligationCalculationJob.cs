@@ -1,6 +1,7 @@
 using Defra.WasteObligations.Api.Services;
 using Defra.WasteObligations.Api.Services.ObligationCalculations;
 using Defra.WasteObligations.Api.Services.Scheduling;
+using Defra.WasteObligations.Api.Utils.Logging;
 using Microsoft.Extensions.Logging;
 using MongoDB.Driver;
 
@@ -21,7 +22,7 @@ public sealed class ObligationCalculationJob(
             cancellationToken
         );
         using var scope = logger.BeginScope(
-            new Dictionary<string, object> { ["CorrelationId"] = instruction.TraceId ?? instruction.Id.ToString() }
+            new Dictionary<string, object> { [TraceHeader.CorrelationIdPropertyName] = instruction.CorrelationId }
         );
         logger.LogInformation(
             "Preparing obligation calculation instruction {InstructionId} for obligation year {ObligationYear} in scheduled handoff transaction",

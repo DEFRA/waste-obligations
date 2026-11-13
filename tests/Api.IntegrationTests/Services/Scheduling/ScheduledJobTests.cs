@@ -137,7 +137,7 @@ public class ScheduledJobTests : IntegrationTestBase
                 .BeEquivalentTo(
                     new
                     {
-                        MaterialCode = "PL",
+                        MaterialCode = ObligationMaterials.Plastic,
                         InputKilograms = 10000L,
                         InputTonnes = 10L,
                         ObligationTonnes = 6L,

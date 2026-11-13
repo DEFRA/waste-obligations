@@ -19,6 +19,10 @@ public record ObligationCalculationInstruction
     [JsonIgnore]
     public string? TraceId { get; init; }
 
+    [BsonIgnore]
+    [JsonIgnore]
+    public string CorrelationId => TraceId ?? Id.ToString();
+
     [BsonRepresentation(BsonType.String)]
     public ObligationCalculationInstructionStatus Status { get; init; } =
         ObligationCalculationInstructionStatus.Pending;

@@ -49,7 +49,7 @@ public class PackagingCalculationTests : IntegrationTestBase
             .BeEquivalentTo(
                 new
                 {
-                    MaterialCode = "PL",
+                    MaterialCode = ObligationMaterials.Plastic,
                     InputKilograms = 10000L,
                     InputTonnes = 10L,
                     ObligationTonnes = 6L,
@@ -336,7 +336,10 @@ public class PackagingCalculationTests : IntegrationTestBase
             source,
             new ObligationCalculator(
                 Options.Create(
-                    new ObligationCalculationOptions { Targets = new() { [2026] = new() { ["PL"] = 0.57 } } }
+                    new ObligationCalculationOptions
+                    {
+                        Targets = new() { [2026] = new() { [ObligationMaterials.Plastic] = 0.57 } },
+                    }
                 ),
                 TimeProvider.System
             ),

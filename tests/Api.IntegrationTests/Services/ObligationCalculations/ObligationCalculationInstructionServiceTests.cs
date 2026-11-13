@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data.Entities;
@@ -12,6 +13,18 @@ namespace Defra.WasteObligations.Api.IntegrationTests.Services.ObligationCalcula
 public class ObligationCalculationInstructionServiceTests : IntegrationTestBase
 {
     private readonly FakeTimeProvider _timeProvider = new(new DateTimeOffset(2026, 10, 30, 1, 0, 0, TimeSpan.Zero));
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("request-123")]
+    public void CorrelationId_ShouldUseTraceOrInstructionIdWithoutChangingStoredOrResponseShape(string? traceId)
+    {
+        var instruction = ObligationCalculationInstructionFixture.Default().With(x => x.TraceId, traceId).Create();
+
+        instruction.CorrelationId.Should().Be(traceId ?? instruction.Id.ToString());
+        instruction.ToBsonDocument().Contains("correlationId").Should().BeFalse();
+        JsonSerializer.SerializeToElement(instruction).TryGetProperty("CorrelationId", out _).Should().BeFalse();
+    }
 
     [Fact]
     public async Task Create_WithMissingSession_ShouldRejectWithoutPersisting()

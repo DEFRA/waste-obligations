@@ -3,6 +3,7 @@ using System.Text.Json;
 using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data.Entities;
+using Defra.WasteObligations.Api.Services.ObligationCalculations;
 using Defra.WasteObligations.Api.Services.WastePackaging;
 using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Extensions.WireMock;
@@ -132,7 +133,7 @@ public class StartObligationCalculationTests : IntegrationTestBase
             .BeEquivalentTo(
                 new
                 {
-                    MaterialCode = "PL",
+                    MaterialCode = ObligationMaterials.Plastic,
                     InputKilograms = 10000L,
                     InputTonnes = 10L,
                     ObligationTonnes = 6L,
