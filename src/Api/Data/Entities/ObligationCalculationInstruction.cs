@@ -15,7 +15,6 @@ public record ObligationCalculationInstruction
     [BsonGuidRepresentation(GuidRepresentation.Standard)]
     public Guid? SubmitterId { get; init; }
 
-    [BsonElement("traceId")]
     public string? CorrelationId { get; init; }
 
     [BsonRepresentation(BsonType.String)]

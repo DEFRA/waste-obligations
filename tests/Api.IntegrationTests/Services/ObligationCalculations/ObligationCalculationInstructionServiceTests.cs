@@ -19,7 +19,7 @@ public class ObligationCalculationInstructionServiceTests : IntegrationTestBase
     [Theory]
     [InlineData(null)]
     [InlineData("request-123")]
-    public void CorrelationId_ShouldRetainStoredFieldNameAndAppearInResponse(string? traceId)
+    public void CorrelationId_ShouldUseCamelCaseStoredFieldNameAndAppearInResponse(string? traceId)
     {
         var instruction = ObligationCalculationInstructionFixture
             .Default()
@@ -27,8 +27,11 @@ public class ObligationCalculationInstructionServiceTests : IntegrationTestBase
             .Create();
 
         instruction.CorrelationId.Should().Be(traceId);
-        instruction.ToBsonDocument().Contains("correlationId").Should().BeFalse();
-        instruction.ToBsonDocument()["traceId"].Should().Be(traceId is null ? BsonNull.Value : new BsonString(traceId));
+        instruction.ToBsonDocument().Contains("traceId").Should().BeFalse();
+        instruction
+            .ToBsonDocument()["correlationId"]
+            .Should()
+            .Be(traceId is null ? BsonNull.Value : new BsonString(traceId));
         JsonSerializer.SerializeToElement(instruction).GetProperty("CorrelationId").GetString().Should().Be(traceId);
     }
 
@@ -76,7 +79,7 @@ public class ObligationCalculationInstructionServiceTests : IntegrationTestBase
                     { "_id", instruction.Id },
                     { "obligationYear", 2025 },
                     { "submitterId", BsonNull.Value },
-                    { "traceId", instruction.CorrelationId },
+                    { "correlationId", instruction.CorrelationId },
                     { "status", "Pending" },
                     { "failureCount", 0 },
                     { "createdAt", _timeProvider.GetUtcNow().UtcDateTime },
