@@ -72,6 +72,29 @@ public class OrganisationObligationSummaryMapperTests
         result.ObligationCoveragePercentage.Should().Be(75);
     }
 
+    [Theory]
+    [InlineData(ObligationStatus.Met, 100)]
+    [InlineData(ObligationStatus.NotMet, 99)]
+    public void Map_WhenTonnageOutstandingIsMissing_ShouldTreatTheMaterialAsFullyCovered(
+        string status,
+        int expectedPercentage
+    )
+    {
+        var result = OrganisationObligationSummaryMapper.Map(
+            ObligationFixture.OrganisationId,
+            ObligationYear,
+            [
+                CreateObligation("Plastic", accepted: 0, obligated: 10, status) with
+                {
+                    TonnageOutstanding = null,
+                },
+                CreateObligation("Glass", accepted: 10, obligated: 10, ObligationStatus.Met),
+            ]
+        );
+
+        result.ObligationCoveragePercentage.Should().Be(expectedPercentage);
+    }
+
     [Fact]
     public void Map_WhenNoObligationsAreReturned_ShouldCreateAnEmptySuccessfulSummary()
     {
