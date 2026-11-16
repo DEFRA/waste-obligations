@@ -14,4 +14,4 @@ The actor is the system identity in [AuditActors](../src/Api/Utils/Logging/Audit
 
 There is no initial backfill. An existing calculation may first appear as an update, or remain absent until materially changed. Consumers must not require a create message before accepting an update.
 
-Older application instances can write calculations without events during a mixed-version rollout. Coordinate activation with the consumer and do not treat the stream as complete across that interval. The shared guide's governance, duplicate handling and irreversible SNS-acceptance constraints also apply.
+Older application instances can write calculations without events during a mixed-version rollout. Enable analytics processing only on updated instances, or drain or disable it on older instances until the rollout completes, because older processors reject calculation events and can dead-letter them before delivery. Coordinate activation with the consumer and do not treat the stream as complete across that interval. The shared guide's governance, duplicate handling and irreversible SNS-acceptance constraints also apply.
