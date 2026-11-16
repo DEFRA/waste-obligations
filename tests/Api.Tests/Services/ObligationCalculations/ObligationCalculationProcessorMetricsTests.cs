@@ -127,6 +127,30 @@ public class ObligationCalculationProcessorMetricsTests
     }
 
     [Fact]
+    public async Task FetchFailureAfterCancellation_RecordsDurationWithoutInstructionOutcome()
+    {
+        var time = new FakeTimeProvider();
+        var source = Substitute.For<IWastePackagingService>();
+        var metrics = Substitute.For<IObligationCalculationMetrics>();
+        using var cancellation = new CancellationTokenSource();
+        source
+            .Read(2025, Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                time.Advance(TimeSpan.FromSeconds(3));
+                cancellation.Cancel();
+                return Task.FromException<PackagingResponse>(new HttpRequestException());
+            });
+        var subject = Processor(source, metrics, time);
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => subject.Process(Instruction(), cancellation.Token));
+
+        metrics.Received(1).FetchDuration(TimeSpan.FromSeconds(3));
+        metrics.DidNotReceive().Instruction(Arg.Any<CalculationInstructionOutcome>());
+        metrics.DidNotReceive().SubmitterFailed();
+    }
+
+    [Fact]
     public async Task FetchCancellation_RecordsDurationWithoutInstructionOutcome()
     {
         var time = new FakeTimeProvider();
