@@ -4,21 +4,6 @@ using Defra.WasteObligations.Api.Services.ObligationCalculations;
 
 namespace Defra.WasteObligations.Api.Utils.Metrics;
 
-public enum CalculationInstructionOutcome
-{
-    Success,
-    SubmitterErrors,
-    PackagingFailure,
-}
-
-public interface IObligationCalculationMetrics
-{
-    void Submitter(CalculationSaveOutcome outcome);
-    void SubmitterFailed();
-    void Instruction(CalculationInstructionOutcome outcome);
-    void FetchDuration(TimeSpan duration);
-}
-
 public sealed class ObligationCalculationMetrics : IObligationCalculationMetrics
 {
     private readonly Counter<long> _submitter;
@@ -28,10 +13,13 @@ public sealed class ObligationCalculationMetrics : IObligationCalculationMetrics
     public ObligationCalculationMetrics(IMeterFactory factory)
     {
         var meter = factory.Create(Metrics.MeterName);
-        _submitter = meter.CreateCounter<long>("ObligationCalculationSubmitterOutcome", nameof(Unit.COUNT));
-        _instruction = meter.CreateCounter<long>("ObligationCalculationInstructionOutcome", nameof(Unit.COUNT));
+        _submitter = meter.CreateCounter<long>(Metrics.Names.ObligationCalculationSubmitterOutcome, nameof(Unit.COUNT));
+        _instruction = meter.CreateCounter<long>(
+            Metrics.Names.ObligationCalculationInstructionOutcome,
+            nameof(Unit.COUNT)
+        );
         _fetchDuration = meter.CreateHistogram<double>(
-            "ObligationCalculationPackagingFetchDuration",
+            Metrics.Names.ObligationCalculationPackagingFetchDuration,
             nameof(Unit.SECONDS),
             "Logical full-year fetch including retries and response deserialisation"
         );

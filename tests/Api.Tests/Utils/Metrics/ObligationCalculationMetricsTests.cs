@@ -22,15 +22,15 @@ public class ObligationCalculationMetricsTests
         listener.Start();
         using var submitters = new TestMetricCollector<long>(
             ApiMetrics.MeterName,
-            "ObligationCalculationSubmitterOutcome"
+            ApiMetrics.Names.ObligationCalculationSubmitterOutcome
         );
         using var instructions = new TestMetricCollector<long>(
             ApiMetrics.MeterName,
-            "ObligationCalculationInstructionOutcome"
+            ApiMetrics.Names.ObligationCalculationInstructionOutcome
         );
         using var duration = new TestMetricCollector<double>(
             ApiMetrics.MeterName,
-            "ObligationCalculationPackagingFetchDuration"
+            ApiMetrics.Names.ObligationCalculationPackagingFetchDuration
         );
         using var services = new ServiceCollection().AddMetrics().BuildServiceProvider();
         var subject = new ObligationCalculationMetrics(services.GetRequiredService<IMeterFactory>());
@@ -58,8 +58,13 @@ public class ObligationCalculationMetricsTests
             .OnlyContain(x => x.Value == 1 && x.Tags.Count == 1);
         duration.GetMeasurementSnapshot().Should().ContainSingle().Which.Value.Should().Be(2.5);
         duration.GetMeasurementSnapshot().Single().Tags.Should().BeEmpty();
-        units["ObligationCalculationSubmitterOutcome"].Should().Be("COUNT");
-        units["ObligationCalculationInstructionOutcome"].Should().Be("COUNT");
-        units["ObligationCalculationPackagingFetchDuration"].Should().Be("SECONDS");
+        ApiMetrics.Names.ObligationCalculationSubmitterOutcome.Should().Be("ObligationCalculationSubmitterOutcome");
+        ApiMetrics.Names.ObligationCalculationInstructionOutcome.Should().Be("ObligationCalculationInstructionOutcome");
+        ApiMetrics
+            .Names.ObligationCalculationPackagingFetchDuration.Should()
+            .Be("ObligationCalculationPackagingFetchDuration");
+        units[ApiMetrics.Names.ObligationCalculationSubmitterOutcome].Should().Be("COUNT");
+        units[ApiMetrics.Names.ObligationCalculationInstructionOutcome].Should().Be("COUNT");
+        units[ApiMetrics.Names.ObligationCalculationPackagingFetchDuration].Should().Be("SECONDS");
     }
 }
