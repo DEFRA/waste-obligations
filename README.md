@@ -40,14 +40,16 @@ API documentation can be viewed at http://localhost:8080/documentation/index.htm
 
 Additional project documentation:
 
+- [Audit events: transactional foundation](docs/audit-events.md)
+- [Analytics events: shared projection and delivery](docs/analytics-events.md)
 - [Analytics compliance declaration events](docs/analytics-compliance-declaration-events.md)
 - [Analytics obligation calculation events](docs/analytics-obligation-calculation-events.md)
 
 ## Concepts
 
-### Compliance declaration analytics events
+### Audit and analytics events
 
-The [analytics event guide](docs/analytics-compliance-declaration-events.md) describes the published contract and schema history. The [event flow](docs/compliance-declaration-end-to-end-event-flow.md) explains how transactional capture relates to asynchronous publication.
+Start with the [audit event foundation](docs/audit-events.md), then the [shared analytics guide](docs/analytics-events.md). The entity guides above describe consumer meaning and rollout constraints for declarations and calculations.
 
 ### Stopping and clearing local resources
 
