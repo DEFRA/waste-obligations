@@ -9,5 +9,7 @@ public interface IObligationCalculationService
     /// The incoming ID and version are ignored; they do not enforce caller-side concurrency.
     /// A conflict must be retried by the caller with a fresh save attempt.
     /// </summary>
+    Task<CalculationSaveResult> SaveWithOutcome(ObligationCalculation calculation, CancellationToken cancellationToken);
+
     Task<ObligationCalculation> Save(ObligationCalculation calculation, CancellationToken cancellationToken);
 }

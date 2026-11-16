@@ -325,7 +325,7 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
                 leaseOwnerChanged.TrySetResult();
             },
         };
-        var logger = new RecordingLogger<AnalyticsAuditEventProcessor>();
+        var logger = new ScopedLogger();
         var auditEventMetrics = Substitute.For<IAuditEventMetrics>();
         var subject = CreateSubject(
             GetMongoApplicationDatabase(),
@@ -346,11 +346,16 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
                     .Find(x => x.EventId == firstAuditEvent.EventId)
                     .SingleAsync(TestContext.Current.CancellationToken);
                 firstResult.Dispatches.Should().ContainKey(Analytics);
+                logger
+                    .Entries.Should()
+                    .Contain(x =>
+                        x.Level == LogLevel.Error
+                        && x.Message.Contains("Stopped analytics audit event processing because lease renewal failed")
+                    );
             },
             timeout: 5,
             delay: TimeSpan.FromMilliseconds(50)
         );
-        await Task.Delay(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
         await subject.StopAsync(TestContext.Current.CancellationToken);
 
         sender.SentEvents.Should().ContainSingle();

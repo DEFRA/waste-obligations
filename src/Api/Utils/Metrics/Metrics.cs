@@ -9,6 +9,11 @@ public static class Metrics
 
     public static class Names
     {
+        public const string ObligationCalculationSubmitterOutcome = nameof(ObligationCalculationSubmitterOutcome);
+        public const string ObligationCalculationInstructionOutcome = nameof(ObligationCalculationInstructionOutcome);
+        public const string ObligationCalculationPackagingFetchDuration = nameof(
+            ObligationCalculationPackagingFetchDuration
+        );
         public const string ComplianceDeclarationCreated = nameof(ComplianceDeclarationCreated);
         public const string ComplianceDeclarationUpdated = nameof(ComplianceDeclarationUpdated);
         public const string ComplianceDeclarationDeleted = nameof(ComplianceDeclarationDeleted);
