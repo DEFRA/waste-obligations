@@ -3,8 +3,12 @@ using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.ObligationCalculations;
+using Defra.WasteObligations.AuditEvents;
+using Defra.WasteObligations.AuditEvents.Entities;
+using Defra.WasteObligations.AuditEvents.Logging;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Driver;
@@ -37,6 +41,124 @@ public class ObligationCalculationServiceTests : IntegrationTestBase
         )
             .Should()
             .Be(1);
+    }
+
+    [Fact]
+    public async Task SaveWithOutcome_ShouldRecordCreateAndUpdateEventsOnlyForMaterialChanges()
+    {
+        var subject = Subject();
+        var calculatedOn = new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+        var input = Calculation() with { CalculatedOn = calculatedOn.AddTicks(12_345) };
+        CalculationSaveResult created;
+        CalculationSaveResult unchanged;
+        CalculationSaveResult updated;
+        using (CorrelationContext.Begin(NullLogger.Instance, "run-correlation-id"))
+        {
+            created = await subject.SaveWithOutcome(input, TestContext.Current.CancellationToken);
+            unchanged = await subject.SaveWithOutcome(
+                created.Calculation with
+                {
+                    CalculatedOn = calculatedOn.AddDays(1),
+                    Producers = created.Calculation.Producers.Reverse().ToArray(),
+                },
+                TestContext.Current.CancellationToken
+            );
+            updated = await subject.SaveWithOutcome(
+                ChangeKilograms(created.Calculation),
+                TestContext.Current.CancellationToken
+            );
+        }
+        var archived = (
+            await GetMongoDatabase()
+                .GetCollection<BsonDocument>(nameof(ObligationCalculationHistory))
+                .Find(new BsonDocument("calculation._id", created.Calculation.Id))
+                .SingleAsync(TestContext.Current.CancellationToken)
+        )["calculation"].AsBsonDocument;
+        var current = await RawCurrent
+            .Find(new BsonDocument("_id", created.Calculation.Id))
+            .SingleAsync(TestContext.Current.CancellationToken);
+
+        var events = await Events();
+
+        unchanged.Outcome.Should().Be(CalculationSaveOutcome.Unchanged);
+        updated.Outcome.Should().Be(CalculationSaveOutcome.Updated);
+        events.Should().HaveCount(2);
+        var (create, update) = (events[0], events[1]);
+        create
+            .Should()
+            .BeEquivalentTo(
+                new
+                {
+                    Entity = "obligation_calculation",
+                    EntityId = created.Calculation.Id.ToString(),
+                    Operation = "insert",
+                    EventType = "obligation_calculation.created",
+                    Actor = "system:waste-obligations",
+                    Version = 1,
+                    SchemaVersion = "v1.0",
+                    TraceId = "run-correlation-id",
+                    OccurredAt = calculatedOn.AddMilliseconds(1),
+                }
+            );
+        create.DeletedReason.Should().BeNull();
+        create.Before.Should().BeNull();
+        create.After!.Equals(archived).Should().BeTrue(create.After.ToJson());
+        create.RecordedAt.Should().BeOnOrAfter(create.OccurredAt);
+        update
+            .Should()
+            .BeEquivalentTo(
+                new
+                {
+                    Entity = "obligation_calculation",
+                    EntityId = created.Calculation.Id.ToString(),
+                    Operation = "update",
+                    EventType = "obligation_calculation.updated",
+                    Actor = "system:waste-obligations",
+                    Version = 2,
+                    SchemaVersion = "v1.0",
+                    TraceId = "run-correlation-id",
+                    OccurredAt = calculatedOn.AddMinutes(1).AddMilliseconds(1),
+                }
+            );
+        update.Sequence.Should().BeGreaterThan(create.Sequence);
+        update.EventId.Should().NotBe(create.EventId);
+        update.Before!.Equals(archived).Should().BeTrue(update.Before.ToJson());
+        update.After!.Equals(current).Should().BeTrue(update.After.ToJson());
+        update.RecordedAt.Should().BeOnOrAfter(update.OccurredAt);
+    }
+
+    [Fact]
+    public async Task Save_WhenEventRecordingFails_ShouldNotPersistCalculationOrHistory()
+    {
+        var first = await Subject().Save(Calculation(), TestContext.Current.CancellationToken);
+        var failing = Substitute.For<IAuditEventService>();
+        failing
+            .RecordEvent(Arg.Any<IClientSessionHandle>(), Arg.Any<AuditEventRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException(new InvalidOperationException("Injected event failure")));
+        var subject = new ObligationCalculationService(Context(), failing);
+        Func<Task> update = () => subject.Save(ChangeKilograms(first), TestContext.Current.CancellationToken);
+        Func<Task> create = () => subject.Save(Calculation(), TestContext.Current.CancellationToken);
+
+        await update.Should().ThrowAsync<InvalidOperationException>().WithMessage("Injected event failure");
+        await create.Should().ThrowAsync<InvalidOperationException>().WithMessage("Injected event failure");
+        (
+            await Current
+                .Find(FilterDefinition<ObligationCalculation>.Empty)
+                .ToListAsync(TestContext.Current.CancellationToken)
+        )
+            .Should()
+            .ContainSingle()
+            .Which.Should()
+            .BeEquivalentTo(first);
+        (
+            await History.CountDocumentsAsync(
+                FilterDefinition<ObligationCalculationHistory>.Empty,
+                cancellationToken: TestContext.Current.CancellationToken
+            )
+        )
+            .Should()
+            .Be(0);
+        (await Events()).Should().ContainSingle().Which.Operation.Should().Be("insert");
     }
 
     [Fact]
@@ -270,7 +392,10 @@ public class ObligationCalculationServiceTests : IntegrationTestBase
                     call.ArgAt<CancellationToken>(2)
                 );
             });
-        var losing = new ObligationCalculationService(wrapper).Save(competing, TestContext.Current.CancellationToken);
+        var losing = new ObligationCalculationService(wrapper, CreateAuditEventService()).Save(
+            competing,
+            TestContext.Current.CancellationToken
+        );
         await reached.Task.WaitAsync(TestContext.Current.CancellationToken);
         var winner = await Subject().Save(competing, TestContext.Current.CancellationToken);
         release.SetResult();
@@ -281,6 +406,7 @@ public class ObligationCalculationServiceTests : IntegrationTestBase
             conflict.Which.InnerException.Should().BeOfType<MongoWriteException>();
         var retried = await Subject().Save(competing, TestContext.Current.CancellationToken);
         retried.Should().BeEquivalentTo(winner);
+        (await Events()).Select(x => x.Version).Should().Equal(firstInsert ? new[] { 1 } : new[] { 1, 2 });
         (
             await Current.CountDocumentsAsync(
                 FilterDefinition<ObligationCalculation>.Empty,
@@ -340,11 +466,12 @@ public class ObligationCalculationServiceTests : IntegrationTestBase
                         call.ArgAt<CancellationToken>(2)
                     )
                 );
-            var subject = new ObligationCalculationService(wrapper);
+            var subject = new ObligationCalculationService(wrapper, CreateAuditEventService());
             var first = await subject.Save(Calculation(), TestContext.Current.CancellationToken);
             Func<Task> save = () => subject.Save(ChangeKilograms(first), TestContext.Current.CancellationToken);
 
             await save.Should().ThrowAsync<MongoWriteException>();
+            (await Events()).Should().ContainSingle().Which.Operation.Should().Be("insert");
             (
                 await GetMongoDatabase()
                     .GetCollection<ObligationCalculation>(collectionName)
@@ -399,7 +526,7 @@ public class ObligationCalculationServiceTests : IntegrationTestBase
                 )
             );
         Func<Task> save = () =>
-            new ObligationCalculationService(wrapper).Save(
+            new ObligationCalculationService(wrapper, CreateAuditEventService()).Save(
                 ChangeKilograms(first),
                 TestContext.Current.CancellationToken
             );
@@ -408,6 +535,7 @@ public class ObligationCalculationServiceTests : IntegrationTestBase
             await save.Should().ThrowAsync<OperationCanceledException>();
         else
             await save.Should().ThrowAsync<InvalidOperationException>();
+        (await Events()).Should().ContainSingle().Which.Operation.Should().Be("insert");
         (await Current.Find(x => x.Id == first.Id).SingleAsync(TestContext.Current.CancellationToken))
             .Should()
             .BeEquivalentTo(first);
@@ -496,7 +624,13 @@ public class ObligationCalculationServiceTests : IntegrationTestBase
     private static IMongoCollection<ObligationCalculationHistory> History =>
         GetMongoDatabase().GetCollection<ObligationCalculationHistory>(nameof(ObligationCalculationHistory));
 
-    private static ObligationCalculationService Subject() => new(Context());
+    private static ObligationCalculationService Subject() => new(Context(), CreateAuditEventService());
+
+    private Task<List<AuditEvent>> Events() =>
+        AuditEvents
+            .Find(FilterDefinition<AuditEvent>.Empty)
+            .SortBy(x => x.Sequence)
+            .ToListAsync(TestContext.Current.CancellationToken);
 
     private static MongoDbContext Context() =>
         new(

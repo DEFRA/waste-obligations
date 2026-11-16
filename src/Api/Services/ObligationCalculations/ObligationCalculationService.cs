@@ -1,15 +1,20 @@
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Data.Migrations;
+using Defra.WasteObligations.Api.Utils.Logging;
+using Defra.WasteObligations.AuditEvents;
+using Defra.WasteObligations.AuditEvents.Logging;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
 
 namespace Defra.WasteObligations.Api.Services.ObligationCalculations;
 
-public class ObligationCalculationService(IDbContext dbContext) : IObligationCalculationService
+public class ObligationCalculationService(IDbContext dbContext, IAuditEventService auditEventService)
+    : IObligationCalculationService
 {
     private const string VersionField = "version";
+    private const string AnalyticsEntity = "obligation_calculation";
 
     public async Task<ObligationCalculation> Save(
         ObligationCalculation calculation,
@@ -59,6 +64,8 @@ public class ObligationCalculationService(IDbContext dbContext) : IObligationCal
             CalculatedOn = calculation.CalculatedOn,
             Producers = calculation.Producers,
         };
+        // Capture the run correlation once so every transaction attempt records the same value.
+        var correlationId = CorrelationContext.Current;
         try
         {
             var saved = await dbContext.ExecuteTransaction(
@@ -77,6 +84,8 @@ public class ObligationCalculationService(IDbContext dbContext) : IObligationCal
                         await ReplaceCurrent(session, currentCollection, previous, replacement, token);
                     }
 
+                    await RecordEvent(session, previous, replacement, correlationId, token);
+
                     return replacement;
                 },
                 "Save obligation calculation",
@@ -94,6 +103,40 @@ public class ObligationCalculationService(IDbContext dbContext) : IObligationCal
                 exception
             );
         }
+    }
+
+    private Task RecordEvent(
+        IClientSessionHandle session,
+        BsonDocument? previous,
+        ObligationCalculation replacement,
+        string? correlationId,
+        CancellationToken token
+    ) =>
+        auditEventService.RecordEvent(
+            session,
+            new AuditEventRequest(
+                AuditActors.System,
+                AnalyticsEntity,
+                previous is null ? AuditEventOperation.Insert : AuditEventOperation.Update,
+                previous is null ? "obligation_calculation.created" : "obligation_calculation.updated",
+                null,
+                replacement.Id.ToString(),
+                replacement.Version,
+                previous,
+                replacement.ToBsonDocument(),
+                replacement.SchemaVersion,
+                TruncateToMilliseconds(replacement.CalculatedOn),
+                correlationId
+            ),
+            token
+        );
+
+    // Mongo stores the calculation time to millisecond precision; publish the same instant.
+    private static DateTime TruncateToMilliseconds(DateTime value)
+    {
+        var utc = value.Kind == DateTimeKind.Local ? value.ToUniversalTime() : value;
+
+        return new DateTime(utc.Ticks - utc.Ticks % TimeSpan.TicksPerMillisecond, DateTimeKind.Utc);
     }
 
     private async Task ReplaceCurrent(
