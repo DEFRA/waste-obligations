@@ -57,6 +57,7 @@ public class CreateComplianceDeclarationTests : EndpointTestBase
                                     .Default()
                                     .With(x => x.Accepted, 90)
                                     .With(x => x.Obligated, 90)
+                                    .With(x => x.Outstanding, 0)
                                     .Create()
                             )
                             .Create(),
@@ -70,6 +71,7 @@ public class CreateComplianceDeclarationTests : EndpointTestBase
                                     .Default()
                                     .With(x => x.Accepted, 0)
                                     .With(x => x.Obligated, 10)
+                                    .With(x => x.Outstanding, 10)
                                     .Create()
                             )
                             .Create(),

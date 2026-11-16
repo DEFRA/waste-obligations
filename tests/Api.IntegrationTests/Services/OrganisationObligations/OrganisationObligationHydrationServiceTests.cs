@@ -499,6 +499,36 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task HydrateDue_WhenRemeltSurplusPartiallyMeetsGlass_ShouldPersistSeventyFivePercent()
+    {
+        var organisationId = Guid.NewGuid();
+        await InsertActiveSnapshot();
+        await InsertEligibility(organisationId, RegistrationType.DirectProducer);
+        ObligationSource
+            .ReadObligations(organisationId, ObligationYear, Arg.Any<CancellationToken>())
+            .Returns([
+                CreateObligation("Glass", 0, 4, ObligationStatus.NotMet) with
+                {
+                    TonnageOutstanding = 2,
+                },
+                CreateObligation("GlassRemelt", 5, 3, ObligationStatus.Met),
+            ]);
+
+        await CreateSubject().HydrateDue(ObligationYear, TestContext.Current.CancellationToken);
+
+        var summary = await OrganisationObligationSummaries
+            .Find(x => x.OrganisationId == organisationId && x.ObligationYear == ObligationYear)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        summary.ObligationCoveragePercentage.Should().Be(75);
+        var eligibility = await OrganisationComplianceDeclarationEligibilities
+            .Find(x =>
+                x.Generation == "active" && x.OrganisationId == organisationId && x.ObligationYear == ObligationYear
+            )
+            .SingleAsync(TestContext.Current.CancellationToken);
+        eligibility.ObligationCoveragePercentage.Should().Be(75);
+    }
+
+    [Fact]
     public async Task HydrateDue_WhenSourceSucceeds_ShouldPersistReadySummaryAndScheduleRefresh()
     {
         var organisationId = Guid.NewGuid();
@@ -994,6 +1024,7 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
             .Default()
             .With(x => x.MaterialName, materialName)
             .With(x => x.TonnageAccepted, accepted)
+            .With(x => x.TonnageOutstanding, (int?)Math.Max(0, obligated - accepted))
             .With(x => x.ObligationToMeet, obligated)
             .With(x => x.Status, status)
             .Create();

@@ -110,6 +110,124 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
     }
 
     [Theory]
+    [InlineData(15, 20, "Met", 75)]
+    [InlineData(0, 0, "Met", 100)]
+    [InlineData(0, 0, "NotMet", 0)]
+    [InlineData(0, 0, "NoDataYet", 0)]
+    [InlineData(107, 200, "NotMet", 54)]
+    public async Task OriginalCorrection_ShouldPreserveItsHistoricalCalculation(
+        int accepted,
+        int obligated,
+        string status,
+        decimal expected
+    )
+    {
+        var original = Declaration() with { Obligations = [Obligation(accepted, obligated, status)] };
+        await ComplianceDeclarations.InsertOneAsync(original, cancellationToken: TestContext.Current.CancellationToken);
+
+        await CreateSubject().Apply(TestContext.Current.CancellationToken);
+
+        (await Read(original)).ObligationCoveragePercentage.Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task GlassCorrection_ShouldUpdateStoredCoverageOnceAndAuditTheChange()
+    {
+        var original = Declaration() with
+        {
+            ObligationCoveragePercentage = 50m,
+            Obligations =
+            [
+                ObligationFixture
+                    .Default()
+                    .With(x => x.Material, "Glass")
+                    .With(x => x.Status, "Met")
+                    .With(
+                        x => x.Tonnages,
+                        ObligationTonnagesFixture
+                            .Default()
+                            .With(x => x.Accepted, 0)
+                            .With(x => x.Obligated, 36)
+                            .With(x => x.Outstanding, 0)
+                            .Create()
+                    )
+                    .Create(),
+                ObligationFixture
+                    .Default()
+                    .With(x => x.Material, "GlassRemelt")
+                    .With(x => x.Status, "Met")
+                    .With(
+                        x => x.Tonnages,
+                        ObligationTonnagesFixture
+                            .Default()
+                            .With(x => x.Accepted, 149)
+                            .With(x => x.Obligated, 113)
+                            .With(x => x.Outstanding, 0)
+                            .Create()
+                    )
+                    .Create(),
+            ],
+        };
+        await ComplianceDeclarations.InsertOneAsync(original, cancellationToken: TestContext.Current.CancellationToken);
+        var correction = CreateSubject(glassCorrection: true);
+
+        await correction.Apply(TestContext.Current.CancellationToken);
+        await correction.Apply(TestContext.Current.CancellationToken);
+
+        (await Read(original)).ObligationCoveragePercentage.Should().Be(100);
+        var events = await AuditEvents
+            .Find(x => x.EntityId == original.Id.ToString())
+            .ToListAsync(TestContext.Current.CancellationToken);
+        events.Should().ContainSingle();
+        var before = events[0].Before;
+        var after = events[0].After;
+        before.Should().NotBeNull();
+        after.Should().NotBeNull();
+        before["obligationCoveragePercentage"].ToDecimal().Should().Be(50);
+        after["obligationCoveragePercentage"].ToDecimal().Should().Be(100);
+    }
+
+    [Fact]
+    public async Task GlassCorrection_WhenRemeltPartiallyMeetsGlass_ShouldAuditSeventyFivePercent()
+    {
+        var original = Declaration() with
+        {
+            ObligationCoveragePercentage = 50,
+            Obligations =
+            [
+                Obligation(0, 4, "NotMet") with
+                {
+                    Material = "Glass",
+                    Tonnages = new ObligationTonnages
+                    {
+                        Accepted = 0,
+                        Obligated = 4,
+                        Outstanding = 2,
+                    },
+                },
+                Obligation(5, 3, "Met") with
+                {
+                    Material = "GlassRemelt",
+                },
+            ],
+        };
+        await ComplianceDeclarations.InsertOneAsync(original, cancellationToken: TestContext.Current.CancellationToken);
+
+        await CreateSubject(glassCorrection: true).Apply(TestContext.Current.CancellationToken);
+
+        (await Read(original)).ObligationCoveragePercentage.Should().Be(75);
+        var auditEvent = await AuditEvents
+            .Find(x => x.EntityId == original.Id.ToString())
+            .SingleAsync(TestContext.Current.CancellationToken);
+        var before = auditEvent.Before;
+        var after = auditEvent.After;
+        before.Should().NotBeNull();
+        after.Should().NotBeNull();
+        before["obligationCoveragePercentage"].ToDecimal().Should().Be(50);
+        after["obligationCoveragePercentage"].ToDecimal().Should().Be(75);
+    }
+
+    [Theory]
     [InlineData("v1.2")]
     [InlineData("v1.4")]
     public async Task Apply_ShouldExcludeOtherSchemasBeforeDeserialisingEntities(string schemaVersion)
@@ -132,8 +250,12 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
             .Equal(document);
     }
 
-    [Fact]
-    public async Task Run_WhenCorrectionFails_ShouldRetryWithoutDuplicateUpdatesAndCompleteOnlyAfterSuccess()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Run_WhenCorrectionFails_ShouldRetryWithoutDuplicateUpdatesAndCompleteOnlyAfterSuccess(
+        bool glassCorrection
+    )
     {
         var original = Declaration();
         var malformed = Declaration() with { Obligations = null! };
@@ -141,7 +263,7 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
             [original, malformed],
             cancellationToken: TestContext.Current.CancellationToken
         );
-        var coverage = CreateSubject();
+        var coverage = CreateSubject(glassCorrection: glassCorrection);
         var correction = Substitute.For<IApplicationDataCorrection>();
         correction.Id.Returns("coverage-retry-test");
         correction.Version.Returns(coverage.Version);
@@ -187,8 +309,10 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
             .Be(s_correctedAt.UtcDateTime);
     }
 
-    [Fact]
-    public async Task Apply_WhenAuditFails_ShouldRollBackTheServiceUpdateAndAllowRetry()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Apply_WhenAuditFails_ShouldRollBackTheServiceUpdateAndAllowRetry(bool glassCorrection)
     {
         var original = Declaration();
         await ComplianceDeclarations.InsertOneAsync(original, cancellationToken: TestContext.Current.CancellationToken);
@@ -196,7 +320,8 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
         failing
             .RecordEvent(Arg.Any<IClientSessionHandle>(), Arg.Any<AuditEventRequest>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromException(new InvalidOperationException("Audit storage unavailable")));
-        var action = () => CreateSubject(failing).Apply(TestContext.Current.CancellationToken);
+        var action = () =>
+            CreateSubject(failing, glassCorrection: glassCorrection).Apply(TestContext.Current.CancellationToken);
 
         (await action.Should().ThrowAsync<InvalidOperationException>())
             .Which.InnerException.Should()
@@ -211,7 +336,7 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
             .Should()
             .Be(0);
 
-        await CreateSubject().Apply(TestContext.Current.CancellationToken);
+        await CreateSubject(glassCorrection: glassCorrection).Apply(TestContext.Current.CancellationToken);
 
         (await Read(original)).Should().BeEquivalentTo(Corrected(original));
         (
@@ -329,10 +454,11 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
         auditEvent.After.Should().Equal(expected.ToBsonDocument());
     }
 
-    private static ComplianceDeclarationCoverageCorrection CreateSubject(
+    private static IApplicationDataCorrection CreateSubject(
         IAuditEventService? auditEventService = null,
         IDbContext? contextOverride = null,
-        IComplianceDeclarationMetrics? metrics = null
+        IComplianceDeclarationMetrics? metrics = null,
+        bool glassCorrection = false
     )
     {
         var database = GetMongoApplicationDatabase();
@@ -355,6 +481,14 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
             ),
             new UnsubmittedEligibilityVisibilityService(context)
         );
+
+        if (glassCorrection)
+            return new GlassCoverageCorrection(
+                contextOverride ?? context,
+                service,
+                Options.Create(new ApplicationDataCorrectionOptions { BatchSize = 1 }),
+                Substitute.For<ILogger<GlassCoverageCorrection>>()
+            );
 
         return new ComplianceDeclarationCoverageCorrection(
             contextOverride ?? context,
@@ -395,6 +529,7 @@ public class ComplianceDeclarationIndividualMaterialCoverageTests : IntegrationT
                     .Default()
                     .With(x => x.Accepted, accepted)
                     .With(x => x.Obligated, obligated)
+                    .With(x => x.Outstanding, Math.Max(0, obligated - accepted))
                     .Create()
             )
             .Create();
