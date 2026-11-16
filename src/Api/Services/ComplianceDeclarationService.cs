@@ -20,7 +20,7 @@ public class ComplianceDeclarationService(
     IUnsubmittedEligibilityVisibilityService unsubmittedEligibilityVisibilityService
 ) : IComplianceDeclarationService
 {
-    private const string ComplianceDeclarationEntity = "compliance_declaration";
+    private const string ComplianceDeclarationEntity = ComplianceDeclarationEventContract.Entity;
 
     public async Task<ComplianceDeclaration> Create(
         ComplianceDeclaration complianceDeclaration,
@@ -52,7 +52,7 @@ public class ComplianceDeclarationService(
                         GetActor(complianceDeclaration),
                         ComplianceDeclarationEntity,
                         AuditEventOperation.Insert,
-                        "submission.created",
+                        ComplianceDeclarationEventContract.CreatedEventType,
                         null,
                         complianceDeclaration.Id.ToString(),
                         complianceDeclaration.Version,
@@ -60,7 +60,8 @@ public class ComplianceDeclarationService(
                         complianceDeclaration.ToBsonDocument(),
                         complianceDeclaration.SchemaVersion,
                         utcNow,
-                        traceIdReader.Read()
+                        traceIdReader.Read(),
+                        AnalyticsEntityId: $"{ComplianceDeclarationEventContract.IdentityPrefix}{complianceDeclaration.Id}"
                     ),
                     transactionCancellationToken
                 );
@@ -154,7 +155,7 @@ public class ComplianceDeclarationService(
                         AuditActors.Service,
                         ComplianceDeclarationEntity,
                         AuditEventOperation.Delete,
-                        "submission.removed",
+                        ComplianceDeclarationEventContract.RemovedEventType,
                         AnalyticsEventVocabulary.ElevatedSystemAllowedRemoval,
                         current.Id.ToString(),
                         current.Version + 1,
@@ -162,7 +163,8 @@ public class ComplianceDeclarationService(
                         null,
                         current.SchemaVersion,
                         utcNow,
-                        traceIdReader.Read()
+                        traceIdReader.Read(),
+                        AnalyticsEntityId: $"{ComplianceDeclarationEventContract.IdentityPrefix}{current.Id}"
                     ),
                     transactionCancellationToken
                 );
@@ -283,7 +285,7 @@ public class ComplianceDeclarationService(
                         actor ?? GetActor(updated),
                         ComplianceDeclarationEntity,
                         AuditEventOperation.Update,
-                        "submission.amended",
+                        ComplianceDeclarationEventContract.UpdatedEventType,
                         null,
                         updated.Id.ToString(),
                         updated.Version,
@@ -291,7 +293,8 @@ public class ComplianceDeclarationService(
                         updated.ToBsonDocument(),
                         updated.SchemaVersion,
                         updated.Updated,
-                        traceIdReader.Read()
+                        traceIdReader.Read(),
+                        AnalyticsEntityId: $"{ComplianceDeclarationEventContract.IdentityPrefix}{updated.Id}"
                     ),
                     transactionCancellationToken
                 );

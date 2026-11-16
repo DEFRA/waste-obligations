@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
@@ -12,6 +13,10 @@ public record AuditEvent
     public long Sequence { get; init; }
     public required string Entity { get; init; }
     public required string EntityId { get; init; }
+
+    [BsonIgnoreIfNull]
+    [JsonIgnore]
+    public string? AnalyticsEntityId { get; init; }
     public required string Operation { get; init; }
     public required string EventType { get; init; }
 

@@ -48,6 +48,7 @@ public class ObligationCalculationServiceTests : IntegrationTestBase
             .AllSatisfy(x =>
             {
                 x.EntityId.Should().Be(created.Calculation.Id.ToString());
+                x.AnalyticsEntityId.Should().Be($"oblcalc_{created.Calculation.Id}");
                 x.Actor.Should().Be("system:waste-obligations");
                 x.SchemaVersion.Should().Be("v1.0");
                 x.DeletedReason.Should().BeNull();

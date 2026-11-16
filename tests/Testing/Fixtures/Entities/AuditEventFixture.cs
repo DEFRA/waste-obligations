@@ -22,6 +22,7 @@ public static class AuditEventFixture
             .With(x => x.Version, 1)
             .With(x => x.SchemaVersion, "v1.0")
             .With(x => x.Dispatches, [])
+            .Without(x => x.AnalyticsEntityId)
             .Without(x => x.Before)
             .Without(x => x.After);
     }

@@ -32,6 +32,7 @@ public class AuditEventService(
                 Sequence = sequence,
                 Entity = auditEvent.Entity,
                 EntityId = auditEvent.EntityId,
+                AnalyticsEntityId = auditEvent.AnalyticsEntityId,
                 Operation = ToValue(auditEvent.Operation),
                 EventType = auditEvent.EventType,
                 DeletedReason = auditEvent.DeletedReason,

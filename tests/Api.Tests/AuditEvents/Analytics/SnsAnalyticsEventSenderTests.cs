@@ -4,6 +4,7 @@ using Amazon.SimpleNotificationService;
 using Amazon.SimpleNotificationService.Model;
 using AutoFixture;
 using AwesomeAssertions;
+using Defra.WasteObligations.Api.Schemas;
 using Defra.WasteObligations.AuditEvents.Analytics;
 using Defra.WasteObligations.Testing.Fixtures.Entities;
 using Microsoft.Extensions.Options;
@@ -17,6 +18,34 @@ public class SnsAnalyticsEventSenderTests
     private const string ContentEncodingHeader = "Content-Encoding";
     private const string ContentTypeHeader = "Content-Type";
     private const string TopicArn = "arn:aws:sns:eu-west-2:000000000000:waste_obligations_analytics_events";
+
+    [Theory]
+    [InlineData("compliance_declaration", "submission.created")]
+    [InlineData("obligation_calculation", "obligation_calculation.created")]
+    public async Task Send_WhenRecordedSchemaIsNotEmbedded_ShouldRejectBeforePublishing(string entity, string eventType)
+    {
+        var simpleNotificationService = Substitute.For<IAmazonSimpleNotificationService>();
+        var subject = new SnsAnalyticsEventSender(
+            simpleNotificationService,
+            new JsonAnalyticsEventSerializer(new EmbeddedEntityJsonSchemaProvider()),
+            Options.Create(new AnalyticsAuditEventProcessorOptions { ProcessName = "analytics", TopicArn = TopicArn })
+        );
+        var analyticsEvent = AuditEventFixture
+            .ComplianceDeclaration()
+            .With(x => x.Entity, entity)
+            .With(x => x.EventType, eventType)
+            .With(x => x.Actor, "system:waste-obligations")
+            .With(x => x.SchemaVersion, "v9.1")
+            .Create()
+            .ToAnalyticsEvent();
+
+        Func<Task> send = () => subject.Send(analyticsEvent, TestContext.Current.CancellationToken);
+
+        await send.Should().ThrowAsync<FileNotFoundException>();
+        await simpleNotificationService
+            .DidNotReceive()
+            .PublishAsync(Arg.Any<PublishRequest>(), Arg.Any<CancellationToken>());
+    }
 
     [Fact]
     public async Task Send_ShouldPublishAnalyticsEventAsJson()

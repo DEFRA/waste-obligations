@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data.Entities;
@@ -38,16 +39,14 @@ public class AnalyticsEventMappersTests
     }
 
     [Theory]
-    [InlineData("delete", "obligation_calculation.removed", "system:waste-obligations", "v1.0")]
-    [InlineData("insert", "obligation_calculation.updated", "system:waste-obligations", "v1.0")]
-    [InlineData("update", "submission.amended", "system:waste-obligations", "v1.0")]
-    [InlineData("insert", "obligation_calculation.created", "unknown:actor", "v1.0")]
-    [InlineData("insert", "obligation_calculation.created", "system:waste-obligations", "v2.0")]
+    [InlineData("delete", "obligation_calculation.removed", "system:waste-obligations")]
+    [InlineData("insert", "obligation_calculation.updated", "system:waste-obligations")]
+    [InlineData("update", "submission.amended", "system:waste-obligations")]
+    [InlineData("insert", "obligation_calculation.created", "unknown:actor")]
     public void ToAnalyticsEvent_WhenCalculationVocabularyIsUnregistered_ShouldThrow(
         string operation,
         string eventType,
-        string actor,
-        string schemaVersion
+        string actor
     )
     {
         var auditEvent = AuditEventFixture
@@ -55,12 +54,33 @@ public class AnalyticsEventMappersTests
             .With(x => x.Operation, operation)
             .With(x => x.EventType, eventType)
             .With(x => x.Actor, actor)
-            .With(x => x.SchemaVersion, schemaVersion)
             .Create();
 
         var act = () => auditEvent.ToAnalyticsEvent();
 
         act.Should().Throw<InvalidOperationException>();
+    }
+
+    [Theory]
+    [InlineData("insert", "submission.amended")]
+    [InlineData("update", "submission.created")]
+    [InlineData("delete", "submission.created")]
+    public void ToAnalyticsEvent_WhenLegacyDeclarationEventPair_ShouldPreserveItsRegisteredVocabulary(
+        string operation,
+        string eventType
+    )
+    {
+        var auditEvent = AuditEventFixture
+            .ComplianceDeclaration()
+            .With(x => x.Operation, operation)
+            .With(x => x.EventType, eventType)
+            .With(x => x.Actor, "service:waste-obligations")
+            .With(x => x.DeletedReason, operation == "delete" ? "elevated_system_allowed_removal" : null)
+            .Create();
+
+        var result = auditEvent.ToAnalyticsEvent();
+
+        result.EventType.Should().Be(eventType);
     }
 
     [Fact]
@@ -231,19 +251,33 @@ public class AnalyticsEventMappersTests
             .WithMessage("An analytics deletion reason is only valid for delete operations.");
     }
 
-    [Fact]
-    public void ToAnalyticsEvent_WhenSchemaVersionIsUnregistered_ShouldThrow()
+    [Theory]
+    [InlineData("compliance_declaration", "submission.created")]
+    [InlineData("obligation_calculation", "obligation_calculation.created")]
+    public void ToAnalyticsEvent_WhenProjectionMetadataExists_ShouldUseItAndPreserveRecordedSchema(
+        string entity,
+        string eventType
+    )
     {
+        const string analyticsEntityId = "producer-owned-identity:123";
         var auditEvent = AuditEventFixture
             .ComplianceDeclaration()
-            .With(x => x.Actor, "service:waste-obligations")
-            .With(x => x.SchemaVersion, "v2.0")
+            .With(x => x.Entity, entity)
+            .With(x => x.EventType, eventType)
+            .With(x => x.AnalyticsEntityId, analyticsEntityId)
+            .With(x => x.Actor, "system:waste-obligations")
+            .With(x => x.SchemaVersion, "v9.1")
             .Create();
 
-        var act = () => auditEvent.ToAnalyticsEvent();
+        var result = auditEvent.ToAnalyticsEvent();
 
-        act.Should()
-            .Throw<InvalidOperationException>()
-            .WithMessage("Unregistered analytics schema version 'compliance_declaration_v2.0'.");
+        result.EntityId.Should().Be(analyticsEntityId);
+        result.SchemaVersion.Should().Be($"{entity}_v9.1");
+        var auditJson = JsonSerializer.SerializeToElement(
+            auditEvent,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web)
+        );
+        auditJson.TryGetProperty("analyticsEntityId", out _).Should().BeFalse();
+        auditJson.GetProperty("entityId").GetString().Should().Be(auditEvent.EntityId);
     }
 }

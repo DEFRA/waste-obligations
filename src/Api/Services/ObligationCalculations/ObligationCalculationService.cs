@@ -98,7 +98,8 @@ public class ObligationCalculationService(IDbContext dbContext, IAuditEventServi
                             replacement.ToBsonDocument(),
                             replacement.SchemaVersion,
                             replacement.CalculatedOn,
-                            CorrelationContext.Current
+                            CorrelationContext.Current,
+                            AnalyticsEntityId: $"{ObligationCalculationEventContract.IdentityPrefix}{replacement.Id}"
                         ),
                         token
                     );

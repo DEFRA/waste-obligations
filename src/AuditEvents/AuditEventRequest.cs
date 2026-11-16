@@ -14,5 +14,6 @@ public record AuditEventRequest(
     BsonDocument? After,
     string SchemaVersion,
     DateTime OccurredAt,
-    string? TraceId = null
+    string? TraceId = null,
+    string? AnalyticsEntityId = null
 );

@@ -4,28 +4,51 @@ public static class AnalyticsEventVocabulary
 {
     public const string ElevatedSystemAllowedRemoval = "elevated_system_allowed_removal";
 
-    private const string ComplianceDeclarationEntity = "compliance_declaration";
     private const string CreateOperation = "create";
     private const string UpdateOperation = "update";
     private const string DeleteOperation = "delete";
     private const string LegacyElevatedSystemAllowedRemoval = "elevated system allowed removal";
 
-    private static readonly HashSet<string> s_eventTypes =
+    private static readonly HashSet<string> s_declarationEventTypes =
     [
-        "submission.created",
-        "submission.amended",
-        "submission.removed",
+        ComplianceDeclarationEventContract.CreatedEventType,
+        ComplianceDeclarationEventContract.UpdatedEventType,
+        ComplianceDeclarationEventContract.RemovedEventType,
     ];
+
+    private static readonly IReadOnlyDictionary<string, AnalyticsEntityRegistration> s_entities = new Dictionary<
+        string,
+        AnalyticsEntityRegistration
+    >
+    {
+        [ComplianceDeclarationEventContract.Entity] = new(
+            ComplianceDeclarationEventContract.IdentityPrefix,
+            new Dictionary<string, HashSet<string>>
+            {
+                [CreateOperation] = s_declarationEventTypes,
+                [UpdateOperation] = s_declarationEventTypes,
+                [DeleteOperation] = s_declarationEventTypes,
+            }
+        ),
+        [ObligationCalculationEventContract.Entity] = new(
+            ObligationCalculationEventContract.IdentityPrefix,
+            new Dictionary<string, HashSet<string>>
+            {
+                [CreateOperation] = [ObligationCalculationEventContract.CreatedEventType],
+                [UpdateOperation] = [ObligationCalculationEventContract.UpdatedEventType],
+            }
+        ),
+    };
 
     private static readonly HashSet<string> s_actorPrefixes = ["service", "user", "system", "integration"];
 
-    private static readonly HashSet<string> s_schemaVersions =
-    [
-        "compliance_declaration_v1.0",
-        "compliance_declaration_v1.1",
-        "compliance_declaration_v1.2",
-        "compliance_declaration_v1.3",
-    ];
+    internal static string GetLegacyEntityId(string entity, string entityId) =>
+        $"{GetEntity(entity).LegacyIdentityPrefix}{entityId}";
+
+    private static AnalyticsEntityRegistration GetEntity(string entity) =>
+        s_entities.TryGetValue(entity, out var registration)
+            ? registration
+            : throw new InvalidOperationException($"Unregistered analytics entity '{entity}'.");
 
     public static string ToOperation(string operation) =>
         operation switch
@@ -45,33 +68,17 @@ public static class AnalyticsEventVocabulary
 
     public static void Validate(AnalyticsEvent analyticsEvent)
     {
-        if (analyticsEvent.Entity is not (ComplianceDeclarationEntity or ObligationCalculationEventContract.Entity))
-            throw new InvalidOperationException($"Unregistered analytics entity '{analyticsEvent.Entity}'.");
-
+        var entity = GetEntity(analyticsEvent.Entity);
         if (analyticsEvent.Operation is not (CreateOperation or UpdateOperation or DeleteOperation))
             throw new InvalidOperationException($"Unregistered analytics operation '{analyticsEvent.Operation}'.");
 
-        var isCalculation = analyticsEvent.Entity == ObligationCalculationEventContract.Entity;
-        var registeredEventType = isCalculation
-            ? analyticsEvent.Operation switch
-            {
-                CreateOperation => analyticsEvent.EventType == ObligationCalculationEventContract.CreatedEventType,
-                UpdateOperation => analyticsEvent.EventType == ObligationCalculationEventContract.UpdatedEventType,
-                _ => false,
-            }
-            : s_eventTypes.Contains(analyticsEvent.EventType);
-        if (!registeredEventType)
+        if (
+            !entity.EventTypesByOperation.TryGetValue(analyticsEvent.Operation, out var eventTypes)
+            || !eventTypes.Contains(analyticsEvent.EventType)
+        )
             throw new InvalidOperationException($"Unregistered analytics event type '{analyticsEvent.EventType}'.");
 
         ValidateActor(analyticsEvent.Actor);
-
-        var registeredSchemaVersion = isCalculation
-            ? analyticsEvent.SchemaVersion == ObligationCalculationEventContract.SchemaVersion
-            : s_schemaVersions.Contains(analyticsEvent.SchemaVersion);
-        if (!registeredSchemaVersion)
-            throw new InvalidOperationException(
-                $"Unregistered analytics schema version '{analyticsEvent.SchemaVersion}'."
-            );
 
         if (analyticsEvent.Operation == DeleteOperation)
         {

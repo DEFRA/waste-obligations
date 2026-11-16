@@ -84,6 +84,7 @@ public class ComplianceDeclarationServiceTests : IntegrationTestBase
         auditEvent.EventId.Should().Be("01HXYZ00000000000000000001");
         auditEvent.Entity.Should().Be(Entity);
         auditEvent.EntityId.Should().Be(initial.Id.ToString());
+        auditEvent.AnalyticsEntityId.Should().Be($"cdec_{initial.Id}");
         auditEvent.Operation.Should().Be("insert");
         auditEvent.EventType.Should().Be("submission.created");
         auditEvent.DeletedReason.Should().BeNull();
