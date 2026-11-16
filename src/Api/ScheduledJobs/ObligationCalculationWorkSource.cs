@@ -1,5 +1,6 @@
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.Scheduling;
+using Defra.WasteObligations.AuditEvents.Logging;
 using MongoDB.Bson;
 using MongoDB.Driver;
 
@@ -28,14 +29,28 @@ public class ObligationCalculationWorkSource(IMongoDatabase database)
             .ThenBy(x => x.Id)
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (instruction is null)
-            return null;
+        while (instruction is not null && string.IsNullOrWhiteSpace(instruction.CorrelationId))
+        {
+            var identity = Builders<ObligationCalculationInstruction>.Filter.Eq(x => x.Id, instruction.Id);
+            var missingCorrelation =
+                identity
+                & Builders<ObligationCalculationInstruction>.Filter.Eq(x => x.CorrelationId, instruction.CorrelationId);
+            instruction =
+                await _instructions.FindOneAndUpdateAsync(
+                    missingCorrelation,
+                    Builders<ObligationCalculationInstruction>.Update.Set(
+                        x => x.CorrelationId,
+                        CorrelationIdGenerator.Generate()
+                    ),
+                    new FindOneAndUpdateOptions<ObligationCalculationInstruction>
+                    {
+                        ReturnDocument = ReturnDocument.After,
+                    },
+                    cancellationToken
+                ) ?? await _instructions.Find(identity).SingleOrDefaultAsync(cancellationToken);
+        }
 
-        var correlationId = string.IsNullOrWhiteSpace(instruction.CorrelationId)
-            ? instruction.Id.ToString()
-            : instruction.CorrelationId;
-
-        return new(instruction.Id.ToString(), instruction, correlationId);
+        return instruction is null ? null : new(instruction.Id.ToString(), instruction, instruction.CorrelationId);
     }
 
     public async Task<bool> TryStart(

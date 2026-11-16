@@ -1,6 +1,7 @@
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Data.Migrations;
+using Defra.WasteObligations.Api.Utils.Logging;
 using Defra.WasteObligations.AuditEvents;
 using Defra.WasteObligations.AuditEvents.Analytics;
 using Defra.WasteObligations.AuditEvents.Logging;
@@ -84,7 +85,7 @@ public class ObligationCalculationService(IDbContext dbContext, IAuditEventServi
                     await auditEventService.RecordEvent(
                         session,
                         new AuditEventRequest(
-                            "system:waste-obligations",
+                            AuditActors.System,
                             ObligationCalculationEventContract.Entity,
                             previous is null ? AuditEventOperation.Insert : AuditEventOperation.Update,
                             previous is null

@@ -415,5 +415,5 @@ public class ComplianceDeclarationService(
     ) => direction is ComplianceDeclarationSortDirection.Ascending ? descending : ascending;
 
     private static string GetActor(ComplianceDeclaration complianceDeclaration) =>
-        complianceDeclaration.Audit.LastOrDefault()?.User is { } user ? $"user:{user.Id}" : AuditActors.Service;
+        complianceDeclaration.Audit.LastOrDefault()?.User is { } user ? AuditActors.User(user.Id) : AuditActors.Service;
 }

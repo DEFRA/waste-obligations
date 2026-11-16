@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.AuditEvents.Logging;
@@ -38,7 +37,7 @@ public class ObligationCalculationInstructionService(IMongoDatabase database, Ti
         {
             ObligationYear = obligationYear,
             SubmitterId = submitterId,
-            CorrelationId = CorrelationContext.Current ?? ActivityTraceId.CreateRandom().ToString(),
+            CorrelationId = CorrelationContext.Current ?? CorrelationIdGenerator.Generate(),
             CreatedAt = timeProvider.GetUtcNowWithoutMicroseconds(),
         };
         var filter = Builders<ObligationCalculationInstruction>.Filter.And(

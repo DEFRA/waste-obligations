@@ -32,6 +32,50 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
     private const string JobName = "ObligationCalculation";
 
     [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" ")]
+    public async Task WorkSource_WhenLegacyCorrelationIsMissing_ShouldPersistOneTraceAcrossConcurrentReaders(
+        string? traceId
+    )
+    {
+        var instruction = ObligationCalculationInstructionFixture
+            .Default()
+            .With(x => x.CorrelationId, traceId)
+            .Create();
+        await ObligationCalculationInstructions.InsertOneAsync(
+            instruction,
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+
+        var work = await Task.WhenAll(
+            Enumerable
+                .Range(0, 4)
+                .Select(x =>
+                    new ObligationCalculationWorkSource(GetMongoApplicationDatabase()).GetNext(
+                        [],
+                        TestContext.Current.CancellationToken
+                    )
+                )
+        );
+        var stored = await Read(instruction);
+        stored.CorrelationId.Should().MatchRegex("^[0-9a-f]{32}$");
+        work.Should()
+            .AllSatisfy(x =>
+            {
+                x.Should().NotBeNull();
+                x.CorrelationId.Should().Be(stored.CorrelationId);
+                x.Payload.CorrelationId.Should().Be(stored.CorrelationId);
+            });
+        var reloaded = await new ObligationCalculationWorkSource(GetMongoApplicationDatabase()).GetNext(
+            [],
+            TestContext.Current.CancellationToken
+        );
+        reloaded.Should().NotBeNull();
+        reloaded.CorrelationId.Should().Be(stored.CorrelationId);
+    }
+
+    [Theory]
     [InlineData("originating-request", false)]
     [InlineData(null, false)]
     [InlineData(null, true)]
@@ -122,11 +166,13 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
         var events = await AuditEvents
             .Find(x => x.Entity == "obligation_calculation")
             .ToListAsync(TestContext.Current.CancellationToken);
-        var expectedTraceId = string.IsNullOrWhiteSpace(instruction.CorrelationId)
-            ? instruction.Id.ToString()
-            : instruction.CorrelationId;
+        var storedInstruction = await Read(instruction);
+        var expectedTraceId = storedInstruction.CorrelationId;
+        if (legacy)
+            expectedTraceId.Should().MatchRegex("^[0-9a-f]{32}$");
+        else
+            expectedTraceId.Should().Be(instruction.CorrelationId);
         events.Should().HaveCount(2).And.AllSatisfy(x => x.TraceId.Should().Be(expectedTraceId));
-        (await Read(instruction)).CorrelationId.Should().Be(instruction.CorrelationId);
     }
 
     [Fact]
@@ -355,7 +401,11 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
             );
         attempts.Should().Be(2);
         await packaging.Received(2).Read(instruction.ObligationYear - 1, Arg.Any<CancellationToken>());
-        var expectedTraceId = string.IsNullOrWhiteSpace(traceId) ? instruction.Id.ToString() : traceId;
+        var expectedTraceId = (await Read(instruction)).CorrelationId;
+        if (string.IsNullOrWhiteSpace(traceId))
+            expectedTraceId.Should().MatchRegex("^[0-9a-f]{32}$");
+        else
+            expectedTraceId.Should().Be(traceId);
         observedTraceIds.Should().HaveCount(2).And.OnlyContain(x => x == expectedTraceId);
         workerLogger
             .Received()
