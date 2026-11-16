@@ -16,10 +16,7 @@ public static class AnalyticsEventVocabulary
         ComplianceDeclarationEventContract.RemovedEventType,
     ];
 
-    private static readonly IReadOnlyDictionary<string, AnalyticsEntityRegistration> s_entities = new Dictionary<
-        string,
-        AnalyticsEntityRegistration
-    >
+    private static readonly Dictionary<string, AnalyticsEntityRegistration> s_entities = new()
     {
         [ComplianceDeclarationEventContract.Entity] = new(
             ComplianceDeclarationEventContract.IdentityPrefix,

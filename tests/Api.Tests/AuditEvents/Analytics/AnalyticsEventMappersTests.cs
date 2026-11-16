@@ -273,10 +273,7 @@ public class AnalyticsEventMappersTests
 
         result.EntityId.Should().Be(analyticsEntityId);
         result.SchemaVersion.Should().Be($"{entity}_v9.1");
-        var auditJson = JsonSerializer.SerializeToElement(
-            auditEvent,
-            new JsonSerializerOptions(JsonSerializerDefaults.Web)
-        );
+        var auditJson = JsonSerializer.SerializeToElement(auditEvent, JsonSerializerOptions.Web);
         auditJson.TryGetProperty("analyticsEntityId", out _).Should().BeFalse();
         auditJson.GetProperty("entityId").GetString().Should().Be(auditEvent.EntityId);
     }
