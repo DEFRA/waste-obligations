@@ -74,7 +74,7 @@ public class ObligationCalculationService(IDbContext dbContext) : IObligationCal
                     }
                     else
                     {
-                        await ReplaceCurrent(session, token, currentCollection, previous, replacement);
+                        await ReplaceCurrent(session, currentCollection, previous, replacement, token);
                     }
 
                     return replacement;
@@ -98,10 +98,10 @@ public class ObligationCalculationService(IDbContext dbContext) : IObligationCal
 
     private async Task ReplaceCurrent(
         IClientSessionHandle session,
-        CancellationToken token,
         IMongoCollection<BsonDocument> currentCollection,
         BsonDocument previous,
-        ObligationCalculation replacement
+        ObligationCalculation replacement,
+        CancellationToken token
     )
     {
         var expected = new BsonDocument { { "_id", previous["_id"] }, { VersionField, previous[VersionField] } };
