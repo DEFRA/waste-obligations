@@ -74,37 +74,7 @@ public class ObligationCalculationService(IDbContext dbContext) : IObligationCal
                     }
                     else
                     {
-                        var expected = new BsonDocument
-                        {
-                            { "_id", previous["_id"] },
-                            { VersionField, previous[VersionField] },
-                        };
-                        var stillCurrent = await currentCollection.Find(session, expected).AnyAsync(token);
-                        if (!stillCurrent)
-                            throw new ConcurrencyException(
-                                "The obligation calculation has changed. Reload and try again."
-                            );
-
-                        var history = dbContext.ObligationCalculationHistory;
-                        var rawHistory = history.Database.GetCollection<BsonDocument>(
-                            history.CollectionNamespace.CollectionName,
-                            history.Settings
-                        );
-                        await rawHistory.InsertOneAsync(
-                            session,
-                            new BsonDocument { { "_id", ObjectId.GenerateNewId() }, { "calculation", previous } },
-                            cancellationToken: token
-                        );
-                        var result = await currentCollection.ReplaceOneAsync(
-                            session,
-                            expected,
-                            replacement.ToBsonDocument(),
-                            cancellationToken: token
-                        );
-                        if (result.MatchedCount != 1)
-                            throw new ConcurrencyException(
-                                "The obligation calculation has changed. Reload and try again."
-                            );
+                        await ReplaceCurrent(session, token, currentCollection, previous, replacement);
                     }
 
                     return replacement;
@@ -124,6 +94,39 @@ public class ObligationCalculationService(IDbContext dbContext) : IObligationCal
                 exception
             );
         }
+    }
+
+    private async Task ReplaceCurrent(
+        IClientSessionHandle session,
+        CancellationToken token,
+        IMongoCollection<BsonDocument> currentCollection,
+        BsonDocument previous,
+        ObligationCalculation replacement
+    )
+    {
+        var expected = new BsonDocument { { "_id", previous["_id"] }, { VersionField, previous[VersionField] } };
+        var stillCurrent = await currentCollection.Find(session, expected).AnyAsync(token);
+        if (!stillCurrent)
+            throw new ConcurrencyException("The obligation calculation has changed. Reload and try again.");
+
+        var history = dbContext.ObligationCalculationHistory;
+        var rawHistory = history.Database.GetCollection<BsonDocument>(
+            history.CollectionNamespace.CollectionName,
+            history.Settings
+        );
+        await rawHistory.InsertOneAsync(
+            session,
+            new BsonDocument { { "_id", ObjectId.GenerateNewId() }, { "calculation", previous } },
+            cancellationToken: token
+        );
+        var result = await currentCollection.ReplaceOneAsync(
+            session,
+            expected,
+            replacement.ToBsonDocument(),
+            cancellationToken: token
+        );
+        if (result.MatchedCount != 1)
+            throw new ConcurrencyException("The obligation calculation has changed. Reload and try again.");
     }
 
     private static ObligationCalculation? DeserializeCurrent(BsonDocument? previous) =>
