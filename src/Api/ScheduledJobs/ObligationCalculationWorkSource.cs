@@ -28,14 +28,7 @@ public class ObligationCalculationWorkSource(IMongoDatabase database)
             .ThenBy(x => x.Id)
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (instruction is null)
-            return null;
-
-        var id = instruction.Id.ToString();
-        // Instructions persisted before correlation IDs were recorded still need a stable run identifier.
-        var correlationId = string.IsNullOrWhiteSpace(instruction.CorrelationId) ? id : instruction.CorrelationId;
-
-        return new(id, instruction, correlationId);
+        return instruction is null ? null : new(instruction.Id.ToString(), instruction, instruction.CorrelationId);
     }
 
     public async Task<bool> TryStart(
