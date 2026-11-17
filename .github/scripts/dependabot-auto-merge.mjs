@@ -372,9 +372,11 @@ async function hasStrictMergeRules(github, repository, core) {
     ...repository, branch: mainBranch
   });
   const protectedChecks = rules.filter(x => x.type === 'required_status_checks');
-  if (!protectedChecks.some(x => x.parameters.strict_required_status_checks_policy === true
-    && requiredJobs.every(name => x.parameters.required_status_checks.some(y => y.context === name && y.integration_id === githubActionsIntegrationId)))) {
-    skip(core, 'Enable strict up-to-date checks for every required GitHub Actions job on main first.');
+  const strict = protectedChecks.some(x => x.parameters.strict_required_status_checks_policy === true);
+  const allRequired = requiredJobs.every(name => protectedChecks.some(x =>
+    x.parameters.required_status_checks.some(y => y.context === name && y.integration_id === githubActionsIntegrationId)));
+  if (!strict || !allRequired) {
+    skip(core, 'Require strict up-to-date checks and all required GitHub Actions jobs on main first.');
 
     return false;
   }

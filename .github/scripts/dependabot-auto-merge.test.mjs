@@ -307,6 +307,35 @@ for (const [name, change] of [
   });
 }
 
+test('a passing update can merge when strictness and required checks are in separate rules', async () => {
+  const h = harness();
+  const checks = h.state.rules[0].parameters.required_status_checks;
+  h.state.rules = [
+    { type: 'required_status_checks', parameters: { strict_required_status_checks_policy: true, required_status_checks: [] } },
+    { type: 'required_status_checks', parameters: { strict_required_status_checks_policy: false, required_status_checks: checks } }
+  ];
+  await merge(h);
+  assert.equal(h.output.merge_commit_sha, mergeSha);
+});
+
+for (const [name, change] of [
+  ['strict rule is missing', rules => { rules[0].parameters.strict_required_status_checks_policy = false; }],
+  ['a required check is missing', rules => { rules[1].parameters.required_status_checks.pop(); }],
+  ['a required check is from another app', rules => { rules[1].parameters.required_status_checks[0].integration_id = 42; }]
+]) {
+  test(`split rules do not permit a merge when ${name}`, async () => {
+    const h = harness();
+    const checks = h.state.rules[0].parameters.required_status_checks;
+    h.state.rules = [
+      { type: 'required_status_checks', parameters: { strict_required_status_checks_policy: true, required_status_checks: [] } },
+      { type: 'required_status_checks', parameters: { strict_required_status_checks_policy: false, required_status_checks: checks } }
+    ];
+    change(h.state.rules);
+    await merge(h);
+    assertUntouched(h);
+  });
+}
+
 test('a previous current-head bot approval is not repeated on retry', async () => {
   const h = harness();
   h.state.reviews.push({ user: { login: 'github-actions[bot]' }, commit_id: headSha, state: 'APPROVED' });
