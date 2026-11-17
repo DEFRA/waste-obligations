@@ -359,7 +359,7 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
         await subject.StopAsync(TestContext.Current.CancellationToken);
 
         sender.SentEvents.Should().BeEmpty();
-        logger.Messages.Should().ContainSingle("Analytics audit event processing is off");
+        logger.Messages.Should().ContainSingle("Audit event processing is off for analytics");
         auditEventMetrics.DidNotReceive().DispatchPollStarted(Arg.Any<string>());
     }
 
@@ -465,6 +465,7 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
                 new AnalyticsAuditEventProcessorOptions
                 {
                     ProcessName = Analytics,
+                    IncludedEntities = ["compliance_declaration", "obligation_calculation"],
                     TopicArn = "arn:aws:sns:eu-west-2:000000000000:waste_obligations_analytics_events",
                     ProcessingEnabled = processingEnabled,
                     BatchSize = 25,

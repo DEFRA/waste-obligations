@@ -1,21 +1,21 @@
 # Analytics events
 
-The service publishes entity changes to the analytics SNS topic configured by `AnalyticsAuditEventProcessor:TopicArn`. Every entity type uses the same envelope, transport, vocabulary validation and delivery guarantees described here. Entity-specific identities, event types, actors, correlation and payload schemas are described in each entity's page:
+The service routes opted-in entity changes to the configured SNS topic or direct SQS queue. Both destinations use the same envelope, vocabulary validation and delivery guarantees described here. Entity-specific identities, event types, actors, correlation and payload schemas are described in each entity's page:
 
 - [Compliance declaration events](analytics-compliance-declaration-events.md)
 - [Obligation calculation events](analytics-obligation-calculation-events.md)
 
 ## Capture and delivery
 
-An entity change and its analytics outbox event are written in the same Mongo transaction, so a failed write leaves no event. The [analytics processor](../src/AuditEvents/Analytics/AnalyticsAuditEventProcessor.cs) reads undispatched events, serialises them, publishes them to SNS and records the dispatch outcome only after SNS accepts the message, applying its retry, lease and dead-letter behaviour. The [end-to-end event flow](compliance-declaration-end-to-end-event-flow.md) shows this path for compliance declarations.
+An entity change and its analytics outbox event are written in the same Mongo transaction, so a failed write leaves no event. The [analytics processor](../src/AuditEvents/Analytics/AnalyticsAuditEventProcessor.cs) reads eligible undispatched events, serialises them, publishes them to its configured destination and records the dispatch outcome only after the destination accepts the message, applying its retry, lease and dead-letter behaviour. The [end-to-end event flow](compliance-declaration-end-to-end-event-flow.md) shows this path for compliance declarations.
 
 Delivery is at least once: publication can succeed before the dispatch outcome is recorded, so a message can be repeated with the same `eventId`. Consumers must make ingestion idempotent using `eventId`.
 
 ## Message transport
 
-Messages are published with the SNS message attribute `Content-Type` set to `application/json`.
+Messages are published with the message attribute `Content-Type` set to `application/json`.
 
-If the JSON body is too large for the SNS message size budget, the body is gzip-compressed and base64-encoded. Compressed messages include the SNS message attribute `Content-Encoding` set to `gzip+base64`.
+If the JSON body is too large for the message size budget, the body is gzip-compressed and base64-encoded. Compressed messages include the message attribute `Content-Encoding` set to `gzip+base64`.
 
 ## Analytics event envelope
 
@@ -74,3 +74,15 @@ All analytics events use this generic envelope:
 The publisher validates each event against the [analytics vocabulary](../src/AuditEvents/Analytics/AnalyticsEventVocabulary.cs) before serialising it. Each entity registers its entity ID prefix, permitted operations, event types and raw schema versions; an event whose entity, operation, event type, actor prefix, deletion reason or schema version is not registered cannot be published.
 
 Actor prefixes are `service`, `user`, `system`, and `integration`. The only current deletion reason is `elevated_system_allowed_removal`. This replaces the legacy free-text value `elevated system allowed removal`, which remains normalised for undispatched historical outbox events. The governed list maintained with the shared event schema must include every registered value before it is published.
+
+## Dispatch routing
+
+Each dispatcher opts in to the entity values in its `IncludedEntities` configuration. The analytics topic dispatcher includes `compliance_declaration`; the calculation queue dispatcher includes `obligation_calculation`. An enabled dispatcher requires a non-empty list of registered entities; an empty or unknown list prevents startup. Filtering happens before the batch limit, and excluded events are not marked as dispatched.
+
+The calculation dispatcher publishes directly to the configured SQS queue using the same JSON envelope and content attributes as the topic publisher. Its logging consumer is independently enabled. Configure both queue URLs, the dispatcher and consumer flags, and the required SQS permissions in each deployment. The dispatcher uses its own stable process name, lease and dispatch state; names must differ between destinations. Changing a process name causes retained events to be eligible again. Adding an entity to a dispatcher can send its retained backlog: decide the replay policy before changing the list. Delivery is at least once, so consumers must deduplicate by `eventId`.
+
+During deployment, old instances can still publish calculations to the analytics topic until they have stopped. Coordinate the rollout before allowing calculation audit events if this restriction must apply from the first event.
+
+Dispatch indexes include the configured process names `analytics` and `calculation-queue`. Changing a process name requires an index migration as well as a replay decision.
+
+To enable the direct queue dispatcher, provision the queue and grant the service `sqs:SendMessage`, then set `CalculationAuditEventProcessor__QueueUrl` and `CalculationAuditEventProcessor__ProcessingEnabled=true`. The optional logging consumer needs `CalculationAuditEventConsumer__QueueUrl`, `CalculationAuditEventConsumer__ProcessingEnabled=true`, and receive/delete permissions. Both components default to disabled; enabling the dispatcher later publishes eligible retained calculation events. Deployment configuration and queue provisioning are managed outside this repository.

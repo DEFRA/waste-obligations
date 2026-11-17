@@ -30,6 +30,16 @@ public interface IAuditEventMetrics
 
     void DispatchMarkFailed(string processName, AuditEvent auditEvent, string outcome);
 
+    void SqsPublishStarted(string processName, string queueUrl, AnalyticsEvent analyticsEvent);
+    void SqsPublishCompleted(
+        string processName,
+        string queueUrl,
+        AnalyticsEvent analyticsEvent,
+        double publishMilliseconds,
+        double millisecondsSinceRecordedAt
+    );
+    void SqsPublishFaulted(string processName, string queueUrl, AnalyticsEvent analyticsEvent, Exception exception);
+
     void SnsPublishStarted(string processName, string topicArn, AnalyticsEvent analyticsEvent);
 
     void SnsPublishCompleted(
