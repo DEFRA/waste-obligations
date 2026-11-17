@@ -40,14 +40,15 @@ API documentation can be viewed at http://localhost:8080/documentation/index.htm
 
 Additional project documentation:
 
+- [Analytics events](docs/analytics-events.md)
 - [Analytics compliance declaration events](docs/analytics-compliance-declaration-events.md)
 - [Analytics obligation calculation events](docs/analytics-obligation-calculation-events.md)
 
 ## Concepts
 
-### Compliance declaration analytics events
+### Analytics events
 
-The [analytics event guide](docs/analytics-compliance-declaration-events.md) describes the published contract and schema history. The [obligation calculation analytics guide](docs/analytics-obligation-calculation-events.md) describes calculation create and update events. The [event flow](docs/compliance-declaration-end-to-end-event-flow.md) explains how transactional capture relates to asynchronous publication.
+The [analytics event guide](docs/analytics-events.md) describes the shared envelope and delivery guarantees. The [compliance declaration guide](docs/analytics-compliance-declaration-events.md) describes the declaration contract and schema history, and the [obligation calculation guide](docs/analytics-obligation-calculation-events.md) describes calculation create and update events. The [event flow](docs/compliance-declaration-end-to-end-event-flow.md) explains how transactional capture relates to asynchronous publication.
 
 ### Stopping and clearing local resources
 
