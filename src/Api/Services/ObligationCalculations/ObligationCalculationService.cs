@@ -115,10 +115,10 @@ public class ObligationCalculationService(IDbContext dbContext, IAuditEventServi
         auditEventService.RecordEvent(
             session,
             new AuditEventRequest(
-                AuditActors.System,
+                AuditActors.Service,
                 AnalyticsEntity,
                 previous is null ? AuditEventOperation.Insert : AuditEventOperation.Update,
-                previous is null ? "obligation_calculation.created" : "obligation_calculation.updated",
+                previous is null ? "calculation.created" : "calculation.updated",
                 null,
                 replacement.Id.ToString(),
                 replacement.Version,

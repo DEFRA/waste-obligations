@@ -139,7 +139,7 @@ public class ScheduledJobTests : IntegrationTestBase
                 .Find(x => x.Entity == "obligation_calculation")
                 .SingleAsync(TestContext.Current.CancellationToken);
             calculationEvent.EntityId.Should().Be(calculation.Id.ToString());
-            calculationEvent.EventType.Should().Be("obligation_calculation.created");
+            calculationEvent.EventType.Should().Be("calculation.created");
             calculationEvent.TraceId.Should().Be(instruction.CorrelationId);
             var producer = calculation.Producers.Should().ContainSingle().Which;
             producer.ProducerOrganisationId.Should().Be(producerId);
