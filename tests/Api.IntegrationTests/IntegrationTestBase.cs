@@ -10,6 +10,7 @@ using Defra.WasteObligations.Api.Authentication;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.IntegrationTests.Infrastructure;
+using Defra.WasteObligations.AuditEvents;
 using Defra.WasteObligations.AuditEvents.Data;
 using Defra.WasteObligations.AuditEvents.Entities;
 using Defra.WasteObligations.Testing;
@@ -48,6 +49,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     public required IMongoCollection<ObligationCalculationInstruction> ObligationCalculationInstructions { get; set; }
     public required IMongoCollection<ObligationCalculation> ScheduledJobObligationCalculations { get; set; }
     public required IMongoCollection<ObligationCalculationInstruction> ScheduledJobObligationCalculationInstructions { get; set; }
+    public required IMongoCollection<AuditEvent> ScheduledJobAuditEvents { get; set; }
     public required IMongoCollection<OrganisationObligationSummary> OrganisationObligationSummaries { get; set; }
     public required IMongoCollection<OrganisationObligationHistoricalBackfill> OrganisationObligationHistoricalBackfills { get; set; }
     public required IMongoCollection<OrganisationObligationRequestPacingState> OrganisationObligationRequestPacingStates { get; set; }
@@ -94,6 +96,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
             scheduledJobDatabase.GetCollection<ObligationCalculationInstruction>(
                 ObligationCalculationInstruction.CollectionName
             );
+        ScheduledJobAuditEvents = scheduledJobDatabase.GetCollection<AuditEvent>(nameof(AuditEvent));
         OrganisationObligationSummaries = GetMongoCollection<OrganisationObligationSummary>();
         OrganisationObligationHistoricalBackfills = GetMongoCollection<OrganisationObligationHistoricalBackfill>(
             OrganisationObligationHistoricalBackfill.CollectionName
@@ -114,6 +117,10 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         await DeleteMany(ObligationCalculationInstructions);
         await DeleteMany(ScheduledJobObligationCalculationInstructions);
         await DeleteMany(ScheduledJobObligationCalculations);
+        await DeleteMany(ScheduledJobAuditEvents);
+        await DeleteMany(
+            scheduledJobDatabase.GetCollection<AuditEventCounter>(AuditEventDbContext.AuditEventCounterCollectionName)
+        );
         await DeleteMany(
             scheduledJobDatabase.GetCollection<ObligationCalculationHistory>(nameof(ObligationCalculationHistory))
         );
@@ -322,6 +329,9 @@ public abstract class IntegrationTestBase : IAsyncLifetime
 
     protected static IMongoDatabase GetMongoApplicationDatabase() =>
         GetMongoDatabase(MongoQueryProfiler.IntegrationTestApplicationName);
+
+    protected static AuditEventService CreateAuditEventService() =>
+        new(new AuditEventDbContext(GetMongoApplicationDatabase()), TimeProvider.System, new UlidEventIdGenerator());
 
     private static IMongoDatabase GetMongoDatabase(string applicationName)
     {
