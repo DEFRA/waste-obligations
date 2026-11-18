@@ -178,4 +178,86 @@ public class AnalyticsEventMappersTests
             .Throw<InvalidOperationException>()
             .WithMessage("Unregistered analytics schema version 'compliance_declaration_v2.0'.");
     }
+
+    [Theory]
+    [InlineData("insert", "obligation_calculation.created", "create")]
+    [InlineData("update", "obligation_calculation.updated", "update")]
+    public void ToAnalyticsEvent_WhenObligationCalculation_ShouldMapToTheCalculationContract(
+        string outboxOperation,
+        string eventType,
+        string operation
+    )
+    {
+        const string entityId = "6830b14f9d2a7c61f4e8b935";
+        var auditEvent = AuditEventFixture
+            .ObligationCalculation()
+            .With(x => x.EntityId, entityId)
+            .With(x => x.Operation, outboxOperation)
+            .With(x => x.EventType, eventType)
+            .With(x => x.TraceId, "run-correlation-id")
+            .Create();
+
+        var result = auditEvent.ToAnalyticsEvent();
+
+        result.Entity.Should().Be("obligation_calculation");
+        result.EntityId.Should().Be($"oblcalc_{entityId}");
+        result.Operation.Should().Be(operation);
+        result.EventType.Should().Be(eventType);
+        result.Actor.Should().Be("system:waste-obligations");
+        result.CorrelationId.Should().Be("run-correlation-id");
+        result.DeletedReason.Should().BeNull();
+        result.PiiKeyRef.Should().BeNull();
+        result.SchemaVersion.Should().Be("obligation_calculation_v1.0");
+    }
+
+    [Fact]
+    public void ToAnalyticsEvent_WhenObligationCalculationIsDeleted_ShouldThrow()
+    {
+        var auditEvent = AuditEventFixture
+            .ObligationCalculation()
+            .With(x => x.Operation, "delete")
+            .With(x => x.DeletedReason, AnalyticsEventVocabulary.ElevatedSystemAllowedRemoval)
+            .Create();
+
+        var act = () => auditEvent.ToAnalyticsEvent();
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("Unregistered analytics operation 'delete'.");
+    }
+
+    [Theory]
+    [InlineData("obligation_calculation", "submission.created")]
+    [InlineData("compliance_declaration", "obligation_calculation.created")]
+    public void ToAnalyticsEvent_WhenEventTypeBelongsToAnotherEntity_ShouldThrow(string entity, string eventType)
+    {
+        var auditEvent = (
+            entity == "obligation_calculation"
+                ? AuditEventFixture.ObligationCalculation()
+                : AuditEventFixture.ComplianceDeclaration().With(x => x.Actor, "service:waste-obligations")
+        )
+            .With(x => x.EventType, eventType)
+            .Create();
+
+        var act = () => auditEvent.ToAnalyticsEvent();
+
+        act.Should()
+            .Throw<InvalidOperationException>()
+            .WithMessage($"Unregistered analytics event type '{eventType}'.");
+    }
+
+    [Fact]
+    public void ToAnalyticsEvent_WhenObligationCalculationSchemaVersionIsUnregistered_ShouldThrow()
+    {
+        var auditEvent = AuditEventFixture
+            .ObligationCalculation()
+            .With(x => x.SchemaVersion, ComplianceDeclaration.SchemaVersionValue)
+            .Create();
+
+        var act = () => auditEvent.ToAnalyticsEvent();
+
+        act.Should()
+            .Throw<InvalidOperationException>()
+            .WithMessage(
+                $"Unregistered analytics schema version 'obligation_calculation_{ComplianceDeclaration.SchemaVersionValue}'."
+            );
+    }
 }
