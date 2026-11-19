@@ -1,74 +1,16 @@
 # Analytics compliance declaration events
 
-The analytics topic receives generic analytics event envelopes. Each envelope identifies the entity, operation, event type, entity version, and the versioned payload schema. Compliance declarations are the first entity type published by this service; future entity types should use the same envelope.
-
-Compliance declaration create, update, and delete operations are captured internally in the same transaction as the declaration change. The analytics processor reads undispatched changes, serialises them as analytics events, and publishes them to the analytics SNS topic configured by `AnalyticsAuditEventProcessor:TopicArn`.
+Compliance declaration create, update, and delete operations are published as [analytics events](analytics-events.md). That page describes the shared envelope, transport, operation values, vocabulary validation and delivery guarantees; this page describes the compliance declaration specifics.
 
 The nested compliance declaration payload is serialised using the embedded [compliance declaration schema](../src/Api/Schemas/ComplianceDeclaration/compliance-declaration.v1.3.schema.json). Its version history is recorded in the [compliance declaration schema changelog](../src/Api/Schemas/ComplianceDeclaration/CHANGELOG.md). For compliance declarations, the analytics message `schemaVersion` is currently `compliance_declaration_v1.3`.
 
-## Message transport
+## Actor and correlation
 
-Messages are published with the SNS message attribute `Content-Type` set to `application/json`.
+Request-driven create and update events use the responsible audit user as `user:<UUID>`; system-driven corrections and deletes use `service:waste-obligations`. `correlationId` is the incoming `x-cdp-request-id` when present and is omitted when no request ID is available.
 
-If the JSON body is too large for the SNS message size budget, the body is gzip-compressed and base64-encoded. Compressed messages include the SNS message attribute `Content-Encoding` set to `gzip+base64`.
+## Deletion reason
 
-## Analytics event envelope
-
-All analytics events use this generic envelope:
-
-```json
-{
-  "eventId": "01JZ8RXBMTY2K15SJB3PCFN3D5",
-  "sequence": 123,
-  "entity": "entity_name",
-  "entityId": "entity_name_entity-id",
-  "operation": "create",
-  "eventType": "domain.event",
-  "deletedReason": null,
-  "piiKeyRef": null,
-  "occurredAt": "2026-01-02T03:04:05.000Z",
-  "recordedAt": "2026-01-02T03:04:06.000Z",
-  "actor": "user:e72be574-8b5b-4836-af47-dd7e0c0d1d87",
-  "correlationId": "cdp-request-id",
-  "version": 1,
-  "before": null,
-  "after": {},
-  "schemaVersion": "entity_name_v1.0"
-}
-```
-
-| Field | Description |
-| --- | --- |
-| `eventId` | ULID generated for the analytics event. |
-| `sequence` | Global analytics event sequence allocated when the event is written. |
-| `entity` | Logical entity type for the payload. |
-| `entityId` | Unique identifier for the entity instance as emitted by the entity mapper. |
-| `operation` | Event operation. See the operation values below. |
-| `eventType` | Business event name. |
-| `deletedReason` | Reason the entity was deleted. This is only set when `operation` is `delete`; otherwise it is `null`. |
-| `piiKeyRef` | Always `null`; PII classification and protection are outside the scope of this change. |
-| `occurredAt` | Time the entity change occurred, as a UTC ISO 8601 timestamp with millisecond precision. |
-| `recordedAt` | Time the analytics event was recorded, as a UTC ISO 8601 timestamp with millisecond precision. |
-| `actor` | `user:<UUID>` for user submissions and status amendments; `service:waste-obligations` for system-driven deletions. |
-| `correlationId` | The incoming `x-cdp-request-id` when present; omitted when no request ID is available. |
-| `version` | Entity version after the operation. |
-| `before` | Previous entity state. This is `null` for creates. |
-| `after` | New entity state. This is `null` for deletes. |
-| `schemaVersion` | Entity-qualified schema version for the `before` and `after` payloads. |
-
-## Operation values
-
-| Operation | Meaning | `before` | `after` | `deletedReason` |
-| --- | --- | --- | --- | --- |
-| `create` | Entity was created. | `null` | Created entity state. | `null` |
-| `update` | Entity was changed. | Previous entity state. | Updated entity state. | `null` |
-| `delete` | Entity was deleted. | Previous entity state. | `null` | Delete reason. |
-
-## Controlled vocabulary
-
-The publisher validates the current compliance declaration entity, envelope operation, event type, actor prefix, deletion reason, and schema version before serialising a message. The supported operations are `create`, `update`, and `delete`; actor prefixes are `service`, `user`, `system`, and `integration`; and the supported declaration event types are `submission.created`, `submission.amended`, and `submission.removed`. Request-driven create and update events use the responsible audit user as `user:<UUID>`; system-driven corrections and deletes use `service:waste-obligations`.
-
-The only current deletion reason is `elevated_system_allowed_removal`. This replaces the legacy free-text value `elevated system allowed removal`, which remains normalised for undispatched historical outbox events. The governed list maintained with the shared event schema must include `elevated_system_allowed_removal` before additional deletion paths are introduced.
+Delete events use the deletion reason `elevated_system_allowed_removal`. The governed list maintained with the shared event schema must include it before additional deletion paths are introduced.
 
 ## Compliance declaration events
 
