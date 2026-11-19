@@ -64,7 +64,6 @@ public class ObligationCalculationService(IDbContext dbContext, IAuditEventServi
             CalculatedOn = calculation.CalculatedOn,
             Producers = calculation.Producers,
         };
-        // Capture the run correlation once so every transaction attempt records the same value.
         var correlationId = CorrelationContext.Current;
         try
         {
@@ -125,19 +124,11 @@ public class ObligationCalculationService(IDbContext dbContext, IAuditEventServi
                 previous,
                 replacement.ToBsonDocument(),
                 replacement.SchemaVersion,
-                TruncateToMilliseconds(replacement.CalculatedOn),
+                replacement.CalculatedOn,
                 correlationId
             ),
             token
         );
-
-    // Mongo stores the calculation time to millisecond precision; publish the same instant.
-    private static DateTime TruncateToMilliseconds(DateTime value)
-    {
-        var utc = value.Kind == DateTimeKind.Local ? value.ToUniversalTime() : value;
-
-        return new DateTime(utc.Ticks - utc.Ticks % TimeSpan.TicksPerMillisecond, DateTimeKind.Utc);
-    }
 
     private async Task ReplaceCurrent(
         IClientSessionHandle session,
