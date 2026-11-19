@@ -25,19 +25,28 @@ public static class ServiceCollectionExtensions
             services.AddHostedService<AnalyticsAuditEventConsumer>();
         }
 
+        services.AddAuditEventQueueConsumer(
+            configuration,
+            AnalyticsAuditEventConsumerOptions.CalculationSectionName,
+            addHostedConsumers
+        );
+
         return services;
     }
 
+    /// <summary>
+    /// Registers a logging consumer for a directly dispatched queue. The configuration section name also
+    /// names the consumer's options.
+    /// </summary>
     public static IServiceCollection AddAuditEventQueueConsumer(
         this IServiceCollection services,
         IConfiguration configuration,
-        string name,
         string sectionName,
         bool addHostedConsumer = true
     )
     {
         services
-            .AddOptions<AnalyticsAuditEventConsumerOptions>(name)
+            .AddOptions<AnalyticsAuditEventConsumerOptions>(sectionName)
             .Bind(configuration.GetSection(sectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
@@ -47,7 +56,9 @@ public static class ServiceCollectionExtensions
         {
             services.AddSingleton<IHostedService>(sp => new AnalyticsAuditEventConsumer(
                 sp.GetRequiredService<IAmazonSQS>(),
-                Options.Create(sp.GetRequiredService<IOptionsMonitor<AnalyticsAuditEventConsumerOptions>>().Get(name)),
+                Options.Create(
+                    sp.GetRequiredService<IOptionsMonitor<AnalyticsAuditEventConsumerOptions>>().Get(sectionName)
+                ),
                 sp.GetRequiredService<ILogger<AnalyticsAuditEventConsumer>>()
             ));
         }

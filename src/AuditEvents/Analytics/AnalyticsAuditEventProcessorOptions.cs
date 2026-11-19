@@ -5,6 +5,7 @@ namespace Defra.WasteObligations.AuditEvents.Analytics;
 public record AnalyticsAuditEventProcessorOptions
 {
     public const string SectionName = "AnalyticsAuditEventProcessor";
+    public const string CalculationSectionName = "CalculationAuditEventProcessor";
 
     [Required]
     public required string ProcessName { get; init; }

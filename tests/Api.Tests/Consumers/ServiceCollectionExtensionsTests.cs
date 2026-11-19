@@ -14,7 +14,6 @@ public class ServiceCollectionExtensionsTests
         var services = new ServiceCollection();
 
         services.AddConsumers(CreateConfiguration(), addHostedConsumers: true);
-        services.AddAuditEventQueueConsumer(CreateConfiguration(), "queue", "QueueConsumer", true);
 
         services.Count(x => x.ServiceType == typeof(IHostedService)).Should().Be(2);
 
@@ -32,11 +31,7 @@ public class ServiceCollectionExtensionsTests
 
         services.AddConsumers(CreateConfiguration(), addHostedConsumers: false);
 
-        services
-            .Should()
-            .NotContain(x =>
-                x.ServiceType == typeof(IHostedService) && x.ImplementationType == typeof(AnalyticsAuditEventConsumer)
-            );
+        services.Should().NotContain(x => x.ServiceType == typeof(IHostedService));
     }
 
     private static IConfiguration CreateConfiguration()

@@ -59,19 +59,28 @@ public static class ServiceCollectionExtensions
             services.AddHostedService<AnalyticsAuditEventProcessor>();
         }
 
+        services.AddAuditEventQueueDispatcher(
+            configuration,
+            AnalyticsAuditEventProcessorOptions.CalculationSectionName,
+            addAnalyticsProcessor
+        );
+
         return services;
     }
 
+    /// <summary>
+    /// Registers a dispatcher that sends its included entities directly to an SQS queue. The configuration
+    /// section name also names the dispatcher's options.
+    /// </summary>
     public static IServiceCollection AddAuditEventQueueDispatcher(
         this IServiceCollection services,
         IConfiguration configuration,
-        string name,
         string sectionName,
         bool addHostedDispatcher = true
     )
     {
         services
-            .AddOptions<AnalyticsAuditEventProcessorOptions>(name)
+            .AddOptions<AnalyticsAuditEventProcessorOptions>(sectionName)
             .Bind(configuration.GetSection(sectionName))
             .ValidateDataAnnotations()
             .Validate(
@@ -99,14 +108,17 @@ public static class ServiceCollectionExtensions
         {
             services.AddSingleton<IHostedService>(sp => new AnalyticsAuditEventProcessor(
                 sp.GetRequiredService<IServiceScopeFactory>(),
-                Options.Create(sp.GetRequiredService<IOptionsMonitor<AnalyticsAuditEventProcessorOptions>>().Get(name)),
+                Options.Create(
+                    sp.GetRequiredService<IOptionsMonitor<AnalyticsAuditEventProcessorOptions>>().Get(sectionName)
+                ),
                 sp.GetRequiredService<IAuditEventMetrics>(),
                 sp.GetRequiredService<ILogger<AnalyticsAuditEventProcessor>>(),
                 scoped =>
                     ActivatorUtilities.CreateInstance<SqsAnalyticsEventSender>(
                         scoped,
                         Options.Create(
-                            sp.GetRequiredService<IOptionsMonitor<AnalyticsAuditEventProcessorOptions>>().Get(name)
+                            sp.GetRequiredService<IOptionsMonitor<AnalyticsAuditEventProcessorOptions>>()
+                                .Get(sectionName)
                         )
                     )
             ));

@@ -217,7 +217,7 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
                 .Find(x => x.Entity == "obligation_calculation" && x.EntityId == created.Id.ToString())
                 .ToListAsync(TestContext.Current.CancellationToken);
             events.Should().HaveCount(2);
-            events.Should().OnlyContain(x => x.Dispatches.ContainsKey("calculation-queue"));
+            events.Should().OnlyContain(x => x.Dispatches.ContainsKey("calculation"));
             events.Should().OnlyContain(x => !x.Dispatches.ContainsKey("analytics"));
         });
     }

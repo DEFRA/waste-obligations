@@ -16,7 +16,6 @@ public class ServiceCollectionExtensionsTests
         var services = new ServiceCollection();
 
         services.AddAuditEvents(CreateConfiguration(), addAnalyticsProcessor: true);
-        services.AddAuditEventQueueDispatcher(CreateConfiguration(), "queue", "QueueDispatcher", true);
 
         services.Count(x => x.ServiceType == typeof(IHostedService)).Should().Be(2);
 
@@ -34,11 +33,7 @@ public class ServiceCollectionExtensionsTests
 
         services.AddAuditEvents(CreateConfiguration(), addAnalyticsProcessor: false);
 
-        services
-            .Should()
-            .NotContain(x =>
-                x.ServiceType == typeof(IHostedService) && x.ImplementationType == typeof(AnalyticsAuditEventProcessor)
-            );
+        services.Should().NotContain(x => x.ServiceType == typeof(IHostedService));
     }
 
     [Fact]
@@ -80,7 +75,7 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Theory]
-    [InlineData("", "calculation-queue")]
+    [InlineData("", "calculation")]
     [InlineData("https://example.test/queue", "analytics")]
     public void AddAuditEventQueueDispatcher_WhenDestinationOrProcessIsInvalid_ShouldRejectConfiguration(
         string queueUrl,
@@ -98,14 +93,13 @@ public class ServiceCollectionExtensionsTests
         var services = new ServiceCollection();
         services.AddAuditEventQueueDispatcher(
             new ConfigurationBuilder().AddInMemoryCollection(values).Build(),
-            "queue",
             "QueueDispatcher",
             false
         );
         using var provider = services.BuildServiceProvider();
 
         var read = () =>
-            provider.GetRequiredService<IOptionsMonitor<AnalyticsAuditEventProcessorOptions>>().Get("queue");
+            provider.GetRequiredService<IOptionsMonitor<AnalyticsAuditEventProcessorOptions>>().Get("QueueDispatcher");
 
         read.Should().Throw<OptionsValidationException>();
     }

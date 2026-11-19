@@ -5,10 +5,12 @@ using MigrationVersion = AdaskoTheBeAsT.MongoDbMigrations.Abstractions.Version;
 
 namespace Defra.WasteObligations.Api.Data.Migrations;
 
+// Dispatch reads now filter by entity, so these indexes supersede the analytics dispatch indexes from 002.
+// Those are kept while hosts that read without the entity filter may still run; drop them in a later migration.
 [MigrationCollection(nameof(AuditEvent), MigrationDirection.Both)]
 public class AuditEventEntityDispatchIndex : MongoMigration
 {
-    private static readonly string[] ProcessNames = ["analytics", "calculation-queue"];
+    private static readonly string[] ProcessNames = ["analytics", "calculation"];
     public override MigrationVersion Version => new(1, 0, 22);
     public override string Name => "023 - Audit event entity dispatch indexes";
 

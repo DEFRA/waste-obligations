@@ -83,6 +83,6 @@ The calculation dispatcher publishes directly to the configured SQS queue using 
 
 During deployment, old instances can still publish calculations to the analytics topic until they have stopped. Coordinate the rollout before allowing calculation audit events if this restriction must apply from the first event.
 
-Dispatch indexes include the configured process names `analytics` and `calculation-queue`. Changing a process name requires an index migration as well as a replay decision.
+Dispatch indexes include the configured process names `analytics` and `calculation`. Changing a process name requires an index migration as well as a replay decision. The entity-aware `analytics` indexes supersede the original `analytics` dispatch indexes, which are retained until hosts that read without the entity filter have been drained.
 
 To enable the direct queue dispatcher, provision the queue and grant the service `sqs:SendMessage`, then set `CalculationAuditEventProcessor__QueueUrl` and `CalculationAuditEventProcessor__ProcessingEnabled=true`. The optional logging consumer needs `CalculationAuditEventConsumer__QueueUrl`, `CalculationAuditEventConsumer__ProcessingEnabled=true`, and receive/delete permissions. Both components default to disabled; enabling the dispatcher later publishes eligible retained calculation events. Deployment configuration and queue provisioning are managed outside this repository.
