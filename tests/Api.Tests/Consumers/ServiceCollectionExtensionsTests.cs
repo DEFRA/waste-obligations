@@ -39,6 +39,8 @@ public class ServiceCollectionExtensionsTests
     [InlineData("https://sqs.eu-west-2.amazonaws.com/123/calculation")]
     [InlineData("https://sqs.eu-west-2.amazonaws.com/123/calculation/")]
     [InlineData(null)]
+    [InlineData("set-automatically-when-deployed")]
+    [InlineData("ftp://example.test/calculation")]
     public void AddConsumers_WhenLoggingConsumerSharesDestinationOrDestinationIsUnknown_ShouldRejectConfiguration(
         string? destination
     )

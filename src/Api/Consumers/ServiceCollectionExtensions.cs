@@ -56,10 +56,15 @@ public static class ServiceCollectionExtensions
                 x =>
                     !x.ProcessingEnabled
                     || (
-                        !string.IsNullOrWhiteSpace(configuration[$"{dispatcherSectionName}:QueueUrl"])
+                        Uri.TryCreate(
+                            configuration[$"{dispatcherSectionName}:QueueUrl"],
+                            UriKind.Absolute,
+                            out var destination
+                        )
+                        && (destination.Scheme == Uri.UriSchemeHttp || destination.Scheme == Uri.UriSchemeHttps)
                         && !string.Equals(
                             x.QueueUrl?.TrimEnd('/'),
-                            configuration[$"{dispatcherSectionName}:QueueUrl"]!.TrimEnd('/'),
+                            destination.OriginalString.TrimEnd('/'),
                             StringComparison.Ordinal
                         )
                     ),
