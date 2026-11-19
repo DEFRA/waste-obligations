@@ -250,13 +250,15 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
             );
         attempts.Should().Be(2);
         await packaging.Received(2).Read(instruction.ObligationYear - 1, Arg.Any<CancellationToken>());
-        observedTraceIds.Should().HaveCount(2).And.OnlyContain(x => x == traceId);
-        if (traceId is not null)
-            workerLogger
-                .Received()
-                .BeginScope(Arg.Is<Dictionary<string, object?>>(x => (string?)x["TraceId"] == traceId));
+        var persistedCorrelationId = (await Read(instruction)).CorrelationId;
+        if (traceId is null)
+            persistedCorrelationId.Should().MatchRegex("^[0-9a-f]{32}$");
         else
-            workerLogger.DidNotReceive().BeginScope(Arg.Any<Dictionary<string, object?>>());
+            persistedCorrelationId.Should().Be(traceId);
+        observedTraceIds.Should().HaveCount(2).And.OnlyContain(x => x == persistedCorrelationId);
+        workerLogger
+            .Received()
+            .BeginScope(Arg.Is<Dictionary<string, object?>>(x => (string?)x["TraceId"] == persistedCorrelationId));
         (await Read(instruction)).FailureCount.Should().Be(1);
         (
             await ObligationCalculationInstructions.CountDocumentsAsync(

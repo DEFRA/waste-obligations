@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.Scheduling;
 using MongoDB.Bson;
@@ -28,7 +29,36 @@ public class ObligationCalculationWorkSource(IMongoDatabase database)
             .ThenBy(x => x.Id)
             .FirstOrDefaultAsync(cancellationToken);
 
-        return instruction is null ? null : new(instruction.Id.ToString(), instruction, instruction.CorrelationId);
+        if (instruction is null)
+            return null;
+
+        if (string.IsNullOrWhiteSpace(instruction.CorrelationId))
+            instruction = await AssignCorrelationId(instruction, cancellationToken);
+
+        return new(instruction.Id.ToString(), instruction, instruction.CorrelationId);
+    }
+
+    // Instructions written before correlation IDs were recorded get one persisted, so every attempt reuses it.
+    private async Task<ObligationCalculationInstruction> AssignCorrelationId(
+        ObligationCalculationInstruction instruction,
+        CancellationToken cancellationToken
+    )
+    {
+        await _instructions.UpdateOneAsync(
+            Builders<ObligationCalculationInstruction>.Filter.Eq(x => x.Id, instruction.Id)
+                & Builders<ObligationCalculationInstruction>.Filter.Eq(x => x.CorrelationId, instruction.CorrelationId),
+            Builders<ObligationCalculationInstruction>.Update.Set(
+                x => x.CorrelationId,
+                ActivityTraceId.CreateRandom().ToString()
+            ),
+            cancellationToken: cancellationToken
+        );
+
+        return await _instructions
+                .WithReadPreference(ReadPreference.Primary)
+                .Find(x => x.Id == instruction.Id)
+                .SingleOrDefaultAsync(cancellationToken)
+            ?? instruction;
     }
 
     public async Task<bool> TryStart(
