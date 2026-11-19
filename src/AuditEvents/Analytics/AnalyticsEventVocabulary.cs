@@ -15,18 +15,13 @@ public static class AnalyticsEventVocabulary
             "cdec_",
             [CreateOperation, UpdateOperation, DeleteOperation],
             ["submission.created", "submission.amended", "submission.removed"],
-            [
-                "compliance_declaration_v1.0",
-                "compliance_declaration_v1.1",
-                "compliance_declaration_v1.2",
-                "compliance_declaration_v1.3",
-            ]
+            ["v1.0", "v1.1", "v1.2", "v1.3"]
         ),
         ["obligation_calculation"] = new(
             "oblcalc_",
             [CreateOperation, UpdateOperation],
-            ["obligation_calculation.created", "obligation_calculation.updated"],
-            ["obligation_calculation_v1.0"]
+            ["calculation.created", "calculation.updated"],
+            ["v1.0"]
         ),
     };
 
@@ -53,6 +48,7 @@ public static class AnalyticsEventVocabulary
     public static void Validate(AnalyticsEvent analyticsEvent)
     {
         var entity = GetEntity(analyticsEvent.Entity);
+        var schemaVersionPrefix = $"{analyticsEvent.Entity}_";
 
         if (!entity.Operations.Contains(analyticsEvent.Operation))
             throw new InvalidOperationException($"Unregistered analytics operation '{analyticsEvent.Operation}'.");
@@ -62,7 +58,10 @@ public static class AnalyticsEventVocabulary
 
         ValidateActor(analyticsEvent.Actor);
 
-        if (!entity.SchemaVersions.Contains(analyticsEvent.SchemaVersion))
+        if (
+            !analyticsEvent.SchemaVersion.StartsWith(schemaVersionPrefix, StringComparison.Ordinal)
+            || !entity.SchemaVersions.Contains(analyticsEvent.SchemaVersion[schemaVersionPrefix.Length..])
+        )
             throw new InvalidOperationException(
                 $"Unregistered analytics schema version '{analyticsEvent.SchemaVersion}'."
             );

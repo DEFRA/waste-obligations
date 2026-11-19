@@ -180,8 +180,8 @@ public class AnalyticsEventMappersTests
     }
 
     [Theory]
-    [InlineData("insert", "obligation_calculation.created", "create")]
-    [InlineData("update", "obligation_calculation.updated", "update")]
+    [InlineData("insert", "calculation.created", "create")]
+    [InlineData("update", "calculation.updated", "update")]
     public void ToAnalyticsEvent_WhenObligationCalculation_ShouldMapToTheCalculationContract(
         string outboxOperation,
         string eventType,
@@ -203,7 +203,7 @@ public class AnalyticsEventMappersTests
         result.EntityId.Should().Be($"oblcalc_{entityId}");
         result.Operation.Should().Be(operation);
         result.EventType.Should().Be(eventType);
-        result.Actor.Should().Be("system:waste-obligations");
+        result.Actor.Should().Be("service:waste-obligations");
         result.CorrelationId.Should().Be("run-correlation-id");
         result.DeletedReason.Should().BeNull();
         result.PiiKeyRef.Should().BeNull();
@@ -226,7 +226,7 @@ public class AnalyticsEventMappersTests
 
     [Theory]
     [InlineData("obligation_calculation", "submission.created")]
-    [InlineData("compliance_declaration", "obligation_calculation.created")]
+    [InlineData("compliance_declaration", "calculation.created")]
     public void ToAnalyticsEvent_WhenEventTypeBelongsToAnotherEntity_ShouldThrow(string entity, string eventType)
     {
         var auditEvent = (

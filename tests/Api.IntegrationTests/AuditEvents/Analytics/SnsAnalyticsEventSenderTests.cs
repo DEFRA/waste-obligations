@@ -145,7 +145,7 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
         using (
             var createMessage = await ReceiveAnalyticsEventsQueueJsonMessage(
                 sqsClient,
-                MatchEntityEvent(entityId, "create", "obligation_calculation.created")
+                MatchEntityEvent(entityId, "create", "calculation.created")
             )
         )
         {
@@ -196,7 +196,7 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
 
         using var updateMessage = await ReceiveAnalyticsEventsQueueJsonMessage(
             sqsClient,
-            MatchEntityEvent(entityId, "update", "obligation_calculation.updated")
+            MatchEntityEvent(entityId, "update", "calculation.updated")
         );
         var updateRoot = updateMessage.RootElement;
         AssertCalculationEnvelope(updateRoot, entityId, 2);
@@ -233,7 +233,7 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
         root.GetProperty("eventId").GetString().Should().NotBeNullOrWhiteSpace();
         root.GetProperty("entity").GetString().Should().Be("obligation_calculation");
         root.GetProperty("entityId").GetString().Should().Be(entityId);
-        root.GetProperty("actor").GetString().Should().Be("system:waste-obligations");
+        root.GetProperty("actor").GetString().Should().Be("service:waste-obligations");
         root.GetProperty("deletedReason").ValueKind.Should().Be(JsonValueKind.Null);
         root.GetProperty("piiKeyRef").ValueKind.Should().Be(JsonValueKind.Null);
         root.GetProperty("correlationId").GetString().Should().Be(TraceId);

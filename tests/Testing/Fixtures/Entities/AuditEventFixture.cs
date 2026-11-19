@@ -49,8 +49,8 @@ public static class AuditEventFixture
         return Default(eventId, sequence)
             .With(x => x.Entity, "obligation_calculation")
             .With(x => x.EntityId, $"entity-{sequence}")
-            .With(x => x.EventType, "obligation_calculation.created")
-            .With(x => x.Actor, "system:waste-obligations")
+            .With(x => x.EventType, "calculation.created")
+            .With(x => x.Actor, "service:waste-obligations")
             .With(x => x.SchemaVersion, Api.Data.Entities.ObligationCalculation.SchemaVersionValue);
     }
 }
