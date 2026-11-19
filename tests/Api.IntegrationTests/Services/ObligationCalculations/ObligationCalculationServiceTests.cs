@@ -18,6 +18,9 @@ namespace Defra.WasteObligations.Api.IntegrationTests.Services.ObligationCalcula
 
 public class ObligationCalculationServiceTests : IntegrationTestBase
 {
+    private static readonly int[] s_createdVersions = [1];
+    private static readonly int[] s_createdAndUpdatedVersions = [1, 2];
+
     [Fact]
     public async Task SaveWithOutcome_ShouldReportCommittedWritesAndEquivalentReplay()
     {
@@ -406,7 +409,10 @@ public class ObligationCalculationServiceTests : IntegrationTestBase
             conflict.Which.InnerException.Should().BeOfType<MongoWriteException>();
         var retried = await Subject().Save(competing, TestContext.Current.CancellationToken);
         retried.Should().BeEquivalentTo(winner);
-        (await Events()).Select(x => x.Version).Should().Equal(firstInsert ? new[] { 1 } : new[] { 1, 2 });
+        (await Events())
+            .Select(x => x.Version)
+            .Should()
+            .Equal(firstInsert ? s_createdVersions : s_createdAndUpdatedVersions);
         (
             await Current.CountDocumentsAsync(
                 FilterDefinition<ObligationCalculation>.Empty,
