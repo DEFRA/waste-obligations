@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
+using Defra.WasteObligations.Api.Services.OrganisationObligations;
 using Defra.WasteObligations.Api.Services.WasteOrganisations;
 using Defra.WasteObligations.AuditEvents;
 using Microsoft.Extensions.Options;
@@ -196,6 +197,9 @@ public class OrganisationEligibilityRefreshService(
                 {
                     RecyclingObligationsMet = summary.RecyclingObligationsMet,
                     ObligationCoveragePercentage = summary.ObligationCoveragePercentage,
+                    TotalObligatedTonnage = OrganisationObligationSummaryMapper.CalculatedTotalObligatedTonnage(
+                        summary
+                    ),
                 };
             })
             .ToArray();

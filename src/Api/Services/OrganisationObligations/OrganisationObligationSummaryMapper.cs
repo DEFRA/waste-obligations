@@ -47,6 +47,10 @@ public static class OrganisationObligationSummaryMapper
         };
     }
 
+    // The stored total defaults to zero until the first successful read, so zero alone does not mean calculated.
+    public static int? CalculatedTotalObligatedTonnage(OrganisationObligationSummary summary) =>
+        summary.LastSuccessfulReadAt is null ? null : summary.TotalObligatedTonnage;
+
     private static bool? CalculateRecyclingObligationsMet(PrnObligation[] obligations)
     {
         if (obligations.Any(x => x.Status == ObligationStatus.NotMet))

@@ -284,6 +284,59 @@ public class OrganisationEligibilityRefreshServiceTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Refresh_WhenCurrentObligationSummaryHasASuccessfulRead_ShouldCopyTotalObligatedTonnageToThePromotedRows()
+    {
+        var organisationId = Guid.NewGuid();
+        ArrangeSource(organisationId);
+        ArrangeDirectProducerReference(organisationId, "051829");
+        await OrganisationObligationSummaries.InsertOneAsync(
+            new OrganisationObligationSummary
+            {
+                OrganisationId = organisationId,
+                ObligationYear = 2026,
+                TotalObligatedTonnage = 40,
+                ObligationCoveragePercentage = 80,
+                LastSuccessfulReadAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            },
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        var subject = CreateSubject();
+
+        var result = await subject.Refresh(TestContext.Current.CancellationToken);
+
+        var row = await OrganisationComplianceDeclarationEligibilities
+            .Find(x => x.Generation == result.ActiveGeneration)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        row.TotalObligatedTonnage.Should().Be(40);
+    }
+
+    [Fact]
+    public async Task Refresh_WhenCurrentObligationSummaryHasNoSuccessfulRead_ShouldLeaveTotalObligatedTonnageEmpty()
+    {
+        var organisationId = Guid.NewGuid();
+        ArrangeSource(organisationId);
+        ArrangeDirectProducerReference(organisationId, "051829");
+        await OrganisationObligationSummaries.InsertOneAsync(
+            new OrganisationObligationSummary
+            {
+                OrganisationId = organisationId,
+                ObligationYear = 2026,
+                RefreshState = OrganisationObligationRefreshState.Failed,
+            },
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        var subject = CreateSubject();
+
+        var result = await subject.Refresh(TestContext.Current.CancellationToken);
+
+        var row = await OrganisationComplianceDeclarationEligibilities
+            .Find(x => x.Generation == result.ActiveGeneration)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        row.TotalObligatedTonnage.Should().BeNull();
+        row.ObligationCoveragePercentage.Should().BeNull();
+    }
+
+    [Fact]
     public async Task Refresh_WhenCollectingExpiredGenerations_ShouldUseTheRefreshedAtIndex()
     {
         var organisationId = Guid.NewGuid();

@@ -120,6 +120,7 @@ public class UnsubmittedOrganisationsService(
                 SchemeOperatorName = x.SchemeOperatorName,
                 RecyclingObligationsMet = x.RecyclingObligationsMet,
                 ObligationCoveragePercentage = x.ObligationCoveragePercentage,
+                TotalObligatedTonnage = x.TotalObligatedTonnage,
             })
             .ToListAsync(cancellationToken);
         var totalTask = dbContext.OrganisationComplianceDeclarationEligibilities.CountDocumentsAsync(

@@ -26,6 +26,7 @@
     "schemeOperatorName": null,
     "recyclingObligationsMet": null,
     "obligationCoveragePercentage": null,
+    "totalObligatedTonnage": null,
     "declarationStateUpdatedAt": "DateTimeOffset_1",
     "sourceFingerprint": "{Calculated}",
     "refreshedAt": "DateTimeOffset_1"
@@ -47,6 +48,7 @@
     "schemeOperatorName": "Example Scheme Operator Ltd",
     "recyclingObligationsMet": null,
     "obligationCoveragePercentage": null,
+    "totalObligatedTonnage": null,
     "declarationStateUpdatedAt": "DateTimeOffset_1",
     "sourceFingerprint": "{Calculated}",
     "refreshedAt": "DateTimeOffset_1"

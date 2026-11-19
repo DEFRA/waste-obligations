@@ -25,6 +25,7 @@ public record OrganisationComplianceDeclarationEligibility
     public string? SchemeOperatorName { get; init; }
     public bool? RecyclingObligationsMet { get; init; }
     public decimal? ObligationCoveragePercentage { get; init; }
+    public int? TotalObligatedTonnage { get; init; }
 
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime DeclarationStateUpdatedAt { get; init; }

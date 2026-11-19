@@ -532,7 +532,11 @@ public class OrganisationObligationHydrationService(
                             && x.ObligationYear == summary.ObligationYear,
                         Builders<OrganisationComplianceDeclarationEligibility>
                             .Update.Set(x => x.RecyclingObligationsMet, summary.RecyclingObligationsMet)
-                            .Set(x => x.ObligationCoveragePercentage, summary.ObligationCoveragePercentage),
+                            .Set(x => x.ObligationCoveragePercentage, summary.ObligationCoveragePercentage)
+                            .Set(
+                                x => x.TotalObligatedTonnage,
+                                OrganisationObligationSummaryMapper.CalculatedTotalObligatedTonnage(summary)
+                            ),
                         cancellationToken: token
                     );
 

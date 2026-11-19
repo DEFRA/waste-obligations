@@ -1,5 +1,6 @@
 using AutoFixture;
 using AwesomeAssertions;
+using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Dtos;
 using Defra.WasteObligations.Api.Services.OrganisationObligations;
 using Defra.WasteObligations.Testing.Fixtures.PrnCommonBackend;
@@ -179,6 +180,30 @@ public class OrganisationObligationSummaryMapperTests
         );
 
         result.RecyclingObligationsMet.Should().BeFalse();
+    }
+
+    [Fact]
+    public void CalculatedTotalObligatedTonnage_WhenTheSummaryHasNoSuccessfulRead_ShouldBeNull()
+    {
+        var summary = new OrganisationObligationSummary { TotalObligatedTonnage = 0, LastSuccessfulReadAt = null };
+
+        OrganisationObligationSummaryMapper.CalculatedTotalObligatedTonnage(summary).Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(40)]
+    public void CalculatedTotalObligatedTonnage_WhenTheSummaryHasASuccessfulRead_ShouldBeTheStoredTotal(
+        int totalObligatedTonnage
+    )
+    {
+        var summary = new OrganisationObligationSummary
+        {
+            TotalObligatedTonnage = totalObligatedTonnage,
+            LastSuccessfulReadAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+        };
+
+        OrganisationObligationSummaryMapper.CalculatedTotalObligatedTonnage(summary).Should().Be(totalObligatedTonnage);
     }
 
     [Fact]
