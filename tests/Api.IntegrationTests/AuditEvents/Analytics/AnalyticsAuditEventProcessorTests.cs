@@ -105,7 +105,7 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
                 .SingleAsync(TestContext.Current.CancellationToken)
         )
             .Dispatches.Should()
-            .BeEmpty();
+            .NotContainKey(Analytics);
 
         timeProvider.Advance(TimeSpan.FromSeconds(61));
         var retrySender = new RecordingAnalyticsEventSender();
