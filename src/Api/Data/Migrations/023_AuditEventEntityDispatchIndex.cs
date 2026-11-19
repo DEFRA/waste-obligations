@@ -5,12 +5,16 @@ using MigrationVersion = AdaskoTheBeAsT.MongoDbMigrations.Abstractions.Version;
 
 namespace Defra.WasteObligations.Api.Data.Migrations;
 
-// Dispatch reads now filter by entity, so these indexes supersede the analytics dispatch indexes from 002.
-// Those are kept while hosts that read without the entity filter may still run; drop them in a later migration.
+// Entity-filtered dispatch reads replace the two analytics dispatch indexes from 002.
 [MigrationCollection(nameof(AuditEvent), MigrationDirection.Both)]
 public class AuditEventEntityDispatchIndex : MongoMigration
 {
     private static readonly string[] ProcessNames = ["analytics", "calculation"];
+    private static readonly string[] LegacyDispatchIndexNames =
+    [
+        "Dispatch_analytics",
+        "Dispatch_analytics_Status_NextAttemptAt_Sequence",
+    ];
     public override MigrationVersion Version => new(1, 0, 22);
     public override string Name => "023 - Audit event entity dispatch indexes";
 
@@ -36,10 +40,16 @@ public class AuditEventEntityDispatchIndex : MongoMigration
                     .Ascending($"dispatches.{processName}.nextAttemptAt")
             );
         }
+
+        foreach (var name in LegacyDispatchIndexNames)
+            await DropIndex<AuditEvent>(context, name);
     }
 
     public override async Task DownAsync(MigrationContext context)
     {
+        foreach (var index in AuditEvents.AuditEventIndexes.All().Where(x => LegacyDispatchIndexNames.Contains(x.Name)))
+            await CreateIndex(context, index.Name, index.Keys, index.Unique);
+
         foreach (var processName in ProcessNames)
         {
             await DropIndex<AuditEvent>(context, $"Dispatch_{processName}_Entity_Sequence");
