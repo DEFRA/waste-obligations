@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
@@ -15,7 +16,7 @@ public record ObligationCalculationInstruction
     [BsonGuidRepresentation(GuidRepresentation.Standard)]
     public Guid? SubmitterId { get; init; }
 
-    public string? CorrelationId { get; init; }
+    public string CorrelationId { get; init; } = ActivityTraceId.CreateRandom().ToString();
 
     [BsonRepresentation(BsonType.String)]
     public ObligationCalculationInstructionStatus Status { get; init; } =

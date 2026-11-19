@@ -16,11 +16,10 @@ public class ObligationCalculationInstructionServiceTests : IntegrationTestBase
 {
     private readonly FakeTimeProvider _timeProvider = new(new DateTimeOffset(2026, 10, 30, 1, 0, 0, TimeSpan.Zero));
 
-    [Theory]
-    [InlineData(null)]
-    [InlineData("request-123")]
-    public void CorrelationId_ShouldUseCamelCaseStoredFieldNameAndAppearInResponse(string? traceId)
+    [Fact]
+    public void CorrelationId_ShouldUseCamelCaseStoredFieldNameAndAppearInResponse()
     {
+        const string traceId = "request-123";
         var instruction = ObligationCalculationInstructionFixture
             .Default()
             .With(x => x.CorrelationId, traceId)
@@ -28,10 +27,7 @@ public class ObligationCalculationInstructionServiceTests : IntegrationTestBase
 
         instruction.CorrelationId.Should().Be(traceId);
         instruction.ToBsonDocument().Contains("traceId").Should().BeFalse();
-        instruction
-            .ToBsonDocument()["correlationId"]
-            .Should()
-            .Be(traceId is null ? BsonNull.Value : new BsonString(traceId));
+        instruction.ToBsonDocument()["correlationId"].Should().Be(new BsonString(traceId));
         JsonSerializer.SerializeToElement(instruction).GetProperty("CorrelationId").GetString().Should().Be(traceId);
     }
 
