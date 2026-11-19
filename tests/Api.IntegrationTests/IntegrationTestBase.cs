@@ -28,8 +28,6 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     protected const string AnalyticsEventsQueueUrl =
         "http://localhost:4566/000000000000/waste_obligations_analytics_events_queue";
 
-    protected const string CalculationEventsQueueUrl =
-        "http://localhost:4566/000000000000/waste_obligations_calculation_events_queue";
     private const string ContentEncodingHeader = "Content-Encoding";
     private const string ContentTypeHeader = "Content-Type";
     private const string JsonContentType = "application/json";
@@ -133,7 +131,6 @@ public abstract class IntegrationTestBase : IAsyncLifetime
 
         using var sqsClient = CreateSqsClient();
         await DrainAnalyticsEventsQueue(sqsClient);
-        await DrainAnalyticsEventsQueue(sqsClient, CalculationEventsQueueUrl);
 
         _mongoQueryProfiler = await MongoQueryProfiler.Start(
             GetMongoDatabase(),
@@ -178,17 +175,14 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     protected static Task WaitForAsync(Func<Task> assertion, double? timeout = null, TimeSpan? delay = null) =>
         AsyncWaiter.WaitForAsync(assertion, timeout, delay);
 
-    protected static async Task DrainAnalyticsEventsQueue(
-        IAmazonSQS sqsClient,
-        string queueUrl = AnalyticsEventsQueueUrl
-    )
+    protected static async Task DrainAnalyticsEventsQueue(IAmazonSQS sqsClient)
     {
         while (true)
         {
             var response = await sqsClient.ReceiveMessageAsync(
                 new ReceiveMessageRequest
                 {
-                    QueueUrl = queueUrl,
+                    QueueUrl = AnalyticsEventsQueueUrl,
                     MaxNumberOfMessages = 10,
                     WaitTimeSeconds = 0,
                 },
@@ -201,7 +195,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
             foreach (var message in response.Messages)
             {
                 await sqsClient.DeleteMessageAsync(
-                    queueUrl,
+                    AnalyticsEventsQueueUrl,
                     message.ReceiptHandle,
                     TestContext.Current.CancellationToken
                 );
@@ -211,8 +205,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
 
     protected static async Task<JsonDocument> ReceiveAnalyticsEventsQueueJsonMessage(
         IAmazonSQS sqsClient,
-        Func<JsonElement, bool>? match = null,
-        string queueUrl = AnalyticsEventsQueueUrl
+        Func<JsonElement, bool>? match = null
     )
     {
         JsonDocument? deserializedMessage = null;
@@ -223,7 +216,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
                 var response = await sqsClient.ReceiveMessageAsync(
                     new ReceiveMessageRequest
                     {
-                        QueueUrl = queueUrl,
+                        QueueUrl = AnalyticsEventsQueueUrl,
                         MaxNumberOfMessages = 10,
                         MessageAttributeNames = ["All"],
                         WaitTimeSeconds = 1,
@@ -246,7 +239,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
                     if (match is not null && !match(candidate.RootElement))
                     {
                         await sqsClient.DeleteMessageAsync(
-                            queueUrl,
+                            AnalyticsEventsQueueUrl,
                             message.ReceiptHandle,
                             TestContext.Current.CancellationToken
                         );
@@ -255,7 +248,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
                     }
 
                     await sqsClient.DeleteMessageAsync(
-                        queueUrl,
+                        AnalyticsEventsQueueUrl,
                         message.ReceiptHandle,
                         TestContext.Current.CancellationToken
                     );

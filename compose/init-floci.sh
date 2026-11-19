@@ -102,6 +102,4 @@ queue="$(create_queue "$queue_name" "$topic_arn")"
 queue_arn="${queue#*|}"
 create_subscription "$topic_arn" "$queue_arn" > /dev/null
 
-aws sqs create-queue --queue-name waste_obligations_calculation_events_queue > /dev/null
-aws sqs get-queue-url --queue-name waste_obligations_calculation_events_queue > /dev/null
 echo "Ready: verified $queue_name is subscribed to $topic_name"

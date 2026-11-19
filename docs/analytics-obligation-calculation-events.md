@@ -1,6 +1,6 @@
 # Analytics obligation calculation events
 
-Obligation calculation changes are eligible for dispatch to a dedicated SQS queue as [analytics events](analytics-events.md), when the calculation dispatcher is enabled. That page describes the shared envelope, transport, operation values, vocabulary validation and delivery guarantees; this page describes the obligation calculation specifics.
+Obligation calculation changes are eligible for direct dispatch to the shared topic-subscribed SQS queue as [analytics events](analytics-events.md), when the calculation dispatcher is enabled. That page describes the shared envelope, transport, operation values, vocabulary validation and delivery guarantees; this page describes the obligation calculation specifics.
 
 The [calculation service](../src/Api/Services/ObligationCalculations/ObligationCalculationService.cs) records the analytics outbox event in the same Mongo transaction as the current calculation write and, for updates, the archived history write. A failed, cancelled or conflicting save leaves neither a calculation change nor an event. An equivalent recalculation, including one that differs only by calculation time or producer and material ordering, writes no new version and emits no event.
 

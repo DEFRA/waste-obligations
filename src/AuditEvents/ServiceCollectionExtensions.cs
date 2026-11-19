@@ -13,6 +13,10 @@ namespace Defra.WasteObligations.AuditEvents;
 
 public static class ServiceCollectionExtensions
 {
+    /// <summary>
+    /// Registers transactional capture and two dispatchers: declarations through SNS, calculations directly
+    /// to the topic's subscribed queue. The API registers the single shared logging consumer separately.
+    /// </summary>
     public static IServiceCollection AddAuditEvents(
         this IServiceCollection services,
         IConfiguration configuration,

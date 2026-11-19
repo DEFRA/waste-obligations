@@ -5,7 +5,6 @@ namespace Defra.WasteObligations.Api.Consumers;
 public record AnalyticsAuditEventConsumerOptions
 {
     public const string SectionName = "AnalyticsAuditEventConsumer";
-    public const string CalculationSectionName = "CalculationAuditEventConsumer";
 
     [Required]
     public required string QueueUrl { get; init; }

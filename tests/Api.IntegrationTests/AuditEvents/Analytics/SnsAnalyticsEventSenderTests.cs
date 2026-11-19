@@ -128,7 +128,7 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task WhenObligationCalculationCreatedAndUpdated_ShouldPublishCalculationEventsToDirectQueue()
+    public async Task WhenObligationCalculationCreatedAndUpdated_ShouldPublishDirectlyToTopicSubscribedQueue()
     {
         using var sqsClient = CreateSqsClient();
         var service = new ObligationCalculationService(
@@ -146,8 +146,7 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
         using (
             var createMessage = await ReceiveAnalyticsEventsQueueJsonMessage(
                 sqsClient,
-                MatchEntityEvent(entityId, "create", "calculation.created"),
-                CalculationEventsQueueUrl
+                MatchEntityEvent(entityId, "create", "calculation.created")
             )
         )
         {
@@ -198,8 +197,7 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
 
         using var updateMessage = await ReceiveAnalyticsEventsQueueJsonMessage(
             sqsClient,
-            MatchEntityEvent(entityId, "update", "calculation.updated"),
-            CalculationEventsQueueUrl
+            MatchEntityEvent(entityId, "update", "calculation.updated")
         );
         var updateRoot = updateMessage.RootElement;
         AssertCalculationEnvelope(updateRoot, entityId, 2);
