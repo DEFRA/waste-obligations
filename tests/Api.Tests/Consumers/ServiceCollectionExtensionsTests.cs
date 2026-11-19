@@ -3,6 +3,7 @@ using Defra.WasteObligations.Api.Consumers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 namespace Defra.WasteObligations.Api.Tests.Consumers;
 
@@ -32,6 +33,55 @@ public class ServiceCollectionExtensionsTests
         services.AddConsumers(CreateConfiguration(), addHostedConsumers: false);
 
         services.Should().NotContain(x => x.ServiceType == typeof(IHostedService));
+    }
+
+    [Theory]
+    [InlineData("https://sqs.eu-west-2.amazonaws.com/123/calculation")]
+    [InlineData("https://sqs.eu-west-2.amazonaws.com/123/calculation/")]
+    [InlineData(null)]
+    public void AddConsumers_WhenLoggingConsumerSharesDestinationOrDestinationIsUnknown_ShouldRejectConfiguration(
+        string? destination
+    )
+    {
+        var configuration = CreateConfiguration();
+        configuration["CalculationAuditEventProcessor:QueueUrl"] = destination;
+        configuration["CalculationAuditEventConsumer:QueueUrl"] = "https://sqs.eu-west-2.amazonaws.com/123/calculation";
+        configuration["CalculationAuditEventConsumer:ProcessingEnabled"] = "true";
+        var services = new ServiceCollection();
+        services.AddConsumers(configuration, false);
+        using var provider = services.BuildServiceProvider();
+
+        var read = () =>
+            provider
+                .GetRequiredService<IOptionsMonitor<AnalyticsAuditEventConsumerOptions>>()
+                .Get(AnalyticsAuditEventConsumerOptions.CalculationSectionName);
+
+        read.Should().Throw<OptionsValidationException>().WithMessage("*isolated diagnostic queue*");
+    }
+
+    [Theory]
+    [InlineData(true, "https://sqs.eu-west-2.amazonaws.com/123/diagnostic")]
+    [InlineData(false, "https://sqs.eu-west-2.amazonaws.com/123/calculation")]
+    public void AddConsumers_WhenLoggingConsumerIsIsolatedOrDisabled_ShouldAcceptConfiguration(
+        bool enabled,
+        string queueUrl
+    )
+    {
+        var configuration = CreateConfiguration();
+        configuration["CalculationAuditEventProcessor:QueueUrl"] =
+            "https://sqs.eu-west-2.amazonaws.com/123/calculation";
+        configuration["CalculationAuditEventConsumer:QueueUrl"] = queueUrl;
+        configuration["CalculationAuditEventConsumer:ProcessingEnabled"] = enabled.ToString();
+        var services = new ServiceCollection();
+        services.AddConsumers(configuration, false);
+        using var provider = services.BuildServiceProvider();
+
+        var options = provider
+            .GetRequiredService<IOptionsMonitor<AnalyticsAuditEventConsumerOptions>>()
+            .Get(AnalyticsAuditEventConsumerOptions.CalculationSectionName);
+
+        options.QueueUrl.Should().Be(queueUrl);
+        options.ProcessingEnabled.Should().Be(enabled);
     }
 
     private static IConfiguration CreateConfiguration()

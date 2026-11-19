@@ -87,7 +87,6 @@ services:
       CalculationAuditEventProcessor__PollIntervalSeconds: 1
       CalculationAuditEventProcessor__PollJitterSeconds: 0
       CalculationAuditEventProcessor__QueueUrl: http://floci:4566/000000000000/waste_obligations_calculation_events_queue
-      CalculationAuditEventConsumer__QueueUrl: http://floci:4566/000000000000/waste_obligations_calculation_events_queue
       # See appsettings.json for additional settings related to auth
       PrnCommonBackend__TokenEndpoint: http://wiremock/oauth2/v2.0/token
       PrnCommonBackend__BaseAddress: http://wiremock/

@@ -1,4 +1,5 @@
 using Amazon.SQS;
+using Defra.WasteObligations.AuditEvents.Analytics;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
@@ -28,6 +29,7 @@ public static class ServiceCollectionExtensions
         services.AddAuditEventQueueConsumer(
             configuration,
             AnalyticsAuditEventConsumerOptions.CalculationSectionName,
+            AnalyticsAuditEventProcessorOptions.CalculationSectionName,
             addHostedConsumers
         );
 
@@ -35,13 +37,14 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Registers a logging consumer for a directly dispatched queue. The configuration section name also
-    /// names the consumer's options.
+    /// Registers a logging consumer for an isolated diagnostic feed, separate from the dispatch destination.
+    /// The configuration section name also names the consumer's options.
     /// </summary>
     public static IServiceCollection AddAuditEventQueueConsumer(
         this IServiceCollection services,
         IConfiguration configuration,
         string sectionName,
+        string dispatcherSectionName,
         bool addHostedConsumer = true
     )
     {
@@ -49,6 +52,19 @@ public static class ServiceCollectionExtensions
             .AddOptions<AnalyticsAuditEventConsumerOptions>(sectionName)
             .Bind(configuration.GetSection(sectionName))
             .ValidateDataAnnotations()
+            .Validate(
+                x =>
+                    !x.ProcessingEnabled
+                    || (
+                        !string.IsNullOrWhiteSpace(configuration[$"{dispatcherSectionName}:QueueUrl"])
+                        && !string.Equals(
+                            x.QueueUrl?.TrimEnd('/'),
+                            configuration[$"{dispatcherSectionName}:QueueUrl"]!.TrimEnd('/'),
+                            StringComparison.Ordinal
+                        )
+                    ),
+                "An enabled logging consumer requires an isolated diagnostic queue distinct from the dispatch destination."
+            )
             .ValidateOnStart();
 
         services.AddAWSService<IAmazonSQS>();
