@@ -1,7 +1,9 @@
 using AdaskoTheBeAsT.MongoDbMigrations.Abstractions;
 using AwesomeAssertions;
+using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Data.Migrations;
+using Defra.WasteObligations.Api.ScheduledJobs;
 using MongoDB.Bson;
 using MongoDB.Driver;
 
@@ -11,6 +13,63 @@ public class ObligationCalculationInstructionCorrelationIdsTests : IntegrationTe
 {
     // Distinct years keep each active instruction unique under the active instruction index.
     private static int s_nextObligationYear = 2030;
+
+    [Fact]
+    public async Task WorkSource_ShouldWaitForBackfillAndReusePersistedCorrelationId()
+    {
+        var raw = GetMongoDatabase().GetCollection<BsonDocument>(ObligationCalculationInstruction.CollectionName);
+        var instruction = Instruction("Pending");
+        await raw.InsertOneAsync(instruction, cancellationToken: TestContext.Current.CancellationToken);
+        var migrations = new MongoMigrationCompletion();
+        var source = new ObligationCalculationWorkSource(GetMongoApplicationDatabase(), migrations);
+        var selection = source.GetNext([], TestContext.Current.CancellationToken);
+
+        selection.IsCompleted.Should().BeFalse();
+        await new ObligationCalculationInstructionCorrelationIds().UpAsync(
+            new MigrationContext(GetMongoDatabase(), null!, TestContext.Current.CancellationToken)
+        );
+        var persisted = (await CorrelationIds(raw))[instruction["_id"]];
+        persisted.Should().MatchRegex("^[0-9a-f]{32}$");
+        selection.IsCompleted.Should().BeFalse();
+        migrations.Complete();
+
+        var work = await selection;
+        work.Should().NotBeNull();
+        work.Payload.Id.Should().Be(instruction["_id"].AsObjectId);
+        work.Payload.Status.Should().Be(ObligationCalculationInstructionStatus.Pending);
+        work.CorrelationId.Should().Be(persisted);
+        work.Payload.CorrelationId.Should().Be(persisted);
+        var retry = await source.GetNext([], TestContext.Current.CancellationToken);
+        retry.Should().NotBeNull();
+        retry.CorrelationId.Should().Be(persisted);
+    }
+
+    [Fact]
+    public async Task WorkSource_WhenMigrationsFail_ShouldNotSelectLegacyInstruction()
+    {
+        var raw = GetMongoDatabase().GetCollection<BsonDocument>(ObligationCalculationInstruction.CollectionName);
+        await raw.InsertOneAsync(Instruction("Pending"), cancellationToken: TestContext.Current.CancellationToken);
+        var migrations = new MongoMigrationCompletion();
+        migrations.Fail(new InvalidOperationException("Backfill failed"));
+        var source = new ObligationCalculationWorkSource(GetMongoApplicationDatabase(), migrations);
+
+        var selection = () => source.GetNext([], TestContext.Current.CancellationToken);
+
+        await selection.Should().ThrowAsync<InvalidOperationException>().WithMessage("Backfill failed");
+    }
+
+    [Fact]
+    public async Task WorkSource_WhenStoppedBeforeMigrationsComplete_ShouldCancelSelection()
+    {
+        var source = new ObligationCalculationWorkSource(GetMongoApplicationDatabase(), new MongoMigrationCompletion());
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        var pending = source.GetNext([], cancellation.Token);
+
+        await cancellation.CancelAsync();
+
+        var selection = () => pending;
+        await selection.Should().ThrowAsync<OperationCanceledException>();
+    }
 
     [Fact]
     public async Task UpAsync_ShouldPersistOneStableCorrelationIdForActiveLegacyInstructions()

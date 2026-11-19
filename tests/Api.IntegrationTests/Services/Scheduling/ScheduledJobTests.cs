@@ -63,10 +63,13 @@ public class ScheduledJobTests : IntegrationTestBase
             ["ObligationCalculation:Targets:2026:GR"] = "0.76",
         };
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
+        var migrations = new MongoMigrationCompletion();
+        migrations.Complete();
         await using var host = new ServiceCollection()
             .AddLogging()
             .AddSingleton<IConfiguration>(configuration)
             .AddSingleton(GetMongoApplicationDatabase())
+            .AddSingleton(migrations)
             .AddSingleton<TimeProvider>(time)
             .AddOptions()
             .Configure<TraceHeader>(x => x.Name = TraceHeaderName)

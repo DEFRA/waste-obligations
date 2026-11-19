@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using AutoFixture;
 using AwesomeAssertions;
+using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.ScheduledJobs;
 using Defra.WasteObligations.Api.Services.ObligationCalculations;
@@ -42,7 +43,7 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
             [newer, terminal, older],
             cancellationToken: TestContext.Current.CancellationToken
         );
-        var source = new ObligationCalculationWorkSource(GetMongoApplicationDatabase());
+        var source = new ObligationCalculationWorkSource(GetMongoApplicationDatabase(), CompletedMigrations());
         var logger = new RecordingLogger<ObligationCalculationProcessor>();
         var packaging = EmptyPackaging();
         var processor = new ObligationCalculationProcessor(
@@ -84,7 +85,7 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
             instruction,
             cancellationToken: TestContext.Current.CancellationToken
         );
-        var source = new ObligationCalculationWorkSource(GetMongoApplicationDatabase());
+        var source = new ObligationCalculationWorkSource(GetMongoApplicationDatabase(), CompletedMigrations());
 
         (await source.GetNext([], TestContext.Current.CancellationToken)).Should().BeNull();
         (await Read(instruction)).Should().BeEquivalentTo(instruction);
@@ -368,7 +369,7 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
 
         attempts.Should().Be(expectedFailures);
         (await Read(instruction)).FailureCount.Should().Be(expectedFailures);
-        var source = new ObligationCalculationWorkSource(GetMongoApplicationDatabase());
+        var source = new ObligationCalculationWorkSource(GetMongoApplicationDatabase(), CompletedMigrations());
         (await source.GetNext([], TestContext.Current.CancellationToken)).Should().BeNull();
         (await source.TryStart(new(instruction.Id.ToString(), instruction), TestContext.Current.CancellationToken))
             .Should()
@@ -401,7 +402,7 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
                 },
                 cancellationToken: TestContext.Current.CancellationToken
             );
-        var source = new ObligationCalculationWorkSource(GetMongoApplicationDatabase());
+        var source = new ObligationCalculationWorkSource(GetMongoApplicationDatabase(), CompletedMigrations());
         var work = await source.GetNext([], TestContext.Current.CancellationToken);
         work.Should().NotBeNull();
         work.Payload.FailureCount.Should().Be(0);
@@ -466,6 +467,7 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
         var services = new ServiceCollection()
             .AddLogging()
             .AddSingleton(GetMongoApplicationDatabase())
+            .AddSingleton(CompletedMigrations())
             .AddSingleton(EmptyPackaging())
             .AddSingleton(Substitute.For<IObligationCalculator>())
             .AddSingleton(Substitute.For<IObligationCalculationService>())
@@ -477,6 +479,14 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
             services.AddSingleton(logger);
 
         return services.BuildServiceProvider();
+    }
+
+    private static MongoMigrationCompletion CompletedMigrations()
+    {
+        var migrations = new MongoMigrationCompletion();
+        migrations.Complete();
+
+        return migrations;
     }
 
     private static IWastePackagingService EmptyPackaging()
