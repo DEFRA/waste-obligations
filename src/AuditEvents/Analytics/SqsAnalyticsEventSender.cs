@@ -1,5 +1,3 @@
-using System.IO.Compression;
-using System.Text;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using Defra.WasteObligations.AuditEvents.Metrics;
@@ -14,8 +12,6 @@ public class SqsAnalyticsEventSender(
     IAuditEventMetrics metrics
 ) : IAnalyticsEventSender
 {
-    private const int MaxBodyBytes = 252 * 1024;
-
     public async Task Send(AnalyticsEvent analyticsEvent, CancellationToken cancellationToken)
     {
         var started = TimeProvider.System.GetTimestamp();
@@ -23,28 +19,31 @@ public class SqsAnalyticsEventSender(
         metrics.SqsPublishStarted(options.Value.ProcessName, queueUrl, analyticsEvent);
         try
         {
-            var body = serializer.Serialize(analyticsEvent);
+            var message = AnalyticsMessage.Create(
+                serializer.Serialize(analyticsEvent),
+                AnalyticsMessage.SqsMaxBodyBytes,
+                "SQS"
+            );
             var attributes = new Dictionary<string, MessageAttributeValue>
             {
-                ["Content-Type"] = new() { DataType = "String", StringValue = "application/json" },
+                [AnalyticsMessage.ContentTypeHeader] = new()
+                {
+                    DataType = AnalyticsMessage.StringDataType,
+                    StringValue = AnalyticsMessage.JsonContentType,
+                },
             };
-            if (Encoding.UTF8.GetByteCount(body) > MaxBodyBytes)
-            {
-                using var output = new MemoryStream();
-                using (var gzip = new GZipStream(output, CompressionLevel.SmallestSize, leaveOpen: true))
-                    await gzip.WriteAsync(Encoding.UTF8.GetBytes(body), cancellationToken);
-                body = Convert.ToBase64String(output.ToArray());
-                attributes["Content-Encoding"] = new() { DataType = "String", StringValue = "gzip+base64" };
-            }
-
-            if (Encoding.UTF8.GetByteCount(body) > MaxBodyBytes)
-                throw new InvalidOperationException("Analytics event message exceeds queue message size limit.");
+            if (message.ContentEncoding is not null)
+                attributes[AnalyticsMessage.ContentEncodingHeader] = new()
+                {
+                    DataType = AnalyticsMessage.StringDataType,
+                    StringValue = message.ContentEncoding,
+                };
 
             await sqsClient.SendMessageAsync(
                 new SendMessageRequest
                 {
                     QueueUrl = options.Value.QueueUrl,
-                    MessageBody = body,
+                    MessageBody = message.Body,
                     MessageAttributes = attributes,
                 },
                 cancellationToken

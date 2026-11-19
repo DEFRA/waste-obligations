@@ -15,7 +15,7 @@ Delivery is at least once: publication can succeed before the dispatch outcome i
 
 Messages are published with the message attribute `Content-Type` set to `application/json`.
 
-If the JSON body is too large for the message size budget, the body is gzip-compressed and base64-encoded. Compressed messages include the message attribute `Content-Encoding` set to `gzip+base64`.
+If the JSON body is too large for the destination's message size budget, the body is gzip-compressed and base64-encoded. The budget leaves 4 KiB for attributes within each service limit: 252 KiB for the SNS topic and 1020 KiB for a direct SQS queue. A message still over budget after compression is not sent and its dispatch is recorded as failed. Compressed messages include the message attribute `Content-Encoding` set to `gzip+base64`.
 
 ## Analytics event envelope
 

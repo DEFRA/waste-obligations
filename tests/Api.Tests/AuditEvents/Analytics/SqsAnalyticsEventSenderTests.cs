@@ -45,9 +45,42 @@ public class SqsAnalyticsEventSenderTests
     }
 
     [Fact]
+    public async Task Send_WhenMessageFitsQueueLimitButExceedsTopicLimit_ShouldSendUncompressed()
+    {
+        var payload = new string('a', 512 * 1024);
+        SendMessageRequest? sent = null;
+        var sqs = Substitute.For<IAmazonSQS>();
+        sqs.SendMessageAsync(Arg.Do<SendMessageRequest>(x => sent = x), Arg.Any<CancellationToken>())
+            .Returns(new SendMessageResponse());
+        var serializer = Substitute.For<IAnalyticsEventSerializer>();
+        serializer.Serialize(Arg.Any<AnalyticsEvent>()).Returns(payload);
+        var subject = new SqsAnalyticsEventSender(
+            sqs,
+            serializer,
+            Options.Create(
+                new AnalyticsAuditEventProcessorOptions
+                {
+                    ProcessName = "calculation",
+                    QueueUrl = "https://example.test/queue",
+                }
+            ),
+            Substitute.For<IAuditEventMetrics>()
+        );
+
+        await subject.Send(
+            AnalyticsEventFixture.ComplianceDeclaration().Create(),
+            TestContext.Current.CancellationToken
+        );
+
+        sent.Should().NotBeNull();
+        sent.MessageBody.Should().Be(payload);
+        sent.MessageAttributes.Should().NotContainKey("Content-Encoding");
+    }
+
+    [Fact]
     public async Task Send_WhenMessageIsLarge_ShouldCompressAndPreserveContent()
     {
-        var payload = new string('a', 253 * 1024);
+        var payload = new string('a', 1021 * 1024);
         SendMessageRequest? sent = null;
         var sqs = Substitute.For<IAmazonSQS>();
         sqs.SendMessageAsync(Arg.Do<SendMessageRequest>(x => sent = x), Arg.Any<CancellationToken>())
@@ -83,7 +116,7 @@ public class SqsAnalyticsEventSenderTests
     [Fact]
     public async Task Send_WhenCompressedMessageIsTooLarge_ShouldRejectBeforeSending()
     {
-        var bytes = new byte[300 * 1024];
+        var bytes = new byte[1100 * 1024];
         new Random(42).NextBytes(bytes);
         var serializer = Substitute.For<IAnalyticsEventSerializer>();
         serializer.Serialize(Arg.Any<AnalyticsEvent>()).Returns(Convert.ToBase64String(bytes));
@@ -105,7 +138,10 @@ public class SqsAnalyticsEventSenderTests
         var action = () =>
             subject.Send(AnalyticsEventFixture.ComplianceDeclaration().Create(), TestContext.Current.CancellationToken);
 
-        await action.Should().ThrowAsync<InvalidOperationException>();
+        await action
+            .Should()
+            .ThrowAsync<InvalidOperationException>()
+            .WithMessage("Analytics event message exceeds the SQS message size limit.");
         metrics
             .Received(1)
             .SqsPublishFaulted(
