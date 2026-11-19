@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using AutoFixture;
 using AwesomeAssertions;
 using Defra.WasteObligations.Api.Data.Entities;
@@ -157,6 +158,139 @@ public class JsonAnalyticsEventSerializerTests
         var result = subject.Serialize(analyticsEvent);
 
         await VerifyJson(result).DontScrubDateTimes().DontScrubGuids();
+    }
+
+    [Fact]
+    public void Serialize_WhenObligationCalculationUpdate_ShouldBindBothSnapshotsToTheCalculationSchema()
+    {
+        var submitterId = Guid.Parse("8b0f0d4e-3c1a-4a51-9f0e-2d7c5b6a1e01");
+        var producerId = Guid.Parse("c2a4e6f8-1b3d-4f5a-8c7e-9d0b1a2c3e02");
+        var previous = new ObligationCalculation
+        {
+            Id = ObjectId.Parse("65f1f6570bb08052a8a27c01"),
+            SubmitterOrganisationId = submitterId,
+            SubmitterType = ObligationSubmitterType.ComplianceScheme,
+            ObligationYear = 2026,
+            CalculatedOn = s_submittedAt,
+            Producers =
+            [
+                new()
+                {
+                    ProducerOrganisationId = producerId,
+                    Materials =
+                    [
+                        new()
+                        {
+                            MaterialCode = "GL",
+                            InputKilograms = 3_000,
+                            InputTonnes = 3,
+                            ObligationTonnes = 1,
+                        },
+                        new()
+                        {
+                            MaterialCode = "GR",
+                            InputKilograms = 3_000,
+                            InputTonnes = 3,
+                            ObligationTonnes = 2,
+                        },
+                    ],
+                },
+            ],
+        };
+        var current = previous with
+        {
+            Version = 2,
+            CalculatedOn = s_acceptedAt,
+            Producers =
+            [
+                previous.Producers[0] with
+                {
+                    Materials =
+                    [
+                        new()
+                        {
+                            MaterialCode = "PL",
+                            InputKilograms = 10_000,
+                            InputTonnes = 10,
+                            ObligationTonnes = 6,
+                        },
+                    ],
+                },
+            ],
+        };
+        var analyticsEvent = AnalyticsEventFixture
+            .Default("01JZ8RXBMTY2K15SJB3PCFN3D7", 125)
+            .With(x => x.Entity, "obligation_calculation")
+            .With(x => x.EntityId, "oblcalc_65f1f6570bb08052a8a27c01")
+            .With(x => x.Operation, "update")
+            .With(x => x.EventType, "obligation_calculation.updated")
+            .With(x => x.Actor, "system:waste-obligations")
+            .With(x => x.CorrelationId, "run-correlation-id")
+            .With(x => x.Version, 2)
+            .With(x => x.Before, previous.ToBsonDocument().Add("futureField", "not in schema"))
+            .With(x => x.After, current.ToBsonDocument())
+            .With(x => x.SchemaVersion, $"obligation_calculation_{ObligationCalculation.SchemaVersionValue}")
+            .Create();
+
+        var result = JsonNode.Parse(CreateSubject().Serialize(analyticsEvent))!;
+
+        result["schemaVersion"]!.GetValue<string>().Should().Be("obligation_calculation_v1.0");
+        result["correlationId"]!.GetValue<string>().Should().Be("run-correlation-id");
+        JsonNode
+            .DeepEquals(
+                result["before"],
+                JsonNode.Parse(
+                    $$"""
+                    {
+                      "id": "65f1f6570bb08052a8a27c01",
+                      "version": 1,
+                      "schemaVersion": "v1.0",
+                      "submitterOrganisationId": "{{submitterId}}",
+                      "submitterType": "ComplianceScheme",
+                      "obligationYear": 2026,
+                      "calculatedOn": "2026-01-02T03:04:05+00:00",
+                      "producers": [
+                        {
+                          "producerOrganisationId": "{{producerId}}",
+                          "materials": [
+                            { "materialCode": "GL", "inputKilograms": 3000, "inputTonnes": 3, "obligationTonnes": 1 },
+                            { "materialCode": "GR", "inputKilograms": 3000, "inputTonnes": 3, "obligationTonnes": 2 }
+                          ]
+                        }
+                      ]
+                    }
+                    """
+                )
+            )
+            .Should()
+            .BeTrue(result["before"]!.ToJsonString());
+        JsonNode
+            .DeepEquals(
+                result["after"],
+                JsonNode.Parse(
+                    $$"""
+                    {
+                      "id": "65f1f6570bb08052a8a27c01",
+                      "version": 2,
+                      "schemaVersion": "v1.0",
+                      "submitterOrganisationId": "{{submitterId}}",
+                      "submitterType": "ComplianceScheme",
+                      "obligationYear": 2026,
+                      "calculatedOn": "2026-01-02T03:05:05+00:00",
+                      "producers": [
+                        {
+                          "producerOrganisationId": "{{producerId}}",
+                          "materials": [
+                            { "materialCode": "PL", "inputKilograms": 10000, "inputTonnes": 10, "obligationTonnes": 6 }
+                          ]
+                        }
+                      ]
+                    }
+                    """
+                )
+            )
+            .Should()
+            .BeTrue(result["after"]!.ToJsonString());
     }
 
     [Fact]

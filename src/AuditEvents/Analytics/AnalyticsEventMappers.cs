@@ -11,7 +11,7 @@ public static class AnalyticsEventMappers
             EventId = auditEvent.EventId,
             Sequence = auditEvent.Sequence,
             Entity = auditEvent.Entity,
-            EntityId = $"cdec_{auditEvent.EntityId}",
+            EntityId = AnalyticsEventVocabulary.ToEntityId(auditEvent.Entity, auditEvent.EntityId),
             Operation = AnalyticsEventVocabulary.ToOperation(auditEvent.Operation),
             EventType = auditEvent.EventType,
             DeletedReason = AnalyticsEventVocabulary.NormalizeDeletedReason(auditEvent.DeletedReason),
