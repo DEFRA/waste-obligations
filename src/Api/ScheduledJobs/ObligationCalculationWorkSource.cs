@@ -1,4 +1,3 @@
-using Defra.WasteObligations.Api.Data;
 using Defra.WasteObligations.Api.Data.Entities;
 using Defra.WasteObligations.Api.Services.Scheduling;
 using MongoDB.Bson;
@@ -6,7 +5,7 @@ using MongoDB.Driver;
 
 namespace Defra.WasteObligations.Api.ScheduledJobs;
 
-public class ObligationCalculationWorkSource(IMongoDatabase database, MongoMigrationCompletion migrations)
+public class ObligationCalculationWorkSource(IMongoDatabase database)
     : IScheduledJobWorkSource<ObligationCalculationInstruction>
 {
     private readonly IMongoCollection<ObligationCalculationInstruction> _instructions =
@@ -17,9 +16,6 @@ public class ObligationCalculationWorkSource(IMongoDatabase database, MongoMigra
         CancellationToken cancellationToken
     )
     {
-        // Read only after legacy instruction correlation IDs have been persisted.
-        await migrations.Wait(cancellationToken);
-
         var filter = ActiveFilter();
         if (excludedIds.Count > 0)
             filter &= Builders<ObligationCalculationInstruction>.Filter.Nin(

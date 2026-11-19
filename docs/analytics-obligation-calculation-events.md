@@ -12,7 +12,7 @@ The [calculation service](../src/Api/Services/ObligationCalculations/ObligationC
 | `entityId` | `oblcalc_<calculation Mongo ObjectId>`. One calculation exists per submitter organisation and obligation year, so the ID stays stable across versions. |
 | `operation` / `eventType` | `create` / `calculation.created` for the first saved result; `update` / `calculation.updated` for a materially changed result. Calculations are never deleted, so no `delete` event is published. |
 | `actor` | `service:waste-obligations` |
-| `correlationId` | The `x-cdp-request-id` of the admin request that started the calculation, otherwise the correlation ID generated for the scheduled run. The ID is persisted on the calculation instruction when it is created, so every event from that instruction, including retries, carries the same value. A migration gives pending or running instructions created before correlation IDs were recorded a generated ID. |
+| `correlationId` | The `x-cdp-request-id` of the admin request that started the calculation, otherwise the correlation ID generated for the scheduled run. The ID is persisted on the calculation instruction when it is created, so every event from that instruction, including retries, carries the same value. |
 | `deletedReason` / `piiKeyRef` | Always `null`. |
 | `occurredAt` | The calculation completion time (`calculatedOn`), UTC with millisecond precision. |
 | `recordedAt` | When the outbox event was recorded, UTC with millisecond precision; never earlier than `occurredAt`. |
