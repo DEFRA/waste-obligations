@@ -90,6 +90,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests(
                             ReferenceNumber = "100001",
                             RecyclingObligationsMet = metrics.RecyclingObligationsMet,
                             ObligationCoveragePercentage = metrics.ObligationCoveragePercentage,
+                            TotalObligatedTonnage = metrics.TotalObligatedTonnage,
                         },
                     ],
                     Total = 6,

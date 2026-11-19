@@ -16,6 +16,7 @@
     "schemeOperatorName": null,
     "recyclingObligationsMet": null,
     "obligationCoveragePercentage": null,
+    "totalObligatedTonnage": null,
     "declarationStateUpdatedAt": "DateTimeOffset_1",
     "sourceFingerprint": "fingerprint",
     "refreshedAt": "DateTimeOffset_2"

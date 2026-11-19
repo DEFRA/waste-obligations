@@ -9,7 +9,8 @@
       "referenceNumber": "100003",
       "schemeOperatorName": null,
       "recyclingObligationsMet": null,
-      "obligationCoveragePercentage": null
+      "obligationCoveragePercentage": null,
+      "totalObligatedTonnage": null
     }
   ],
   "total": 1,

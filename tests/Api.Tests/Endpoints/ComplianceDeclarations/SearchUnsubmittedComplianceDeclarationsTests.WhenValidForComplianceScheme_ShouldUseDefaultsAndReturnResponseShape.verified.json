@@ -9,7 +9,8 @@
       "referenceNumber": "200001",
       "schemeOperatorName": "Bravo Operator",
       "recyclingObligationsMet": null,
-      "obligationCoveragePercentage": null
+      "obligationCoveragePercentage": null,
+      "totalObligatedTonnage": null
     }
   ],
   "total": 1,

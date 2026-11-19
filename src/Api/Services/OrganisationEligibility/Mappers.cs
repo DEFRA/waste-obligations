@@ -61,6 +61,7 @@ public static class Mappers
                         ),
                         RecyclingObligationsMet = null,
                         ObligationCoveragePercentage = null,
+                        TotalObligatedTonnage = null,
                         SourceFingerprint = CalculateSourceFingerprint(
                             organisation,
                             registration.RegistrationYear,

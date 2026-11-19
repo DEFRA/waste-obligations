@@ -40,6 +40,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests : IntegrationTestBase
                     BusinessCountry = "GB-WLS",
                     RecyclingObligationsMet = true,
                     ObligationCoveragePercentage = 80,
+                    TotalObligatedTonnage = 120,
                 },
                 Eligibility(submittedOrganisationId, generation, "Beta Packaging", "100002") with
                 {
@@ -84,6 +85,7 @@ public class SearchUnsubmittedComplianceDeclarationsTests : IntegrationTestBase
         row.SchemeOperatorName.Should().BeNull();
         row.ObligationCoveragePercentage.Should().Be(80);
         row.RecyclingObligationsMet.Should().BeTrue();
+        row.TotalObligatedTonnage.Should().Be(120);
         await VerifyJson(responseBody);
     }
 

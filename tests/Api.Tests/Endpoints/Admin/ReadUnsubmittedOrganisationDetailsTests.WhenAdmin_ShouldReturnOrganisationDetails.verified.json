@@ -28,6 +28,7 @@
       "schemeOperatorName": null,
       "recyclingObligationsMet": false,
       "obligationCoveragePercentage": 34.5,
+      "totalObligatedTonnage": null,
       "declarationStateUpdatedAt": "DateTimeOffset_3",
       "sourceFingerprint": "eligibility-fingerprint",
       "refreshedAt": "DateTimeOffset_4"

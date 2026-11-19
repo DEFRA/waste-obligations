@@ -566,6 +566,7 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
             .SingleAsync(TestContext.Current.CancellationToken);
         eligibility.RecyclingObligationsMet.Should().BeFalse();
         eligibility.ObligationCoveragePercentage.Should().Be(88);
+        eligibility.TotalObligatedTonnage.Should().Be(40);
         var retainedEligibility = await OrganisationComplianceDeclarationEligibilities
             .Find(x =>
                 x.Generation == "retained" && x.OrganisationId == organisationId && x.ObligationYear == ObligationYear
@@ -573,6 +574,7 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
             .SingleAsync(TestContext.Current.CancellationToken);
         retainedEligibility.RecyclingObligationsMet.Should().BeNull();
         retainedEligibility.ObligationCoveragePercentage.Should().BeNull();
+        retainedEligibility.TotalObligatedTonnage.Should().BeNull();
         var snapshot = await OrganisationEligibilitySnapshots
             .Find(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId)
             .SingleAsync(TestContext.Current.CancellationToken);
@@ -737,6 +739,12 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
         summary.RecyclingObligationsMet.Should().BeNull();
         summary.ObligationCoveragePercentage.Should().Be(0);
         summary.RefreshState.Should().Be(OrganisationObligationRefreshState.Ready);
+        var eligibility = await OrganisationComplianceDeclarationEligibilities
+            .Find(x =>
+                x.Generation == "active" && x.OrganisationId == organisationId && x.ObligationYear == ObligationYear
+            )
+            .SingleAsync(TestContext.Current.CancellationToken);
+        eligibility.TotalObligatedTonnage.Should().Be(0);
     }
 
     [Fact]
@@ -769,6 +777,7 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
             .SingleAsync(TestContext.Current.CancellationToken);
 
         eligibility.ObligationCoveragePercentage.Should().BeNull();
+        eligibility.TotalObligatedTonnage.Should().BeNull();
         var snapshot = await OrganisationEligibilitySnapshots
             .Find(x => x.Id == OrganisationEligibilitySnapshot.SnapshotId)
             .SingleAsync(TestContext.Current.CancellationToken);
@@ -894,6 +903,12 @@ public class OrganisationObligationHydrationServiceTests : IntegrationTestBase
         summary.TotalAcceptedTonnage.Should().Be(4);
         summary.TotalObligatedTonnage.Should().Be(5);
         summary.ObligationCoveragePercentage.Should().Be(80);
+        var eligibility = await OrganisationComplianceDeclarationEligibilities
+            .Find(x =>
+                x.Generation == "active" && x.OrganisationId == organisationId && x.ObligationYear == ObligationYear
+            )
+            .SingleAsync(TestContext.Current.CancellationToken);
+        eligibility.TotalObligatedTonnage.Should().Be(5);
     }
 
     private OrganisationObligationHydrationService CreateSubject(

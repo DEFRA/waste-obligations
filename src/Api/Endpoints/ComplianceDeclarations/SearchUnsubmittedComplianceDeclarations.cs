@@ -64,6 +64,7 @@ public static class SearchUnsubmittedComplianceDeclarations
                     SchemeOperatorName = x.SchemeOperatorName,
                     RecyclingObligationsMet = x.RecyclingObligationsMet,
                     ObligationCoveragePercentage = x.ObligationCoveragePercentage,
+                    TotalObligatedTonnage = x.TotalObligatedTonnage,
                 }),
                 Total = result.Total,
                 Page = page,

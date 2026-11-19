@@ -30,4 +30,7 @@ public record UnsubmittedOrganisation
 
     [JsonPropertyName("obligationCoveragePercentage")]
     public decimal? ObligationCoveragePercentage { get; init; }
+
+    [JsonPropertyName("totalObligatedTonnage")]
+    public int? TotalObligatedTonnage { get; init; }
 }
