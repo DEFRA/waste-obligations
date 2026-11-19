@@ -1,6 +1,6 @@
 # Analytics obligation calculation events
 
-Obligation calculation changes are published to the shared analytics SNS topic as [analytics events](analytics-events.md). That page describes the shared envelope, transport, operation values, vocabulary validation and delivery guarantees; this page describes the obligation calculation specifics.
+Obligation calculation changes are eligible for dispatch to a dedicated SQS queue as [analytics events](analytics-events.md), when the calculation dispatcher is enabled. That page describes the shared envelope, transport, operation values, vocabulary validation and delivery guarantees; this page describes the obligation calculation specifics.
 
 The [calculation service](../src/Api/Services/ObligationCalculations/ObligationCalculationService.cs) records the analytics outbox event in the same Mongo transaction as the current calculation write and, for updates, the archived history write. A failed, cancelled or conflicting save leaves neither a calculation change nor an event. An equivalent recalculation, including one that differs only by calculation time or producer and material ordering, writes no new version and emits no event.
 
@@ -34,7 +34,7 @@ Delivery follows the shared [capture and delivery](analytics-events.md#capture-a
 - Register `obligation_calculation`, both event types and `obligation_calculation_v1.0` in the shared governed vocabulary, and confirm the Data and Insights consumer is ready, before deploying the publisher.
 - There is no backfill. A calculation saved before deployment is first published when it next materially changes, as an `update` whose `before` is the stored result; an unchanged calculation is not published.
 - During a mixed-version rollout, older instances can still save calculations without emitting events. Do not treat the stream as complete across that interval.
-- SNS cannot retract an accepted message, and reverting the publisher does not withdraw published events. Coordinate correction or replay with the consumer if an emitted message needs remediation.
+- Reverting the publisher does not withdraw accepted queue messages. Coordinate correction or replay with the consumer if an emitted message needs remediation.
 
 ## Created event
 

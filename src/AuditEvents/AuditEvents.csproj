@@ -17,6 +17,7 @@
     <PackageReference Include="Snappier" Version="1.3.2" />
     <PackageReference Include="Ulid" Version="1.4.1" />
     <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="4.1.0.1" />
+    <PackageReference Include="AWSSDK.SQS" Version="4.1.0.1" />
     <PackageReference Include="AWSSDK.SimpleNotificationService" Version="4.1.0.1" />
     <PackageReference Include="AWSSDK.SecurityToken" Version="4.1.0.1" />
   </ItemGroup>

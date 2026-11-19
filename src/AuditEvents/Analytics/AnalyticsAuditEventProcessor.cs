@@ -11,14 +11,15 @@ public class AnalyticsAuditEventProcessor(
     IServiceScopeFactory serviceScopeFactory,
     IOptions<AnalyticsAuditEventProcessorOptions> options,
     IAuditEventMetrics auditEventMetrics,
-    ILogger<AnalyticsAuditEventProcessor> logger
+    ILogger<AnalyticsAuditEventProcessor> logger,
+    Func<IServiceProvider, IAnalyticsEventSender>? senderFactory = null
 ) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         if (!options.Value.ProcessingEnabled)
         {
-            logger.LogWarning("Analytics audit event processing is off");
+            logger.LogWarning("Audit event processing is off for {ProcessName}", options.Value.ProcessName);
 
             await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken);
 
@@ -40,7 +41,7 @@ public class AnalyticsAuditEventProcessor(
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 auditEventMetrics.DispatchPollFaulted(processName, exception);
-                logger.LogError(exception, "Analytics audit event processing failed");
+                logger.LogError(exception, "Audit event processing failed for {ProcessName}", processName);
             }
             finally
             {
@@ -59,7 +60,9 @@ public class AnalyticsAuditEventProcessor(
         using var scope = serviceScopeFactory.CreateScope();
         var auditEventLeaseService = scope.ServiceProvider.GetRequiredService<AuditEventLeaseService>();
         var auditEventDispatchService = scope.ServiceProvider.GetRequiredService<AuditEventDispatchService>();
-        var analyticsEventSender = scope.ServiceProvider.GetRequiredService<IAnalyticsEventSender>();
+        var analyticsEventSender = senderFactory is null
+            ? scope.ServiceProvider.GetRequiredService<IAnalyticsEventSender>()
+            : senderFactory(scope.ServiceProvider);
         var leaseDuration = TimeSpan.FromSeconds(options.Value.LeaseDurationSeconds);
         var failedDispatchRetryDelay = TimeSpan.FromSeconds(options.Value.FailedDispatchRetryDelaySeconds);
         var processName = options.Value.ProcessName;
@@ -78,6 +81,7 @@ public class AnalyticsAuditEventProcessor(
             var auditEvents = await auditEventDispatchService.ReadUnsent(
                 processName,
                 options.Value.BatchSize,
+                options.Value.IncludedEntities,
                 cancellationToken
             );
 

@@ -14,6 +14,7 @@ using Defra.WasteObligations.Testing.Fixtures.Entities;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
+using MongoDB.Driver;
 using ComplianceDeclaration = Defra.WasteObligations.Api.Dtos.ComplianceDeclaration;
 using ComplianceDeclarationEntity = Defra.WasteObligations.Api.Data.Entities.ComplianceDeclaration;
 
@@ -127,7 +128,7 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task WhenObligationCalculationCreatedAndUpdated_ShouldPublishCalculationEventsToSubscribedQueue()
+    public async Task WhenObligationCalculationCreatedAndUpdated_ShouldPublishCalculationEventsToDirectQueue()
     {
         using var sqsClient = CreateSqsClient();
         var service = new ObligationCalculationService(
@@ -145,7 +146,8 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
         using (
             var createMessage = await ReceiveAnalyticsEventsQueueJsonMessage(
                 sqsClient,
-                MatchEntityEvent(entityId, "create", "calculation.created")
+                MatchEntityEvent(entityId, "create", "calculation.created"),
+                CalculationEventsQueueUrl
             )
         )
         {
@@ -196,7 +198,8 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
 
         using var updateMessage = await ReceiveAnalyticsEventsQueueJsonMessage(
             sqsClient,
-            MatchEntityEvent(entityId, "update", "calculation.updated")
+            MatchEntityEvent(entityId, "update", "calculation.updated"),
+            CalculationEventsQueueUrl
         );
         var updateRoot = updateMessage.RootElement;
         AssertCalculationEnvelope(updateRoot, entityId, 2);
@@ -207,6 +210,16 @@ public class SnsAnalyticsEventSenderTests : IntegrationTestBase
         updatedAfter.GetProperty("version").GetInt32().Should().Be(2);
         InputKilograms(before).Should().Be(firstMaterial.InputKilograms);
         InputKilograms(updatedAfter).Should().Be(firstMaterial.InputKilograms + 100);
+
+        await WaitForAsync(async () =>
+        {
+            var events = await AuditEvents
+                .Find(x => x.Entity == "obligation_calculation" && x.EntityId == created.Id.ToString())
+                .ToListAsync(TestContext.Current.CancellationToken);
+            events.Should().HaveCount(2);
+            events.Should().OnlyContain(x => x.Dispatches.ContainsKey("calculation-queue"));
+            events.Should().OnlyContain(x => !x.Dispatches.ContainsKey("analytics"));
+        });
     }
 
     private static async Task<Api.Data.Entities.ObligationCalculation> SaveWithCorrelation(

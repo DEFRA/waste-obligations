@@ -97,10 +97,50 @@ public class AuditEventDispatchServiceTests : IntegrationTestBase
         var auditEventMetrics = Substitute.For<IAuditEventMetrics>();
         var subject = CreateSubject(auditEventMetrics: auditEventMetrics);
 
-        var result = await subject.ReadUnsent(Analytics, 4, TestContext.Current.CancellationToken);
+        var result = await subject.ReadUnsent(
+            Analytics,
+            4,
+            ["compliance_declaration"],
+            TestContext.Current.CancellationToken
+        );
 
         result.Select(x => x.EventId).Should().Equal("event-1", "event-3", "event-4", "event-6");
         auditEventMetrics.Received(1).DispatchBatchRead(Analytics, 4, Arg.Any<double?>());
+    }
+
+    [Fact]
+    public async Task ReadUnsent_WithEntityAllowlist_FiltersBeforeBatchAndKeepsIndependentDispatchState()
+    {
+        var calculation = AuditEventFixture.ObligationCalculation("calculation", 1).Create();
+        var declaration = CreateAuditEvent("declaration", 2);
+        await AuditEvents.InsertManyAsync(
+            [calculation, declaration],
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+        var subject = CreateSubject();
+
+        var declarations = await subject.ReadUnsent(
+            Analytics,
+            1,
+            ["compliance_declaration"],
+            TestContext.Current.CancellationToken
+        );
+        declarations.Select(x => x.EventId).Should().Equal("declaration");
+        await subject.MarkDispatched(Analytics, declaration, TestContext.Current.CancellationToken);
+
+        var calculations = await subject.ReadUnsent(
+            SomeOtherProcess,
+            1,
+            ["obligation_calculation"],
+            TestContext.Current.CancellationToken
+        );
+        calculations.Select(x => x.EventId).Should().Equal("calculation");
+        var excluded = await AuditEvents
+            .Find(x => x.EventId == "calculation")
+            .SingleAsync(TestContext.Current.CancellationToken);
+        excluded.Dispatches.Should().NotContainKey(Analytics);
+        var empty = await subject.ReadUnsent(Analytics, 1, [], TestContext.Current.CancellationToken);
+        empty.Should().BeEmpty();
     }
 
     [Fact]

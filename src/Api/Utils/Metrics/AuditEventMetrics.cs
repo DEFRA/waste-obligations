@@ -31,6 +31,12 @@ public class AuditEventMetrics : IAuditEventMetrics
     private readonly Counter<long> _snsPublishActive;
     private readonly Histogram<double> _snsPublishLatency;
 
+    private readonly Histogram<double> _sqsPublishDuration;
+    private readonly Counter<long> _sqsPublish;
+    private readonly Counter<long> _sqsPublishErrors;
+    private readonly Counter<long> _sqsPublishActive;
+    private readonly Histogram<double> _sqsPublishLatency;
+
     public AuditEventMetrics(IMeterFactory meterFactory)
     {
         var meter = meterFactory.Create(Metrics.MeterName);
@@ -84,6 +90,17 @@ public class AuditEventMetrics : IAuditEventMetrics
             Metrics.Names.AuditEventDispatchLease,
             nameof(Unit.COUNT),
             "Count of audit event dispatch lease outcomes"
+        );
+        _sqsPublishDuration = meter.CreateHistogram<double>(
+            Metrics.Names.AuditEventSqsPublishDuration,
+            nameof(Unit.MILLISECONDS)
+        );
+        _sqsPublish = meter.CreateCounter<long>(Metrics.Names.AuditEventSqsPublish, nameof(Unit.COUNT));
+        _sqsPublishErrors = meter.CreateCounter<long>(Metrics.Names.AuditEventSqsPublishErrors, nameof(Unit.COUNT));
+        _sqsPublishActive = meter.CreateCounter<long>(Metrics.Names.AuditEventSqsPublishActive, nameof(Unit.COUNT));
+        _sqsPublishLatency = meter.CreateHistogram<double>(
+            Metrics.Names.AuditEventSqsPublishLatency,
+            nameof(Unit.MILLISECONDS)
         );
         _snsPublishDuration = meter.CreateHistogram<double>(
             Metrics.Names.AuditEventSnsPublishDuration,
@@ -177,6 +194,50 @@ public class AuditEventMetrics : IAuditEventMetrics
 
         _dispatchMarkFailures.Add(1, tagList);
     }
+
+    public void SqsPublishStarted(string processName, string queueUrl, AnalyticsEvent analyticsEvent)
+    {
+        var tags = BuildQueueTags(processName, queueUrl, analyticsEvent);
+        _sqsPublish.Add(1, tags);
+        _sqsPublishActive.Add(1, tags);
+    }
+
+    public void SqsPublishCompleted(
+        string processName,
+        string queueUrl,
+        AnalyticsEvent analyticsEvent,
+        double publishMilliseconds,
+        double millisecondsSinceRecordedAt
+    )
+    {
+        var tags = BuildQueueTags(processName, queueUrl, analyticsEvent);
+        _sqsPublishActive.Add(-1, tags);
+        _sqsPublishDuration.Record(publishMilliseconds, tags);
+        _sqsPublishLatency.Record(millisecondsSinceRecordedAt, tags);
+    }
+
+    public void SqsPublishFaulted(
+        string processName,
+        string queueUrl,
+        AnalyticsEvent analyticsEvent,
+        Exception exception
+    )
+    {
+        var tags = BuildQueueTags(processName, queueUrl, analyticsEvent);
+        tags.Add(Metrics.Tags.ExceptionType, exception.GetType().Name);
+        _sqsPublishErrors.Add(1, tags);
+    }
+
+    private static TagList BuildQueueTags(string processName, string queueUrl, AnalyticsEvent analyticsEvent) =>
+        new()
+        {
+            { Metrics.Tags.Service, Process.GetCurrentProcess().ProcessName },
+            { Metrics.Tags.ProcessName, processName },
+            { "QueueName", queueUrl[(queueUrl.LastIndexOf('/') + 1)..] },
+            { Metrics.Tags.Entity, analyticsEvent.Entity },
+            { Metrics.Tags.Operation, analyticsEvent.Operation },
+            { Metrics.Tags.EventType, analyticsEvent.EventType },
+        };
 
     public void SnsPublishStarted(string processName, string topicArn, AnalyticsEvent analyticsEvent)
     {

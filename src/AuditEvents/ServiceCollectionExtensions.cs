@@ -1,9 +1,12 @@
 using Amazon.SimpleNotificationService;
+using Amazon.SQS;
 using Defra.WasteObligations.AuditEvents.Analytics;
 using Defra.WasteObligations.AuditEvents.Data;
 using Defra.WasteObligations.AuditEvents.Metrics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Defra.WasteObligations.AuditEvents;
@@ -20,6 +23,19 @@ public static class ServiceCollectionExtensions
             .AddOptions<AnalyticsAuditEventProcessorOptions>()
             .Bind(configuration.GetSection(AnalyticsAuditEventProcessorOptions.SectionName))
             .ValidateDataAnnotations()
+            .Validate(
+                x => !x.ProcessingEnabled || !string.IsNullOrWhiteSpace(x.TopicArn),
+                "Topic ARN is required when processing is enabled."
+            )
+            .Validate(
+                x =>
+                    !x.ProcessingEnabled
+                    || (
+                        x.IncludedEntities.Length > 0
+                        && x.IncludedEntities.All(AnalyticsEventVocabulary.IsRegisteredEntity)
+                    ),
+                "Enabled dispatchers require registered included entities."
+            )
             .ValidateOnStart();
 
         services.AddScoped<IAuditEventDbContext, AuditEventDbContext>();
@@ -41,6 +57,59 @@ public static class ServiceCollectionExtensions
         if (addAnalyticsProcessor)
         {
             services.AddHostedService<AnalyticsAuditEventProcessor>();
+        }
+
+        return services;
+    }
+
+    public static IServiceCollection AddAuditEventQueueDispatcher(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        string name,
+        string sectionName,
+        bool addHostedDispatcher = true
+    )
+    {
+        services
+            .AddOptions<AnalyticsAuditEventProcessorOptions>(name)
+            .Bind(configuration.GetSection(sectionName))
+            .ValidateDataAnnotations()
+            .Validate(
+                x => !x.ProcessingEnabled || !string.IsNullOrWhiteSpace(x.QueueUrl),
+                "Queue URL is required when processing is enabled."
+            )
+            .Validate(
+                x =>
+                    !x.ProcessingEnabled
+                    || x.ProcessName != configuration[$"{AnalyticsAuditEventProcessorOptions.SectionName}:ProcessName"],
+                "Dispatchers must have distinct process names."
+            )
+            .Validate(
+                x =>
+                    !x.ProcessingEnabled
+                    || (
+                        x.IncludedEntities.Length > 0
+                        && x.IncludedEntities.All(AnalyticsEventVocabulary.IsRegisteredEntity)
+                    ),
+                "Enabled dispatchers require registered included entities."
+            )
+            .ValidateOnStart();
+        services.AddAWSService<IAmazonSQS>();
+        if (addHostedDispatcher)
+        {
+            services.AddSingleton<IHostedService>(sp => new AnalyticsAuditEventProcessor(
+                sp.GetRequiredService<IServiceScopeFactory>(),
+                Options.Create(sp.GetRequiredService<IOptionsMonitor<AnalyticsAuditEventProcessorOptions>>().Get(name)),
+                sp.GetRequiredService<IAuditEventMetrics>(),
+                sp.GetRequiredService<ILogger<AnalyticsAuditEventProcessor>>(),
+                scoped =>
+                    ActivatorUtilities.CreateInstance<SqsAnalyticsEventSender>(
+                        scoped,
+                        Options.Create(
+                            sp.GetRequiredService<IOptionsMonitor<AnalyticsAuditEventProcessorOptions>>().Get(name)
+                        )
+                    )
+            ));
         }
 
         return services;

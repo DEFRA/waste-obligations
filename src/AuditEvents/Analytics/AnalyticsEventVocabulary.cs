@@ -27,6 +27,8 @@ public static class AnalyticsEventVocabulary
 
     private static readonly HashSet<string> s_actorPrefixes = ["service", "user", "system", "integration"];
 
+    public static bool IsRegisteredEntity(string entity) => s_entities.ContainsKey(entity);
+
     public static string ToOperation(string operation) =>
         operation switch
         {

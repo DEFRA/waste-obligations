@@ -83,6 +83,11 @@ services:
       AnalyticsAuditEventProcessor__PollIntervalSeconds: 1
       AnalyticsAuditEventProcessor__PollJitterSeconds: 0
       AnalyticsAuditEventConsumer__QueueUrl: http://floci:4566/000000000000/waste_obligations_analytics_events_queue
+      CalculationAuditEventProcessor__ProcessingEnabled: true
+      CalculationAuditEventProcessor__PollIntervalSeconds: 1
+      CalculationAuditEventProcessor__PollJitterSeconds: 0
+      CalculationAuditEventProcessor__QueueUrl: http://floci:4566/000000000000/waste_obligations_calculation_events_queue
+      CalculationAuditEventConsumer__QueueUrl: http://floci:4566/000000000000/waste_obligations_calculation_events_queue
       # See appsettings.json for additional settings related to auth
       PrnCommonBackend__TokenEndpoint: http://wiremock/oauth2/v2.0/token
       PrnCommonBackend__BaseAddress: http://wiremock/
@@ -113,6 +118,7 @@ services:
     environment:
       Mongo__DatabaseName: waste-obligations-scheduled-job-test
       AnalyticsAuditEventProcessor__ProcessingEnabled: false
+      CalculationAuditEventProcessor__ProcessingEnabled: false
       # The scenario creates instructions through the admin endpoint; only the processor runs here.
       ScheduledJobs__ObligationCalculation__Enabled: false
       ScheduledJobs__ObligationCalculation__Processing__Enabled: true
