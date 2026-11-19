@@ -104,6 +104,12 @@ public class StartObligationCalculationTests : IntegrationTestBase
             .Find(x => x.SubmitterOrganisationId == submitterId && x.ObligationYear == obligationYear)
             .SingleAsync(TestContext.Current.CancellationToken);
         calculation.SubmitterType.Should().Be(ObligationSubmitterType.ComplianceScheme);
+        var calculationEvent = await ScheduledJobAuditEvents
+            .Find(x => x.Entity == "obligation_calculation")
+            .SingleAsync(TestContext.Current.CancellationToken);
+        calculationEvent.EntityId.Should().Be(calculation.Id.ToString());
+        calculationEvent.Actor.Should().Be("system:waste-obligations");
+        calculationEvent.TraceId.Should().Be(TraceId);
         var producer = calculation.Producers.Should().ContainSingle().Which;
         producer.ProducerOrganisationId.Should().Be(producerId);
         producer

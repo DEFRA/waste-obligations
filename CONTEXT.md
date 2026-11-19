@@ -53,3 +53,5 @@ Use the language below across code, tests and discussions. The linked sources de
 ## Analytics language
 
 **Submission event**: In analytics event names, “submission” refers to a compliance declaration change. It does not name another business record or imply that the change was a new declaration submission. See [compliance declaration analytics events](docs/analytics-compliance-declaration-events.md).
+
+**Obligation calculation event**: An analytics event published when an obligation calculation is first saved or materially changes. Equivalent recalculations are not published. See [obligation calculation analytics events](docs/analytics-obligation-calculation-events.md).
