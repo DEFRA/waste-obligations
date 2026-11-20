@@ -22,6 +22,62 @@ public class PackagingCalculationTests : IntegrationTestBase
     private static readonly Guid SubmitterId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private readonly RecordingLogger<ObligationCalculationProcessor> _logger = new();
 
+    [Fact]
+    public async Task Process_MultipleSubmittersWithMultipleProducers_SavesOnlyTheirOwnResults()
+    {
+        var schemeId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        var holdingId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+        var subsidiaryId = Guid.Parse("44444444-4444-4444-4444-444444444444");
+        var memberId = Guid.Parse("55555555-5555-5555-5555-555555555555");
+        var memberSubsidiaryId = Guid.Parse("66666666-6666-6666-6666-666666666666");
+        var direct = ApprovedSubmissionFixture
+            .Default()
+            .With(x => x.SubmitterOrganisationId, SubmitterId)
+            .With(x => x.SubmitterType, ObligationSubmitterType.DirectRegistrant)
+            .With(x => x.Producers, [Producer(holdingId, 40_000), Producer(subsidiaryId, 70_000)])
+            .Create();
+        var scheme = ApprovedSubmissionFixture
+            .Default()
+            .With(x => x.SubmitterOrganisationId, schemeId)
+            .With(x => x.SubmitterType, ObligationSubmitterType.ComplianceScheme)
+            .With(x => x.Producers, [Producer(memberId, 21_000), Producer(memberSubsidiaryId, 21_000)])
+            .Create();
+
+        await Processor(Source(direct, scheme))
+            .Process(ObligationCalculationInstructionFixture.Default().Create(), TestContext.Current.CancellationToken);
+
+        var savedDirect = await Read(SubmitterId);
+        var savedScheme = await Read(schemeId);
+        savedDirect.SubmitterType.Should().Be(ObligationSubmitterType.DirectRegistrant);
+        savedScheme.SubmitterType.Should().Be(ObligationSubmitterType.ComplianceScheme);
+        savedDirect
+            .Producers.Select(x => x.ProducerOrganisationId)
+            .Should()
+            .BeEquivalentTo(new[] { holdingId, subsidiaryId });
+        savedScheme
+            .Producers.Select(x => x.ProducerOrganisationId)
+            .Should()
+            .BeEquivalentTo(new[] { memberId, memberSubsidiaryId });
+        savedDirect
+            .Producers.Single(x => x.ProducerOrganisationId == holdingId)
+            .Materials.Single()
+            .ObligationTonnes.Should()
+            .Be(23);
+        savedDirect
+            .Producers.Single(x => x.ProducerOrganisationId == subsidiaryId)
+            .Materials.Single()
+            .ObligationTonnes.Should()
+            .Be(40);
+        savedScheme.Producers.Should().OnlyContain(x => x.Materials.Single().ObligationTonnes == 12);
+    }
+
+    private static ProducerPackaging Producer(Guid id, long kilograms) =>
+        new()
+        {
+            ProducerOrganisationId = id,
+            Materials = [new() { MaterialCode = ObligationMaterials.Plastic, Kilograms = kilograms }],
+        };
+
     [Theory]
     [InlineData(ObligationSubmitterType.DirectRegistrant)]
     [InlineData(ObligationSubmitterType.ComplianceScheme)]
