@@ -10,6 +10,8 @@ using Defra.WasteObligations.Api.Services.Scheduling;
 using Defra.WasteObligations.Api.Services.WastePackaging;
 using Defra.WasteObligations.Api.Utils.Logging;
 using Defra.WasteObligations.Api.Utils.Metrics;
+using Defra.WasteObligations.AuditEvents;
+using Defra.WasteObligations.AuditEvents.Data;
 using Defra.WasteObligations.Testing;
 using Defra.WasteObligations.Testing.Extensions.WireMock;
 using Defra.WasteObligations.Testing.Fixtures.WastePackaging;
@@ -74,6 +76,9 @@ public class ScheduledJobTests : IntegrationTestBase
             .AddWastePackagingService(false)
             .AddRequestMetrics()
             .AddObligationCalculation()
+            .AddScoped<IAuditEventDbContext, AuditEventDbContext>()
+            .AddTransient<IAuditEventService, AuditEventService>()
+            .AddSingleton<IEventIdGenerator, UlidEventIdGenerator>()
             .AddScheduledJobs(configuration.GetSection("ScheduledJobs"))
             .BuildServiceProvider();
         var workers = host.GetServices<IHostedService>().ToArray();
@@ -130,6 +135,12 @@ public class ScheduledJobTests : IntegrationTestBase
                 .Find(x => x.SubmitterOrganisationId == submitterId && x.ObligationYear == 2026)
                 .SingleAsync(TestContext.Current.CancellationToken);
             calculation.SubmitterType.Should().Be(ObligationSubmitterType.ComplianceScheme);
+            var calculationEvent = await AuditEvents
+                .Find(x => x.Entity == "obligation_calculation")
+                .SingleAsync(TestContext.Current.CancellationToken);
+            calculationEvent.EntityId.Should().Be(calculation.Id.ToString());
+            calculationEvent.EventType.Should().Be("calculation.created");
+            calculationEvent.TraceId.Should().Be(instruction.CorrelationId);
             var producer = calculation.Producers.Should().ContainSingle().Which;
             producer.ProducerOrganisationId.Should().Be(producerId);
             producer

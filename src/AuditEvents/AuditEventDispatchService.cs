@@ -18,6 +18,7 @@ public class AuditEventDispatchService(
     public async Task<IReadOnlyCollection<AuditEvent>> ReadUnsent(
         string processName,
         int batchSize,
+        IReadOnlyCollection<string> includedEntities,
         CancellationToken cancellationToken
     )
     {
@@ -31,6 +32,7 @@ public class AuditEventDispatchService(
             Builders<AuditEvent>.Filter.Lte(AuditEventDispatchFieldNames.DispatchNextAttemptAtPath(processName), utcNow)
         );
         var filter = Builders<AuditEvent>.Filter.Or(noDispatch, failedAndDue);
+        filter &= Builders<AuditEvent>.Filter.In(x => x.Entity, includedEntities);
 
         // With secondaryPreferred reads this can see stale dispatch state, so an event may be sent more than once.
         // The topic/queue pipeline is at-least-once delivery, and consumers are expected to handle duplicates.

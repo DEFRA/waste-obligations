@@ -37,29 +37,50 @@ public class AnalyticsAuditEventConsumerTests
     }
 
     [Fact]
-    public async Task Start_WhenMessageReceived_ShouldLogAndDeleteMessage()
+    public async Task Start_WhenDeclarationAndCalculationReceived_ShouldLogAndDeleteBothMessages()
     {
+        const string calculationEventId = "calculation-event-1";
+        const string calculationEntityId = "oblcalc_65f1f6570bb08052a8a27c01";
+        const string calculationReceipt = "calculation-receipt";
         ReceiveMessageRequest? request = null;
+        var deletionCount = 0;
         var deleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var sqsClient = Substitute.For<IAmazonSQS>();
         sqsClient
             .ReceiveMessageAsync(Arg.Do<ReceiveMessageRequest>(x => request = x), Arg.Any<CancellationToken>())
-            .Returns(MessageThenWait(CreateMessage(Body())));
+            .Returns(
+                MessageThenWait(
+                    CreateMessage(Body()),
+                    CreateMessage(Body(calculationEventId, calculationEntityId), receiptHandle: calculationReceipt)
+                )
+            );
         sqsClient
-            .DeleteMessageAsync(QueueUrl, ReceiptHandle, Arg.Any<CancellationToken>())
+            .DeleteMessageAsync(QueueUrl, Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new DeleteMessageResponse())
-            .AndDoes(_ => deleted.TrySetResult());
+            .AndDoes(_ =>
+            {
+                if (Interlocked.Increment(ref deletionCount) == 2)
+                    deleted.TrySetResult();
+            });
         var logger = new RecordingLogger<AnalyticsAuditEventConsumer>();
         var subject = CreateSubject(sqsClient, logger);
 
         await subject.StartAsync(TestContext.Current.CancellationToken);
-        await deleted.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
-        await subject.StopAsync(TestContext.Current.CancellationToken);
+        try
+        {
+            await deleted.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        }
+        finally
+        {
+            await subject.StopAsync(TestContext.Current.CancellationToken);
+        }
 
         request.Should().NotBeNull();
         request.MessageAttributeNames.Should().Equal("All");
         logger.Messages.Should().Contain(x => x.Contains(EventId) && x.Contains(EntityId));
+        logger.Messages.Should().Contain(x => x.Contains(calculationEventId) && x.Contains(calculationEntityId));
         await sqsClient.Received(1).DeleteMessageAsync(QueueUrl, ReceiptHandle, Arg.Any<CancellationToken>());
+        await sqsClient.Received(1).DeleteMessageAsync(QueueUrl, calculationReceipt, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -195,7 +216,7 @@ public class AnalyticsAuditEventConsumerTests
         }
     }
 
-    private static Func<CallInfo, Task<ReceiveMessageResponse>> MessageThenWait(Message message)
+    private static Func<CallInfo, Task<ReceiveMessageResponse>> MessageThenWait(params Message[] messages)
     {
         var receivedCount = 0;
 
@@ -203,7 +224,7 @@ public class AnalyticsAuditEventConsumerTests
         {
             if (Interlocked.Increment(ref receivedCount) == 1)
             {
-                return Task.FromResult(new ReceiveMessageResponse { Messages = [message] });
+                return Task.FromResult(new ReceiveMessageResponse { Messages = [.. messages] });
             }
 
             var cancellationToken = call.ArgAt<CancellationToken>(1);
@@ -231,13 +252,17 @@ public class AnalyticsAuditEventConsumerTests
         };
     }
 
-    private static Message CreateMessage(string body, string? contentEncoding = null)
+    private static Message CreateMessage(
+        string body,
+        string? contentEncoding = null,
+        string receiptHandle = ReceiptHandle
+    )
     {
         var message = new Message
         {
             Body = body,
             MessageAttributes = [],
-            ReceiptHandle = ReceiptHandle,
+            ReceiptHandle = receiptHandle,
         };
 
         if (contentEncoding is not null)
@@ -252,11 +277,11 @@ public class AnalyticsAuditEventConsumerTests
         return message;
     }
 
-    private static string Body() =>
+    private static string Body(string eventId = EventId, string entityId = EntityId) =>
         $$"""
             {
-              "eventId": "{{EventId}}",
-              "entityId": "{{EntityId}}"
+              "eventId": "{{eventId}}",
+              "entityId": "{{entityId}}"
             }
             """;
 

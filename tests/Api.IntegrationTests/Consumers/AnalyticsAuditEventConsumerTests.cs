@@ -1,5 +1,7 @@
 using System.IO.Compression;
 using System.Text;
+using Amazon.Runtime;
+using Amazon.SimpleNotificationService;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using AwesomeAssertions;
@@ -16,17 +18,35 @@ public class AnalyticsAuditEventConsumerTests : IntegrationTestBase
     private const string EventId = "01JZ8RXBMTY2K15SJB3PCFN3D5";
 
     [Fact]
-    public async Task Start_WhenJsonMessageIsQueued_ShouldLogAndDeleteMessage()
+    public async Task Start_WhenTopicAndDirectMessagesShareQueue_ShouldLogAndDeleteBothMessages()
     {
+        const string calculationEventId = "calculation-event-1";
+        const string calculationEntityId = "oblcalc_65f1f6570bb08052a8a27c01";
         using var sqsClient = CreateSqsClient();
+        using var snsClient = new AmazonSimpleNotificationServiceClient(
+            new BasicAWSCredentials("test", "test"),
+            new AmazonSimpleNotificationServiceConfig
+            {
+                ServiceURL = "http://localhost:4566",
+                AuthenticationRegion = "eu-west-2",
+            }
+        );
         var logger = new RecordingLogger<AnalyticsAuditEventConsumer>();
         var subject = CreateSubject(sqsClient, logger);
 
+        await snsClient.PublishAsync(
+            new Amazon.SimpleNotificationService.Model.PublishRequest
+            {
+                TopicArn = "arn:aws:sns:eu-west-2:000000000000:waste_obligations_analytics_events",
+                Message = Body(),
+            },
+            TestContext.Current.CancellationToken
+        );
         await sqsClient.SendMessageAsync(
             new SendMessageRequest
             {
                 QueueUrl = AnalyticsEventsQueueUrl,
-                MessageBody = Body(),
+                MessageBody = Body(calculationEventId, calculationEntityId),
                 MessageAttributes = JsonMessageAttributes(),
             },
             TestContext.Current.CancellationToken
@@ -36,6 +56,13 @@ public class AnalyticsAuditEventConsumerTests : IntegrationTestBase
         try
         {
             await WaitForMessageLogged(logger);
+            await AsyncWaiter.WaitForAsync(() =>
+            {
+                logger
+                    .Messages.Should()
+                    .Contain(x => x.Contains(calculationEventId) && x.Contains(calculationEntityId));
+                return Task.CompletedTask;
+            });
             await WaitForQueueToBeEmpty(sqsClient);
         }
         finally
@@ -44,6 +71,7 @@ public class AnalyticsAuditEventConsumerTests : IntegrationTestBase
         }
 
         logger.Messages.Should().Contain(x => x.Contains(EventId) && x.Contains(EntityId));
+        logger.Messages.Should().Contain(x => x.Contains(calculationEventId) && x.Contains(calculationEntityId));
     }
 
     [Fact]
@@ -116,17 +144,17 @@ public class AnalyticsAuditEventConsumerTests : IntegrationTestBase
         await AsyncWaiter.WaitForAsync(
             async () =>
             {
-                var response = await sqsClient.ReceiveMessageAsync(
-                    new ReceiveMessageRequest
+                var response = await sqsClient.GetQueueAttributesAsync(
+                    new GetQueueAttributesRequest
                     {
                         QueueUrl = AnalyticsEventsQueueUrl,
-                        MaxNumberOfMessages = 1,
-                        WaitTimeSeconds = 0,
+                        AttributeNames = ["ApproximateNumberOfMessages", "ApproximateNumberOfMessagesNotVisible"],
                     },
                     TestContext.Current.CancellationToken
                 );
 
-                response.Messages.Should().BeNullOrEmpty();
+                response.Attributes["ApproximateNumberOfMessages"].Should().Be("0");
+                response.Attributes["ApproximateNumberOfMessagesNotVisible"].Should().Be("0");
             },
             timeout: 5,
             delay: TimeSpan.FromMilliseconds(50)
@@ -148,11 +176,11 @@ public class AnalyticsAuditEventConsumerTests : IntegrationTestBase
         return attributes;
     }
 
-    private static string Body() =>
+    private static string Body(string eventId = EventId, string entityId = EntityId) =>
         $$"""
             {
-              "eventId": "{{EventId}}",
-              "entityId": "{{EntityId}}"
+              "eventId": "{{eventId}}",
+              "entityId": "{{entityId}}"
             }
             """;
 

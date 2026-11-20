@@ -36,6 +36,9 @@ public class MongoMigrationServiceTests : IntegrationTestBase
     private const string DispatchAnalyticsIndexName = "Dispatch_analytics";
     private const string DispatchAnalyticsStatusNextAttemptAtSequenceIndexName =
         "Dispatch_analytics_Status_NextAttemptAt_Sequence";
+    private const string DispatchAnalyticsEntitySequenceIndexName = "Dispatch_analytics_Entity_Sequence";
+    private const string DispatchAnalyticsStatusEntitySequenceNextAttemptAtIndexName =
+        "Dispatch_analytics_Status_Entity_Sequence_NextAttemptAt";
     private const string AuditEventAdminReadIndexName = "Entity_EntityId_Sequence";
     private const string OrganisationEligibilityNameIndexName =
         "Generation_IsVisibleInUnsubmittedView_Name_OrganisationId";
@@ -128,7 +131,7 @@ public class MongoMigrationServiceTests : IntegrationTestBase
                 ).ToListAsync(TestContext.Current.CancellationToken);
                 auditEventIndexes
                     .Should()
-                    .Contain(x => x.GetValue("name") == DispatchAnalyticsStatusNextAttemptAtSequenceIndexName);
+                    .Contain(x => x.GetValue("name") == DispatchAnalyticsStatusEntitySequenceNextAttemptAtIndexName);
 
                 var organisationObligationSummaryIndexes = await (
                     await OrganisationObligationSummaries.Indexes.ListAsync(TestContext.Current.CancellationToken)
@@ -188,6 +191,7 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             delay: TimeSpan.FromMilliseconds(50)
         );
 
+        await completed.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
         var complianceDeclarationIndexes = await (
             await ComplianceDeclarations.Indexes.ListAsync(TestContext.Current.CancellationToken)
         ).ToListAsync(TestContext.Current.CancellationToken);
@@ -204,12 +208,18 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             ["entityId"] = 1,
             ["version"] = 1,
         };
-        var dispatchKeys = new BsonDocument { ["dispatches.analytics"] = 1, ["sequence"] = 1 };
+        var dispatchKeys = new BsonDocument
+        {
+            ["dispatches.analytics"] = 1,
+            ["entity"] = 1,
+            ["sequence"] = 1,
+        };
         var dispatchStatusNextAttemptAtSequenceKeys = new BsonDocument
         {
             ["dispatches.analytics.status"] = 1,
-            ["dispatches.analytics.nextAttemptAt"] = 1,
+            ["entity"] = 1,
             ["sequence"] = 1,
+            ["dispatches.analytics.nextAttemptAt"] = 1,
         };
 
         complianceDeclarationIndexes
@@ -220,16 +230,20 @@ public class MongoMigrationServiceTests : IntegrationTestBase
             .Contain(x => IsIndex(x, BusinessCountrySearchIndexName, BusinessCountrySearchIndexKeys()));
         auditEventIndexes.Should().Contain(x => IsIndex(x, SequenceIndexName, sequenceKeys, unique: true));
         auditEventIndexes.Should().Contain(x => IsIndex(x, EntityEntityIdVersionIndexName, entityKeys));
-        auditEventIndexes.Should().Contain(x => IsIndex(x, DispatchAnalyticsIndexName, dispatchKeys));
+        auditEventIndexes.Should().Contain(x => IsIndex(x, DispatchAnalyticsEntitySequenceIndexName, dispatchKeys));
         auditEventIndexes
             .Should()
             .Contain(x =>
                 IsIndex(
                     x,
-                    DispatchAnalyticsStatusNextAttemptAtSequenceIndexName,
+                    DispatchAnalyticsStatusEntitySequenceNextAttemptAtIndexName,
                     dispatchStatusNextAttemptAtSequenceKeys
                 )
             );
+        auditEventIndexes.Should().NotContain(x => x.GetValue("name") == DispatchAnalyticsIndexName);
+        auditEventIndexes
+            .Should()
+            .NotContain(x => x.GetValue("name") == DispatchAnalyticsStatusNextAttemptAtSequenceIndexName);
         organisationObligationSummaryIndexes
             .Should()
             .Contain(x =>
@@ -249,7 +263,6 @@ public class MongoMigrationServiceTests : IntegrationTestBase
                 )
             );
 
-        await completed.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
         await subject.StopAsync(TestContext.Current.CancellationToken);
     }
 
@@ -853,6 +866,109 @@ public class MongoMigrationServiceTests : IntegrationTestBase
         indexes.Should().NotContain(x => x.GetValue("name") == DispatchAnalyticsStatusNextAttemptAtSequenceIndexName);
 
         await subject.UpAsync(context);
+    }
+
+    [Fact]
+    public async Task AuditEventEntityDispatchIndex_ShouldReplaceOnlyLegacyDispatchIndexesAndRestoreThemOnRollback()
+    {
+        var context = new MigrationContext(GetMongoDatabase(), null!, TestContext.Current.CancellationToken);
+        var subject = new AuditEventEntityDispatchIndex();
+        await new AuditEventIndexesMigration().UpAsync(context);
+        string[] replacementNames =
+        [
+            DispatchAnalyticsEntitySequenceIndexName,
+            DispatchAnalyticsStatusEntitySequenceNextAttemptAtIndexName,
+            "Dispatch_calculation_Entity_Sequence",
+            "Dispatch_calculation_Status_Entity_Sequence_NextAttemptAt",
+        ];
+        var retained = (await ListAuditEventIndexes())
+            .Where(x =>
+                x["name"] != DispatchAnalyticsIndexName
+                && x["name"] != DispatchAnalyticsStatusNextAttemptAtSequenceIndexName
+                && !replacementNames.Contains(x["name"].AsString)
+            )
+            .ToArray();
+
+        try
+        {
+            await subject.UpAsync(context);
+            await subject.UpAsync(context);
+            var indexes = await ListAuditEventIndexes();
+
+            indexes
+                .Select(x => x["name"].AsString)
+                .Should()
+                .BeEquivalentTo(retained.Select(x => x["name"].AsString).Concat(replacementNames));
+            foreach (var index in retained)
+                indexes.Should().Contain(x => x.Equals(index));
+            foreach (var process in new[] { "analytics", "calculation" })
+            {
+                indexes
+                    .Should()
+                    .Contain(x =>
+                        IsIndex(
+                            x,
+                            $"Dispatch_{process}_Entity_Sequence",
+                            new BsonDocument
+                            {
+                                { $"dispatches.{process}", 1 },
+                                { "entity", 1 },
+                                { "sequence", 1 },
+                            }
+                        )
+                    );
+                indexes
+                    .Should()
+                    .Contain(x =>
+                        IsIndex(
+                            x,
+                            $"Dispatch_{process}_Status_Entity_Sequence_NextAttemptAt",
+                            new BsonDocument
+                            {
+                                { $"dispatches.{process}.status", 1 },
+                                { "entity", 1 },
+                                { "sequence", 1 },
+                                { $"dispatches.{process}.nextAttemptAt", 1 },
+                            }
+                        )
+                    );
+            }
+
+            await subject.DownAsync(context);
+            await subject.DownAsync(context);
+            indexes = await ListAuditEventIndexes();
+
+            indexes.Should().NotContain(x => replacementNames.Contains(x["name"].AsString));
+            indexes
+                .Should()
+                .Contain(x =>
+                    IsIndex(
+                        x,
+                        DispatchAnalyticsIndexName,
+                        new BsonDocument { { "dispatches.analytics", 1 }, { "sequence", 1 } }
+                    )
+                );
+            indexes
+                .Should()
+                .Contain(x =>
+                    IsIndex(
+                        x,
+                        DispatchAnalyticsStatusNextAttemptAtSequenceIndexName,
+                        new BsonDocument
+                        {
+                            { "dispatches.analytics.status", 1 },
+                            { "dispatches.analytics.nextAttemptAt", 1 },
+                            { "sequence", 1 },
+                        }
+                    )
+                );
+            foreach (var index in retained)
+                indexes.Should().Contain(x => x.Equals(index));
+        }
+        finally
+        {
+            await subject.UpAsync(context);
+        }
     }
 
     [Fact]

@@ -8,10 +8,8 @@ public record ObligationCalculation
 {
     public const string SchemaVersionValue = "v1.0";
     public ObjectId Id { get; init; }
-    public int Version { get; init; } = 1;
-
-    [BsonElement("schemaVersion")]
     public string SchemaVersion { get; private init; } = SchemaVersionValue;
+    public int Version { get; init; } = 1;
 
     [BsonGuidRepresentation(GuidRepresentation.Standard)]
     public required Guid SubmitterOrganisationId { get; init; }

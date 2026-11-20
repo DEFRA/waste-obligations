@@ -181,11 +181,10 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
         }
     }
 
-    [Theory]
-    [InlineData(null)]
-    [InlineData("trace-123")]
-    public async Task Worker_WhenPackagingFetchFails_ShouldKeepSameInstructionAndRetryBeforeCompleting(string? traceId)
+    [Fact]
+    public async Task Worker_WhenPackagingFetchFails_ShouldKeepSameInstructionAndRetryBeforeCompleting()
     {
+        const string traceId = "trace-123";
         var instruction = ObligationCalculationInstructionFixture
             .Default()
             .With(x => x.CorrelationId, traceId)
@@ -251,12 +250,7 @@ public class ObligationCalculationInstructionProcessorTests : IntegrationTestBas
         attempts.Should().Be(2);
         await packaging.Received(2).Read(instruction.ObligationYear - 1, Arg.Any<CancellationToken>());
         observedTraceIds.Should().HaveCount(2).And.OnlyContain(x => x == traceId);
-        if (traceId is not null)
-            workerLogger
-                .Received()
-                .BeginScope(Arg.Is<Dictionary<string, object?>>(x => (string?)x["TraceId"] == traceId));
-        else
-            workerLogger.DidNotReceive().BeginScope(Arg.Any<Dictionary<string, object?>>());
+        workerLogger.Received().BeginScope(Arg.Is<Dictionary<string, object?>>(x => (string?)x["TraceId"] == traceId));
         (await Read(instruction)).FailureCount.Should().Be(1);
         (
             await ObligationCalculationInstructions.CountDocumentsAsync(

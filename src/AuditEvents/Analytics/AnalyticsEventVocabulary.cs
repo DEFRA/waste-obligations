@@ -4,28 +4,30 @@ public static class AnalyticsEventVocabulary
 {
     public const string ElevatedSystemAllowedRemoval = "elevated_system_allowed_removal";
 
-    private const string ComplianceDeclarationEntity = "compliance_declaration";
     private const string CreateOperation = "create";
     private const string UpdateOperation = "update";
     private const string DeleteOperation = "delete";
     private const string LegacyElevatedSystemAllowedRemoval = "elevated system allowed removal";
 
-    private static readonly HashSet<string> s_eventTypes =
-    [
-        "submission.created",
-        "submission.amended",
-        "submission.removed",
-    ];
+    private static readonly Dictionary<string, EntityRegistration> s_entities = new()
+    {
+        ["compliance_declaration"] = new(
+            "cdec_",
+            [CreateOperation, UpdateOperation, DeleteOperation],
+            ["submission.created", "submission.amended", "submission.removed"],
+            ["v1.0", "v1.1", "v1.2", "v1.3"]
+        ),
+        ["obligation_calculation"] = new(
+            "oblcalc_",
+            [CreateOperation, UpdateOperation],
+            ["calculation.created", "calculation.updated"],
+            ["v1.0"]
+        ),
+    };
 
     private static readonly HashSet<string> s_actorPrefixes = ["service", "user", "system", "integration"];
 
-    private static readonly HashSet<string> s_schemaVersions =
-    [
-        "compliance_declaration_v1.0",
-        "compliance_declaration_v1.1",
-        "compliance_declaration_v1.2",
-        "compliance_declaration_v1.3",
-    ];
+    public static bool IsRegisteredEntity(string entity) => s_entities.ContainsKey(entity);
 
     public static string ToOperation(string operation) =>
         operation switch
@@ -36,6 +38,8 @@ public static class AnalyticsEventVocabulary
             _ => throw new InvalidOperationException($"Unregistered analytics operation '{operation}'."),
         };
 
+    public static string ToEntityId(string entity, string entityId) => GetEntity(entity).EntityIdPrefix + entityId;
+
     public static string? NormalizeDeletedReason(string? deletedReason) =>
         deletedReason switch
         {
@@ -45,18 +49,21 @@ public static class AnalyticsEventVocabulary
 
     public static void Validate(AnalyticsEvent analyticsEvent)
     {
-        if (analyticsEvent.Entity != ComplianceDeclarationEntity)
-            throw new InvalidOperationException($"Unregistered analytics entity '{analyticsEvent.Entity}'.");
+        var entity = GetEntity(analyticsEvent.Entity);
+        var schemaVersionPrefix = $"{analyticsEvent.Entity}_";
 
-        if (analyticsEvent.Operation is not (CreateOperation or UpdateOperation or DeleteOperation))
+        if (!entity.Operations.Contains(analyticsEvent.Operation))
             throw new InvalidOperationException($"Unregistered analytics operation '{analyticsEvent.Operation}'.");
 
-        if (!s_eventTypes.Contains(analyticsEvent.EventType))
+        if (!entity.EventTypes.Contains(analyticsEvent.EventType))
             throw new InvalidOperationException($"Unregistered analytics event type '{analyticsEvent.EventType}'.");
 
         ValidateActor(analyticsEvent.Actor);
 
-        if (!s_schemaVersions.Contains(analyticsEvent.SchemaVersion))
+        if (
+            !analyticsEvent.SchemaVersion.StartsWith(schemaVersionPrefix, StringComparison.Ordinal)
+            || !entity.SchemaVersions.Contains(analyticsEvent.SchemaVersion[schemaVersionPrefix.Length..])
+        )
             throw new InvalidOperationException(
                 $"Unregistered analytics schema version '{analyticsEvent.SchemaVersion}'."
             );
@@ -75,6 +82,11 @@ public static class AnalyticsEventVocabulary
             throw new InvalidOperationException("An analytics deletion reason is only valid for delete operations.");
     }
 
+    private static EntityRegistration GetEntity(string entity) =>
+        s_entities.TryGetValue(entity, out var registration)
+            ? registration
+            : throw new InvalidOperationException($"Unregistered analytics entity '{entity}'.");
+
     private static void ValidateActor(string actor)
     {
         var separatorIndex = actor.IndexOf(':');
@@ -85,4 +97,11 @@ public static class AnalyticsEventVocabulary
         )
             throw new InvalidOperationException($"Unregistered analytics actor '{actor}'.");
     }
+
+    private sealed record EntityRegistration(
+        string EntityIdPrefix,
+        HashSet<string> Operations,
+        HashSet<string> EventTypes,
+        HashSet<string> SchemaVersions
+    );
 }

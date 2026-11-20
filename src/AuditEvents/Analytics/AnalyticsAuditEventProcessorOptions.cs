@@ -5,12 +5,16 @@ namespace Defra.WasteObligations.AuditEvents.Analytics;
 public record AnalyticsAuditEventProcessorOptions
 {
     public const string SectionName = "AnalyticsAuditEventProcessor";
+    public const string CalculationSectionName = "CalculationAuditEventProcessor";
 
     [Required]
     public required string ProcessName { get; init; }
 
-    [Required]
-    public required string TopicArn { get; init; }
+    public string TopicArn { get; init; } = string.Empty;
+
+    public string[] IncludedEntities { get; init; } = [];
+
+    public string? QueueUrl { get; init; }
 
     public bool ProcessingEnabled { get; init; }
 

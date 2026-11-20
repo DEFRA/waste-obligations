@@ -31,6 +31,11 @@ public static class Metrics
         public const string AuditEventDispatchOutcome = nameof(AuditEventDispatchOutcome);
         public const string AuditEventDispatchMarkFailures = nameof(AuditEventDispatchMarkFailures);
         public const string AuditEventDispatchLease = nameof(AuditEventDispatchLease);
+        public const string AuditEventSqsPublish = nameof(AuditEventSqsPublish);
+        public const string AuditEventSqsPublishActive = nameof(AuditEventSqsPublishActive);
+        public const string AuditEventSqsPublishErrors = nameof(AuditEventSqsPublishErrors);
+        public const string AuditEventSqsPublishDuration = nameof(AuditEventSqsPublishDuration);
+        public const string AuditEventSqsPublishLatency = nameof(AuditEventSqsPublishLatency);
         public const string AuditEventSnsPublish = nameof(AuditEventSnsPublish);
         public const string AuditEventSnsPublishActive = nameof(AuditEventSnsPublishActive);
         public const string AuditEventSnsPublishErrors = nameof(AuditEventSnsPublishErrors);

@@ -71,6 +71,70 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Start_WhenStoppedAfterCalculationEventIsAcceptedButBeforeDispatchIsRecorded_ShouldRedeliverSameEvent()
+    {
+        var timeProvider = new FakeTimeProvider(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        var auditEvent = AuditEventFixture.ObligationCalculation("calculation-event-1", 1).Create();
+        await AuditEvents.InsertOneAsync(auditEvent, cancellationToken: TestContext.Current.CancellationToken);
+        var interruptedSender = new RecordingAnalyticsEventSender();
+        var interrupted = CreateSubject(GetMongoApplicationDatabase(), timeProvider, interruptedSender);
+        Task? stopping = null;
+        interruptedSender.OnSend = async (_, token) =>
+        {
+            // SNS has accepted the message; the host stops before the dispatch outcome is written.
+            stopping = interrupted.StopAsync(CancellationToken.None);
+            await Task.Delay(Timeout.InfiniteTimeSpan, token);
+        };
+
+        await interrupted.StartAsync(TestContext.Current.CancellationToken);
+        await interruptedSender.WaitForSend(TestContext.Current.CancellationToken);
+        await AsyncWaiter.WaitForAsync(
+            () =>
+            {
+                stopping.Should().NotBeNull();
+
+                return Task.CompletedTask;
+            },
+            timeout: 5,
+            delay: TimeSpan.FromMilliseconds(50)
+        );
+        await stopping!.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        (
+            await AuditEvents
+                .Find(x => x.EventId == auditEvent.EventId)
+                .SingleAsync(TestContext.Current.CancellationToken)
+        )
+            .Dispatches.Should()
+            .NotContainKey(Analytics);
+
+        timeProvider.Advance(TimeSpan.FromSeconds(61));
+        var retrySender = new RecordingAnalyticsEventSender();
+        var retry = CreateSubject(GetMongoApplicationDatabase(), timeProvider, retrySender);
+        await retry.StartAsync(TestContext.Current.CancellationToken);
+        await retrySender.WaitForSend(TestContext.Current.CancellationToken);
+        await AsyncWaiter.WaitForAsync(
+            async () =>
+                (
+                    await AuditEvents
+                        .Find(x => x.EventId == auditEvent.EventId)
+                        .SingleAsync(TestContext.Current.CancellationToken)
+                )
+                    .Dispatches[Analytics]
+                    .Status.Should()
+                    .Be(AuditEventDispatchStatus.Dispatched),
+            timeout: 5,
+            delay: TimeSpan.FromMilliseconds(50)
+        );
+        await retry.StopAsync(TestContext.Current.CancellationToken);
+
+        var original = interruptedSender.SentEvents.Should().ContainSingle().Which;
+        var redelivered = retrySender.SentEvents.Should().ContainSingle().Which;
+        redelivered.Should().BeEquivalentTo(original);
+        redelivered.EventId.Should().Be("calculation-event-1");
+        redelivered.EventType.Should().Be("calculation.created");
+    }
+
+    [Fact]
     public async Task Start_WhenAuditEventAlreadyDispatched_ShouldNotSend()
     {
         var auditEvent = CreateAuditEvent(
@@ -295,7 +359,7 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
         await subject.StopAsync(TestContext.Current.CancellationToken);
 
         sender.SentEvents.Should().BeEmpty();
-        logger.Messages.Should().ContainSingle("Analytics audit event processing is off");
+        logger.Messages.Should().ContainSingle("Audit event processing is off for analytics");
         auditEventMetrics.DidNotReceive().DispatchPollStarted(Arg.Any<string>());
     }
 
@@ -401,6 +465,7 @@ public class AnalyticsAuditEventProcessorTests : IntegrationTestBase
                 new AnalyticsAuditEventProcessorOptions
                 {
                     ProcessName = Analytics,
+                    IncludedEntities = ["compliance_declaration", "obligation_calculation"],
                     TopicArn = "arn:aws:sns:eu-west-2:000000000000:waste_obligations_analytics_events",
                     ProcessingEnabled = processingEnabled,
                     BatchSize = 25,

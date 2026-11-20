@@ -286,7 +286,7 @@ public class PackagingCalculationTests : IntegrationTestBase
                         call.ArgAt<CancellationToken>(2)
                     )
                 );
-            var service = new ObligationCalculationService(context);
+            var service = new ObligationCalculationService(context, CreateAuditEventService());
             var metrics = Substitute.For<IObligationCalculationMetrics>();
             var first = Processor(
                 Source(ApprovedSubmissionFixture.Default().With(x => x.SubmitterOrganisationId, SubmitterId).Create()),
@@ -417,7 +417,7 @@ public class PackagingCalculationTests : IntegrationTestBase
                 ),
                 TimeProvider.System
             ),
-            service ?? new ObligationCalculationService(Context()),
+            service ?? new ObligationCalculationService(Context(), CreateAuditEventService()),
             metrics ?? Substitute.For<IObligationCalculationMetrics>(),
             TimeProvider.System,
             _logger
