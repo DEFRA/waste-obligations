@@ -23,6 +23,53 @@ public class PackagingCalculationTests : IntegrationTestBase
     private readonly RecordingLogger<ObligationCalculationProcessor> _logger = new();
 
     [Fact]
+    public async Task Process_TwoSchemesReportingSameProducer_KeepsEachSubmittersCalculation()
+    {
+        var otherSchemeId = Guid.NewGuid();
+        var sharedProducerId = Guid.NewGuid();
+        var firstOnlyId = Guid.NewGuid();
+        var secondOnlyId = Guid.NewGuid();
+        var first = new ApprovedSubmission
+        {
+            SubmitterOrganisationId = SubmitterId,
+            SubmitterType = ObligationSubmitterType.ComplianceScheme,
+            Producers = [Producer(sharedProducerId, 10_000), Producer(firstOnlyId, 30_000)],
+        };
+        var second = new ApprovedSubmission
+        {
+            SubmitterOrganisationId = otherSchemeId,
+            SubmitterType = ObligationSubmitterType.ComplianceScheme,
+            Producers = [Producer(sharedProducerId, 20_000), Producer(secondOnlyId, 40_000)],
+        };
+
+        await Processor(Source(first, second))
+            .Process(ObligationCalculationInstructionFixture.Default().Create(), TestContext.Current.CancellationToken);
+
+        var firstResult = await Read(SubmitterId);
+        var secondResult = await Read(otherSchemeId);
+        firstResult.SubmitterType.Should().Be(ObligationSubmitterType.ComplianceScheme);
+        secondResult.SubmitterType.Should().Be(ObligationSubmitterType.ComplianceScheme);
+        firstResult
+            .Producers.Select(x => x.ProducerOrganisationId)
+            .Should()
+            .BeEquivalentTo(new[] { sharedProducerId, firstOnlyId });
+        secondResult
+            .Producers.Select(x => x.ProducerOrganisationId)
+            .Should()
+            .BeEquivalentTo(new[] { sharedProducerId, secondOnlyId });
+        var firstShared = firstResult
+            .Producers.Single(x => x.ProducerOrganisationId == sharedProducerId)
+            .Materials.Single();
+        var secondShared = secondResult
+            .Producers.Single(x => x.ProducerOrganisationId == sharedProducerId)
+            .Materials.Single();
+        firstShared.InputKilograms.Should().Be(10_000);
+        firstShared.ObligationTonnes.Should().Be(6);
+        secondShared.InputKilograms.Should().Be(20_000);
+        secondShared.ObligationTonnes.Should().Be(12);
+    }
+
+    [Fact]
     public async Task Process_MultipleSubmittersWithMultipleProducers_SavesOnlyTheirOwnResults()
     {
         var schemeId = Guid.Parse("22222222-2222-2222-2222-222222222222");
