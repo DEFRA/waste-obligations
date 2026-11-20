@@ -55,13 +55,19 @@ public class StartObligationCalculationTests : IntegrationTestBase
                     .Default()
                     .With(x => x.SubmitterOrganisationId, directId)
                     .With(x => x.SubmitterType, ObligationSubmitterType.DirectRegistrant)
-                    .With(x => x.Producers, [Producer(directId), Producer(directSubsidiaryId)])
+                    .With(
+                        x => x.Producers,
+                        [Producer(directId, 10_000, 20_000), Producer(directSubsidiaryId, 30_000, 40_000)]
+                    )
                     .Create(),
                 ApprovedSubmissionFixture
                     .Default()
                     .With(x => x.SubmitterOrganisationId, schemeId)
                     .With(x => x.SubmitterType, ObligationSubmitterType.ComplianceScheme)
-                    .With(x => x.Producers, [Producer(memberId), Producer(memberSubsidiaryId)])
+                    .With(
+                        x => x.Producers,
+                        [Producer(memberId, 50_000, 60_000), Producer(memberSubsidiaryId, 70_000, 80_000)]
+                    )
                     .Create(),
             ],
         };
@@ -109,19 +115,36 @@ public class StartObligationCalculationTests : IntegrationTestBase
             .Producers.Select(x => x.ProducerOrganisationId)
             .Should()
             .BeEquivalentTo(new[] { memberId, memberSubsidiaryId });
-        foreach (var producer in calculations.SelectMany(x => x.Producers))
-        {
-            producer.Materials.Select(x => x.MaterialCode).Should().BeEquivalentTo("PL", "WD");
-        }
+        calculations
+            .SelectMany(x => x.Producers)
+            .SelectMany(producer =>
+                producer.Materials.Select(material =>
+                    (producer.ProducerOrganisationId, material.MaterialCode, material.InputKilograms)
+                )
+            )
+            .Should()
+            .BeEquivalentTo(
+                new[]
+                {
+                    (directId, "PL", 10_000L),
+                    (directId, "WD", 20_000L),
+                    (directSubsidiaryId, "PL", 30_000L),
+                    (directSubsidiaryId, "WD", 40_000L),
+                    (memberId, "PL", 50_000L),
+                    (memberId, "WD", 60_000L),
+                    (memberSubsidiaryId, "PL", 70_000L),
+                    (memberSubsidiaryId, "WD", 80_000L),
+                }
+            );
     }
 
-    private static ProducerPackaging Producer(Guid id) =>
+    private static ProducerPackaging Producer(Guid id, long plastic, long wood) =>
         ProducerPackagingFixture
             .Default()
             .With(x => x.ProducerOrganisationId, id)
             .With(
                 x => x.Materials,
-                [new() { MaterialCode = "PL", Kilograms = 10_000 }, new() { MaterialCode = "WD", Kilograms = 20_000 }]
+                [new() { MaterialCode = "PL", Kilograms = plastic }, new() { MaterialCode = "WD", Kilograms = wood }]
             )
             .Create();
 
