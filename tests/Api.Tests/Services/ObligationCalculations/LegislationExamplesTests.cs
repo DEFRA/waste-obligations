@@ -8,13 +8,13 @@ using Microsoft.Extensions.Time.Testing;
 
 namespace Defra.WasteObligations.Api.Tests.Services.ObligationCalculations;
 
-// Independent examples: docs/adr/0022-recycling-calculation-evidence.md.
+// Legislation examples: docs/adr/0022-recycling-calculation-evidence.md.
 // The calculator accepts already-selected totals. Previous-year selection, exemptions,
 // eligibility and reusable packaging (C04, C05, C12 and C15) need upstream inputs.
 // Partial-year and group responsibility cases (C09–C11) belong to future work.
 // Schedule 5 does not specify output rounding; EA guidance rounds obligations up.
-// The 2026 application of that guidance, group aggregation and partial-year rules
-// need confirmation. C06 and C14 are covered in ObligationCalculatorTests.
+// The 2026 application of that guidance and partial-year rules need confirmation.
+// C06 and C14 are covered in ObligationCalculatorTests.
 public class LegislationExamplesTests(ApiWebApplicationFactory factory) : IClassFixture<ApiWebApplicationFactory>
 {
     private static readonly Guid SubmitterId = Guid.Parse("11111111-1111-1111-1111-111111111111");
@@ -102,6 +102,7 @@ public class LegislationExamplesTests(ApiWebApplicationFactory factory) : IClass
             .Be(114);
     }
 
+    // Legacy parity examples: docs/obicalc-rebuild-parity-test-plan.md, E2E-02 (full year), FY-08, FY-10 and FY-11.
     [Fact]
     public void DirectRegistrant_HoldingAndSubsidiary_CalculateEachMaterialSeparately()
     {

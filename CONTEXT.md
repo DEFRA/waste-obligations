@@ -8,7 +8,7 @@ Use the language below across code, tests and discussions. The linked sources de
 
 **Organisation**: The business record to which this service relates obligations, declarations and PRNs. `organisationId` identifies that record, including when it represents a compliance scheme. See the [identity contract](docs/adr/0021-waste-organisations-record-identity.md). _Avoid_: Account organisation ID or declaration ID as interchangeable names.
 
-**Direct producer**: A producer registered directly rather than through a compliance scheme. The registration type is `DirectProducer`; the calculation submitter type is `DirectRegistrant`. See the [registration mapping](src/Api/Services/OrganisationEligibility/Mappers.cs) and [submitter types](src/Api/Data/Entities/ObligationSubmitterType.cs).
+**Direct producer**: A large producer registered directly rather than through a compliance scheme. The registration type is `DirectProducer`; the calculation submitter type is `DirectRegistrant`. See the [registration mapping](src/Api/Services/OrganisationEligibility/Mappers.cs) and [submitter types](src/Api/Data/Entities/ObligationSubmitterType.cs).
 
 **Compliance scheme**: An organisation registered to report for its members. A **scheme operator** is the organisation operating the scheme; the two have distinct identities. See the [identity contract](docs/adr/0021-waste-organisations-record-identity.md) and [recipient resolution](src/Api/Services/CancellationEmailRecipientResolver.cs).
 
@@ -40,9 +40,9 @@ Use the language below across code, tests and discussions. The linked sources de
 
 **Submitted, Accepted and Cancelled declaration**: The declaration lifecycle states. “Pending” is a presentation label for `Submitted`, not a separate state. Qualify “accepted” because accepting a declaration and accepting a PRN are separate actions. “Unsubmitted” is not a declaration state. See the [declaration lifecycle](src/Api/Data/Entities/ComplianceDeclaration.cs) and [view mapping](docs/unsubmitted-compliance-declarations-design.md).
 
-**Unsubmitted organisation**: An organisation with no Submitted or Accepted declaration for its obligation year and registration type; a Cancelled declaration does not suppress it. The unsubmitted view additionally requires registered status and a resolved reference number. See [eligibility visibility](src/Api/Services/UnsubmittedEligibilityVisibilityService.cs).
+**Unsubmitted organisation**: An eligible organisation with no Submitted or Accepted declaration for its obligation year and registration type; a Cancelled declaration does not suppress it. The unsubmitted view additionally requires registered status and a resolved reference number. See [eligibility visibility](src/Api/Services/UnsubmittedEligibilityVisibilityService.cs).
 
-**Obligation coverage percentage**: The rounded, equally weighted average of coverage for materials with status data, rather than a ratio of overall tonnages. See the [coverage decision](docs/adr/0006-derived-obligation-coverage.md) and [calculator](src/Api/Data/Entities/ObligationCoveragePercentageCalculator.cs).
+**Obligation coverage percentage**: The rounded, equally weighted average of coverage for materials with status data, capped at 99 when any material is `NotMet`. It is not a ratio of overall tonnages. See the [coverage decision](docs/adr/0006-derived-obligation-coverage.md) and [calculator](src/Api/Data/Entities/ObligationCoveragePercentageCalculator.cs).
 
 **Recycling obligations met**: The aggregate assessment used for unsubmitted organisations: false if any material is `NotMet`, otherwise true if any is `Met`, otherwise unknown. See the [summary mapping](src/Api/Services/OrganisationObligations/OrganisationObligationSummaryMapper.cs).
 

@@ -42,7 +42,7 @@ public class PackagingCalculationTests : IntegrationTestBase
             SubmitterType = ObligationSubmitterType.ComplianceScheme,
             Producers = [Producer(member1, 21_000), Producer(member2, 21_000), Producer(memberSubsidiary, 21_000)],
         };
-        var source = Source(direct, scheme);
+        var source = SourceForYear(2024, direct, scheme);
         var instruction = ObligationCalculationInstructionFixture.Default().With(x => x.ObligationYear, 2025).Create();
 
         await Processor(source).Process(instruction, TestContext.Current.CancellationToken);
@@ -505,11 +505,12 @@ public class PackagingCalculationTests : IntegrationTestBase
     private static MongoDbContext Context() =>
         new(GetMongoApplicationDatabase(), Options.Create(new MongoDbOptions()), NullLogger<MongoDbContext>.Instance);
 
-    private static IWastePackagingService Source(params ApprovedSubmission[] items)
+    private static IWastePackagingService Source(params ApprovedSubmission[] items) => SourceForYear(2025, items);
+
+    private static IWastePackagingService SourceForYear(int packagingYear, params ApprovedSubmission[] items)
     {
         var source = Substitute.For<IWastePackagingService>();
-        source.Read(2024, Arg.Any<CancellationToken>()).Returns(new PackagingResponse { Items = items });
-        source.Read(2025, Arg.Any<CancellationToken>()).Returns(new PackagingResponse { Items = items });
+        source.Read(packagingYear, Arg.Any<CancellationToken>()).Returns(new PackagingResponse { Items = items });
 
         return source;
     }
