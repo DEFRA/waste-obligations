@@ -39,6 +39,93 @@ public class StartObligationCalculationTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task AdminInstruction_MultipleSubmittersAndProducers_PreservesGroupingThroughPackagingHttp()
+    {
+        const int obligationYear = 2026;
+        var directId = Guid.NewGuid();
+        var directSubsidiaryId = Guid.NewGuid();
+        var schemeId = Guid.NewGuid();
+        var memberId = Guid.NewGuid();
+        var memberSubsidiaryId = Guid.NewGuid();
+        var response = new PackagingResponse
+        {
+            Items =
+            [
+                ApprovedSubmissionFixture
+                    .Default()
+                    .With(x => x.SubmitterOrganisationId, directId)
+                    .With(x => x.SubmitterType, ObligationSubmitterType.DirectRegistrant)
+                    .With(x => x.Producers, [Producer(directId), Producer(directSubsidiaryId)])
+                    .Create(),
+                ApprovedSubmissionFixture
+                    .Default()
+                    .With(x => x.SubmitterOrganisationId, schemeId)
+                    .With(x => x.SubmitterType, ObligationSubmitterType.ComplianceScheme)
+                    .With(x => x.Producers, [Producer(memberId), Producer(memberSubsidiaryId)])
+                    .Create(),
+            ],
+        };
+        await WireMockContext.WireMockAdminApi.StubWastePackagingRequest(2025, response, traceId: TraceId);
+
+        using var client = CreateClient(ClientType.ScheduledJobs);
+        client.DefaultRequestHeaders.Add(TraceHeaderName, TraceId);
+        var result = await client.PostAsync(
+            Testing.Endpoints.Admin.ObligationCalculations(
+                EndpointQuery.New.Where(EndpointFilter.ObligationYear(obligationYear))
+            ),
+            null,
+            TestContext.Current.CancellationToken
+        );
+        result.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var body = JsonDocument.Parse(
+            await result.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)
+        );
+        var instructionId = ObjectId.Parse(body.RootElement.GetProperty("id").GetString());
+        await WaitForAsync(
+            async () =>
+            {
+                var instruction = await ScheduledJobObligationCalculationInstructions
+                    .Find(x => x.Id == instructionId)
+                    .SingleAsync(TestContext.Current.CancellationToken);
+                instruction.Status.Should().Be(ObligationCalculationInstructionStatus.Completed);
+            },
+            30,
+            TimeSpan.FromMilliseconds(200)
+        );
+
+        var calculations = await ScheduledJobObligationCalculations
+            .Find(x => x.ObligationYear == obligationYear)
+            .ToListAsync(TestContext.Current.CancellationToken);
+        calculations.Select(x => x.SubmitterOrganisationId).Should().BeEquivalentTo(new[] { directId, schemeId });
+        var direct = calculations.Single(x => x.SubmitterOrganisationId == directId);
+        direct.SubmitterType.Should().Be(ObligationSubmitterType.DirectRegistrant);
+        direct
+            .Producers.Select(x => x.ProducerOrganisationId)
+            .Should()
+            .BeEquivalentTo(new[] { directId, directSubsidiaryId });
+        var scheme = calculations.Single(x => x.SubmitterOrganisationId == schemeId);
+        scheme.SubmitterType.Should().Be(ObligationSubmitterType.ComplianceScheme);
+        scheme
+            .Producers.Select(x => x.ProducerOrganisationId)
+            .Should()
+            .BeEquivalentTo(new[] { memberId, memberSubsidiaryId });
+        foreach (var producer in calculations.SelectMany(x => x.Producers))
+        {
+            producer.Materials.Select(x => x.MaterialCode).Should().BeEquivalentTo("PL", "WD");
+        }
+    }
+
+    private static ProducerPackaging Producer(Guid id) =>
+        ProducerPackagingFixture
+            .Default()
+            .With(x => x.ProducerOrganisationId, id)
+            .With(
+                x => x.Materials,
+                [new() { MaterialCode = "PL", Kilograms = 10_000 }, new() { MaterialCode = "WD", Kilograms = 20_000 }]
+            )
+            .Create();
+
+    [Fact]
     public async Task AdminInstruction_ShouldPersistCalculationThroughComposeService()
     {
         const int obligationYear = 2026;
