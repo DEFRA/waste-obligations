@@ -19,6 +19,7 @@ public class LegislationExamplesTests(ApiWebApplicationFactory factory) : IClass
 {
     private static readonly Guid SubmitterId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid OtherProducerId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+    private static readonly Guid SchemeMemberId = Guid.Parse("77777777-7777-7777-7777-777777777777");
 
     [Fact]
     public void Calculate_MixedMaterialsIn2026_AppliesTargetsAndKeepsRemeltWithinGlassTotal()
@@ -54,14 +55,14 @@ public class LegislationExamplesTests(ApiWebApplicationFactory factory) : IClass
         {
             SubmitterOrganisationId = SubmitterId,
             SubmitterType = ObligationSubmitterType.ComplianceScheme,
-            Producers = [Producer(SubmitterId, ("PL", 100_000)), Producer(OtherProducerId, ("PL", 100_000))],
+            Producers = [Producer(SchemeMemberId, ("PL", 100_000)), Producer(OtherProducerId, ("PL", 100_000))],
         };
 
         var producers = Calculator().Calculate(submission, 2026).Producers;
 
         producers.Should().HaveCount(2);
         producers
-            .Single(x => x.ProducerOrganisationId == SubmitterId)
+            .Single(x => x.ProducerOrganisationId == SchemeMemberId)
             .Materials.Single()
             .ObligationTonnes.Should()
             .Be(57);
@@ -219,7 +220,7 @@ public class LegislationExamplesTests(ApiWebApplicationFactory factory) : IClass
         {
             SubmitterOrganisationId = SubmitterId,
             SubmitterType = ObligationSubmitterType.ComplianceScheme,
-            Producers = [Producer(SubmitterId, ("PL", 1_490)), Producer(OtherProducerId, ("PL", 1_490))],
+            Producers = [Producer(SchemeMemberId, ("PL", 1_490)), Producer(OtherProducerId, ("PL", 1_490))],
         };
 
         var producers = Calculator().Calculate(submission, 2026).Producers;
