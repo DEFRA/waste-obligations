@@ -144,6 +144,10 @@ public class LegislationExamplesTests(ApiWebApplicationFactory factory) : IClass
     [InlineData(ObligationSubmitterType.ComplianceScheme)]
     public void MultipleProducers_RoundIndividuallyAndKeepZeroDistinctFromMissing(ObligationSubmitterType type)
     {
+        var firstId =
+            type == ObligationSubmitterType.DirectRegistrant
+                ? SubmitterId
+                : Guid.Parse("55555555-5555-5555-5555-555555555555");
         var thirdId = Guid.Parse("33333333-3333-3333-3333-333333333333");
         var fourthId = Guid.Parse("44444444-4444-4444-4444-444444444444");
         var submission = new ApprovedSubmission
@@ -152,7 +156,7 @@ public class LegislationExamplesTests(ApiWebApplicationFactory factory) : IClass
             SubmitterType = type,
             Producers =
             [
-                Producer(SubmitterId, ("PL", 21_000)),
+                Producer(firstId, ("PL", 21_000)),
                 Producer(OtherProducerId, ("PL", 21_000)),
                 Producer(thirdId, ("PL", 21_000)),
                 Producer(fourthId, ("PL", 0)),
@@ -166,8 +170,8 @@ public class LegislationExamplesTests(ApiWebApplicationFactory factory) : IClass
         result
             .Producers.Select(x => x.ProducerOrganisationId)
             .Should()
-            .BeEquivalentTo(new[] { SubmitterId, OtherProducerId, thirdId, fourthId });
-        foreach (var id in new[] { SubmitterId, OtherProducerId, thirdId })
+            .BeEquivalentTo(new[] { firstId, OtherProducerId, thirdId, fourthId });
+        foreach (var id in new[] { firstId, OtherProducerId, thirdId })
         {
             var material = result
                 .Producers.Single(x => x.ProducerOrganisationId == id)

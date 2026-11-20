@@ -26,56 +26,70 @@ public class PackagingCalculationTests : IntegrationTestBase
     public async Task Process_MultipleSubmittersWithMultipleProducers_SavesOnlyTheirOwnResults()
     {
         var schemeId = Guid.Parse("22222222-2222-2222-2222-222222222222");
-        var holdingId = Guid.Parse("33333333-3333-3333-3333-333333333333");
-        var subsidiaryId = Guid.Parse("44444444-4444-4444-4444-444444444444");
-        var memberId = Guid.Parse("55555555-5555-5555-5555-555555555555");
-        var memberSubsidiaryId = Guid.Parse("66666666-6666-6666-6666-666666666666");
-        var direct = ApprovedSubmissionFixture
-            .Default()
-            .With(x => x.SubmitterOrganisationId, SubmitterId)
-            .With(x => x.SubmitterType, ObligationSubmitterType.DirectRegistrant)
-            .With(x => x.Producers, [Producer(holdingId, 40_000), Producer(subsidiaryId, 70_000)])
-            .Create();
-        var scheme = ApprovedSubmissionFixture
-            .Default()
-            .With(x => x.SubmitterOrganisationId, schemeId)
-            .With(x => x.SubmitterType, ObligationSubmitterType.ComplianceScheme)
-            .With(x => x.Producers, [Producer(memberId, 21_000), Producer(memberSubsidiaryId, 21_000)])
-            .Create();
+        var subsidiaryId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+        var member1 = Guid.Parse("44444444-4444-4444-4444-444444444444");
+        var member2 = Guid.Parse("55555555-5555-5555-5555-555555555555");
+        var memberSubsidiary = Guid.Parse("66666666-6666-6666-6666-666666666666");
+        var direct = new ApprovedSubmission
+        {
+            SubmitterOrganisationId = SubmitterId,
+            SubmitterType = ObligationSubmitterType.DirectRegistrant,
+            Producers = [Producer(SubmitterId, 40_000, 40_000), Producer(subsidiaryId, 70_000, 70_000)],
+        };
+        var scheme = new ApprovedSubmission
+        {
+            SubmitterOrganisationId = schemeId,
+            SubmitterType = ObligationSubmitterType.ComplianceScheme,
+            Producers = [Producer(member1, 21_000), Producer(member2, 21_000), Producer(memberSubsidiary, 21_000)],
+        };
+        var source = Source(direct, scheme);
+        var instruction = ObligationCalculationInstructionFixture.Default().With(x => x.ObligationYear, 2025).Create();
 
-        await Processor(Source(direct, scheme))
-            .Process(ObligationCalculationInstructionFixture.Default().Create(), TestContext.Current.CancellationToken);
+        await Processor(source).Process(instruction, TestContext.Current.CancellationToken);
 
-        var savedDirect = await Read(SubmitterId);
-        var savedScheme = await Read(schemeId);
+        await source.Received(1).Read(2024, TestContext.Current.CancellationToken);
+        var savedDirect = await Read(SubmitterId, 2025);
+        var savedScheme = await Read(schemeId, 2025);
         savedDirect.SubmitterType.Should().Be(ObligationSubmitterType.DirectRegistrant);
         savedScheme.SubmitterType.Should().Be(ObligationSubmitterType.ComplianceScheme);
         savedDirect
             .Producers.Select(x => x.ProducerOrganisationId)
             .Should()
-            .BeEquivalentTo(new[] { holdingId, subsidiaryId });
+            .BeEquivalentTo(new[] { SubmitterId, subsidiaryId });
         savedScheme
             .Producers.Select(x => x.ProducerOrganisationId)
             .Should()
-            .BeEquivalentTo(new[] { memberId, memberSubsidiaryId });
+            .BeEquivalentTo(new[] { member1, member2, memberSubsidiary });
         savedDirect
-            .Producers.Single(x => x.ProducerOrganisationId == holdingId)
-            .Materials.Single()
-            .ObligationTonnes.Should()
-            .Be(23);
+            .Producers.Single(x => x.ProducerOrganisationId == SubmitterId)
+            .Materials.Select(x => (x.MaterialCode, x.ObligationTonnes))
+            .Should()
+            .BeEquivalentTo(new[] { ("PL", 22L), ("GL", 7L), ("GR", 23L) });
         savedDirect
             .Producers.Single(x => x.ProducerOrganisationId == subsidiaryId)
-            .Materials.Single()
-            .ObligationTonnes.Should()
-            .Be(40);
-        savedScheme.Producers.Should().OnlyContain(x => x.Materials.Single().ObligationTonnes == 12);
+            .Materials.Select(x => (x.MaterialCode, x.ObligationTonnes))
+            .Should()
+            .BeEquivalentTo(new[] { ("PL", 39L), ("GL", 13L), ("GR", 39L) });
+        foreach (var producer in savedScheme.Producers)
+        {
+            var material = producer.Materials.Should().ContainSingle().Which;
+            material.MaterialCode.Should().Be("PL");
+            material.ObligationTonnes.Should().Be(12);
+        }
+        savedScheme.Producers.SelectMany(x => x.Materials).Sum(x => x.ObligationTonnes).Should().Be(36);
     }
 
-    private static ProducerPackaging Producer(Guid id, long kilograms) =>
+    private static ProducerPackaging Producer(Guid id, long plastic, long? glass = null) =>
         new()
         {
             ProducerOrganisationId = id,
-            Materials = [new() { MaterialCode = ObligationMaterials.Plastic, Kilograms = kilograms }],
+            Materials = glass is null
+                ? [new() { MaterialCode = "PL", Kilograms = plastic }]
+                :
+                [
+                    new() { MaterialCode = "PL", Kilograms = plastic },
+                    new() { MaterialCode = "GL", Kilograms = glass.Value },
+                ],
         };
 
     [Theory]
@@ -452,9 +466,9 @@ public class PackagingCalculationTests : IntegrationTestBase
         _logger.Entries.Should().NotContain(x => x.Level == LogLevel.Error);
     }
 
-    private Task<ObligationCalculation> Read(Guid id) =>
+    private Task<ObligationCalculation> Read(Guid id, int year = 2026) =>
         ObligationCalculations
-            .Find(x => x.SubmitterOrganisationId == id && x.ObligationYear == 2026)
+            .Find(x => x.SubmitterOrganisationId == id && x.ObligationYear == year)
             .SingleAsync(TestContext.Current.CancellationToken);
 
     private ObligationCalculationProcessor Processor(
@@ -468,7 +482,16 @@ public class PackagingCalculationTests : IntegrationTestBase
                 Options.Create(
                     new ObligationCalculationOptions
                     {
-                        Targets = new() { [2026] = new() { [ObligationMaterials.Plastic] = 0.57 } },
+                        Targets = new()
+                        {
+                            [2025] = new()
+                            {
+                                ["PL"] = 0.55,
+                                ["GL"] = 0.74,
+                                ["GR"] = 0.75,
+                            },
+                            [2026] = new() { [ObligationMaterials.Plastic] = 0.57 },
+                        },
                     }
                 ),
                 TimeProvider.System
@@ -485,6 +508,7 @@ public class PackagingCalculationTests : IntegrationTestBase
     private static IWastePackagingService Source(params ApprovedSubmission[] items)
     {
         var source = Substitute.For<IWastePackagingService>();
+        source.Read(2024, Arg.Any<CancellationToken>()).Returns(new PackagingResponse { Items = items });
         source.Read(2025, Arg.Any<CancellationToken>()).Returns(new PackagingResponse { Items = items });
 
         return source;
