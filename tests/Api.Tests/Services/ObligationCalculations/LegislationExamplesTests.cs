@@ -8,17 +8,18 @@ using Microsoft.Extensions.Time.Testing;
 
 namespace Defra.WasteObligations.Api.Tests.Services.ObligationCalculations;
 
-// Independent examples: docs/adr/0022-recycling-calculation-evidence.md.
+// Legislation examples: docs/adr/0022-recycling-calculation-evidence.md.
 // The calculator accepts already-selected totals. Previous-year selection, exemptions,
 // eligibility and reusable packaging (C04, C05, C12 and C15) need upstream inputs.
 // Partial-year and group responsibility cases (C09–C11) belong to future work.
 // Schedule 5 does not specify output rounding; EA guidance rounds obligations up.
-// The 2026 application of that guidance, group aggregation and partial-year rules
-// need confirmation. C06 and C14 are covered in ObligationCalculatorTests.
+// The 2026 application of that guidance and partial-year rules need confirmation.
+// C06 and C14 are covered in ObligationCalculatorTests.
 public class LegislationExamplesTests(ApiWebApplicationFactory factory) : IClassFixture<ApiWebApplicationFactory>
 {
     private static readonly Guid SubmitterId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid OtherProducerId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+    private static readonly Guid SchemeMemberId = Guid.Parse("77777777-7777-7777-7777-777777777777");
 
     [Fact]
     public void Calculate_MixedMaterialsIn2026_AppliesTargetsAndKeepsRemeltWithinGlassTotal()
@@ -54,14 +55,14 @@ public class LegislationExamplesTests(ApiWebApplicationFactory factory) : IClass
         {
             SubmitterOrganisationId = SubmitterId,
             SubmitterType = ObligationSubmitterType.ComplianceScheme,
-            Producers = [Producer(SubmitterId, ("PL", 100_000)), Producer(OtherProducerId, ("PL", 100_000))],
+            Producers = [Producer(SchemeMemberId, ("PL", 100_000)), Producer(OtherProducerId, ("PL", 100_000))],
         };
 
         var producers = Calculator().Calculate(submission, 2026).Producers;
 
         producers.Should().HaveCount(2);
         producers
-            .Single(x => x.ProducerOrganisationId == SubmitterId)
+            .Single(x => x.ProducerOrganisationId == SchemeMemberId)
             .Materials.Single()
             .ObligationTonnes.Should()
             .Be(57);
@@ -101,6 +102,97 @@ public class LegislationExamplesTests(ApiWebApplicationFactory factory) : IClass
             .Be(114);
     }
 
+    // Legacy parity examples: docs/obicalc-rebuild-parity-test-plan.md, E2E-02 (full year), FY-08, FY-10 and FY-11.
+    [Fact]
+    public void DirectRegistrant_HoldingAndSubsidiary_CalculateEachMaterialSeparately()
+    {
+        var submission = new ApprovedSubmission
+        {
+            SubmitterOrganisationId = SubmitterId,
+            SubmitterType = ObligationSubmitterType.DirectRegistrant,
+            Producers =
+            [
+                Producer(SubmitterId, ("PL", 40_000), ("GL", 40_000)),
+                Producer(OtherProducerId, ("PL", 70_000), ("GL", 70_000)),
+            ],
+        };
+
+        var result = Calculator().Calculate(submission, 2025);
+
+        result.SubmitterOrganisationId.Should().Be(SubmitterId);
+        result.SubmitterType.Should().Be(ObligationSubmitterType.DirectRegistrant);
+        result
+            .Producers.Select(x => x.ProducerOrganisationId)
+            .Should()
+            .BeEquivalentTo(new[] { SubmitterId, OtherProducerId });
+        var holding = result.Producers.Single(x => x.ProducerOrganisationId == SubmitterId).Materials;
+        var subsidiary = result.Producers.Single(x => x.ProducerOrganisationId == OtherProducerId).Materials;
+        holding
+            .Select(x => (x.MaterialCode, x.ObligationTonnes))
+            .Should()
+            .BeEquivalentTo(new[] { ("PL", 22L), ("GL", 7L), ("GR", 23L) });
+        subsidiary
+            .Select(x => (x.MaterialCode, x.ObligationTonnes))
+            .Should()
+            .BeEquivalentTo(new[] { ("PL", 39L), ("GL", 13L), ("GR", 39L) });
+        var materials = result.Producers.SelectMany(x => x.Materials).ToArray();
+        materials.Where(x => x.MaterialCode == "PL").Sum(x => x.ObligationTonnes).Should().Be(61);
+        materials.Where(x => x.MaterialCode == "GL").Sum(x => x.ObligationTonnes).Should().Be(20);
+        materials.Where(x => x.MaterialCode == "GR").Sum(x => x.ObligationTonnes).Should().Be(62);
+    }
+
+    [Theory]
+    [InlineData(ObligationSubmitterType.DirectRegistrant)]
+    [InlineData(ObligationSubmitterType.ComplianceScheme)]
+    public void MultipleProducers_RoundIndividuallyAndKeepZeroDistinctFromMissing(ObligationSubmitterType type)
+    {
+        var firstId =
+            type == ObligationSubmitterType.DirectRegistrant
+                ? SubmitterId
+                : Guid.Parse("55555555-5555-5555-5555-555555555555");
+        var thirdId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+        var fourthId = Guid.Parse("44444444-4444-4444-4444-444444444444");
+        var submission = new ApprovedSubmission
+        {
+            SubmitterOrganisationId = SubmitterId,
+            SubmitterType = type,
+            Producers =
+            [
+                Producer(firstId, ("PL", 21_000)),
+                Producer(OtherProducerId, ("PL", 21_000)),
+                Producer(thirdId, ("PL", 21_000)),
+                Producer(fourthId, ("PL", 0)),
+            ],
+        };
+
+        var result = Calculator().Calculate(submission, 2025);
+
+        result.SubmitterOrganisationId.Should().Be(SubmitterId);
+        result.SubmitterType.Should().Be(type);
+        result
+            .Producers.Select(x => x.ProducerOrganisationId)
+            .Should()
+            .BeEquivalentTo(new[] { firstId, OtherProducerId, thirdId, fourthId });
+        foreach (var id in new[] { firstId, OtherProducerId, thirdId })
+        {
+            var material = result
+                .Producers.Single(x => x.ProducerOrganisationId == id)
+                .Materials.Should()
+                .ContainSingle()
+                .Which;
+            material.MaterialCode.Should().Be("PL");
+            material.ObligationTonnes.Should().Be(12);
+        }
+        var zero = result
+            .Producers.Single(x => x.ProducerOrganisationId == fourthId)
+            .Materials.Should()
+            .ContainSingle()
+            .Which;
+        zero.MaterialCode.Should().Be("PL");
+        zero.ObligationTonnes.Should().Be(0);
+        result.Producers.SelectMany(x => x.Materials).Sum(x => x.ObligationTonnes).Should().Be(36);
+    }
+
     [Fact]
     public void C03_OneTonnePerMaterial_RoundsEachObligationUp()
     {
@@ -129,7 +221,7 @@ public class LegislationExamplesTests(ApiWebApplicationFactory factory) : IClass
         {
             SubmitterOrganisationId = SubmitterId,
             SubmitterType = ObligationSubmitterType.ComplianceScheme,
-            Producers = [Producer(SubmitterId, ("PL", 1_490)), Producer(OtherProducerId, ("PL", 1_490))],
+            Producers = [Producer(SchemeMemberId, ("PL", 1_490)), Producer(OtherProducerId, ("PL", 1_490))],
         };
 
         var producers = Calculator().Calculate(submission, 2026).Producers;

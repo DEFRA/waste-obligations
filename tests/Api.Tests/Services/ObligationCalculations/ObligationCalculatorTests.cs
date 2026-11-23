@@ -68,9 +68,11 @@ public class ObligationCalculatorTests(ApiWebApplicationFactory factory) : IClas
 
     [Theory]
     [InlineData(0, 0, 0)]
+    [InlineData(500, 1, 1)]
     [InlineData(1499, 1, 1)]
     [InlineData(1500, 2, 2)]
     [InlineData(1501, 2, 2)]
+    [InlineData(2500, 3, 2)]
     [InlineData(long.MaxValue, 9223372036854776, 5072854620270127)]
     public void Kilograms_ShouldRoundBeforeApplyingTarget(long kilograms, long tonnes, long obligation)
     {
