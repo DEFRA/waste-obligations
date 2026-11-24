@@ -20,13 +20,16 @@ public static class Mappers
             Status = obligation.Status,
         };
 
-    public static Dtos.Prn ToDto(this PrnData prn) =>
-        new()
+    public static Dtos.Prn ToDto(this PrnData prn)
+    {
+        var status = MapStatus(prn.PrnStatus);
+
+        return new()
         {
             Id = Required(prn.ExternalId, nameof(prn.ExternalId)).ToString("D"),
             Number = Required(prn.PrnNumber, nameof(prn.PrnNumber)),
             Type = prn.IsExport ? PrnType.Pern : PrnType.Prn,
-            Status = MapStatus(prn.PrnStatus),
+            Status = status,
             IssuedAt = ToUtcDateTimeOffset(Required(prn.IssueDate, nameof(prn.IssueDate))),
             ObligationYear = ParseYear(prn.ObligationYear, nameof(prn.ObligationYear)),
             AccreditationYear = ParseYear(prn.AccreditationYear, nameof(prn.AccreditationYear)),
@@ -56,11 +59,19 @@ public static class Mappers
             {
                 CreatedAt = ToUtcDateTimeOffset(Required(prn.CreatedOn, nameof(prn.CreatedOn))),
                 UpdatedAt = ToUtcDateTimeOffset(Required(prn.LastUpdatedDate, nameof(prn.LastUpdatedDate))),
-                AcceptedAt = null,
-                RejectedAt = null,
-                CancelledAt = null,
+                AcceptedAt = StatusChangedAt(prn, status, PrnStatus.Accepted),
+                RejectedAt = StatusChangedAt(prn, status, PrnStatus.Rejected),
+                CancelledAt = StatusChangedAt(prn, status, PrnStatus.Cancelled),
             },
         };
+    }
+
+    // The source keeps only the time of the latest status change. That is the time of
+    // the acceptance, rejection or cancellation once the PRN is in that status.
+    private static DateTimeOffset? StatusChangedAt(PrnData prn, string currentStatus, string status) =>
+        currentStatus == status && prn.StatusUpdatedOn is { } statusUpdatedOn
+            ? ToUtcDateTimeOffset(statusUpdatedOn)
+            : null;
 
     public static DateTimeOffset ToUtcDateTimeOffset(DateTime value)
     {
