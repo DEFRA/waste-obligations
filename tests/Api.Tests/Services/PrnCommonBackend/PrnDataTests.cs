@@ -44,6 +44,8 @@ public class PrnDataTests
         var result = payload.Deserialize<PrnData>();
 
         result.Should().NotBeNull();
-        result.StatusUpdatedOn.Should().Be(new DateTime(2026, 11, 20, 17, 28, 17, 715, DateTimeKind.Unspecified).AddTicks(5444));
+        result
+            .StatusUpdatedOn.Should()
+            .Be(new DateTime(2026, 11, 20, 17, 28, 17, 715, DateTimeKind.Unspecified).AddTicks(5444));
     }
 }
