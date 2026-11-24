@@ -34,6 +34,7 @@ public static class PrnDataFixture
             .With(x => x.ObligationYear, "2025")
             .With(x => x.CreatedOn, new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc))
             .With(x => x.LastUpdatedDate, new DateTime(2026, 1, 15, 10, 5, 0, DateTimeKind.Utc))
+            .With(x => x.StatusUpdatedOn, new DateTime(2026, 1, 15, 10, 4, 0, DateTimeKind.Utc))
             .With(x => x.IsExport, false);
     }
 }

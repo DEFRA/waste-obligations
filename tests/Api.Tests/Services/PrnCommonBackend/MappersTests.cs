@@ -87,6 +87,60 @@ public class MappersTests
         PrnDataFixture.Default().With(x => x.PrnStatus, source).Create().ToDto().Status.Should().Be(expected);
     }
 
+    [Theory]
+    [InlineData("ACCEPTED", true, false, false)]
+    [InlineData("REJECTED", false, true, false)]
+    [InlineData("CANCELLED", false, false, true)]
+    [InlineData("CANCELED", false, false, true)]
+    [InlineData("AWAITINGACCEPTANCE", false, false, false)]
+    public void ToDto_ShouldMapStatusUpdatedOnToTheEventOfTheCurrentStatusOnly(
+        string source,
+        bool accepted,
+        bool rejected,
+        bool cancelled
+    )
+    {
+        var statusUpdatedOn = new DateTimeOffset(2026, 1, 15, 10, 4, 0, TimeSpan.Zero);
+
+        var audit = PrnDataFixture.Default().With(x => x.PrnStatus, source).Create().ToDto().Audit;
+
+        audit.AcceptedAt.Should().Be(accepted ? statusUpdatedOn : null);
+        audit.RejectedAt.Should().Be(rejected ? statusUpdatedOn : null);
+        audit.CancelledAt.Should().Be(cancelled ? statusUpdatedOn : null);
+    }
+
+    [Fact]
+    public void ToDto_WhenStatusUpdatedOnMissing_ShouldMapNoEventTimes()
+    {
+        var audit = PrnDataFixture
+            .Default()
+            .With(x => x.PrnStatus, "ACCEPTED")
+            .With(x => x.StatusUpdatedOn, (DateTime?)null)
+            .Create()
+            .ToDto()
+            .Audit;
+
+        audit.AcceptedAt.Should().BeNull();
+        audit.RejectedAt.Should().BeNull();
+        audit.CancelledAt.Should().BeNull();
+    }
+
+    [Fact]
+    public void ToDto_WhenStatusUpdatedOnHasNoKind_ShouldTreatItAsUtc()
+    {
+        var statusUpdatedOn = new DateTime(2026, 2, 3, 4, 5, 6, DateTimeKind.Unspecified);
+
+        var audit = PrnDataFixture
+            .Default()
+            .With(x => x.PrnStatus, "ACCEPTED")
+            .With(x => x.StatusUpdatedOn, statusUpdatedOn)
+            .Create()
+            .ToDto()
+            .Audit;
+
+        audit.AcceptedAt.Should().Be(new DateTimeOffset(2026, 2, 3, 4, 5, 6, TimeSpan.Zero));
+    }
+
     [Fact]
     public void ToDto_WhenStatusUnknown_ShouldThrow()
     {

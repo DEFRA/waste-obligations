@@ -67,6 +67,9 @@ public record PrnData
     [JsonPropertyName("lastUpdatedDate")]
     public required DateTime LastUpdatedDate { get; init; }
 
+    [JsonPropertyName("statusUpdatedOn")]
+    public DateTime? StatusUpdatedOn { get; init; }
+
     [JsonPropertyName("isExport")]
     public required bool IsExport { get; init; }
 }
